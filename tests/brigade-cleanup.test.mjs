@@ -96,12 +96,14 @@ const engineFs = {
 };
 
 // The runner the module is handed: real `git` by name from the test's own
-// PATH and folder, a fake `gh`, every call recorded.
-function runner(gh = () => ({ exitCode: 0, stdout: '[]' })) {
+// PATH and folder, a fake `gh`, every call recorded. `fail` picks git calls
+// that fail instead, with git-shaped error text.
+function runner(gh = () => ({ exitCode: 0, stdout: '[]' }), fail = () => false) {
   const calls = [];
   const run = async (argv, init) => {
     calls.push({ argv: [...argv], init: { ...init } });
     if (argv[0] === 'gh') return { stderr: '', isStdoutTruncated: false, ...gh(argv, init) };
+    if (fail(argv)) return { exitCode: 128, stdout: '', stderr: 'fatal: a private failure', isStdoutTruncated: false };
     const r = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8', env: { ...process.env, ...GIT_ENV, ...(init?.env ?? {}) }, timeout: init?.timeoutMs });
     return { exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '', isStdoutTruncated: false };
   };
@@ -145,7 +147,7 @@ test('the name-back gives the facts of the reads, and no command but the archive
   const text = await call(f, hooks, r, memory, 'name-back');
   assert.match(text, /acme\/widget/);
   assert.match(text, /branch: feat/);
-  assert.match(text, new RegExp(`commit on no remote: ${f.tip.slice(0, 7)}`));
+  assert.match(text, new RegExp(`commit on no remote: ${f.tip.slice(0, 7)}[0-9a-f]{0,5}\n`));
   assert.match(text, /default branch: main/);
   assert.match(text, /merged into the default branch: no/);
   assert.match(text, /merged pull request at its tip: none/);
@@ -234,7 +236,7 @@ test('a worktree with submodules gets the submodule lines and the loss list', as
   const text = await call(f, hooks, r, memory, 'name-back');
   assert.match(text, /submodules: 1 populated/);
   assert.match(text, /work inside the submodules: 1 file\(s\): loose\.txt/);
-  assert.match(text, /commit in a submodule on no remote: [0-9a-f]{7,}/);
+  assert.match(text, /commit in a submodule on no remote: [0-9a-f]{7,12}\n/);
   assert.match(text, /stash in a submodule: stash@\{0\}/);
   assert.match(text, /a forced remove deletes each submodule's own git folder/);
   assert.doesNotMatch(text, /outside this worktree|unused submodule git folder/);
@@ -249,6 +251,8 @@ test('a worktree with submodules gets the submodule lines and the loss list', as
   fs.writeFileSync(path.join(mod, 'late.txt'), 'l\n');
   const again = await call(f, hooks, r, memory, 're-read');
   assert.match(again, /changed since the name-back: [^\n]*submodules/);
+  assert.match(again, /work inside the submodules: 2 file\(s\)\n/);
+  assert.ok(!again.includes('late.txt'), 'the re-read names no file inside a submodule');
   assert.equal(commandLines(again).length, 0);
 });
 
@@ -288,6 +292,17 @@ test('a read that fails gives not checked, never git or gh text', async () => {
   assert.match(text, /merged into the default branch: not checked/);
   assert.match(text, /merged pull request at its tip: not checked/);
   assert.doesNotMatch(text, /fatal|error|usage|HTTP|private message/i);
+
+  // The folder in place, and only the work and submodule reads failing.
+  const g = fixture();
+  withSubmodule(g);
+  const r2 = runner(undefined, argv => argv.includes('status') && !argv.includes('stash'));
+  const memory2 = await bound(g, hooks, r2);
+  const text2 = await call(g, hooks, r2, memory2, 'name-back');
+  assert.match(text2, /uncommitted or untracked work: not checked/);
+  assert.match(text2, /submodules: not checked/);
+  assert.match(text2, /stash entries: none/);
+  assert.doesNotMatch(text2, /fatal|private failure/i);
 });
 
 // --- claim 19: the flags, the hooks folder and the program ---------------------
@@ -327,6 +342,7 @@ test('every git call is a read with the four flags and the checked hooks folder,
     assert.ok(c.argv[0] === 'git' || c.argv[0] === 'gh', `program: ${c.argv[0]}`);
     assert.equal(c.init.cwd, undefined, 'no working folder is passed');
     if (c.argv[0] !== 'git') continue;
+    assert.deepEqual(c.init.env, { GIT_NO_LAZY_FETCH: '1' });
     assert.deepEqual(c.argv.slice(1, 8), [...FLAGS, '-c', `core.hooksPath=${hooks}`]);
     const rest = c.argv.slice(8);
     const sub = rest[0] === '-C' ? rest.slice(2) : rest;
@@ -588,6 +604,53 @@ test('a filter driver in the repository\'s own config stops the work reads, and 
   assert.ok(fs.readdirSync(marks).includes('filter'), 'the control run started the filter');
 });
 
+test('a filter driver in a submodule\'s own config stops the work reads before any status, and no command is built', async () => {
+  const f = fixture();
+  const mod = withSubmodule(f);
+  const marks = tmp();
+  const filter = path.join(f.root, 'filter.sh');
+  fs.writeFileSync(filter, `#!/bin/sh\necho ran > '${path.join(marks, 'filter')}'\ncat\n`);
+  fs.chmodSync(filter, 0o755);
+  git(mod, 'config', 'filter.planted.clean', filter);
+  fs.writeFileSync(path.join(mod, '.gitattributes'), '*.txt filter=planted\n');
+  // The same size and a new time, so git must hash the file, through the filter.
+  fs.writeFileSync(path.join(mod, 's.txt'), 't\n');
+  const later = new Date(Date.now() + 60000);
+  fs.utimesSync(path.join(mod, 's.txt'), later, later);
+  const hooks = hooksFolder();
+  const r = runner();
+  const memory = await bound(f, hooks, r);
+  const text = await call(f, hooks, r, memory, 'name-back');
+  assert.match(text, /not checked: a filter driver is set/);
+  assert.equal(commandLines(text).length, 0);
+  assert.deepEqual(fs.readdirSync(marks), [], 'the filter did not run');
+  // The superproject's own status runs the submodule's filter, so the check
+  // above can fail.
+  spawnSync('git', ['-C', f.wt, 'status', '--porcelain', '--ignore-submodules=none'], { env: { ...process.env, ...GIT_ENV } });
+  assert.ok(fs.readdirSync(marks).includes('filter'), 'the control run started the filter');
+});
+
+test('a repository with no GitHub name that sits in a home folder is not named by its folder', async () => {
+  const root = tmp();
+  const repo = path.join(root, 'home', 'alice');
+  fs.mkdirSync(repo, { recursive: true });
+  git(repo, 'init', '-q', '-b', 'main');
+  git(repo, 'config', 'user.email', 'fixture@example.invalid');
+  git(repo, 'config', 'user.name', 'Fixture');
+  fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
+  git(repo, 'add', 'a.txt');
+  git(repo, 'commit', '-q', '-m', 'one');
+  const wt = path.join(root, 'wt');
+  git(repo, 'worktree', 'add', '-q', '-b', 'feat', wt);
+  const hooks = hooksFolder();
+  const r = runner();
+  const t = await bindTarget(card, [row(wt)], io(hooks, r));
+  const memory = { targets: new Map([[DESKTOP, t]]), nameBacks: new Map() };
+  const text = await runCleanup({ titles: ['build-1'], step: 'name-back' }, { cards: [card], rows: [row(wt)], ...memory, io: io(hooks, r) });
+  assert.match(text, /repository: a repository with no GitHub name/);
+  assert.doesNotMatch(text, /repository: alice/);
+});
+
 test('a background session gets claude stop at the name-back and claude rm at the re-read', async () => {
   const f = fixture();
   const hooks = hooksFolder();
@@ -598,6 +661,7 @@ test('a background session gets claude stop at the name-back and claude rm at th
   const mem = { targets: new Map([['0123abcd', t]]), nameBacks: new Map() };
   const first = await runCleanup({ titles: ['bg-1'], step: 'name-back' }, { cards: [bgCard], rows, ...mem, io: io(hooks, r) });
   assert.match(first, /archive it: claude stop 0123abcd/);
+  assert.ok(first.indexOf('archive it') > first.indexOf('End of the cleanup data.'), 'the archive step sits after the data');
   // `claude stop` takes the session's file away: the re-read expects that.
   const second = await runCleanup({ titles: ['bg-1'], step: 're-read' }, { cards: [bgCard], rows: [], ...mem, io: io(hooks, r) });
   assert.equal(commandLines(second)[0].trim(), 'run: claude rm 0123abcd');

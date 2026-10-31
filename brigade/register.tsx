@@ -1857,7 +1857,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // stays the reader for changes made elsewhere.
     await update($, roster, () => value)
     await update($, rosterError, () => '')
-    await bindJoined($, at, value.cards).catch(() => undefined)
+    await bindJoined($, at, value.cards, previous?.cards ?? []).catch(() => undefined)
     return { result: `Roster kept: ${value.cards.length} card(s), ${value.todos.length} to-do(s).` }
   })
 }
@@ -2653,8 +2653,10 @@ const cleanupTargets = new Map<string, Target>()
 const cleanupNameBacks: NameBacks = new Map()
 let hooksMade = 0
 let bindHooks: string | undefined
-// The ids whose one bind try has run, bound or not.
+// The ids whose one bind try has run, bound or not, and whether this
+// module's first set_roster call has marked the roster it found.
 const bindTried = new Set<string>()
+let bindStarted = false
 let cleaning: Promise<unknown> = Promise.resolve()
 function cleanupTurn<T>(work: () => Promise<T>): Promise<T> {
   const run = cleaning.then(work, work)
@@ -2694,7 +2696,18 @@ function cleanupIo($: EngineInterface, hooks: string, gh: boolean): CleanupIo {
 // such a file at or after the card joins (the lead's q2 pick, narrowed in
 // Test round 1 to one try). A bound card is never read again, so a folder or
 // branch that moves later reads differently at cleanup. Never fails the call.
-async function bindJoined($: EngineInterface, at: Where, cards: readonly Card[]) {
+async function bindJoined($: EngineInterface, at: Where, cards: readonly Card[], before: readonly Card[]) {
+  // The first call in this module's life counts every card the roster file
+  // already held as tried: a card that joined before a reload stays not bound
+  // to its session, and is never read again from where its folder points now
+  // (Test round 2 on issue 454, adversarial-lens F2).
+  if (!bindStarted) {
+    bindStarted = true
+    for (const c of before) {
+      const own = cardId(c)
+      if (own !== undefined) bindTried.add(own.id)
+    }
+  }
   // A name-back whose card left the roster is dropped. A target is kept: a
   // card that leaves and comes back is never read again, so a folder or
   // branch that moved meanwhile still reads differently at cleanup.

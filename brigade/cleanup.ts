@@ -253,26 +253,35 @@ type Facts = {
 }
 
 // A filter driver's program runs when `status` reads a changed file, and none
-// of the four flags stops it. A session can write one into its repository's
-// own config (local or worktree scope), so such a repository's work reads do
-// not run, and its item gets no command. The owner's own settings (global or
-// system scope) are the owner's, and a config read runs no program.
-const LOCAL_FILTER = /^(?:local|worktree)\tfilter\..+\.(?:clean|smudge|process)$/i
+// of the four flags stops it; the superproject's `status` runs one inside each
+// populated submodule too. A session can write a filter into its
+// repository's own config, or a submodule's (local or worktree scope), so
+// every config is checked before any `status` runs, and a hit, or a check
+// that fails, means no work read and no command. Any `filter.` key counts,
+// an empty driver name included. Global and system settings stay as they
+// are: a writer there already reaches every git call the owner runs. A
+// config read runs no program.
+const LOCAL_FILTER = /^(?:local|worktree)\tfilter\./i
 const CONFIG_KEYS = 'config --show-scope --list --name-only'
 const filterIn = (out: string | undefined): boolean => out === undefined || nonEmptyLines(out).some(l => LOCAL_FILTER.test(l))
 
+// One read inside every populated submodule, through `submodule foreach`. The
+// inner command is fixed text, run by git's own shell: the hooks folder
+// enters it in single quotes, and only in the command path set; any other
+// folder gives a failed read.
+function eachSubmodule(io: CleanupIo, cwd: string, rest: string): Promise<string | undefined> {
+  if (!commandPath(io.hooks)) return Promise.resolve(undefined)
+  const inner = `git --no-optional-locks -c core.fsmonitor=false -c log.showSignature=false -c 'core.hooksPath=${io.hooks}' ${rest}`
+  return git(io, ['-C', cwd, 'submodule', 'foreach', '--quiet', '--recursive', inner])
+}
+
 // The submodule reads, for a worktree that holds populated submodules.
-async function submoduleReads(io: CleanupIo, cwd: string): Promise<Facts['submodules'] | 'filter'> {
+async function submoduleReads(io: CleanupIo, cwd: string): Promise<Facts['submodules']> {
   const status = await git(io, ['-C', cwd, 'submodule', 'status', '--recursive'])
   if (status === undefined) return undefined
   const populated = nonEmptyLines(status).filter(l => !l.startsWith('-')).length
   if (populated === 0) return 'none'
-  // The inner commands are fixed text, run by git's own shell: the hooks
-  // folder enters them in single quotes, and only in the command path set.
-  if (!commandPath(io.hooks)) return undefined
-  const inner = (rest: string) => `git --no-optional-locks -c core.fsmonitor=false -c log.showSignature=false -c 'core.hooksPath=${io.hooks}' ${rest}`
-  const each = (rest: string) => git(io, ['-C', cwd, 'submodule', 'foreach', '--quiet', '--recursive', inner(rest)])
-  if (filterIn(await each(CONFIG_KEYS))) return 'filter'
+  const each = (rest: string) => eachSubmodule(io, cwd, rest)
   const own = await git(io, ['-C', cwd, 'rev-parse', '--absolute-git-dir'])
   const dirs = await each('rev-parse --absolute-git-dir')
   const work = await each('status --porcelain --untracked-files=normal --ignore-submodules=none')
@@ -332,18 +341,15 @@ async function readFacts(io: CleanupIo, t: Target, branch: string, rows: readonl
   }
   const main = facts.main
   if (facts.worktree !== undefined) {
-    facts.filter = filterIn(await git(io, ['-C', t.cwd, ...CONFIG_KEYS.split(' ')]))
+    // Every config, the submodules' included, before any `status`.
+    facts.filter = filterIn(await git(io, ['-C', t.cwd, ...CONFIG_KEYS.split(' ')])) || filterIn(await eachSubmodule(io, t.cwd, CONFIG_KEYS))
     if (!facts.filter) {
       const status = await git(io, ['-C', t.cwd, 'status', '--porcelain', '-z', '--untracked-files=normal', '--ignore-submodules=none'])
       if (status !== undefined) facts.work = statusNames(status)
     }
     const stash = await git(io, ['-C', t.cwd, 'stash', 'list', '--format=%gd'])
     if (stash !== undefined) facts.stash = nonEmptyLines(stash).map(s => oneLine(s, 40))
-    if (!facts.filter) {
-      const sub = await submoduleReads(io, t.cwd)
-      if (sub === 'filter') facts.filter = true
-      else facts.submodules = sub
-    }
+    if (!facts.filter) facts.submodules = await submoduleReads(io, t.cwd)
   }
   if (main !== undefined) {
     const tip = await git(io, ['-C', main, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])
