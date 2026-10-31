@@ -6022,15 +6022,16 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision, the two hand-off tools and read_autonomy are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools, read_autonomy and read_cleanup are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
-  // Each of the four is offered at each site, so the counts move together.
+  // Each of the five is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
     expect(count('set_lead_handoff')).toBe(n)
     expect(count('read_lead_handoff')).toBe(n)
     expect(count('read_autonomy')).toBe(n)
+    expect(count('read_cleanup')).toBe(n)
     return n
   }
   await start($)

@@ -650,9 +650,9 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   // The catch handler answers as caughtAnswer says; a pass or a replay on the
   // mod's own tools answers the tool's own refusal.
   const caught = src.slice(src.indexOf('async function scanCaught'), src.indexOf('function registerScan('));
-  assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : \(own \?\? next\(e\)\)/);
-  // The tool's own catch and the scan's answer the same refusal.
-  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT', 'HANDOFF_CAUGHT']) assert.ok(src.includes(`}).catch(() => ${own})`), own);
+  assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : own !== undefined \? \{ \.\.\.own \} : next\(e\)/);
+  // The tool's own catch and the scan's answer the same refusal, each a fresh copy.
+  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT', 'HANDOFF_CAUGHT']) assert.ok(src.includes(`}).catch(() => ({ ...${own} }))`), own);
   // ... from the setting it read: "on" once armed, else a bounded read settled
   // by what this session has seen.
   assert.ok(caught.includes("const setting = next.called || armed ? 'on' : await readScan($)"));

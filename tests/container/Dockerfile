@@ -21,14 +21,16 @@ RUN apt-get update \
 # `npm pack` and `tar` and no install, so no package script runs. The pins
 # move together; docs/security/scanners.md says how to bump them. The fetch is
 # at build time: athanor runs the commands with no network. The mod's tests,
-# `claude plugin test .`, are not run here: they need a Windows host.
+# `claude plugin test .`, are not run here: they need a Windows host. The
+# folder goes last on PATH, so nothing in the package can stand in for the
+# image's own sh, node or git.
 RUN mkdir -p /opt/claude \
  && cd /opt/claude \
  && npm pack --ignore-scripts @anthropic-ai/claude-code-linux-x64@2.1.314 \
  && tar -xzf anthropic-ai-claude-code-linux-x64-2.1.314.tgz \
  && rm anthropic-ai-claude-code-linux-x64-2.1.314.tgz \
  && npm cache clean --force
-ENV PATH="/opt/claude/package:$PATH" \
+ENV PATH="$PATH:/opt/claude/package" \
     DISABLE_AUTOUPDATER=1 \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 

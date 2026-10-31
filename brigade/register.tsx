@@ -3051,11 +3051,12 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
 // `next(e)` reaches the engine's own refusal, never the tool's. The engine
 // counts the tool's hook against this one's budget and, in this handler, does
 // not count the call to it in `next.called`, so an overrun of the tool lands
-// here as the scan's.
+// here as the scan's. Each answer is a fresh copy, so no hook that edits one
+// changes the next.
 async function scanCaught<E extends { tool_use_id: string }, R>($: EngineInterface, e: E, next: ((e: E) => Promise<R>) & { called: boolean }, own?: { deny: string }) {
   const armed = scanning.delete(e.tool_use_id)
   const setting = next.called || armed ? 'on' : await readScan($)
-  return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : (own ?? next(e))
+  return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : own !== undefined ? { ...own } : next(e)
 }
 
 // The refusals the mod's own three written tools answer when their hook
@@ -3266,7 +3267,7 @@ export const register: Register = on => {
       const why = `error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`
       return progress.written ? failedAfterWrite(why) : refuse(why)
     }
-  }).catch(() => ROSTER_CAUGHT)
+  }).catch(() => ({ ...ROSTER_CAUGHT }))
 
   // log_decision, answered here and nowhere beneath, as set_roster is. A throw
   // becomes a refusal with no engine message.
@@ -3277,7 +3278,7 @@ export const register: Register = on => {
     } catch {
       return progress.written ? failedAfterLog() : refuseLog('error: the tool failed')
     }
-  }).catch(() => LOG_CAUGHT)
+  }).catch(() => ({ ...LOG_CAUGHT }))
 
   // The two hand-off tools, answered here and nowhere beneath, as
   // log_decision is. A throw becomes a refusal with no engine message.
@@ -3288,7 +3289,7 @@ export const register: Register = on => {
     } catch {
       return progress.written ? failedAfterHandoff() : refuseSet('error: the tool failed')
     }
-  }).catch(() => HANDOFF_CAUGHT)
+  }).catch(() => ({ ...HANDOFF_CAUGHT }))
   on('tool.call', { tool: READ_HANDOFF_NAME }, async ($, e, next) => {
     try {
       return await readLeadHandoff($, e as unknown as Record<string, unknown>, next.signal)
