@@ -52,8 +52,8 @@ or type `/brigade` to open it.
 
 - **Starts sessions.** Each one is a Desktop session under the lead by default, with its
   name, model and effort set. The model and effort come from your words or
-  your own process. Its start prompt is one short pointer: the stage and the
-  issue, which holds the brief, and how to report to the lead.
+  your own process. Its start prompt is one sentence pair: the issue, which
+  holds the brief, and the lead to send questions and reports to.
 - **Offers a background session when Desktop refuses.** Desktop's start tool
   refuses a start you type from the phone over Remote Control. The head chef
   then says so in one line and offers to start the session in the background
