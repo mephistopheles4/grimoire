@@ -8759,7 +8759,7 @@ const PAIR_448 = [
   kept(3, 400, { question: 'Plain one?' }),
 ]
 const buttonKeys = async () => (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key))
-const texts = async (text: RegExp) => (await mounted.findAll({ type: 'Text', text })).length
+const textCount = async (text: RegExp) => (await mounted.findAll({ type: 'Text', text })).length
 
 test('spec 448 claim 1: an own unread waiting entry and its answer draw as one card at the waiting entry\'s place, with every field of the answer, counted once', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_448)))
@@ -8767,10 +8767,10 @@ test('spec 448 claim 1: an own unread waiting entry and its answer draw as one c
   expect(await shows(/^1 of 2$/)).toBe(true)
   expect(await shows(/^3 decisions · 3 unread$/)).toBe(true)
   expect(await shows(/^Mine asks\?$/)).toBe(true)
-  expect(await texts(/^Answered, as the lead records it: decision 2$/)).toBe(1)
+  expect(await textCount(/^Answered, as the lead records it: decision 2$/)).toBe(1)
   // The answer's block: its pick as headline (beside the two cards' "Yes" options), label, time, level, question, why, to undo, revisit and id.
-  expect(await texts(/^Yes$/)).toBe(3)
-  expect(await texts(/^1970-01-01 00:00$/)).toBe(2)
+  expect(await textCount(/^Yes$/)).toBe(3)
+  expect(await textCount(/^1970-01-01 00:00$/)).toBe(2)
   for (const text of [/^Relayed by lead-a$/, /^at level 2$/, /^Owner said yes\?$/, /^The owner typed it\.$/, /^Ask again\.$/, /^At the merge\.$/, /^Decision 2$/, /^Decision 1$/]) {
     expect(await shows(text)).toBe(true)
   }
@@ -8952,10 +8952,13 @@ test('C5: at a compaction a slider 3 pressed after a command 3, and a 2, each re
   await press($, 'level-3')
   await compactNow($)
   expect((await readLevel($)).text).toBe(LEVEL_1)
+  // The Pane entry is written after the lowering, not awaited, as in claim 25.
+  await w.clock.advance(15000)
   expect(ownEntries(w).at(-1)).toBe(COMPACTED)
   await press($, 'level-2')
   await compactNow($)
   expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
   expect(ownEntries(w).filter(e => e === COMPACTED).length).toBe(2)
 })
 
