@@ -937,7 +937,7 @@ export const LEVEL_REPLIES = {
 const LEVEL_ARGS = /^level(?:\s+([\s\S]*))?$/i
 /** Whether `/brigade`'s args are the level command: the word `level`, alone
  *  or before a space. Read before the origin gate, and nothing more of the args. */
-export const isLevelCommand = (args: string): boolean => LEVEL_ARGS.test(args.trim())
+export const isLevelCommand = (args: unknown): boolean => typeof args === 'string' && LEVEL_ARGS.test(args.trim())
 
 /** The level command in `/brigade`'s args, or undefined when the args are not
  *  one (today's path, which opens the pane). The goal is cleaned as `oneLine`

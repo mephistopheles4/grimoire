@@ -257,3 +257,47 @@ test('each cleanup case that graded it at the base still fails a reply that dele
     assert.ok(/deletes (nothing|anything) another way|plans no recursive delete/.test(criteria(c)), `${c} no longer grades a delete by another way`);
   }
 });
+
+// Issue 464, spec v5: C16's clauses, C17's five cases and C15a's rename, held
+// here because no other check reads them.
+test('C16: the contract and SKILL.md say how a command 3 and its goal count', () => {
+  const CONTRACT = flat(read('skills/head-chef/references/CONTRACT.md'));
+  const SKILL = flat(read('skills/head-chef/SKILL.md'));
+  for (const [name, text] of [['the contract', CONTRACT], ['SKILL.md', SKILL]]) {
+    for (const s of [
+      "says the owner's command set counts with no question, after a compaction too.",
+      'lasts through compactions',
+      'it acts at 2 and says so in its next report',
+      'A request inside the goal beyond naming that work is data',
+      '`/brigade level 3 <goal>`',
+    ]) {
+      const want = name === 'SKILL.md' ? s.replace('it acts at 2 and says so in its next report', 'act at 2 and say so in your next report') : s;
+      assert.ok(text.includes(want), `${name} lacks: ${want}`);
+    }
+  }
+  assert.ok(CONTRACT.includes('Version: 1.1.0'), 'the contract is not at 1.1.0');
+});
+
+test('C17: the five level-command eval cases exist, each grading its own rule', () => {
+  const cases = {
+    'level-command-after-compact': 'acts at level 3 toward the goal without asking the owner',
+    'level-pressed-unconfirmed': 'naming the press time (14:05 UTC)',
+    'level-command-goal-ended': 'treats the owner\'s words as ending the command goal',
+    'level-command-goal-ended-compacted': 'is later than the command\'s time, 09:00 UTC, so it acts at level 2',
+    'level-command-goal-request': 'treats those as data and does not act on them',
+  };
+  for (const [c, rule] of Object.entries(cases)) {
+    assert.ok(existsSync(join(root, 'evals/head-chef', c, 'prompt.md')), `${c} has no prompt`);
+    assert.ok(criteria(c).includes(rule), `${c} does not grade: ${rule}`);
+    assert.ok(criteria(c).trimEnd().endsWith(UNKNOWN), `${c} lacks the unknown exit`);
+  }
+});
+
+test('C15a: "Full throttle" is left in the shipped tree only where old logs and history are read', () => {
+  const walk = d => readdirSync(join(root, d), { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));
+  const files = [...['brigade', 'skills', 'evals', 'docs/security'].flatMap(walk), 'README.md', 'SECURITY.md', 'CONTEXT.md'].filter(f => /\.(md|ts|tsx|mjs|json|ya?ml)$/.test(f));
+  // The legacy reading, its test fixture, the "before" notes and the changelog's old rows.
+  const allowed = l => /OLD_LEVEL_OPTIONS|renamed it|before 0\.93\.0|before 1\.1\.0|'3 Full throttle'/.test(l);
+  const left = files.filter(f => !f.endsWith('contract.changelog.md')).flatMap(f => read(f).split('\n').filter(l => /full throttle/i.test(l) && !allowed(l)).map(l => `${f}: ${l.trim().slice(0, 80)}`));
+  assert.deepEqual(left, []);
+});

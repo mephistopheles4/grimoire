@@ -1270,6 +1270,7 @@ test('C3: the grammar takes level 1, level 2 and level 3 with a goal, and refuse
     assert.equal(isLevelCommand(args), false, args);
   }
   for (const args of ['level', ' LEVEL 3 x', 'level 9']) assert.equal(isLevelCommand(args), true, args);
+  for (const bad of [undefined, null, 3, ['level 3']]) assert.equal(isLevelCommand(bad), false, String(bad));
   for (const args of ['level', 'level 4', 'level 0', 'level three', 'level 1 now', 'level 2 issue 464', 'level -1', 'level 3x goal']) {
     assert.deepEqual(parseLevelCommand(args), { refused: LEVEL_REPLIES.usage }, args);
   }

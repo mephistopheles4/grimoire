@@ -418,13 +418,16 @@ effort's branch, and of branches based on it, until the owner answers.
 **Since 0.93.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
-owner's Enter or a Remote Control message, so another plugin's own run of the
-command, and one the engine stamps as anything else, set nothing; that a hook
-cannot change the stamp is not yet measured. A 3 it sets is confirmed, with
+owner's Enter or a Remote Control message, so a run the engine stamps as
+anything else sets nothing. Whether another plugin can run the command with
+the owner's stamp, or a hook can change the stamp, is not yet measured; until
+it is, that path sits in the class the owner accepted for plugins that forge a
+confirmation (E35a in the threat model). A 3 it sets is confirmed, with
 its goal, which is cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, an alarm, a
-reload, a clear, a resume, or a read under another session id ends it. The
+reload, a clear or a resume the engine reports, or a read under another
+session id ends it. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
 it takes no input, answers the level in force, a 3 with the time of its press,
 skips the permission prompt, refuses a subagent's call and every verdict
@@ -492,8 +495,9 @@ and Desktop only. What follows from it:
   level command set it, and list what still waits for the owner at level 3.
   Since 0.93.0 a plugin that hooks command runs, and possibly one that hooks
   prompt submits, can turn a `/brigade` the owner types into a level command
-  with a goal of its own, which lasts through compactions; the command's
-  reply shows the goal as it landed.
+  with a goal of its own, which lasts through compactions. The slider box
+  and the band show a command 3 as it landed; the command's reply is no
+  check, since a plugin that rewrote the command can rewrite its reply too.
 - **Where the level is copied:** each answer of `read_autonomy`,
   `log_decision` and `set_lead_handoff` names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay

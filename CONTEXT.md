@@ -19,7 +19,8 @@ _Avoid_: idle ping, heartbeat, poll
 
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
-or 3 Full throttle. Only the owner sets it.
+or 3 Turbo mode (Full throttle before 0.93.0). Only the owner sets it: by a
+press of the slider, or with the `/brigade level` command.
 _Avoid_: auto mode, autonomy switch
 
 **Decision log**:
