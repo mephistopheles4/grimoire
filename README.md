@@ -203,7 +203,7 @@ session is only counted. Earlier sessions' logs stay on
 disk, unshown, and you can delete them by hand; the pane still reads the 20
 newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's
-heading, marks everything under To review read in one write, since 0.95.0
+heading, marks everything under To review read in one write, since 0.98.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
 and every ended session's line. It leaves out only what your search hides,
 and a press marks nothing if the set changed since you looked, or if your
@@ -221,7 +221,7 @@ entries, or unread questions such an entry answers, To review shows one dim
 line instead of their cards: "From an ended session", the time of its newest
 such entry, up to three of the work names its entries give, how many are
 and how many are unread; from 0.90.0 to 0.94.0 it also had its own "✓ Mark
-these N read", which Mark all read replaces since 0.95.0. Its other questions and alarms
+these N read", which Mark all read replaces since 0.98.0. Its other questions and alarms
 keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
@@ -276,7 +276,7 @@ time of its press and a Dismiss, which hides it until the next press of 3, the
 next alarm, or the next compaction or reload. From an alarm's catch, a
 warning line there names the level found and when, until you read the alarm's
 own card in To review or open it in History, or until a reload of the mod or a
-change of session; since 0.95.0 Mark all read marks the alarm read but leaves
+change of session; since 0.98.0 Mark all read marks the alarm read but leaves
 the line up. Both lines show on the terminal and Desktop only: the mobile app,
 claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
 older than 0.88.0, its Decisions tab leaves out a compaction's Pane entry and
@@ -464,6 +464,14 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
+- **Brigade's outbound scan**, since 0.95.0, is off until you type
+  `/brigade scan on`, and `/brigade scan off` turns it off again; the setting
+  is one value in the plugin's store, for every session on the machine. While
+  it is on, it reads the text of each `gh` post, `git` commit or tag message,
+  `SendMessage` message and summary, and Brigade tool call, and any local file
+  such a command names as its body, up to 1 MiB, and refuses the call when the
+  text holds a secret's shape or, on all but `SendMessage`, an email address or
+  a home path. It keeps nothing it reads.
 - **Eight calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file and binds each new card's cleanup target, the
   `log_decision` tool, which appends to the
@@ -481,7 +489,8 @@ What each of Brigade's hooks does with what it sees:
 | --- | --- |
 | `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `read_cleanup` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.95.0, `/brigade scan`, `/brigade scan on` and `/brigade scan off` show or set the outbound scan instead, and set it only when you typed the command. |
+| `tool.call` for `Bash`, `PowerShell`, `SendMessage`, `set_roster`, `log_decision` and `set_lead_handoff` | Since 0.95.0, the outbound scan, registered before the plugin's other hooks. A call it does not match passes on with no other work. With the scan off, a matched call passes on after one read of the setting. With it on, it reads the call's text and body files, refuses a hit in fixed words that never repeat the text, and keeps nothing. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup` and `show_permission_warning` | Answers for the mod's own seven tools, which have no other code behind them. |

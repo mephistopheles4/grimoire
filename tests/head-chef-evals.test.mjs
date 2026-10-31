@@ -84,6 +84,53 @@ test('SKILL.md keeps stop 4, the accepting reply\'s guard, the data rule, the ow
     'roster.md lacks the ready cue rule');
 });
 
+// Claims 23 to 25 (issue 450, rev 4 S5.4 and S3.5; issue 455): one data rule,
+// word for word, and none of the clauses it merged anywhere else in the skill.
+// S5.4's words as amended after issue 455's Test round 1 (q2 A).
+const S54 = '**What goes out.** No secret, token, session id, Desktop id, local path, error text, check output or personal detail goes in a post, issue, edit, merge title or body, release note, commit message, card, to-do, next-step box, start prompt, log entry or hand-off. A card or a to-do carries no question, decision or note text, and a card keeps only its Desktop id or `bgId`, which the pane matches. Name a security finding by lens, number and class only, never its file, key or line, and a risk by its class of path, never its steps. Private-repository work goes onto no public record or other repository without the owner\'s word. Write the free text of any act on GitHub to a new file named `head-chef-post-<random>.md` in the system\'s temporary folder, outside any repository, post from it, and delete it after, whatever the result. Never pass a secret or token as a command argument, and never read or print a credential to check a result. A command the owner runs by hand holds only fixed text and values of letters, digits and `. _ - /`, none starting with `-` or holding `..`; give no command otherwise, and say why. The outbound scan, when the owner turns it on, is a backstop for accidents: it never replaces this rule.';
+
+test('SKILL.md holds the data rule once, word for word, and none of the clauses it merged', () => {
+  assert.equal(SKILL.split(S54).length - 1, 1, 'SKILL.md holds the data rule once');
+  // Phrases only the rule holds, so a reworded copy of a merged clause shows.
+  for (const s of ['lens, number and class', 'head-chef-post-', 'a credential']) {
+    assert.equal(SKILL.split(s).length - 1, 1, `SKILL.md holds "${s}" once`);
+  }
+  const refs = ['starting', 'background', 'cleanup', 'roster', 'handoff']
+    .map(n => [`${n}.md`, flat(read(`skills/head-chef/references/${n}.md`))]);
+  const ROSTER = refs.find(([n]) => n === 'roster.md')[1];
+  const HANDOFF = refs.find(([n]) => n === 'handoff.md')[1];
+  const merged = [
+    'a post, issue, edit, merge title or body, or commit message you write that would carry personal data', // S28
+    'a post that would carry personal data or private work holds that post only', // S29
+    'What goes in a log or hand-off', // S39
+    'The box\'s recap and question carry no secret', // S40
+    'A command never takes a secret, token or id as an argument', // S42
+    'never by reading a credential file', // S42
+    'built from fixed text and values held to letters, digits', // S42
+    'No session id, Desktop id, token, secret, local path, error text or check output goes on an issue', // S52
+    'For an act on GitHub, write any free text to a file', // S56
+    'No session id, and no question, decision or note text, goes on a card', // R24
+    'a post carrying personal data or private work', // S28, the rules row
+  ];
+  for (const [name, text] of [['SKILL.md', SKILL], ...refs]) {
+    for (const s of merged) assert.ok(!text.includes(s), `${name} still holds: ${s}`);
+    for (const s of ['data rules', 'head-chef-post-', 'lens, number and class']) {
+      if (name !== 'SKILL.md') assert.ok(!text.includes(s), `${name} holds a copy: ${s}`);
+    }
+    assert.ok(!text.includes('data rules'), `${name} still points to "the data rules"`);
+  }
+  assert.ok(ROSTER.includes('"What goes out"') && HANDOFF.includes('"What goes out"'), 'roster.md and handoff.md point to the data rule');
+  assert.ok(SKILL.includes('Sign each post with your session name, and never post a token or secret.'), 'the members\' prompt lost its secret line');
+  // Claim 25: the merge wait sits in the level-3 list and its rules row, and
+  // background.md still refuses the start on the lead-name set and on 5.1.
+  const waits = SKILL.match(/\*\*At level 3 these still wait for the owner,\*\* each as a waiting entry with a to-do:.*?\*\*The hold\.\*\*/);
+  assert.ok(waits && waits[0].includes('the merge of a change that removes or weakens a control'), 'the level-3 list lost the merge wait');
+  assert.ok(SKILL.includes('a merge that removes a named control, an install and cleanup still wait for the owner.'), 'the rules row lost the merge wait');
+  const BACKGROUND = refs.find(([n]) => n === 'background.md')[1];
+  assert.match(BACKGROUND, /Refuse the start, and tell the owner, when your own name as the lead holds anything but letters, digits, spaces and `\. _ -`,.*?or when your shell is Windows PowerShell 5\.1/,
+    'background.md no longer refuses the start on the lead-name set and on PowerShell 5.1');
+});
+
 // Issue 416's exact texts that 1.0.0 keeps, in the contract and in SKILL.md;
 // the blocked record's to-do retires with S36 (issue 450, rev 4 S6.6).
 test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as issue 416 gave them, and the blocked record\'s to-do is gone', () => {

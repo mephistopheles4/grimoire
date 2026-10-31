@@ -247,7 +247,7 @@ file past 64 KiB and counts its entries unread). Past a cap the oldest marks
 drop in a fixed order that keeps a live flag for last and never brings back a
 cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
-set is unchanged. Since 0.95.0 (issue 466) it takes everything under To
+set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
 Lead, Relayed, waiting entries and alarms, and every ended session's line;
 before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
@@ -257,7 +257,7 @@ keeps its link and a later answer still pairs with it. The hash is the mod's
 unkeyed SHA-256 of the set's mark keys and protects nothing secret. A mark for
 an entry in a log the pane no longer reads can still drop. "Mark these N
 read" (0.90.0 to 0.94.0, spec 447), an ended session's line's own press with
-key `dmarkended-<n>-<hash>`, is gone since 0.95.0: Mark all read takes its
+key `dmarkended-<n>-<hash>`, is gone since 0.98.0: Mark all read takes its
 entries. Since 0.91.0 (spec 448) a waiting entry of
 the pane's own session's log and the unread Relayed entry that answers it draw
 as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
@@ -266,7 +266,7 @@ time>`, holding no session id. Read, next, Flag and Skip now work out the card
 shown inside the marks queue's turn, and act only when that card is still
 the one shown with the same entries: a press on a card drawn alone never marks
 an answer that arrived after the draw. "✓ Mark N relayed read" (0.91.0 to
-0.94.0, spec 448) is gone since 0.95.0: Mark all read takes its entries. The
+0.94.0, spec 448) is gone since 0.98.0: Mark all read takes its entries. The
 marks one bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,

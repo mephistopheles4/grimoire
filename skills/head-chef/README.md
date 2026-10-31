@@ -105,7 +105,7 @@ or type `/brigade` to open it.
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first. At a level 3 you confirmed, with a goal, it takes these
   acts toward the goal itself and logs each first, except a post or merge
-  text that would carry personal data or private work, and a merge that
+  text that would carry private work, and a merge that
   removes a control the threat model names, which wait for you.
 - **Runs at your level** (since 0.17.0). It reads the Brigade pane's
   autonomy level before each decision it would take alone, and logs each
