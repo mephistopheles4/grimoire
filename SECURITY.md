@@ -553,7 +553,7 @@ sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post,
 except that the start prompt bars a token or secret; on
 the owner's own words in its chat, or at a level 3 the owner confirmed there
-toward the owner's goal, the head chef merges, closes, edits,
+or set with the level command, toward the owner's goal, the head chef merges, closes, edits,
 deletes or labels a record, files an issue or posts a comment; the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
