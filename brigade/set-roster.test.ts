@@ -582,9 +582,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 // log's, the hand-off's two, the level's and cleanup's two: every session
 // offers the first at each start, and warning.test.tsx tests it; the others
 // are offered with set_roster at each of its sites, and the decision log's,
-// hand-off's and slider's tests at the end check that, as
-// tests/brigade-gate.test.mjs does the cleanup gate's. Any other tool offered
-// still shows here.
+// hand-off's and slider's tests at the end check that, as the first
+// lifecycle test below does cleanup's two. Any other tool offered still shows
+// here.
 const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
@@ -666,8 +666,11 @@ test('no tool before /brigade, and the tool after it; the reply names the tool a
   const w = world(on)
   await start($)
   expect(rosterOffers(w)).toEqual([])
+  expect(w.registered.filter(n => n === 'read_cleanup' || n === 'stop_background_session')).toEqual([])
   const reply = await brigade($)
   expect(rosterOffers(w)).toEqual(['set_roster'])
+  // Cleanup's two tools are offered with set_roster (issue 359, spec v5.2 D6).
+  expect(w.registered.filter(n => n === 'read_cleanup' || n === 'stop_background_session')).toEqual(['read_cleanup', 'stop_background_session'])
   // The expected value changed in #213 (spec v3 decision 3 on #212): the
   // reply used to carry "Roster file: <path>". No skill reads that line from
   // head-chef 0.2.0 on, Desktop rendered its path without the backslash

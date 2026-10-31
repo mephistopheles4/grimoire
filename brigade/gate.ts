@@ -53,7 +53,8 @@ export function resolveTitles(
 ): Resolved[] {
   return titles.map(title => {
     const named = cards.filter(c => oneLine(c.title, MAX_TITLE) === title)
-    if (named.length !== 1) return { title, why: 'no card has this title' }
+    if (named.length === 0) return { title, why: 'no card has this title' }
+    if (named.length > 1) return { title, why: 'more than one card has this title' }
     const own = cardId(named[0])
     const t = own === undefined ? undefined : targets.get(own.id)
     if (own === undefined || t === undefined || t.kind !== own.kind) return { title, why: 'not bound to its session' }
@@ -87,11 +88,15 @@ export function takeEntry(window: Window, kind: 'desktop' | 'bg', id: string, no
 }
 
 /** Whether a dispatch came from the engine itself, the model's own call,
- *  rather than from another plugin's `$` call. */
+ *  rather than from another plugin's `$` call. The engine's types name
+ *  `next.origin` as `{ plugin, tier }`, reading `{ plugin: "engine", tier:
+ *  "core" }` for the engine; ADR 0012's A4 measured another plugin's name
+ *  there. The model's own call is measured at the field test (H1). */
 export const fromEngine = (origin: unknown): boolean => isRecord(origin) && origin.plugin === 'engine'
 
-// The engine's own fields on a tool call. Everything else is the model's input.
-const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'consent']
+// The engine's own fields on a tool call, as brigade/scan.ts lists them.
+// Everything else is the model's input.
+const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
 
 /** Whether an archive call passes: the model's own call on the main loop,
  *  with `session_id` and at most a string `reason`, for an open Desktop
