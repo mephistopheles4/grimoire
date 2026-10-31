@@ -105,73 +105,16 @@ test('claim 14: every field refuses hidden and direction-changing characters and
   }
 });
 
-test('claim 14: every field refuses session-id and Desktop-id shaped text, in any case, and keeps ordinary words', () => {
-  for (const t of [SID, `see ${SID.toUpperCase()} now`, 'local_0123abcd-4567-89ab-cdef-0123456789ab', 'open LOCAL_deadbeef please']) {
-    for (const field of ['work', 'question', 'why', 'undo', 'revisit', 'flag']) {
-      const r = checkInput(input({ [field]: t }));
-      assert.ok('error' in r, `${field} ${t}`);
-      assert.match(r.error, /session id or Desktop id/);
-    }
-    assert.ok('error' in checkInput(input({ options: [t, 'b'], pick: t })));
-  }
-  for (const t of ['local_cache', 'a local_ deal', '1111-2222', 'deadbeef']) assert.ok('value' in checkInput(input({ why: t })), t);
-  // The Desktop-id shape the roster knows takes 1 to 80 characters after
-  // local_, and a Remote Control session's link is an id too.
-  for (const t of ['local_a', 'id local_0123abc here', 'https://claude.ai/code/session_ABC123', 'see claude.ai/code/session_x']) {
-    assert.match(checkInput(input({ why: t })).error ?? '', /session id or Desktop id/, t);
-  }
-});
-
-// Beyond S5.2's id shapes, on the owner's word (q3 A on #402's ticket 411,
-// relayed by the lead, 2026-10-26): until the head-chef skill's data rule
-// lands, the mod itself refuses key-shaped values, email addresses and
-// home-folder paths, with fixed words that never echo the value.
-test('every field refuses a key-shaped value, an email address and a home-folder path, naming the shape and never the value', () => {
-  const key = `sk-ant-${'a'.repeat(24)}`;
-  const cases = [
-    [key, /holds text shaped like a key/],
-    [`ghp_${'b'.repeat(36)}`, /holds text shaped like a key/],
-    [`token AKIA${'C'.repeat(16)} here`, /holds text shaped like a key/],
-    ['write to someone@example.org', /holds an email address/],
-    ['see C:\\Users\\someone\\x', /holds a home-folder path/],
-    ['see C:/Users/someone', /holds a home-folder path/],
-    ['in /home/someone/repo', /holds a home-folder path/],
-    ['in /Users/someone/repo', /holds a home-folder path/],
-    ['in /c/Users/someone', /holds a home-folder path/],
-    ['in ~/.claude/plugins', /holds a home-folder path/],
-    ['on \\\\wsl$\\Ubuntu\\home\\someone\\repo', /holds a home-folder path/],
-  ];
+// Issue 486, on the owner's word (decision 348, relayed by the lead): the
+// fields keep no rule for ids, keys, emails or home paths, and refuse control
+// and hidden characters only.
+test('issue 486 claim 4: every log field takes an email, a home path, a key shape and a session id, and still refuses a hidden character', () => {
+  const kept = ['write to someone@example.org', 'see C:\\Users\\someone\\x', `sk-ant-${'a'.repeat(24)}`, `see ${SID}`];
   for (const field of ['work', 'question', 'why', 'undo', 'revisit', 'flag']) {
-    for (const [t, rule] of cases) {
-      const r = checkInput(input({ [field]: t }));
-      assert.match(r.error ?? '', rule, `${field} ${t}`);
-      assert.ok(!r.error.includes(t), 'the refusal never echoes the value');
-    }
+    for (const t of kept) assert.ok('value' in checkInput(input({ [field]: t })), `${field} ${t}`);
+    assert.match(checkInput(input({ [field]: `${kept[0]}\u{200B}` })).error ?? '', new RegExp(`^${field} holds a hidden`));
   }
-  assert.match(checkInput(input({ options: [key, 'b'], pick: key })).error ?? '', /holds text shaped like a key/);
-  for (const t of ['a key decision', 'mail the owner', 'the user@ handle', 'api/Users/42', 'the /users route', 'sk-short']) {
-    assert.ok('value' in checkInput(input({ why: t })), t);
-  }
-});
-
-test('the home shapes are the check\'s own, in scripts/check.mjs, so the copies cannot drift', () => {
-  const src = readFileSync(new URL('../scripts/check.mjs', import.meta.url), 'utf8');
-  const block = /\nconst FIXED = (\[[\s\S]*?\n\]);/.exec(src);
-  assert.ok(block, 'check.mjs still holds FIXED in this shape');
-  const theirs = new Function(`return ${block[1]};`)();
-  // The copy reads a field, not a file's lines, so it drops the check's
-  // \r? before an end; and it adds the backslash spelling of a Linux home.
-  const ours = d.HOME_SHAPES.map(String);
-  assert.deepEqual(ours.slice(0, theirs.length), theirs.map(re => String(re).replaceAll('\\r?$', '$')));
-  assert.deepEqual(ours.slice(theirs.length), [String(/\\home\\[a-z$]/i)]);
-});
-
-test('the key shapes equal the masking the threat model\'s row 14 names, in scripts/practice.mjs, so the copies cannot drift', () => {
-  const src = readFileSync(new URL('../scripts/practice.mjs', import.meta.url), 'utf8');
-  const block = /const START = (String\.raw`[^`]*`);\nconst KEY_SHAPES = (\[[\s\S]*?\n\]);/.exec(src);
-  assert.ok(block, 'practice.mjs still holds START and KEY_SHAPES in this shape');
-  const theirs = new Function(`const START = ${block[1]}; return ${block[2]};`)();
-  assert.deepEqual(d.KEY_SHAPES.map(String), theirs.map(String));
+  assert.ok('value' in checkInput(input({ options: [kept[2], 'b'], pick: kept[2] })));
 });
 
 test('claim 14: options must be distinct after case folding, the pick one of them, or empty for a waiting entry', () => {
@@ -344,7 +287,7 @@ test('claim 5: the strict log check takes only a log of its own kind', () => {
     JSON.stringify({ ...JSON.parse(good), project: 'not-a-digest' }),
     JSON.stringify({ ...JSON.parse(good), entries: [...JSON.parse(good).entries, JSON.parse(good).entries[0]] }),
     JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], level: 4 }] }),
-    JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], why: `a ${SID}` }] }),
+    JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], why: 'a\u{200B}b' }] }),
     // An answer naming a later entry, an entry that does not wait, or one already answered.
     JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], source: 'relayed', answers: '2' }, JSON.parse(good).entries[1]] }),
     JSON.stringify({ ...JSON.parse(good), entries: [JSON.parse(good).entries[0], { ...JSON.parse(good).entries[1], source: 'relayed', answers: '1' }] }),
@@ -673,11 +616,10 @@ const DIGEST = createHash('sha256').update('C--work').digest('hex');
 const OTHER_DIGEST = createHash('sha256').update('C--elsewhere').digest('hex');
 const handoff = (at, project = DIGEST, over = {}) => ({ kind: 'handoff', v: 1, at, project, sections: sections(over) });
 
-test('claim 14: every hand-off line refuses hidden and direction-changing characters, id-shaped text and a line break', () => {
+test('claim 14: every hand-off line refuses hidden and direction-changing characters and a line break', () => {
   assert.deepEqual(checkHandoffInput(sections()).value, sections());
   for (const line of [
     'a\u{202E}b', 'a\u{200F}b', 'a\u{2066}b', 'zero\u{200B}width',
-    `see ${SID}`, 'open local_0123abcd-4567-89ab-cdef-0123456789ab',
     'two\nlines', 'a\u{7}bell', '', 'x'.repeat(301),
   ]) {
     const r = checkHandoffInput(sections({ rules: ['fine', line] }));
@@ -687,21 +629,13 @@ test('claim 14: every hand-off line refuses hidden and direction-changing charac
   assert.ok('value' in checkHandoffInput(sections({ rules: ['x'.repeat(300)] })));
 });
 
-// Issue 450's claim 16: set_lead_handoff refuses key shapes, emails and home
-// paths through the shared text check, whatever the outbound scan's setting.
-test('claim 16 (issue 450): every hand-off line refuses a key shape, an email address and a home path, never echoing the value', () => {
-  for (const [line, rule] of [
-    [`sk-ant-${'a'.repeat(24)}`, /holds text shaped like a key/],
-    ['write to someone@example.org', /holds an email address/],
-    ['see C:\\Users\\someone\\x', /holds a home-folder path/],
-    ['in /home/someone/repo', /holds a home-folder path/],
-  ]) {
-    for (const section of ['resume', 'rules', 'sessions', 'cleanup', 'owner']) {
-      const r = checkHandoffInput(sections({ [section]: ['fine', line] }));
-      assert.match(r.error ?? '', rule, `${section} ${line}`);
-      assert.match(r.error, new RegExp(`^${section} line 2 `));
-      assert.ok(!r.error.includes(line), 'the refusal never echoes the value');
+// Issue 486: a hand-off line takes the same text a log field takes.
+test('issue 486 claim 4: every hand-off line takes an email, a home path, a key shape and a session id, and still refuses a hidden character', () => {
+  for (const section of ['resume', 'rules', 'sessions', 'cleanup', 'owner']) {
+    for (const line of ['write to someone@example.org', 'in /home/someone/repo', `sk-ant-${'a'.repeat(24)}`, `see ${SID}`]) {
+      assert.ok('value' in checkHandoffInput(sections({ [section]: ['fine', line] })), `${section} ${line}`);
     }
+    assert.match(checkHandoffInput(sections({ [section]: ['fine', 'x\u{2066}y'] })).error ?? '', new RegExp(`^${section} line 2 holds a hidden`));
   }
 });
 
@@ -727,7 +661,7 @@ test('claim 5: a hand-off file passes its strict check only in its own shape', (
     { ...handoff(5), at: -1 },
     { ...handoff(5), project: 'C--work' },
     { ...handoff(5), sections: { ...sections(), more: [] } },
-    { ...handoff(5), sections: sections({ owner: [`see ${SID}`] }) },
+    { ...handoff(5), sections: sections({ owner: ['a\u{200B}b'] }) },
   ]) assert.ok('error' in checkHandoff(JSON.stringify(bad)), JSON.stringify(bad).slice(0, 80));
   assert.ok('error' in checkHandoff('{"cards":[],"todos":[]}'));
   assert.ok('error' in checkHandoff('not json'));
@@ -1213,6 +1147,29 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   // Past 500 it takes the first 500, so its key stays in range.
   const many = Array.from({ length: 501 }, (_, i) => ({ sid: SID, writer: 'w', entry: { ...ls[0].log.entries[0], id: String(i + 1), at: NOW + i } }));
   assert.deepEqual(markAllSet(many, []).rows, many.slice(0, 500));
+});
+
+// Issue 486 (decision 382): a review entry stays shown as open until the owner
+// answers it, in the pane session's own log only.
+test('issue 486 claim 5b: Mark all read leaves an own unanswered waiting entry, one Read closes it, and another log\'s waiting entry is taken as today', () => {
+  const ls = pairLogs();
+  const mine = { ...ls[0].log.entries[1], id: '5', at: NOW + 5, work: 'mine still waits' };
+  ls[0].log.entries.push(mine);
+  const v = drawnLogs(ls, SID, new Map());
+  const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
+  const set = markAllSet(cards.shown, [], d.openWaiting(v.review, SID));
+  assert.ok(cards.shown.some(r => r.entry === mine), 'it is under To review');
+  assert.ok(!set.rows.some(r => r.entry === mine), 'Mark all read leaves it');
+  assert.ok(set.rows.some(r => r.sid === SID && r.entry.work === 'mine waits'), 'an answered own waiting entry is taken');
+  assert.ok(set.rows.some(r => r.sid === OTHER && r.entry.waiting && r.entry.work === 'waits'), 'another log\'s unanswered waiting entry is taken');
+  assert.equal(set.n, cards.shown.length - 1);
+  assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
+  const after = new Map(set.rows.map(r => [keyOf(r.sid, r.entry), 'read']));
+  const left = d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []);
+  assert.deepEqual(left.cards.map(c => c.row.entry.work), ['mine still waits']);
+  assert.deepEqual(markAllSet(left.shown, [], d.openWaiting(v.review, SID)), { rows: [], n: 0, hash: '' });
+  after.set(keyOf(SID, mine), 'read');
+  assert.equal(d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []).total, 0);
 });
 
 // --- issue 459: the lead flags its own unsure decisions ------------------------------

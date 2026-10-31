@@ -74,52 +74,13 @@ const bytes = (text: string) => new TextEncoder().encode(text).length
 
 // --- the text rules (S5.2) ----------------------------------------------------
 //
-// Every field refuses a control character other than a line break, each
+// Every field refuses a control character other than a line break and each
 // hidden or direction-changing character the roster's HIDDEN set names, and
-// text in the session-id and Desktop-id shapes. These copies carry no `g`
-// flag: a global pattern's `test` keeps its place between calls.
+// nothing else (issue 486). These copies carry no `g` flag: a global
+// pattern's `test` keeps its place between calls.
 
 const CONTROL = /[\u{0}-\u{9}\u{B}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/u
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}]/u
-// A session id, a Desktop id as the roster takes one (`local_` and 1 to 80
-// hex digits or dashes, ending there), and a Remote Control session's link.
-const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local_[0-9a-f-]{1,80}(?![0-9a-z_])|claude\.ai\/code\/session_[0-9a-z]/i
-// Beyond S5.2, on the owner's word (q3 A, relayed by the lead, 2026-10-26):
-// until the head-chef skill's data rule lands, the mod itself refuses a
-// value shaped like a known key, an email address and a home-folder path.
-// The key shapes are a copy of the masking the threat model's row 14 names,
-// in scripts/practice.mjs, since the mod cannot import a repository script;
-// tests/brigade-decisions.test.mjs holds the two copies equal. The home
-// shapes are the check's own (scripts/check.mjs), from the config folder
-// under a home to Git Bash's, WSL's and Cygwin's spelling of a Windows one,
-// and one more: a Linux home spelled with backslashes, as Windows names a
-// path inside a WSL distribution. A test holds them equal to the check's.
-const START = String.raw`(?:(?<![A-Za-z0-9_])|(?<=\\[nrtbf])|(?<=\\u[0-9A-Fa-f]{4}))`
-export const KEY_SHAPES = [
-  /sk-ant-[A-Za-z0-9_-]{20,}/g,
-  new RegExp(`${START}sk-(?:or-|proj-)?[A-Za-z0-9_-]{20,}`, 'g'),
-  /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}/g,
-  /github_pat_[A-Za-z0-9_]{30,}/g,
-  new RegExp(`${START}(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])`, 'g'),
-  /AIza[0-9A-Za-z_-]{35}/g,
-  /xox[abprs]-[A-Za-z0-9-]{10,}/g,
-  /npm_[A-Za-z0-9]{36}/g,
-  /hf_[A-Za-z0-9]{30,}/g,
-  new RegExp(`${START}eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}`, 'g'),
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-]
-// Copies without the `g` flag, whose `test` keeps no place between calls.
-const KEYS = KEY_SHAPES.map(re => new RegExp(re.source, re.flags.replace('g', '')))
-// Each part bounded, so a long run of text with no @ costs little to test.
-const EMAIL = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,63}/
-export const HOME_SHAPES = [
-  /~\/\.claude/,
-  /\/home\/[a-z$]/i,
-  /(?<![A-Za-z])[A-Za-z](?::|%3A)(?:\\+|\/)Users(?!\w)/i,
-  /(?<![\w.-])\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
-  /(?<![\w.-])(?:\/mnt|\/cygdrive)?\/[A-Za-z]\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
-  /\\home\\[a-z$]/i,
-]
 const ENTRY_ID = /^[1-9][0-9]{0,15}$/
 const DIGEST = /^[0-9a-f]{64}$/
 
@@ -129,10 +90,6 @@ function text(where: string, v: unknown, min: number, max: number): Checked<stri
   if ([...v].length > max) return { error: `${where} is over ${max} characters` }
   if (CONTROL.test(v)) return { error: `${where} holds a control character other than a line break` }
   if (HIDDEN.test(v)) return { error: `${where} holds a hidden or direction-changing character` }
-  if (ID_SHAPED.test(v)) return { error: `${where} holds text shaped like a session id or Desktop id` }
-  if (KEYS.some(re => re.test(v))) return { error: `${where} holds text shaped like a key` }
-  if (EMAIL.test(v)) return { error: `${where} holds an email address` }
-  if (HOME_SHAPES.some(re => re.test(v))) return { error: `${where} holds a home-folder path` }
   return { value: v }
 }
 
@@ -729,14 +686,27 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
   return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
 }
 
+/** The mark keys of this session's own waiting entries that no Relayed
+ *  entry answers (issue 486). Mark all read leaves them, so each stays in To
+ *  review until the owner's answer or a single Read press closes it. */
+export function openWaiting(logs: readonly ReadLog[], sid: string): Set<string> {
+  const out = new Set<string>()
+  for (const l of logs) {
+    if (l.sid !== sid) continue
+    const answered = new Set(l.log.entries.filter(e => e.source === 'relayed' && e.answers !== '').map(e => e.answers))
+    for (const e of l.log.entries) if (e.source === 'lead' && e.waiting && !answered.has(e.id)) out.add(markKey(l.sid, e.id, e.at))
+  }
+  return out
+}
+
 /** The entries Mark all read takes (issue 466): everything under To review,
- *  its shown rows and every ended session's line, of every kind and log, the
- *  first 500 of them, so its key stays in range and a second press takes the
- *  rest. `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
+ *  its shown rows and every ended session's line, of every kind and log, but
+ *  the `open` keys `openWaiting` gives (issue 486), the first 500 of them, so
+ *  its key stays in range and a second press takes the rest. `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
  *  sorted and joined by line breaks: a staleness check on the press, not a
  *  secret. */
-export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[]) {
-  const rows = [...shown, ...lines.flatMap(l => l.rows)].slice(0, MAX_ENTRIES)
+export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[], open: ReadonlySet<string> = new Set()) {
+  const rows = [...shown, ...lines.flatMap(l => l.rows)].filter(r => !open.has(rowKey(r))).slice(0, MAX_ENTRIES)
   if (rows.length === 0) return { rows, n: 0, hash: '' }
   return { rows, n: rows.length, hash: setHash(rows) }
 }
