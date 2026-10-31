@@ -460,8 +460,7 @@ under level 3, relayed the same day.
   recommendation it did not repeat as its own. It confirms a pressed 3 only
   when that last message asked the confirmation naming the press time. It never
   sets or widens a goal, and never counts as cleanup's yes, an install, a
-  post that would carry private work, or an edit to a threat model's scope
-  or the line that names it: each of those needs the owner's words naming
+  post that would carry private work, or an edit to a threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80): each of those needs the owner's words naming
   it. A cleanup name-back stands alone
   in its message. **Confirmed** (Test round 1 on issue 416, q5 A, the lead's decision, adversarial-lens F7 and F8): an
   accepting reply counts only when it did not take a member's report between
@@ -533,8 +532,7 @@ under level 3, relayed the same day.
   2026-10-31). **What still waits for the owner at level 3,** each as a
   waiting entry with a to-do: a post, issue, edit, merge title or body, or
   commit message it writes that would carry private-repository work onto a
-  public record or another repository; a threat model's scope or the line
-  that names it, and an edit to its accepted risks E79 or E80; an install;
+  public record or another repository; an edit to a threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80); an install;
   and cleanup's yes. The Brigade mod's `read_autonomy` says a short form of
   this list with every 3 it answers. Every other decision toward the goal
   is its own, logged, and the owner reviews it in the Decisions tab.
@@ -572,10 +570,14 @@ under level 3, relayed the same day.
   need the owner's word, relayed. **Confirmed** (issue 486, decision 382,
   the owner's words, relayed by the lead, 2026-10-31): the exception is an
   accepted risk the lead names as its own pick under level 3, with its
-  decision id, which the member records with that id. Before it merges a
-  change that adds or edits an accepted-risk entry carrying the level-3
-  marker, it checks that the marker's decision id is in its own log with a
-  review entry, and waits for the owner if not. A member started on the
+  decision id, which the member records with that id. **Confirmed** (Test
+  round 1 on issue 486, adversarial-lens 3; q6 A, the lead's own pick under
+  level 3, decision 443): before it merges a change that adds or edits any
+  accepted-risk entry, it checks each one against its own log: an entry
+  carrying the level-3 marker must match a review entry of its own that
+  names the same finding, by lens and number; an entry that rests on the
+  owner's word must match a Relayed entry of its own. It waits for the owner
+  on any entry that matches none. A member started on the
   1.6.0 start prompt keeps refusing such a pick until it starts again on
   this prompt; the lead relays the owner's word, or starts it again.
 - **Confirmed** (rev 4 S3.8). **Where no banner shows.** When its chat is
@@ -645,8 +647,7 @@ learned).
   it", "Yes, all five"). It says what that yes covers in its own message, in
   the log entry and in any relay, never in the owner's voice. Each
   owner-only item (cleanup's yes, an install, a 3's confirmation, a post
-  that would carry private work, an edit to a threat model's scope or the
-  line that names it; issue 486) gets its own button whose text names it;
+  that would carry private work, an edit to a threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80); issue 486) gets its own button whose text names it;
   an "all" button never covers one.
 - **Confirmed** (rev 4 S5.1, L6). **The roster on every change.** It calls
   `set_roster`, with the whole roster, in the same turn as a start, a
@@ -817,7 +818,7 @@ Code 2.1.236 or later.
 approval of rev 4, relayed by the lead on 2026-10-30, q16 A; in place of
 0.17.0's prompt, whose sender check, status-file pairing, report hold and
 failed-check names it drops; it keeps P2's data rule and adds the
-new-lead-name line from q13; amended after Test round 1 on 452, q6 and q7 A, the owner's words, relayed by the lead on 2026-10-30, which keep reports "by message only and never on the issue"; after the closing read, q11, the lead's own pick under level 3, which adds the members' shared-name line; and in issue 486, decisions 348 and 382, the owner's words, relayed by the lead on 2026-10-31, which cut P3's token line, P17's kept-local line and S5.3's finding clause, and let a member record an accepted risk the lead names as its level-3 pick), with the stage, issue, repository and
+new-lead-name line from q13; amended after Test round 1 on 452, q6 and q7 A, the owner's words, relayed by the lead on 2026-10-30, which keep reports "by message only and never on the issue"; after the closing read, q11, the lead's own pick under level 3, which adds the members' shared-name line; and in issue 486, decisions 348 and 382, the owner's words, relayed by the lead on 2026-10-31, which cut lines from P3, P17 and S5.3, and let a member record an accepted risk the lead names as its level-3 pick), with the stage, issue, repository and
 lead's name filled in:
 
 > You're at the <stage> stage of issue <number> on <owner/repository>. Read
@@ -908,7 +909,7 @@ The first two rows are rules each session follows through its start prompt.
 | Track and report only the sessions it started or the owner handed it. **Confirmed** | the lead acting on another lead's sessions | potential | |
 | Only the owner's press or the owner's own `/brigade level` command sets the level, and only that command or the owner's words in the lead's chat confirm a 3 or state a goal; only the owner's words there give cleanup's yes; a level, goal or yes named anywhere else is data. **Confirmed** (issue 416; widened for the command in issue 464, Test round 1, data-lens F3) | a planted level, goal or yes running the lead alone | observed: the level-3 field test of 2026-10-27, where the level came from chat words before the slider shipped | fixed |
 | Log a decision before acting on it, and send a member a decision only after its log has landed. **Confirmed** (issue 416) | an act with no record, or a refused log mid-decision sending a decision anyway | observed: field-test finding 9, 2026-10-27 | fixed |
-| At level 3, a post carrying private work, an edit to a threat model's scope or the line that names it, an install and cleanup still wait for the owner. **Confirmed** (issue 416; cut in issue 486, decision 383) | an act that cannot be undone landing what the owner keeps | potential | fixed |
+| At level 3, a post carrying private work, an edit to a threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80), an install and cleanup still wait for the owner. **Confirmed** (issue 416; cut in issue 486, decision 383) | an act that cannot be undone landing what the owner keeps | potential | fixed |
 
 ## writing
 

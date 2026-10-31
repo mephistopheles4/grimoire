@@ -396,8 +396,7 @@ words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
 logs each act before it. Since head-chef 1.7.0 (issue 486) these still wait
 for the owner at level 3: a post, merge text or commit message that would
-carry private work; an edit to the threat model's scope or the line that
-names it; an install; and cleanup. Every other decision toward the goal, an
+carry private work; an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80); an install; and cleanup. Every other decision toward the goal, an
 accepted-risk record and a merge that eases a named control included, is the
 lead's, logged with a review entry the owner answers in the Decisions tab
 (E80).

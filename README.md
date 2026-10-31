@@ -260,8 +260,7 @@ or from your phone, or press 3 and confirm it in the lead's own chat with a
 goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
 security findings without a word from you for each act, logging each one
 first. Still waiting for you, as to-dos: a post, merge text or commit message
-that would carry private work, an edit to the threat model's scope or the line
-that names it, an install, and cleanup, whose yes is yours at every level.
+that would carry private work, an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80), an install, and cleanup, whose yes is yours at every level.
 Since head-chef 0.17.0 the skill holds these rules. Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view, 3 in the warning colour; a 3 the

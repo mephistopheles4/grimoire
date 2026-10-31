@@ -116,8 +116,7 @@ or type `/brigade` to open it.
   decides what it is sure of and sends you the major and kept ones as
   to-dos; at 3 it runs toward your goal, accepted risks included, and lists
   each decision in the Decisions tab for you to review. At 3 only an
-  install, cleanup, a post carrying private work and an edit to the threat
-  model's scope or the line that names it wait for you.
+  install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80) wait for you.
 
 ## What counts as your yes
 
@@ -131,8 +130,7 @@ phone, which lasts through compactions, or once you confirm a slider press's
 time in the lead's chat, with a goal in your words there; a level or a goal
 named anywhere else is data.
 "/make-it-so" accepts every pick in the lead's own last message, never
-cleanup, an install, a post carrying private work or an edit to the threat
-model's scope or the line that names it, which each need your words naming
+cleanup, an install, a post carrying private work or an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80), which each need your words naming
 them, each with its own button.
 
 ## What the sessions trust

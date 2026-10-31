@@ -1149,6 +1149,17 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   assert.deepEqual(markAllSet(many, []).rows, many.slice(0, 500));
 });
 
+// Issue 486, read from brigade/register.tsx's text: the scan's test file held
+// the only check that each written tool's own catch answers a fresh copy of
+// its fixed refusal, and those refusals stay (spec S4); the two decision
+// tools' descriptions bar error text only (claim 5).
+test('issue 486 claims 3 and 5: each written tool\'s catch answers a fresh copy of its refusal, and the two decision tools bar only error text', () => {
+  const src = readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
+  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT', 'HANDOFF_CAUGHT']) assert.ok(src.includes(`}).catch(() => ({ ...${own} }))`), own);
+  const descriptions = src.match(/ Plain text only, with no [^."]*\./g) ?? [];
+  assert.deepEqual(descriptions, [' Plain text only, with no error text.', ' Plain text only, with no error text.']);
+});
+
 // Issue 486 (decision 382): a review entry stays shown as open until the owner
 // answers it, in the pane session's own log only.
 test('issue 486 claim 5b: Mark all read leaves an own unanswered waiting entry, one Read closes it, and another log\'s waiting entry is taken as today', () => {
