@@ -362,7 +362,7 @@ test('C15a: "Full throttle" is left in the shipped tree only where old logs and 
     for (const m of text.matchAll(/full throttle/gi)) {
       const around = text.slice(Math.max(0, m.index - 40), m.index + 60);
       const legacy = fixtures.includes(f) && /OLD_LEVEL_OPTIONS|renamed it|'3 Full throttle'/.test(around);
-      if (!legacy && !/\(Full throttle before (0\.98\.0|1\.5\.0)\)/.test(around)) left.push(`${f}: ${around}`);
+      if (!legacy && !/\(Full throttle before (0\.99\.0|1\.5\.0)\)/.test(around)) left.push(`${f}: ${around}`);
     }
   }
   assert.deepEqual(left, []);
