@@ -7414,6 +7414,12 @@ const BAND_CMD = (at: number) => `Turbo mode since ${hhmm(at)} UTC, set by your 
 const BAND_ALARM = (l: 1 | 2 | 3, at: number) =>
   `Autonomy changed to ${l} (${['', 'Manual', 'Auto', 'Turbo mode'][l]}) without a press at ${hhmm(at)} UTC: set to 1. Read the alarm in the Brigade pane`
 const bandTexts = async (b: any): Promise<string[]> => (await b.findAll({ type: 'Text' })).map((n: any) => String(n.text))
+// The band's own box's children in the order they draw: each line of the
+// band, or the engine's empty box beneath them.
+const bandOrder = async (b: any): Promise<string[]> =>
+  (await b.find({ key: 'level-band' })).children
+    .filter((c: any) => c !== null && typeof c === 'object')
+    .map((c: any) => (c.type === 'Box' && !c.children?.length ? 'engine' : 'line'))
 const compactNow = ($: any, over: Record<string, unknown> = {}) => $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'Hello.', toolUses: [] }], ...over })
 const compactStart = ($: any) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT })
 const COMPACTED = "pane 1 Manual · The lead's context was compacted · level 1"
@@ -8191,12 +8197,26 @@ for (const surface of ['terminal', 'desktop'] as const) {
     w.rejectIds = 1
     const thrown = await band($, surface)
     expect(await thrown.find({ key: 'understand' })).toBeDefined()
-    // A survey holds the band: the banner yields.
+    // A survey holds the band, as Desktop's next-step box does (#442): the
+    // banner and its Dismiss still draw, above what lies beneath.
     await thrown.unmount()
     const survey = await band($, surface, { hasSurvey: true })
-    expect(await survey.find({ type: 'Text', text: BAND_3(at) })).toBeUndefined()
+    expect((await bandTexts(survey))[0]).toBe(BAND_3(at))
+    expect(await survey.find({ key: `l3dismiss-${at}` })).toBeDefined()
+    expect(await bandOrder(survey)).toEqual(['line', 'engine'])
   })
 }
+
+test('#442: while a survey holds the band, an unread alarm still draws its line', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const b = await band($, 'desktop', { hasSurvey: true })
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  expect(await bandOrder(b)).toEqual(['line', 'engine'])
+})
 
 test("claim 27: the compaction hook returns the engine's result unchanged, and no message, instruction or summary text reaches state, the log, a toast or a tool answer", async ($, on) => {
   const SENTINEL = 'SENTINEL-430-text'
