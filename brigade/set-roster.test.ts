@@ -7316,9 +7316,10 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     const w = await decisionsPane(on, $, surface)
     for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
       await press($, view)
-      const label = await mounted.find({ type: 'Text', text: /^Autonomy 1$/ })
-      expect(label).toBeDefined()
-      expect(label?.props.color).toBeUndefined()
+      // #496 (decision 521): the chip names the level with no number, as the Decisions heading does.
+      const labels = await mounted.findAll({ type: 'Text', text: /^Autonomy · Manual$/ })
+      expect(labels.length).toBeGreaterThan(0)
+      for (const label of labels) expect(label.props.color).toBeUndefined()
     }
     expect(await shows(/^Manual: the lead asks you on every decision\.$/)).toBe(true)
     if (surface === 'terminal') expect(await shows(/^●━+○━+○$/)).toBe(true)
@@ -7326,7 +7327,7 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     await press($, 'level-3')
     for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
       await press($, view)
-      expect((await mounted.find({ type: 'Text', text: /^Autonomy 3$/ }))?.props.color).toBe('warning')
+      expect((await mounted.findAll({ type: 'Text', text: /^Autonomy · Turbo$/ })).some((label: any) => label.props.color === 'warning')).toBe(true)
     }
     const line = await mounted.find({ type: 'Text', text: LEVEL_3_LINE })
     expect(line?.props.color).toBe('warning')
@@ -7411,7 +7412,7 @@ test('claim 11: a raise while an alarm waits writes the alarm first, and fails w
   await press($, 'level-2')
   expect(ownEntries(w)).toEqual(['alarm 3 Turbo · Changed, not from a press · level 1', 'owner 2 Auto · Moved in the pane · level 1'])
   expect((await readLevel($)).text).toBe(LEVEL_2)
-  expect(await shows(/^Autonomy 2$/)).toBe(true)
+  expect(await shows(/^Autonomy · Auto$/)).toBe(true)
   expect(await shows(ALARM_LINE)).toBe(false)
   // A press of 1 lowers the level at once.
   await press($, 'level-1')

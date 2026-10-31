@@ -4794,8 +4794,8 @@ export const register: Register = on => {
                   : (sessionsCount ?? '')}
             </Text>
           </Box>
-          {/* The level in force, on every tab. */}
-          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy ${level}`}</Text> : <Text>{`Autonomy ${level}`}</Text>}</Box>
+          {/* The level in force, on every tab, by name with no number (issue 496). */}
+          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
           {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}
