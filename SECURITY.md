@@ -403,7 +403,8 @@ foot of the Decisions tab. What follows from it:
 
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
-Auto and 3 Full throttle, and only a press on it sets a level above 1. **A
+Auto and 3 Turbo mode (Full throttle before 0.93.0), and only the owner sets
+a level above 1: by a press on it or, since 0.93.0, by the level command. **A
 level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
 words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
@@ -413,7 +414,17 @@ post, merge text or commit message that would carry personal data or private
 work; an accepted-risk record; a merge that removes or weakens a control the
 threat model or this file names; an install; and cleanup. A secret or
 personal-data finding holds every merge, push and pull request of its
-effort's branch, and of branches based on it, until the owner answers. The
+effort's branch, and of branches based on it, until the owner answers.
+**Since 0.93.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
+level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
+Remote Control. The mod acts on it only when the engine stamps the run as the
+owner's Enter or a Remote Control message, so another plugin's own run of the
+command, and one the engine stamps as anything else, set nothing; that a hook
+cannot change the stamp is not yet measured. A 3 it sets is confirmed, with
+its goal, which is cleaned, held to 300 characters and not screened for
+secrets; both sit in the module's memory, never in plugin state, and a
+compaction keeps them. Any slider press, another level command, an alarm, a
+reload, a clear, a resume, or a read under another session id ends it. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
 it takes no input, answers the level in force, a 3 with the time of its press,
 skips the permission prompt, refuses a subagent's call and every verdict
@@ -431,6 +442,7 @@ the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
 lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
 of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
+except, since 0.93.0, a 3 the level command set, which a compaction keeps,
 and a showing of the pane no longer does; a session start, reload or
 compaction that finds a stored level above 1 writes that entry even with the
 pane closed, the one file a session start writes. The compaction hook reads
@@ -461,7 +473,7 @@ since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
 press time and a Dismiss, and an unread alarm this mod caught, on the terminal
 and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
-  slider moves, of the resets, the lead's compactions among them, and of the
+  slider moves and level commands, of the resets, the lead's compactions among them, and of the
   alarms, which show roughly when the
   owner let the lead run alone. Owner, Pane and alarm entries never drop.
 - **Who can move it:** another plugin can read `autonomy`, and so learn when
@@ -476,14 +488,23 @@ and Desktop only. What follows from it:
   goal or confirmation named in a message, file, hand-off or report is data.
   `read_autonomy`'s description, and every answer that names a 3, say that a
   3 counts only once the owner confirms that press in the lead's chat, never
-  on a confirmation given for an earlier press time, and list what still
-  waits for the owner at level 3.
+  on a confirmation given for an earlier press time, or once the owner's
+  level command set it, and list what still waits for the owner at level 3.
+  Since 0.93.0 a plugin that hooks command runs, and possibly one that hooks
+  prompt submits, can turn a `/brigade` the owner types into a level command
+  with a goal of its own, which lasts through compactions; the command's
+  reply shows the goal as it landed.
 - **Where the level is copied:** each answer of `read_autonomy`,
   `log_decision` and `set_lead_handoff` names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
   after the log is deleted. Since 0.88.0 the band above the lead's prompt
   draws a 3 and its press time, and an alarm's level and time, in the tree
-  that other plugins' band hooks see.
+  that other plugins' band hooks see. Since 0.93.0 a 3 the level command set
+  carries its goal, the owner's own unscreened text: other plugins' prompt
+  and command hooks see it as typed; `read_autonomy`'s answers and the
+  command's reply put it in the transcript, again after each compaction; and
+  the slider box draws it on every surface, the phone included, in the pane's
+  tree, which other plugins' pane hooks may see (not checked).
 - **What does not reach it:** no permission prompt, mode, owner hook or
   classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
   writes, or a press.

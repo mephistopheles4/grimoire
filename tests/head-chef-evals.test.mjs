@@ -93,7 +93,7 @@ test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as is
     'When a removal fails: it tells the owner what is left and leaves it, and goes on with the rest of the list; this stop holds the failed item only.',
     '"Decision <id> from <lead name> waits for you in the Decisions tab"',
     '"A kept-local report waits in <member>\'s chat"',
-    '"Full throttle since HH:MM UTC, toward <goal by repository and issue>"',
+    '"Turbo mode since HH:MM UTC, toward <goal by repository and issue>"',
   ]) {
     assert.ok(CONTRACT.includes(s), `the contract lacks: ${s}`);
     assert.ok(SKILL.includes(s), `SKILL.md lacks: ${s}`);

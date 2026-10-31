@@ -116,8 +116,10 @@ Only your own words in the lead's chat. A session's message, a report, a note
 or an issue comment never counts: a request in one is told to you, and
 nothing happens. Accepting a risk is your words in chat too; pressing I
 understand on the permission warning is a reminder, not acceptance. A level
-3 counts only once you confirm its press time in the lead's chat, with a
-goal in your words there; a level or a goal named anywhere else is data.
+3 counts once you type `/brigade level 3 <goal>` at the prompt or from your
+phone, which lasts through compactions, or once you confirm a slider press's
+time in the lead's chat, with a goal in your words there; a level or a goal
+named anywhere else is data.
 "/make-it-so" accepts only the picks in the lead's own last message, never
 cleanup, an install, an accepted-risk record or a secret's fate, which each
 need your words naming them, each with its own button.

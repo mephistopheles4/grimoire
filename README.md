@@ -253,20 +253,24 @@ stays after you delete the hand-off folder.
 At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
 it takes its own pick on decisions it is sure of, and sends you the major ones
-and the ones you keep as to-dos while it carries on. At 3 Full throttle, once
-you confirm it in the lead's own chat with a goal in your words there, it runs
-to the goal: it merges, posts, starts sessions, waives reviews and settles
+and the ones you keep as to-dos while it carries on. At 3 Turbo mode (Full
+throttle before 0.93.0), once you type `/brigade level 3 <goal>` at the prompt
+or from your phone, or press 3 and confirm it in the lead's own chat with a
+goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
 security findings without a word from you for each act, logging each one
 first. Still waiting for you, as to-dos: a finding that would expose a secret
 or personal data, a post, merge text or commit message that would carry
 personal data or private work, an accepted-risk record, a merge that removes or weakens a
 control the threat model or `SECURITY.md` names, an install, and cleanup,
 whose yes is yours at every level. Since head-chef 0.17.0 the skill holds
-these rules. Only your press moves the slider, and
-the level in force is drawn on every view, 3 in the warning colour. Each move
+these rules. Only your press or your own `/brigade level 1`, `/brigade level
+2` or `/brigade level 3 <goal>` moves the level, and
+the level in force is drawn on every view, 3 in the warning colour; a 3 the
+command set shows its goal under the slider. Each move
 is logged as your own decision ("Owner"). A new lead session starts at 1, and
 so does a reload of the mod and, since 0.88.0, each compaction of the lead's
-conversation, logged as "Pane" (the name stays from when only the pane made these resets; the entry's why says which); showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
+conversation, except, since 0.93.0, a 3 your command set, which lasts until a
+slider press, another level command, a reload or a clear; resets are logged as "Pane" (the name stays from when only the pane made these resets; the entry's why says which); showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
 alarm ("Not from a press") in To review; while that alarm is unread, further
 such changes are counted on the pane, not logged again. A reset or an alarm
 that cannot be logged is said on the pane and tried again. The lead reads its level with the
