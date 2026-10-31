@@ -283,7 +283,9 @@ warning line there names the level found and when, until you read the alarm's
 own card in To review or open it in History, or until a reload of the mod or a
 change of session; since 0.98.0 Mark all read marks the alarm read but leaves
 the line up. Both lines show on the terminal and Desktop only: the mobile app,
-claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
+claude.ai and VS Code draw nothing above the prompt. Since 0.105.0 they stay
+above the next-step box at the end of the lead's turn, and above any other
+survey. If you go back to a mod
 older than 0.88.0, its Decisions tab leaves out a compaction's Pane entry and
 counts it among the entries it cannot draw.
 
