@@ -8191,12 +8191,26 @@ for (const surface of ['terminal', 'desktop'] as const) {
     w.rejectIds = 1
     const thrown = await band($, surface)
     expect(await thrown.find({ key: 'understand' })).toBeDefined()
-    // A survey holds the band: the banner yields.
+    // A survey holds the band, as Desktop's next-step box does (#442): the
+    // banner and its Dismiss still draw, above what lies beneath.
     await thrown.unmount()
     const survey = await band($, surface, { hasSurvey: true })
-    expect(await survey.find({ type: 'Text', text: BAND_3(at) })).toBeUndefined()
+    expect((await bandTexts(survey))[0]).toBe(BAND_3(at))
+    expect(await survey.find({ key: `l3dismiss-${at}` })).toBeDefined()
+    expect(await survey.find({ key: 'engine' })).toBeDefined()
   })
 }
+
+test('#442: while a survey holds the band, an unread alarm still draws its line', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const b = await band($, 'desktop', { hasSurvey: true })
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  expect(await b.find({ key: 'engine' })).toBeDefined()
+})
 
 test("claim 27: the compaction hook returns the engine's result unchanged, and no message, instruction or summary text reaches state, the log, a toast or a tool answer", async ($, on) => {
   const SENTINEL = 'SENTINEL-430-text'
