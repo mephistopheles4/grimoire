@@ -7514,6 +7514,19 @@ test('claims 21 and 23: a 3 whose stored level another plugin rewrote draws no l
   expect(await bandTexts(await band($))).not.toContain(BAND_3(at))
 })
 
+test('#433: a new 3 at a dismissed 3's clock answer shows its band line', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  await b.press({ key: `l3dismiss-${at}` })
+  expect(await bandTexts(b)).toEqual([])
+  await press($, 'level-1')
+  await press($, 'level-3')
+  expect(await bandTexts(b)).toEqual([BAND_3(at)])
+})
+
 test('claim 22: Dismiss hides the level-3 line until a new press of 3, a compaction or a reload, and shows it again after each', async ($, on) => {
   const w = await decisionsPane(on, $)
   const b = await band($)
