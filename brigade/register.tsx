@@ -2994,8 +2994,8 @@ async function warningOfferAgain($: EngineInterface) {
 // clock filled in. It reads the stored level and the pane's redraw counter, so
 // a press, an alarm or a dismissal redraws it. It draws its lines above what
 // lies beneath it, so the permission warning still shows; a throw in its own
-// work draws only what lies beneath. Its matcher keeps it apart from the
-// warning's, and it yields to a survey.
+// work draws only what lies beneath. It draws above a survey too, the
+// next-step box at the end of a lead's turn included (#442).
 
 const hhmm = (at: number) => new Date(at).toISOString().slice(11, 16)
 const bandThree = (at: number, command: boolean) =>
@@ -3006,7 +3006,7 @@ const bandAlarm = (a: BandAlarm) =>
   `Autonomy changed to ${a.found} (${LEVEL_NAMES[a.found]}) without a press at ${hhmm(a.caught)} UTC: set to 1. Read the alarm in the Brigade pane`
 
 function registerBand(on: Parameters<Register>[0]) {
-  on('ui.render', { component: 'AbovePrompt', props: { hasSurvey: false } }, async ($, e, next) => {
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const beneath = await next(e)
     try {
       await read($, decisionsSeen)
