@@ -266,7 +266,7 @@ const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 const LEVEL_LINES: Readonly<Record<Level, string>> = {
   1: 'Manual: the lead asks you on every decision.',
   2: 'Auto: the lead takes its own pick on decisions it is sure of and logs each one; a major or kept decision waits for you as a to-do.',
-  3: "Turbo mode: once you type /brigade level 3 with a goal, or confirm a press in the lead's chat, the lead merges, posts, starts sessions and settles security findings and accepted risks toward the goal without asking, and lists each in the Decisions tab for you to review; an install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80) still wait for you",
+  3: "Turbo mode: once you type /brigade level 3 with a goal, or confirm a press in the lead's chat, the lead merges, posts, starts sessions and settles security findings and accepted risks toward the goal without asking, and lists each in the Decisions tab for you to review; an install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80) still wait for you, and so does a hand-off request or a fresh session a context figure prompts",
 }
 // The Decisions tab's search text, read again through its cap before use, and
 // a counter the decision reads move so the pane redraws: it carries no text.
@@ -362,6 +362,7 @@ function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
 async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   const at = await where($)
   if ('error' in at) {
+    loadedCards = []
     await update($, rosterError, () => at.error)
     await update($, roster, () => ({ cards: [], todos: [] }))
     return undefined
@@ -477,7 +478,9 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // entries are kept: the live word, the session's own name and the group
     // the card moves to. No id is stored. A card two sessions share keeps an
     // entry per session and no move.
-    const cards = (await read($, roster)).cards
+    // The cards come from the mod's own roster-file read, never the roster
+    // plugin state another plugin can rewrite (issue 492).
+    const cards = loadedCards
     const now = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
     const matched = matchRows(cards, rows, now)
     await update($, live, () =>

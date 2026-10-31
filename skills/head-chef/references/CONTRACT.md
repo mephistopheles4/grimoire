@@ -703,7 +703,10 @@ learned).
   the rest of what still waits at level 3, a post carrying private work and
   an edit to a threat model's scope, the line that names it, or the accepted
   risks that remove the rules on secrets and personal data and widen the level-3
-  leave (grimoire's E79 and E80).
+  leave (grimoire's E79 and E80). **Confirmed** (issue 492, decisions 476
+  and 482, the lead's own picks under level 3): a hand-off request or a fresh
+  session a context figure prompts also waits for the owner's words, at every
+  level, as the Context clause under tools says.
 
 Starting a session, cleanup and GitHub acts each name the owner's yes under
 "Actions with consequences" (**Decided**: the separate sign-offs were
