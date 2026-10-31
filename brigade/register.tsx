@@ -830,9 +830,10 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
 
 // The body of a marks write, with no turn of its own: a caller already in the
 // marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
-// With `keepLive` (Mark all read) it writes nothing when the caps would push
-// out a mark that is still its entry's newest state.
-async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', keepLive = false): Promise<boolean> {
+// With `bulk` (Mark all read) it writes nothing when the caps would push
+// out a mark that is still its entry's newest state, and leaves the band's
+// alarm line up (issue 466 q4 a1).
+async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', bulk = false): Promise<boolean> {
   marksFull = false
   try {
     const at = await where($)
@@ -850,7 +851,7 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
     const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
     const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
-    if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) {
+    if (bulk && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) {
       marksFull = true
       return false
     }
@@ -862,10 +863,10 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     // The tab shows the mark at once; the next read finds the file again.
     held.delete(`marks ${at.id}`)
     tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
-    // The band's alarm line goes once this pane's own press marks its entry,
-    // or at a reload or a change of session id;
-    // a marks file read from disk never clears it.
-    for (const r of rows) {
+    // The band's alarm line goes once this pane's own press on its card marks
+    // its entry, when it is opened in History, or at a reload or a change of
+    // session id; a bulk press or a marks file read from disk never clears it.
+    if (!bulk) for (const r of rows) {
       const shown = bandAlarms.get(r.sid)?.entry
       if (shown !== undefined && shown.id === r.entry.id && shown.at === r.entry.at) bandAlarms.delete(r.sid)
     }
@@ -2997,6 +2998,8 @@ export const register: Register = on => {
         const k = markKey(r.sid, r.entry.id, r.entry.at)
         if (openedRows.has(k)) openedRows.delete(k)
         else openedRows.add(k)
+        const shown = bandAlarms.get(r.sid)?.entry
+        if (shown !== undefined && shown.id === r.entry.id && shown.at === r.entry.at) bandAlarms.delete(r.sid)
         await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
       }
       return { element: e.element }

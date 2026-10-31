@@ -7777,6 +7777,24 @@ test("claim 23, the closing read's q4c: marking another entry leaves the alarm l
   expect(await bandTexts(b)).toEqual([])
 })
 
+test('issue 466 q4 (a1): Mark all read marks the alarm read but leaves the alarm line, which goes when the alarm is opened in History', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const alarm = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  const [key] = await markAllKeys()
+  await press($, key as string)
+  expect(ownMarks(w).some((m: any) => m.id === alarm.id && m.state === 'read')).toBe(true)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  await press($, 'grp-d-history')
+  const open = (await mounted.findAll({ type: 'Button' })).map((x: any) => String(x.key)).find(k => k.startsWith('dopen-') && k.endsWith(`-${alarm.id}-${alarm.at}`))
+  await press($, open as string)
+  expect(await bandTexts(b)).toEqual([])
+})
+
 test("claim 23, the closing read's q4f: after a clear and a resume back, a repeat held behind the unread alarm joins it, and reading that alarm clears the line", async ($, on) => {
   const w = await decisionsPane(on, $)
   // An earlier alarm, read in To review, sits before the unread one.
