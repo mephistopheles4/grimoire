@@ -5,8 +5,9 @@
 # SKILL.md. It does not read either manifest against the schema Claude Code
 # itself loads. `claude plugin validate --strict` does, and it fails on an
 # unknown field the runtime would ignore in silence. **A check that reports and
-# changes nothing reads as a check that passed**, so this one is a gate. A
-# second job runs the Brigade mod's tests with the same Claude Code, on Windows.
+# changes nothing reads as a check that passed**, so this one is a gate. Two
+# more jobs run the Brigade mod's tests with the same Claude Code, one on
+# Windows and one on Linux.
 #
 # **Its own file, not a job in check.yml.** `check` installs nothing, which is
 # what CONTRIBUTING.md promises, and this job fetches Claude Code. A status

@@ -55,10 +55,15 @@ type Node =
   | { type: 'file'; data: { text: string; mtimeMs?: number } }
   | { type: 'link'; kind: 'junction' | 'dir-symlink' | 'file-symlink'; target: string }
 
-// The world keeps every path in one spelling, `C:\a\b`, whichever separator a
-// test joined it with; `hostPath` gives it back as the host spells it.
-const worldPath = (p: string) => (ON_WINDOWS || !p.startsWith('/') ? p : `C:${p}`).replace(/\//g, '\\')
-const hostPath = (p: string) => (ON_WINDOWS ? p : p.replace(/^C:/, '').replace(/\\/g, '/'))
+// The world keeps every path in one spelling, `C:\a\b`; `hostPath` gives it
+// back as the host spells it. Off Windows a `\` is a character of a name, not
+// a separator, so it is held as NAME_BACKSLASH: a path the mod joins with `\`
+// there lands on a file of its own, and the test that expects the real one
+// fails.
+const NAME_BACKSLASH = '\u{E000}'
+const worldPath = (p: string) =>
+  ON_WINDOWS ? p.replace(/\//g, '\\') : /^C:(\\|$)/.test(p) ? p : p.replace(/\\/g, NAME_BACKSLASH).replace(/^\//, 'C:/').replace(/\//g, '\\')
+const hostPath = (p: string) => (ON_WINDOWS ? p : p.replace(/^C:/, '').replace(/\\/g, '/').replaceAll(NAME_BACKSLASH, '\\'))
 const spelled = (p: string) => worldPath(p).replace(/\\+$/, '')
 // Windows folds a path's case; Linux does not.
 const key = (p: string) => (ON_WINDOWS ? spelled(p).toLowerCase() : spelled(p))
@@ -184,6 +189,20 @@ const OPENERS = ['explorer.exe', '/usr/bin/open', '/usr/bin/xdg-open']
 // A probe's answer: a stat as the engine gives it, or a rejection's message.
 type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean; realPath?: string } | { reject: string }
 const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 0, isLink: false, ...(realPath === undefined ? {} : { realPath }) })
+
+// The world's host is read from this file's address; the engine's own `cwd`
+// on a classic event is a second witness. If the two disagreed, the junction
+// tests would vanish from a Windows run, or run on Linux, with nothing failing.
+test("the world's host is the engine's: a drive-letter cwd is Windows, and only there", async ($, on) => {
+  let cwd = ''
+  on('classic.Notification', ($, e: any) => {
+    cwd = String(e.cwd)
+    return {}
+  })
+  await ($ as any).classic.Notification({ message: 'host', notification_type: 'idle_prompt' })
+  expect(cwd).not.toBe('')
+  expect(/^[A-Za-z]:[\\/]/.test(cwd)).toBe(ON_WINDOWS)
+})
 
 type World = ReturnType<typeof makeFs> & {
   open: boolean
@@ -2530,7 +2549,7 @@ const bridge = (id: string) => JSON.stringify({ type: 'system', subtype: 'bridge
 // link and a model call a minute ago.
 const plantIn = (w: World, folder: string, link: string) => {
   w.dirs(folder)
-  w.put(`${folder}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+  w.put(`${folder}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
 }
 // The pane with one needs-you card, `gamma`, whose session file names the
 // launch folder, and a poll after `setup` plants its files.
@@ -5378,6 +5397,7 @@ test('claim 5: an own log that fails its strict check is never overwritten, and 
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^log_decision refused: not a decision log: /)
   expect(r.text).not.toContain('\\')
+  expect(r.text).not.toContain(CONFIG)
   expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
 })
 
@@ -5393,6 +5413,7 @@ withJunction('claim 5: a decisions folder that is a link is refused, and nothing
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^log_decision refused: path: /)
   expect(r.text).not.toContain('\\')
+  expect(r.text).not.toContain(CONFIG)
   expect(w.text(`${ELSEWHERE}${SEP}d${SEP}${SID}.json`)).toBeUndefined()
 })
 
@@ -6574,6 +6595,7 @@ test('claim 5: an own hand-off file that fails its strict check is never overwri
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
   expect(r.text).not.toContain('\\')
+  expect(r.text).not.toContain(CONFIG)
   expect(w.text(OWN_HANDOFF)).toBe('{"cards":[],"todos":[]}')
 })
 

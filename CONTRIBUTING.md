@@ -41,9 +41,9 @@ there is no baseline for it, because there is nothing to suppress. The third run
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
 Claude Code version, and fails on any field the schema does not recognise in
 either manifest; its check of `skills/` is weaker. The same workflow runs the
-Brigade mod's tests, `claude plugin test .`, on a Windows runner. All
-three put their tool on the runner and never on your machine (athanor's image,
-below, fetches the validator's Claude Code into the container), so the command above
+Brigade mod's tests, `claude plugin test .`, on a Windows runner and on a
+Linux one. All three put their tool on the runner and never on your machine
+(athanor's image, below, fetches the same Claude Code into the container), so the command above
 stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
