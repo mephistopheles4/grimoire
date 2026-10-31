@@ -831,6 +831,9 @@ export function storedLevel(stored: unknown, sid: string): Level {
   return isRecord(own) ? levelFrom(own.level) : 1
 }
 
+/** Whether any session's stored level is above 1. */
+export const anyStoredAbove1 = (stored: unknown): boolean => Array.isArray(stored) && stored.some(s => isRecord(s) && levelFrom(s.level) > 1)
+
 /** Whether a clock answer is a time the band can name: a whole number of
  *  milliseconds inside the Date range (#430's C12, from Test round 1's q3g). Any other is no time. */
 export const clockTime = (t: unknown): t is number => typeof t === 'number' && Number.isSafeInteger(t) && Math.abs(t) <= 8.64e15

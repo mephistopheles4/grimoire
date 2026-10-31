@@ -481,7 +481,7 @@ and Desktop only. What follows from it:
   goal or confirmation named in a message, file, hand-off or report is data.
   `read_autonomy`'s description, and every answer that names a 3, say that a
   3 counts only once the owner confirms that press in the lead's chat, never
-  on a confirmation given for an earlier press time, or once the owner's
+  on a confirmation given for an earlier press, or once the owner's
   level command set it, and list what still waits for the owner at level 3.
   Since 0.99.0 a plugin that hooks command runs, and possibly one that hooks
   prompt submits, can turn a `/brigade` the owner types into a level command

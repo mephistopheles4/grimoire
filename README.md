@@ -164,8 +164,8 @@ and age. While the pane is open and a row carries a pull request, the pane asks
 a session's pull request is in another repository than the lead's own, the lead
 can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
 that repository too, at most 6 runs a minute in all, the repositories taking
-turns past five, and the pane names it beside the pill and on the Pull requests
-row. **The
+turns past five, and the pane names it beside the pill (in its tooltip on Desktop) and on the Pull
+requests row. **The
 details need `gh` installed, signed in, and run from a github.com repository.** On
 macOS and Linux the pane also asks only when every folder on PATH is an absolute
 path. Without them the pill shows the number and the state the lead last knew, and the

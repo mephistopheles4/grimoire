@@ -969,5 +969,10 @@ test('the head-chef roster reference gives the repo rule as the check holds it (
   assert.ok(examples.length > 0, 'the example call carries a repo');
   for (const e of examples) assert.match(e, REPO);
   // The caps line names the field's limits as REPO holds them.
+  // The skill's own text and its contract give the same rule.
+  const skill = await readFile(new URL('../skills/head-chef/SKILL.md', import.meta.url), 'utf8');
+  assert.match(skill.replace(/\s+/g, ' '), /Give a card whose pull request is in another repository than your own working folder's that repository as `repo`, an `owner\/name` with no host; give no other card one\./);
+  const contract = await readFile(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8');
+  assert.match(contract.replace(/\s+/g, ' '), /A card whose pull request is in another repository than the lead's own working folder's carries that repository as `repo`, an `owner\/name` with no host, and a card whose pull request is in the lead's own repository carries none\./);
   assert.match(ref.replace(/\s+/g, ' '), /`repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`; the name 1 to 100 letters, digits, `-`, `\.` or `_`, not starting with `-` or `\.`/);
 });
