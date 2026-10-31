@@ -686,6 +686,24 @@ test('claim 14: every hand-off line refuses hidden and direction-changing charac
   assert.ok('value' in checkHandoffInput(sections({ rules: ['x'.repeat(300)] })));
 });
 
+// Issue 450's claim 16: set_lead_handoff refuses key shapes, emails and home
+// paths through the shared text check, whatever the outbound scan's setting.
+test('claim 16 (issue 450): every hand-off line refuses a key shape, an email address and a home path, never echoing the value', () => {
+  for (const [line, rule] of [
+    [`sk-ant-${'a'.repeat(24)}`, /holds text shaped like a key/],
+    ['write to someone@example.org', /holds an email address/],
+    ['see C:\\Users\\someone\\x', /holds a home-folder path/],
+    ['in /home/someone/repo', /holds a home-folder path/],
+  ]) {
+    for (const section of ['resume', 'rules', 'sessions', 'cleanup', 'owner']) {
+      const r = checkHandoffInput(sections({ [section]: ['fine', line] }));
+      assert.match(r.error ?? '', rule, `${section} ${line}`);
+      assert.match(r.error, new RegExp(`^${section} line 2 `));
+      assert.ok(!r.error.includes(line), 'the refusal never echoes the value');
+    }
+  }
+});
+
 test('S5.3: a hand-off input takes exactly the five sections, each a list of at most 20 lines, and nothing the mod stamps', () => {
   assert.ok('value' in checkHandoffInput(sections({ resume: Array.from({ length: 20 }, (_, i) => `Line ${i}`) })));
   assert.match(checkHandoffInput(sections({ resume: Array.from({ length: 21 }, (_, i) => `Line ${i}`) })).error, /^resume is not a list of at most 20 lines$/);

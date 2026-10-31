@@ -64,6 +64,11 @@ Read `references/starting.md` before each start, and follow it: the
 warning, the name, the start, the start prompt below, the Desktop id and what
 cleanup keeps, the report, the pane and the idle notice.
 
+At a brigade's first start, read `read_autonomy` before the start report.
+When its answer ends "Outbound scan: off.", say once in the report what the
+outbound scan does and that the owner turns it on by typing
+`/brigade scan on`. Never turn it on yourself.
+
 ## Sending and idle notices
 
 - Send to every session by its session name, with the agent's message tool.

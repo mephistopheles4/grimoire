@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.1.0
+Version: 1.2.0
 Kind: skill
 Level: Thorough
 
@@ -130,6 +130,11 @@ need, without overwhelming me or showing me too much.
 - **Confirmed.** It sets a session's model and effort with Desktop's setters.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
+- **Confirmed** (issue 450, rev 4 S3.2 step 9, q9; built in issue 453). At a
+  brigade's first start, the head chef reads `read_autonomy` before the start
+  report; when its answer ends "Outbound scan: off.", the report says once what the outbound scan does and that the
+  owner turns it on by typing `/brigade scan on`. The head chef never turns
+  it on itself.
 - **Decided.** It never relies on a card to start work the owner asked for.
   When the owner's words ask for the work, it starts the session directly.
   When a start can only happen through a card, such as an approval above the
