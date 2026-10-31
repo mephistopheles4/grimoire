@@ -445,7 +445,7 @@ files you ask for:
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
   each cleanup a level-3 lead names back, by repository and branch only.
-  Since 0.93.0 the mod's `read_cleanup` tool does cleanup's reads, and the
+  Since 0.94.0 the mod's `read_cleanup` tool does cleanup's reads, and the
   lead runs none itself. When a card joins the roster, the mod reads that
   session's folder, repository and branch once, from the session file holding
   the card's Desktop id or job id, with two `git` calls, and keeps them in

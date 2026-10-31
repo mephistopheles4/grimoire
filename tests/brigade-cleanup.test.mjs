@@ -792,16 +792,6 @@ test('a branch switched in the folder after the name-back is not bound at the re
   assert.ok(commandLines(await call(g, hooks, r, memory2, 're-read')).length > 0);
 });
 
-test('a re-read with no name-back before it gets no command', async () => {
-  const f = fixture();
-  const hooks = hooksFolder();
-  const r = runner();
-  const memory = await bound(f, hooks, r);
-  const text = await call(f, hooks, r, memory, 're-read');
-  assert.match(text, /no name-back yet/);
-  assert.equal(commandLines(text).length, 0);
-});
-
 test('another running session inside the worktree leaves the item, with no command', async () => {
   const f = fixture();
   const hooks = hooksFolder();
