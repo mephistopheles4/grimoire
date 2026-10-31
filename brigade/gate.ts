@@ -96,7 +96,7 @@ export const fromEngine = (origin: unknown): boolean => isRecord(origin) && orig
 
 // The engine's own fields on a tool call, as brigade/scan.ts lists them.
 // Everything else is the model's input.
-const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
+export const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
 
 /** Whether an archive call passes: the model's own call on the main loop,
  *  with `session_id` and at most a string `reason`, for an open Desktop

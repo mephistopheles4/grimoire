@@ -55,7 +55,7 @@ import {
 } from './roster.ts'
 import { bindTarget, cardId, hooksReady, makeHooks, runCleanup } from './cleanup.ts'
 import type { CleanupIo, NameBacks, Target } from './cleanup.ts'
-import { ARCHIVE_REFUSAL, ARCHIVE_TOOL, DONE_REPLIES, archivePasses, doneReply, fromEngine, isDoneCommand, openWindow, parseDone, resolveTitles, stopAnswer, takeEntry } from './gate.ts'
+import { ARCHIVE_REFUSAL, ARCHIVE_TOOL, DONE_REPLIES, ENVELOPE as GATE_ENVELOPE, archivePasses, doneReply, fromEngine, isDoneCommand, openWindow, parseDone, resolveTitles, stopAnswer, takeEntry } from './gate.ts'
 import type { Window } from './gate.ts'
 import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
 import { FAILED as SCAN_FAILED, caughtAnswer, decide, readSetting, settingOf, settled, switchArgs, switchReply } from './scan.ts'
@@ -2778,8 +2778,9 @@ const refuseStop = (rule: string) => ({ deny: `stop_background_session refused: 
 // No session file, git or folder is read. A throw answers one fixed line.
 async function doneCommand($: EngineInterface, origin: unknown, dispatch: unknown, args: string): Promise<{ text: string }> {
   try {
-    // The prompt's origin, and the dispatch's: a run another plugin raised
-    // names that plugin there, whatever prompt origin it supplies (A15).
+    // The prompt's origin, and the dispatch's. The engine's types say a run
+    // another plugin raised names that plugin in `next.origin`, whatever
+    // prompt origin it supplies; A15b, which would measure it, is not measured.
     if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }
     const titles = parseDone(args)
     if (titles === undefined) return { text: DONE_REPLIES.usage }
@@ -2798,7 +2799,8 @@ async function doneCommand($: EngineInterface, origin: unknown, dispatch: unknow
 async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {
   if (e.agentId !== undefined) return refuseStop("subagent: only the lead session's own turns stop a session")
   if (!fromEngine(origin)) return refuseStop("caller: only the model's own call stops a session, never another plugin's")
-  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
+  // The engine's keys as the gate lists them, `requestMeta` included.
+  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !GATE_ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(RULES_RULE)
   if (!(await offered($))) return refuseStop(OFFER_RULE)
   if (!(await paneOpen($))) return refuseStop('pane closed: the owner opens it with /brigade')

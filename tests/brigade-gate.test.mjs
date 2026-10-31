@@ -146,6 +146,8 @@ const between = (from, to) => {
 };
 // A hook's handler: from its registration to the next hook's.
 const hook = from => between(from, "\n  on('");
+// The statements of a slice: each line trimmed, comments and blank lines left out.
+const live = text => text.split('\n').map(l => l.trim()).filter(l => l !== '' && !l.startsWith('//'));
 
 test('C7: the archive hook matches Desktop\'s archive tool by the name ADR 0012 measured (A14)', () => {
   assert.equal(gate.ARCHIVE_TOOL, 'mcp__ccd_session_mgmt__archive_session');
@@ -157,11 +159,22 @@ test('C1, C2, C4, C5: the done path is read first and returns, hands on the even
   assert.match(command, /\n {4}if \(isDoneCommand\(e\.args\)\) return doneCommand\(\$, e\.origin, next\.origin, e\.args\)\n/);
   assert.ok(command.indexOf('isDoneCommand(e.args)') < command.indexOf('isLevelCommand(e.args)'));
   assert.match(command, /\.catch\(\(\$, e, next\) => \{\n {4}if \(isDoneCommand\(e\.args\)\) return \{ text: DONE_REPLIES\.failed \}/);
-  const done = between('async function doneCommand', '\n}\n');
-  const gateAt = done.indexOf('if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }');
-  assert.ok(gateAt > 0 && gateAt < done.indexOf('parseDone(') && gateAt < done.indexOf('openWindow('));
-  assert.match(done, /openWindow\(doneWindow, resolved, await \$\.clock\.now\(\)\)/);
-  assert.match(done, /\} catch \{\n {4}return \{ text: DONE_REPLIES\.failed \}/);
+  // Every live line of the function, in order: a line commented out, moved,
+  // added or changed fails here.
+  assert.deepEqual(live(between('async function doneCommand', '\n}\n')), [
+    'async function doneCommand($: EngineInterface, origin: unknown, dispatch: unknown, args: string): Promise<{ text: string }> {',
+    'try {',
+    'if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }',
+    'const titles = parseDone(args)',
+    'if (titles === undefined) return { text: DONE_REPLIES.usage }',
+    'const { cards } = await read($, roster)',
+    'const resolved = resolveTitles(titles, cards, cleanupTargets)',
+    'openWindow(doneWindow, resolved, await $.clock.now())',
+    'return { text: doneReply(resolved) }',
+    '} catch {',
+    'return { text: DONE_REPLIES.failed }',
+    '}',
+  ]);
   assert.equal(DONE_REPLIES.failed, 'Nothing opened: the done command failed.');
 });
 
@@ -177,23 +190,32 @@ test('C6, C7: the archive hook passes only what archivePasses passes, on the dis
 
 test('C9, C10: the stop tool refuses a subagent or another plugin, takes its window entry before it runs, runs `claude stop` alone, and answers only through stopAnswer', () => {
   const stop = between('async function stopBackground', '// end stopBackground');
-  const lines = [
-    "if (e.agentId !== undefined) return refuseStop(",
-    'if (!fromEngine(origin)) return refuseStop(',
-    "if (!takeEntry(doneWindow, 'bg', t.id, await $.clock.now())) return refuseStop(",
+  // Every live line, in order, up to each refusal's fixed rule: no guard can be
+  // commented out, no exit added, and nothing but stopAnswer answers after the run.
+  const lines = live(stop).map(l => l.replace(/return refuseStop\(.*\)$/, 'return refuseStop(…)'));
+  assert.deepEqual(lines, [
+    'async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {',
+    'if (e.agentId !== undefined) return refuseStop(…)',
+    'if (!fromEngine(origin)) return refuseStop(…)',
+    'const input = Object.fromEntries(Object.entries(e).filter(([k]) => !GATE_ENVELOPE.includes(k)))',
+    'if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(…)',
+    'if (!(await offered($))) return refuseStop(…)',
+    'if (!(await paneOpen($))) return refuseStop(…)',
+    'const { title } = input',
+    "if (Object.keys(input).some(k => k !== 'title') || typeof title !== 'string') return refuseStop(…)",
+    'const { cards } = await read($, roster)',
+    'const [r] = resolveTitles([oneLine(title, 80)], cards, cleanupTargets)',
+    "if (r === undefined || !('open' in r) || r.open.kind !== 'bg') return refuseStop(…)",
+    'const t = r.open',
+    "if (!takeEntry(doneWindow, 'bg', t.id, await $.clock.now())) return refuseStop(…)",
+    'if (!(await ghFindable($))) return { result: stopAnswer(undefined) }',
     "const ran = await $.process.run(['claude', 'stop', t.id], { timeoutMs: 15000 }).catch(() => undefined)",
     'return { result: stopAnswer(ran) }',
-  ];
-  let at = -1;
-  for (const l of lines) {
-    const i = stop.indexOf(l);
-    assert.ok(i > at, `out of order or missing: ${l}`);
-    at = i;
-  }
+    '}',
+  ]);
+  // Each refusal's rule is a fixed string: no value reaches it.
+  for (const l of live(stop)) if (l.includes('refuseStop(')) assert.match(l, /return refuseStop\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE)\)$/, l);
   assert.ok(!/["'`]rm["'`]/.test(stop), 'no claude rm');
-  assert.equal((stop.match(/\$\.process\.run\(/g) ?? []).length, 1);
-  assert.equal((stop.match(/return \{ result: /g) ?? []).length, 2);
-  assert.ok(!/return \{ result: (?!stopAnswer\()/.test(stop), 'every answer goes through stopAnswer');
   const handler = between("on('tool.call', { tool: STOP_NAME }", "on('tool.call', { tool: CLEANUP_NAME }");
   assert.match(handler, /return await stopBackground\(\$, e as unknown as Record<string, unknown>, next\.origin\)/);
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'stop_background_session refused: /);
