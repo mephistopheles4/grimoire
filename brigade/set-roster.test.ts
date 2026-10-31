@@ -7520,7 +7520,7 @@ test('claims 21 and 23: a 3 whose stored level another plugin rewrote draws no l
   expect(await bandTexts(await band($))).not.toContain(BAND_3(at))
 })
 
-test('#433: a new 3 at a dismissed 3's clock answer shows its band line', async ($, on) => {
+test("#433: a new 3 at a dismissed 3's clock answer shows its band line", async ($, on) => {
   const w = await decisionsPane(on, $)
   const b = await band($)
   await w.clock.advance(1000)
