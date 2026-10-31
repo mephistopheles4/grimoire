@@ -107,6 +107,7 @@ import {
   sha256Hex,
   sourceLabel,
   storedLevel,
+  withLeadFlags,
   writerName,
 } from './decisions.ts'
 import type { DecisionEntry, DecisionLog, EndedLine, EntryInput, Handoff, HandoffSections, Level, LiveInput, MarksFile, ReadHandoff, ReadLog, Row, SessionsSeen } from './decisions.ts'
@@ -885,10 +886,12 @@ const tabLogs = (): ReadLog[] =>
 // What each view of the Decisions tab draws (spec 444): this session's log and
 // the entries carried from the others. The render and every press work from
 // this one set, so a row's place in a key matches its place on screen.
+// A lead's own flag reads as a flagged mark until the owner marks the entry (issue 459).
 function tabView(now: number) {
-  const states = mergeMarks(tabRead.marks.map(m => m.file), now)
+  const logs = tabLogs()
+  const states = withLeadFlags(mergeMarks(tabRead.marks.map(m => m.file), now), logs)
   const live = liveInput(now)
-  return { states, ...drawnLogs(tabLogs(), tabRead.sid, states, sessionStates(tabRead.logs, tabRead.sid, live), canTell(live)) }
+  return { states, ...drawnLogs(logs, tabRead.sid, states, sessionStates(tabRead.logs, tabRead.sid, live), canTell(live)) }
 }
 // The ended rule's input at a draw. Each log's state comes from its entries as
 // read, before an entry out of its fixed shape is left out, so any recent entry
@@ -1873,7 +1876,7 @@ const LOG_TOOL = 'log_decision'
 const LOG_TOOL_NAME = 'mcp__grimoire__log_decision'
 
 const LOG_DESCRIPTION =
-  "Logs one decision to this lead session's decision log, which the owner reviews in the Brigade pane's Decisions tab. Call it once per decision, before you act on it. Send `source` (`lead` for your own pick, `relayed` for the owner's answer as you relay it), `work` (the issue or pull request), `question`, `options` (1 to 6, distinct), `pick` (exactly one of the options), `why`, `undo`, and `revisit` if there is a time to come back to it. For a decision the owner keeps, send `waiting: true` and an empty `pick`; when the owner answers, log a `relayed` entry whose `answers` is the waiting entry's id. Never send `id`, `at` or `level`: the pane stamps them. Plain text only, with no session id, Desktop id, token, secret, local path, error text or personal detail. A refusal names the rule that failed, and means act at level 1."
+  "Logs one decision to this lead session's decision log, which the owner reviews in the Brigade pane's Decisions tab. Call it once per decision, before you act on it. Send `source` (`lead` for your own pick, `relayed` for the owner's answer as you relay it), `work` (the issue or pull request), `question`, `options` (1 to 6, distinct), `pick` (exactly one of the options), `why`, `undo`, and `revisit` if there is a time to come back to it. For a decision the owner keeps, send `waiting: true` and an empty `pick`; when the owner answers, log a `relayed` entry whose `answers` is the waiting entry's id. When you are unsure of your own pick, send `flag` with a one-line reason: the entry goes to the owner's Flagged to revisit instead of To review, and blocks nothing, so act on your pick. Never send `id`, `at` or `level`: the pane stamps them. Plain text only, with no session id, Desktop id, token, secret, local path, error text or personal detail. A refusal names the rule that failed, and means act at level 1."
 
 const LOG_SCHEMA = {
   type: 'object',
@@ -1890,6 +1893,7 @@ const LOG_SCHEMA = {
     undo: field(300),
     revisit: field(300),
     answers: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' },
+    flag: field(300),
   },
 }
 
@@ -3828,7 +3832,8 @@ export const register: Register = on => {
       return a === undefined ? 'Waits for you' : `Answered, as the lead records it: decision ${a.id}`
     }
     // A card's fields, in order: the headline, the writer, the source, time and
-    // level, the question, the options, why, to undo, revisit and the id.
+    // level, the lead's flag, the question, the options, why, to undo, revisit
+    // and the id.
     const cardFields = (r: Row, top: JSX.Element | undefined): JSX.Element[] => {
       const d = r.entry
       const alarm = d.source === 'alarm'
@@ -3856,6 +3861,7 @@ export const register: Register = on => {
             <Text dimColor>{`at level ${d.level}`}</Text>
           </Box>
         </Box>,
+        ...(d.flag !== undefined ? [part('Flagged by the lead', lines(d.flag))] : []),
         part('Question', lines(d.question)),
         part(
           'Options',
