@@ -9249,6 +9249,27 @@ test('#497: with no entry the owner has read, a raise on a log at its byte cap s
   expect(w.text(LOG)).toBe(before)
 })
 
+// The owner's newest mark may sit in this session's own marks file, a flag
+// over an older read mark in another file: when the own file cannot be read,
+// the drop scan takes no mark at all, so nothing drops (PR 498, adversarial F2).
+const UNREADABLE_OWN: [string, (w: World) => void][] = [
+  ['fails its check', w => seed(w, OWN_MARKS, JSON.stringify({ kind: 'marks', v: 1, marks: [], extra: 1 }))],
+  ['is dated ahead of the clock', w => seed(w, OWN_MARKS, marksText([]), 10_000_000_000_000)],
+]
+for (const [what, plant] of UNREADABLE_OWN) {
+  test(`#497: when this session's own marks file ${what}, a raise on a log at its byte cap drops nothing, even an entry another file marks read`, async ($, on) => {
+    const w = await decisionsPane(on, $, 'desktop', w => {
+      seed(w, LOG, nearCapLog(100))
+      seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
+      plant(w)
+    })
+    const before = w.text(LOG)
+    expect((await typedLevel($, 'level 2')).text).toBe('Not set: the decision log could not be written')
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+    expect(w.text(LOG)).toBe(before)
+  })
+}
+
 test('C10: a level command of 1 or 2 below the level in force lowers at once, logged after; one of the level in force writes nothing; a 2 above it is logged first', async ($, on) => {
   const w = await decisionsPane(on, $)
   expect((await typedLevel($, 'level 1')).text).toBe('Autonomy is already 1 (Manual).')

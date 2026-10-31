@@ -783,7 +783,9 @@ async function allReadMarks($: EngineInterface, at: Where, now: number) {
 
 // The marks merged from every marks file in the folder. `strict` gives none
 // at all when the listing is refused, a read throws or a file fails its
-// check, so a caller can tell marks it could not read from no marks.
+// check, so a caller can tell marks it could not read from no marks; the
+// lenient read, the drop scan's, gives none when this session's own file
+// cannot be read.
 async function readMarks($: EngineInterface, at: Where, now: number, strict: boolean) {
   try {
     const l = await listKind($, at, 'marks')
@@ -796,15 +798,17 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
       // The strict read counts this session's own file skipped for its date as
-      // unreadable, so it cannot hide the owner's read mark (#436).
+      // unreadable, so it cannot hide the owner's read mark (#436). The drop
+      // scan takes no mark at all when the own file is skipped, so a flag only
+      // it holds never loses to an older read mark elsewhere (PR 498).
       if (f.mtimeMs > now + AHEAD_MS) {
-        if (strict && f === l.own) return undefined
+        if (f === l.own) return strict ? undefined : new Map()
         continue
       }
       // A file over the marks cap fails its check and is read by no one, so it
       // takes nothing from the bound.
       if (f.size > MAX_MARKS_BYTES) {
-        if (strict) return undefined
+        if (strict || f === l.own) return strict ? undefined : new Map()
         continue
       }
       // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes:
@@ -818,7 +822,7 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
       }
       const got = await heldFile($, at, 'marks', f)
       if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
-      else if (strict) return undefined
+      else if (strict || f === l.own) return strict ? undefined : new Map()
     }
     // A mark in a file left unread is no newer than that file's time, so only
     // marks dated after it (and the clock allowance) can be the newest of their

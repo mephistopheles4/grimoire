@@ -90,6 +90,8 @@ count as unread, which fails safe, and a mark dated no later than the first
 skipped file's time plus the two-minute clock allowance counts for nothing, so
 a flag in a skipped file cannot be hidden behind an older read mark.
 
+Amended in 0.112.0 (issue 497): the pane's own Owner, Pane and alarm entries take the same drop scan when the byte cap refuses them, so a log `log_decision` keeps full still takes a raise. When this session's own marks file is dated ahead, over its cap or fails its check, the scan takes no mark at all and nothing drops, so a flag only that file holds never loses to an older read mark in another.
+
 ## Why
 
 A new lead should see its own decisions, not the ones before it. A question
