@@ -68,10 +68,20 @@ const HOME_SHAPES = [
   new RegExp(String.raw`${AFTER}\\home\\${NAME}`, 'g'),
 ]
 
-const LOCAL = /[A-Za-z0-9._%+-]/
-const DOMAIN = /[A-Za-z0-9.-]/
-const SCHEME = /[A-Za-z0-9+.-]/
-const URL_STOP = /[\/?#@\s"'<>`\\]/
+// Character classes as tables over ASCII, read by char code: a character past
+// ASCII is in none of them.
+const table = (chars: string) => {
+  const t = new Uint8Array(128)
+  for (const c of chars) t[c.charCodeAt(0)] = 1
+  return t
+}
+const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+const LOCAL = table(`${ALNUM}._%+-`)
+const DOMAIN = table(`${ALNUM}.-`)
+const SCHEME = table(`${ALNUM}+.-`)
+const LETTER = table(ALNUM.slice(0, 52))
+const URL_STOP = table('/?#@ \t\r\n\f\v"\'<>`\\')
+const has = (t: Uint8Array, code: number) => code < 128 && t[code] === 1
 
 // An email address around each `@`: a local part of 1 to 64 characters and a
 // domain of up to 255 whose last label is two letters or more. The scan of a
@@ -80,13 +90,19 @@ const URL_STOP = /[\/?#@\s"'<>`\\]/
 function emails(text: string, out: Finding[]) {
   for (let i = text.indexOf('@'); i !== -1; i = text.indexOf('@', i + 1)) {
     let a = i
-    while (a > 0 && i - a < 64 && LOCAL.test(text[a - 1])) a--
+    while (a > 0 && i - a < 64 && has(LOCAL, text.charCodeAt(a - 1))) a--
     if (a === i) continue
     let b = i + 1
-    while (b < text.length && b - i <= 255 && DOMAIN.test(text[b])) b++
-    const domain = text.slice(i + 1, b).replace(/[.-]+$/, '')
-    const labels = domain.split('.')
-    if (labels.length < 2 || labels.some(l => l === '') || !/^[A-Za-z]{2,63}$/.test(labels[labels.length - 1])) continue
+    while (b < text.length && b - i <= 255 && has(DOMAIN, text.charCodeAt(b))) b++
+    // The last label: letters only, two or more, after a dot that ends a
+    // non-empty label. Trailing dots and hyphens are not part of the address.
+    let end = b
+    while (end > i + 1 && (text[end - 1] === '.' || text[end - 1] === '-')) end--
+    let tld = end
+    while (tld > i + 1 && has(LETTER, text.charCodeAt(tld - 1))) tld--
+    if (end - tld < 2 || end - tld > 63 || text[tld - 1] !== '.' || tld - 1 <= i + 1) continue
+    const domain = text.slice(i + 1, end)
+    if (domain.split('.').some(l => l === '')) continue
     const host = domain.toLowerCase()
     const local = text.slice(a, i).replace(/^[.]+/, '').toLowerCase()
     if (host === 'users.noreply.github.com' || (host === 'anthropic.com' && local === 'noreply')) continue
@@ -100,10 +116,10 @@ function emails(text: string, out: Finding[]) {
 function urlUsers(text: string, out: Finding[]) {
   for (let i = text.indexOf('://'); i !== -1; i = text.indexOf('://', i + 3)) {
     let a = i
-    while (a > 0 && i - a < 32 && SCHEME.test(text[a - 1])) a--
-    if (a === i || !/[A-Za-z]/.test(text[a])) continue
+    while (a > 0 && i - a < 32 && has(SCHEME, text.charCodeAt(a - 1))) a--
+    if (a === i || !has(LETTER, text.charCodeAt(a))) continue
     let b = i + 3
-    while (b < text.length && b - i < 260 && !URL_STOP.test(text[b])) b++
+    while (b < text.length && b - i < 260 && !has(URL_STOP, text.charCodeAt(b))) b++
     if (b > i + 3 && text[b] === '@') out.push({ rule: 'url-user', at: a })
   }
 }

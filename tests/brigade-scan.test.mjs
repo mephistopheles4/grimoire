@@ -127,15 +127,16 @@ const WORST = {
   'slashes': fill('/home/'),
 };
 
-test('claim 12: a worst-case 1 MiB fixture of each kind finishes in under 100 ms', () => {
+test('claim 12: a worst-case 1 MiB fixture of each kind finishes in under 100 ms', t => {
   for (const [name, text] of Object.entries(WORST)) {
     assert.ok(text.length >= MiB - 8, name);
     let best = Infinity;
     for (let i = 0; i < 3; i++) {
-      const t = performance.now();
+      const start = performance.now();
       scanText(text, ['secret', 'personal']);
-      best = Math.min(best, performance.now() - t);
+      best = Math.min(best, performance.now() - start);
     }
+    t.diagnostic(`${name}: ${best.toFixed(1)} ms`);
     assert.ok(best < 100, `${name}: ${best.toFixed(1)} ms`);
   }
 });
@@ -426,4 +427,26 @@ test('claim 15: the switch moves only from a typed origin, composer or bridge', 
   }
   assert.match(switchReply('show', 'composer', 'off').text, /Outbound scan is off/);
   assert.equal(switchReply('show', 'composer', 'off').set, undefined);
+});
+
+// --- the wiring --------------------------------------------------------------
+
+// register.tsx cannot run here, so its two facts the scan rests on are read
+// from its text: the three tool names are the ones scan.ts routes, and the
+// scan's hooks are registered first, which makes them the outermost (the
+// engine nests a plugin's registrations in order, first outermost).
+test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own tool names", async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
+  for (const [name, tool] of [['TOOL_NAME', MOD_TOOLS[0]], ['LOG_TOOL_NAME', MOD_TOOLS[1]], ['SET_HANDOFF_NAME', MOD_TOOLS[2]]]) {
+    assert.ok(src.includes(`const ${name} = '${tool}'`), name);
+  }
+  const body = src.slice(src.indexOf('export const register: Register = on => {'));
+  const firstCall = /^\s*([A-Za-z]+)\(on\)/m.exec(body);
+  assert.equal(firstCall?.[1], 'registerScan');
+  const scan = src.slice(src.indexOf('function registerScan('), src.indexOf('// `/brigade scan`'));
+  for (const tool of ["'Bash'", "'PowerShell'", "'SendMessage'", 'TOOL_NAME', 'LOG_TOOL_NAME', 'SET_HANDOFF_NAME']) {
+    assert.ok(scan.includes(`{ tool: ${tool} }`), tool);
+  }
+  assert.equal((scan.match(/\.catch\(/g) ?? []).length, 6);
 });

@@ -27,7 +27,9 @@ Read this before each start. Start each session only when the owner's words in t
 6. **Report the start in chat,** in the form of the example in `SKILL.md`'s "What a good
    report looks like": the session, its issue, how it runs, what the owner
    must do, and the 5-hour and weekly usage, read with Desktop's usage tool.
-   Usage figures go in this chat only.
+   Usage figures go in this chat only. At a brigade's first start, add the
+   outbound scan's line when the scan is off, as "Starting a session" in
+   `SKILL.md` says.
 7. **Update the Brigade pane** in the same step, as "The Brigade pane" in `SKILL.md` says.
 8. **Subscribe to its idle notice:** call the message tool with `to` set to
    the session's name, `notify_when_idle` set to true, and no message.

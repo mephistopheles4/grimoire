@@ -12,7 +12,7 @@ detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
 `4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C10, K1 and K2 are
-[accepted classes](#accepted-risks-by-class); P0 to P9 are
+[accepted classes](#accepted-risks-by-class); P0 to P10 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
 
@@ -51,7 +51,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | <a id="r6"></a>R6 | **Mod acts unprompted.** Its writes and its Open in app call skip the permission step. | 0.30 | 0.55 | 15 | The mod asks the engine for its verdict before each call. A path rule runs before and after each write, and the tools are offered only after `/brigade` or a head-chef load. | The `claude://` opener's inherited environment (P6). Row 15's other residuals are open too, the roster's check-and-write race first. | [Row 15](brigade.md#row-15) |
 | <a id="r7"></a>R7 | **Plugin plants state.** Another plugin reads or plants the level, a dismissal, search text or decision entries. | 0.30 | 0.55 | 15 | The pane shows what state claims as a claim. A level 3 counts only once the owner confirms it in the lead's chat, though a plugin that can add rows to the lead's transcript can forge that confirmation (E35a). | Row 15's other residuals are open too; what [C4](#c4) leaves out is a candidate (P1, P2, P4, P6, P7). | [Row 15](brigade.md#row-15) |
 | <a id="r8"></a>R8 | **Key or text leaves.** The audit key or a box's text goes off the machine. | 0.32 ⁺ | 0.64 ⁺ | 6, 10 | The key is never printed or written, and the endpoint override takes loopback only. A dry run names every receiver first, and a standing yes comes only from the user's own instructions. | The script cannot stop the agent itself from printing an environment variable. | [Row 6](checks.md#row-6), [row 10](checks.md#row-10), [edge audit](edge-audit.md) |
-| <a id="r9"></a>R9 | **Personal detail ships.** A home path reaches a shipped file, a page, a post or a command line. | 0.35 ⁺ | 0.25 ⁺ | 17, 18 | The check fails a fixed home path in shipped folders, and groundtrack warns on an absolute one. Posts carry no token or secret. | A home root joined from a separate string is not seen, and free text is not checked. | [Row 17](checks.md#row-17), [row 18](checks.md#row-18) |
+| <a id="r9"></a>R9 | **Personal detail ships.** A home path reaches a shipped file, a page, a post or a command line. | 0.35 ⁺ | 0.25 ⁺ | 17, 18 | The check fails a fixed home path in shipped folders, and groundtrack warns on an absolute one. Posts carry no token or secret. | A home root joined from a separate string is not seen, and free text is checked only by the outbound scan, which is off by default ([P10](#candidates-for-the-owners-word)). | [Row 17](checks.md#row-17), [row 18](checks.md#row-18) |
 | <a id="r10"></a>R10 | **Branch code runs.** A branch's code runs when a session opens on it. | – | – | 19 | The check holds the tracked settings file to its one guard. The contributor guide says to read a branch's `.claude/` and `scripts/` first, or to open the session with hooks off. | The guard protects the merge, not the reader. A non-local container engine (P6). | [Row 19](checks.md#row-19) |
 | – | **Rows 11 and 12.** Box text skews the audit's reread order; a provider keeps audit text. | 0.18, 0.52 | 0.30, 0.20 | 11, 12 | Accepted as [K1](#k1) and [C7](#c7). | – | [Row 11](checks.md#row-11), [row 12](checks.md#row-12) |
 | <a id="r11"></a>R11 | **Skill under test.** It reaches past its practice run. | 0.15 | 0.80 | 14 | Hygiene, not a boundary: a tight posture, a scrubbed environment, and backups of the owner's live places. | What the posture does not stop. | [Row 14](checks.md#row-14) |
@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 65 candidate lines in ten groups, P0 to P9. None of these is in force.
+There are 70 candidate lines in eleven groups, P0 to P10. None of these is in force.
 
 <details>
-<summary>Candidates (65 lines)</summary>
+<summary>Candidates (70 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -390,6 +390,14 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
 - E42, eased by spec 448's Part B (q2 on issue 448; adversarial-lens F1 and F2 and data-lens F1 in its Test round 1). Class: a claim about the owner's words in the lead's own log that the log links to no waiting entry, marked read in bulk by "Mark N relayed read" without its card being opened, and then droppable by the log's cap. It includes an answer to another session's waiting entry, which a lead logs with no link. Proposed reason: each such claim is in To review's order and counted in the press's label, the head claim is drawn on a card, the press is its own act apart from Mark all read, it never takes an answer the log links to a waiting entry, and an own Relayed entry records the owner's words, or picks one reply accepted, in the lead's own chat, where the owner can compare them. It would widen C5. The owner chooses: re-accept E42 with this widening, or decline, and Part B leaves the change.
+
+**P10. The outbound scan (issue 453, plugin 0.93.0).** What the scan's own reads and setting widen; [row 15](brigade.md#row-15) holds the control. Each waits for the owner's word at the ticket's hand-off.
+
+- The setting at rest: one value, `scan`, in the plugin's store, a plain file under the config folder that another plugin or a same-user process can rewrite. A rewrite turns the scan off and loses only the backstop, since the skill's data rule stays in force (C4).
+- The owner's `/brigade scan` command and its reply sit in that session's transcript, which reaches every Remote Control device (C7).
+- Another plugin's `$.command.run` with an origin it supplies can move the setting, as ADR 0012's A15 shows the test runner passes one through (C4).
+- Every matched call's text, another plugin's tool calls included, passes through grimoire's hook in every session while the scan is on, and the hook keeps none of it, as P4's A4 (C4, C7).
+- The hook reads any regular file a matched command names as a body file, up to 1 MiB, into module memory for that call, and keeps none of it (C7).
 
 </details>
 
@@ -588,6 +596,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the `gh` call: one fixed argument list, a checked owner/name as `GH_REPO`, the 15-second limit, one run at a time, the per-minute rate, the PATH check, the 1 MiB output cap and `parsePrList`'s checks, the pin to the first good answer, answers kept by repository and number ([row 15](brigade.md#row-15))
 - the usage summary writer: module memory, the step counted as a transcript row, at most one write every 15 seconds, the roster's path rule, the 1,024-byte cap and strict summary check, a refusal stops the writer ([row 15](brigade.md#row-15))
 - the decision log, marks and hand-off writers: offered where `set_roster` is, a session's own file only, a queue, caps, entry shapes, clock checks, fixed refusals ([row 15](brigade.md#row-15))
+- the outbound scan's hooks: off unless the store's `scan` is exactly `on`, which only a typed `/brigade scan on` sets; an unmatched call passes with no engine call; a body file read only when regular, not a link, up to 1 MiB, within 2 seconds; a failure refuses; nothing kept ([row 15](brigade.md#row-15))
 - each call's bounds in the call table ([the engine calls](brigade.md#row-15-the-engine-calls-behind-its-write-and-its-tool-call))
 
 #### R7. Plugin plants state (old row 15)
@@ -619,6 +628,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - `audit.mjs` never prints or writes the key ([row 10](checks.md#row-10))
 - the endpoint override takes only a loopback address ([row 10](checks.md#row-10))
 - `SKILL.md`: never ask for the key or write it to a file ([row 10](checks.md#row-10))
+- the outbound scan, off by default: a key's shape in a `gh` post, a `git` commit or tag message or a `SendMessage` refused in fixed words ([row 15](brigade.md#row-15))
 
 #### R9. Personal detail ships (old rows 17, 18)
 
@@ -626,6 +636,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the format reference asks for relative paths ([row 18](checks.md#row-18))
 - groundtrack's absolute-path finding on `loc`, `touches`, `enteredBy` and `path`, naming the field and never the path ([row 18](checks.md#row-18))
 - `SKILL.md`: fix an absolute path, keep one only on a page that stays on the author's machine ([row 18](checks.md#row-18))
+- the outbound scan, off by default: an email address or a home path in a `gh` post, a `git` commit or tag message or a Brigade tool call refused in fixed words ([row 15](brigade.md#row-15))
 
 #### R10. Branch code runs (old row 19)
 

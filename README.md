@@ -451,6 +451,14 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
+- **Brigade's outbound scan**, since 0.93.0, is off until you type
+  `/brigade scan on`, and `/brigade scan off` turns it off again; the setting
+  is one value in the plugin's store, for every session on the machine. While
+  it is on, it reads the text of each `gh` post, `git` commit or tag message,
+  `SendMessage` and Brigade tool call, and any file such a command names as its
+  body, up to 1 MiB, and refuses the call when the text holds a secret's shape
+  or, on all but `SendMessage`, an email address or a home path. It keeps
+  nothing it reads.
 - **Seven calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file, the `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
@@ -466,7 +474,8 @@ What each of Brigade's hooks does with what it sees:
 | --- | --- |
 | `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.93.0, `/brigade scan`, `/brigade scan on` and `/brigade scan off` show or set the outbound scan instead, and set it only when you typed the command. |
+| `tool.call` for `Bash`, `PowerShell`, `SendMessage`, `set_roster`, `log_decision` and `set_lead_handoff` | Since 0.93.0, the outbound scan, registered before the plugin's other hooks. A call it does not match passes on with no other work. With the scan off, a matched call passes on after one read of the setting. With it on, it reads the call's text and body files, refuses a hit in fixed words that never repeat the text, and keeps nothing. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `show_permission_warning` | Answers for the mod's own six tools, which have no other code behind them. |
