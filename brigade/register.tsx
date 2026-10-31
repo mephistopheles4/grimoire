@@ -1618,6 +1618,9 @@ const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster n
 // At most one wake a minute, whatever stamps the runs; the time of the last
 // one is held by the module alone, so a reload starts it over.
 const WAKE_GAP_MS = 60_000
+// The engine refuses a submit from inside the command's own hook, which holds
+// the turn the submit would wait on, so a short timer sends it after the reply.
+const WAKE_DELAY_MS = 500
 let lastWake: number | undefined
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
@@ -3220,14 +3223,15 @@ export const register: Register = on => {
     const at = await where($)
     const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
     // The reply goes to the owner, not the lead, so the owner's own bare
-    // /brigade also hands the lead a turn of fixed words (issue 478). Not
-    // awaited: the turn starts once the session is idle, after this reply.
+    // /brigade also hands the lead a turn of fixed words (issue 478), sent
+    // from a timer once this hook has returned; the turn starts once the
+    // session is idle.
     if (offer === 'offered' && e.args.trim() === '' && levelOriginAllowed(e.origin)) {
       try {
         const now = await $.clock.now()
         if (lastWake === undefined || now - lastWake >= WAKE_GAP_MS) {
           lastWake = now
-          void $.prompt.submit({ text: WAKE }).catch(() => undefined)
+          $.clock.after(WAKE_DELAY_MS, () => void $.prompt.submit({ text: WAKE }).catch(() => undefined))
         }
       } catch {
         // No turn this time: the reply stands as it is.

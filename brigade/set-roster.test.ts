@@ -9177,10 +9177,17 @@ test("C15, C15a: the command's Owner entry draws as Owner, and a log holding ent
 const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
 // The least time between two wakes, in milliseconds.
 const WAKE_GAP = 60_000
+// How long after the reply the wake is sent, in milliseconds.
+const WAKE_DELAY = 500
 const OPENED = 'Brigade pane opened. `set_roster` is ready: call it with the full roster.'
 // /brigade with its args and origin: the owner's own at the prompt by default, any other by its kind, or none.
 const typedBrigade = ($: any, args = '', kind: string | null = 'composer') =>
   $.command.run({ command: 'brigade', args, ...(kind === null ? {} : { origin: kind === 'plugin' ? { kind, name: 'other' } : { kind } }) })
+// Runs the clock past the wake's timer, then lets what it started finish.
+const sent = async (w: World) => {
+  await w.clock.advance(WAKE_DELAY)
+  await w.clock.settle()
+}
 // The prompts the mod submits, as the engine beneath it receives them; `answer` stands in for the engine's.
 const submits = (on: On, answer: (e: any) => unknown = e => ({ text: e.text })) => {
   const seen: any[] = []
@@ -9198,6 +9205,8 @@ for (const kind of ['composer', 'bridge']) {
     await start($)
     expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
     await w.clock.settle()
+    expect(seen).toEqual([])
+    await sent(w)
     expect(seen.map(e => e.text)).toEqual([WAKE])
     expect(seen[0].origin).toEqual({ kind: 'plugin', name: 'grimoire' })
   })
@@ -9208,7 +9217,7 @@ test('C1: /brigade with args that are not level or scan opens the pane and submi
   const seen = submits(on)
   await start($)
   expect((await typedBrigade($, 'roster please')).text).toBe(OPENED)
-  await w.clock.settle()
+  await sent(w)
   expect(seen).toEqual([])
 })
 
@@ -9218,7 +9227,7 @@ for (const kind of ['plugin', 'sdk', null]) {
     const seen = submits(on)
     await start($)
     expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
-    await w.clock.settle()
+    await sent(w)
     expect(seen).toEqual([])
   })
 }
@@ -9229,7 +9238,7 @@ test('C3: a bare /brigade whose pane is not listed submits nothing', async ($, o
   w.unlisted = true
   await start($)
   expect((await typedBrigade($)).text).toBe('Brigade pane opened.')
-  await w.clock.settle()
+  await sent(w)
   expect(seen).toEqual([])
 })
 
@@ -9239,7 +9248,7 @@ test('C3: a bare /brigade whose tool offer fails submits nothing', async ($, on)
   w.failRegister = true
   await start($)
   expect((await typedBrigade($)).text).not.toBe(OPENED)
-  await w.clock.settle()
+  await sent(w)
   expect(seen).toEqual([])
 })
 
@@ -9248,7 +9257,7 @@ test('C4: /brigade level and /brigade scan submit nothing', async ($, on) => {
   const seen = submits(on)
   await start($)
   for (const args of ['level 1', 'level 2', 'scan', 'scan off']) await typedBrigade($, args)
-  await w.clock.settle()
+  await sent(w)
   expect(seen).toEqual([])
 })
 
@@ -9262,9 +9271,10 @@ test('C5: a submit that fails, or never resolves, leaves the reply as before', a
   })
   await start($)
   expect((await typedBrigade($)).text).toBe(OPENED)
+  await sent(w)
   await w.clock.advance(WAKE_GAP)
   expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
-  await w.clock.settle()
+  await sent(w)
   expect(calls).toBe(2)
 })
 
@@ -9275,10 +9285,9 @@ test('C6: one wake per minute: a second bare /brigade inside the minute submits 
   await typedBrigade($)
   await w.clock.advance(WAKE_GAP - 1)
   expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
-  await w.clock.settle()
+  await sent(w)
   expect(seen.length).toBe(1)
-  await w.clock.advance(1)
   await typedBrigade($)
-  await w.clock.settle()
+  await sent(w)
   expect(seen.map(e => e.text)).toEqual([WAKE, WAKE])
 })
