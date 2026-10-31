@@ -174,11 +174,11 @@ A pin trusts whatever code it names. The CI npm pins are not content pins: no ta
 
 ### What stops it today
 
-`audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file. When the owner turns it on, the Brigade mod's outbound scan (plugin 0.95.0, issue 453) also refuses a `gh` post, a `git` commit or tag message, or a `SendMessage` whose text holds a key's shape; [row 15](brigade.md#row-15) holds its routes and what it does not see.
+`audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file.
 
 ### Residual gap
 
-The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent. The outbound scan is off by default, and it does not see a key printed to the terminal, written to a file, or sent by a tool outside its routes.
+The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent.
 
 ### Tags
 

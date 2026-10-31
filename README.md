@@ -259,12 +259,10 @@ throttle before 0.99.0), once you type `/brigade level 3 <goal>` at the prompt
 or from your phone, or press 3 and confirm it in the lead's own chat with a
 goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
 security findings without a word from you for each act, logging each one
-first. Still waiting for you, as to-dos: a finding that would expose a secret
-or personal data, a post, merge text or commit message that would carry
-personal data or private work, an accepted-risk record, a merge that removes or weakens a
-control the threat model or `SECURITY.md` names, an install, and cleanup,
-whose yes is yours at every level. Since head-chef 0.17.0 the skill holds
-these rules. Only your press or your own `/brigade level 1`, `/brigade level
+first. Still waiting for you, as to-dos: a post, merge text or commit message
+that would carry private work, an edit to the threat model's scope or the line
+that names it, an install, and cleanup, whose yes is yours at every level.
+Since head-chef 0.17.0 the skill holds these rules. Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view, 3 in the warning colour; a 3 the
 command set shows its goal under the slider. Each move
@@ -471,14 +469,6 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Brigade's outbound scan**, since 0.95.0, is off until you type
-  `/brigade scan on`, and `/brigade scan off` turns it off again; the setting
-  is one value in the plugin's store, for every session on the machine. While
-  it is on, it reads the text of each `gh` post, `git` commit or tag message,
-  `SendMessage` message and summary, and Brigade tool call, and any local file
-  such a command names as its body, up to 1 MiB, and refuses the call when the
-  text holds a secret's shape or, on all but `SendMessage`, an email address or
-  a home path. It keeps nothing it reads.
 - **Nine calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file and binds each new card's cleanup target, the
   `log_decision` tool, which appends to the
@@ -498,9 +488,8 @@ What each of Brigade's hooks does with what it sees:
 | --- | --- |
 | `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup` and `stop_background_session` while the pane is open, again after a reload, a clear or a resume. Since 0.104.0 each start, clear or resume also closes every `/brigade done` window. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.95.0, `/brigade scan`, `/brigade scan on` and `/brigade scan off` show or set the outbound scan instead, and set it only when you typed the command. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.104.0, `/brigade done <title>, <title>` opens a 15-minute window for those cards' sessions, again only when you typed it or sent it from your phone, and answers with the titles you typed, which opened and why each other did not, never an id or a path. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.104.0, `/brigade done <title>, <title>` opens a 15-minute window for those cards' sessions, again only when you typed it or sent it from your phone, and answers with the titles you typed, which opened and why each other did not, never an id or a path. |
 | `tool.call` for Desktop's `mcp__ccd_session_mgmt__archive_session` | Since 0.104.0, in every session the mod loads in: lets one archive through for a session in an open `/brigade done` window, from the model's own main loop with only `session_id` and `reason`, and refuses every other archive call in one fixed line. It keeps nothing from the call. You can still archive by hand in Desktop. |
-| `tool.call` for `Bash`, `PowerShell`, `SendMessage`, `set_roster`, `log_decision` and `set_lead_handoff` | Since 0.95.0, the outbound scan, registered before the plugin's other hooks. A call it does not match passes on with no other work. With the scan off, a matched call passes on after one read of the setting. With it on, it reads the call's text and body files, refuses a hit in fixed words that never repeat the text, and keeps nothing. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup`, `stop_background_session` and `show_permission_warning` | Answers for the mod's own eight tools, which have no other code behind them. |

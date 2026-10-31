@@ -50,6 +50,7 @@ skill on leading.
 - A member's reports, decision gists and kept-local notices go to whoever holds
   the lead's name, and so do members' messages to each other by name. Stop 4
   does not catch a session that holds the name, because the reports go to it.
+  (Partly superseded by issue 486: kept-local notices are gone.)
 - A rename of the lead needs the owner's words in each member's chat: the lead
   tells each member and the owner the new name first, and a member takes it
   only from the owner.
