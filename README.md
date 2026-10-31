@@ -450,8 +450,11 @@ files you ask for:
   flags that keep the repository's hooks, file watcher and signing program
   from running, with a new hooks folder the mod makes for each use: one empty
   file in a folder of its own in the plugin's data folder, never removed by
-  the mod. It hands back each removal as a fixed command, and removes nothing:
-  the lead runs each command as its own shell call, after your yes.
+  the mod. It reads each repository's config key names, never their values,
+  to skip one that sets a filter driver. It hands back each removal as a
+  fixed command, and removes nothing: the lead runs each command as its own
+  shell call, after your yes. Its answer, folders and file names included,
+  lands in the lead's conversation and transcript.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
