@@ -338,7 +338,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.7.0'), 'the contract is not at 1.7.0');
+  assert.ok(CONTRACT.includes('Version: 1.9.0'), 'the contract is not at 1.9.0');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {
@@ -396,4 +396,44 @@ test('C18: the threat model and the security pages hold the level command, its g
   for (const [name, text] of [['threat-model.md', TM], ['SECURITY.md', SEC], ['brigade.md', BRIGADE], ['CONTEXT.md', flat(read('CONTEXT.md'))]]) {
     assert.ok(!/only a (slider )?press (on the slider [^.]*)?sets a level above 1\./i.test(text), `${name} still says only a press sets the level`);
   }
+});
+
+// Issue 492, spec v3 S2.2 and S2.5: the Context rule, in the contract and in
+// SKILL.md, carries the lines behind C1, C2 and C3 word for word, and
+// AGENTS.md carries the same-change rule (C7).
+const CONTEXT_LINES = {
+  'skills/head-chef/SKILL.md': [
+    // C1
+    'At 60% or above, say so in one line and suggest `/compact` once, after saving your hand-off with `set_lead_handoff`;',
+    'Suggest again only after a compaction, or when the figure reaches the next 10% step.',
+    // C2
+    "When you take a member's report, call `read_context` and read that member's line;",
+    "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
+    "A fresh session a context figure prompts starts only on the owner's words, at every level.",
+    // C3
+    'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
+  ],
+  'skills/head-chef/references/CONTRACT.md': [
+    'At 60% or above, it says so in one line and suggests `/compact` once, after saving its hand-off with `set_lead_handoff`;',
+    'It suggests again only after a compaction, or when the figure reaches the next 10% step.',
+    "When it takes a member's report, it calls `read_context` and reads that member's line;",
+    "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
+    "A fresh session a context figure prompts starts only on the owner's words, at every level.",
+    'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
+  ],
+};
+
+for (const [file, lines] of Object.entries(CONTEXT_LINES)) {
+  test(`${file} carries the Context rule's lines for C1, C2 and C3`, () => {
+    const text = flat(read(file));
+    for (const line of lines) assert.ok(text.includes(line), `${file} lacks: ${line}`);
+  });
+}
+
+test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
+  assert.ok(
+    flat(read('AGENTS.md')).includes(
+      "A Brigade change that adds data the pane keeps says, in the same change, whether the lead can read it through a tool; when it can, the same change updates the head-chef contract and its `SKILL.md`, and its `docs/security/brigade.md` row says where the tool's answer then flows.",
+    ),
+  );
 });

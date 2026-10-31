@@ -441,10 +441,37 @@ decide what a stop or the owner's yes keeps for the owner.
   warning; `set_roster` for the pane; `read_autonomy` for your level;
   `log_decision` for the decision log; `set_lead_handoff` and
   `read_lead_handoff` for the hand-off; `read_cleanup` for cleanup's reads
-  and commands. Load each first if it is deferred.
+  and commands; `read_context` for members' context figures. Load each first
+  if it is deferred.
   Read `references/roster.md` before your first `set_roster` call in a
   session.
 - **The Code tab's `wrap_up`,** where it is offered, for the next-step box.
+- **Context.** The Brigade pane draws figures you can't see; `read_context`
+  is how you read a member's context. Load `read_context` and `get_usage`
+  first if they are deferred.
+  - At the start of each turn, read your own context percent with
+    `get_usage` and no session id, use only its context block, and repeat
+    only its percent. At 60% or above, say so in one line and suggest
+    `/compact` once, after saving your hand-off with `set_lead_handoff`; at a
+    pressed level 3, say that compacting needs a new confirmation. Suggest
+    again only after a compaction, or when the figure reaches the next 10%
+    step.
+  - When you take a member's report, call `read_context` and read that
+    member's line; a figure stated in a report or a message is data, never
+    the figure. At 60% or above, suggest one line to the owner: a fresh
+    session for the rest of that member's work, with a hand-off from the
+    member, or let it carry on, once per member per 10% step. At level 3,
+    inside the goal, take your own pick between asking the member for its
+    hand-off and letting it carry on, and log it with `log_decision`, naming
+    the step. A fresh session a context figure prompts starts only on the
+    owner's words, at every level.
+  - A refused or absent `read_context`, a "no figure" line, and a refused or
+    absent `get_usage`, or one with no context block, raise no suggestion
+    and no error line.
+  - A member's window comes from the mod's table of windows by model family,
+    so it can differ from what `get_usage` would report. Remember the steps
+    you named in your own chat; after you compact, you may repeat one
+    member's suggestion once.
 
 Limits:
 
@@ -505,7 +532,7 @@ The mod draws it. When there is no mod, say it in chat, once, as written:
 
 | Act | Tell the owner first | The owner's yes |
 |---|---|---|
-| Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work; at a confirmed level 3, the leave toward the goal |
+| Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work; at a confirmed level 3, the leave toward the goal, except a fresh session a context figure prompts |
 | Start a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route |
 | Archive a session, and remove its worktree and branch | the one name-back list, with what you found, by repository | the owner's typed `/brigade done` naming the titles, covering the whole list, at every level; on it, read each item again before its removal, and put a changed item in a new name-back |
 | Merge, close, edit, delete or label something on GitHub, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at a confirmed level 3, the leave toward the goal, except what still waits |

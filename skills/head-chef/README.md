@@ -63,6 +63,12 @@ or type `/brigade` to open it.
 - **Never relies on a card** to start work you asked for. When a start can
   only happen through a card, such as an approval above the lead's settings,
   it says in one line that the card needs a tap in the desktop app.
+- **Nudges about context** (since 1.9.0). It suggests `/compact` once when its
+  own context passes 60%, and again only after a compaction or at the next 10%
+  step. When it takes a member's report it reads that member's figure with the
+  Brigade mod's `read_context`, and past 60% suggests a fresh session or
+  carrying on, once per member per 10% step. A fresh session a figure prompts
+  starts only on your words. A figure it cannot read raises nothing.
 - **Reports the start** in a few lines: the session, its issue, what you must
   do, and your usage. Usage stays in chat.
 - **Relays** questions and answers, quoted, with the source named.

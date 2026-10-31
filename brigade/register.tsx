@@ -2775,8 +2775,8 @@ async function readAutonomy($: EngineInterface, e: Record<string, unknown>) {
 // --- read_context (issue 492, spec v3 S2.1) ----------------------------------------
 //
 // Each roster card's context figure, for the lead's model, which cannot see
-// the pane. It reads only the meters the last poll kept in this module's
-// memory, so a reload reads "no figure" until the next poll; view.ts's
+// the pane. It reads only the meters the last poll kept in this module, so
+// a reload reads "no figure" until the next poll; view.ts's
 // contextLines holds the line rules. Its guards are read_cleanup's.
 
 const CONTEXT_TOOL = 'read_context'
