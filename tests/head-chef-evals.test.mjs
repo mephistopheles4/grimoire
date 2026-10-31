@@ -128,9 +128,11 @@ test('SKILL.md holds the data rule once, word for word, and none of the clauses 
   assert.ok(!SKILL.includes('never post a token or secret'), 'the members\' prompt still holds its secret line');
   const waits = SKILL.match(/\*\*At level 3 these still wait for the owner,\*\* each as a waiting entry with a to-do:(.*?)\*\*The hold\.\*\*/);
   assert.ok(waits, 'SKILL.md lacks the level-3 list');
-  for (const w of ['would carry private-repository work onto a public record or another repository', 'an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire\'s E79 and E80)', 'an install', 'cleanup\'s yes']) assert.ok(waits[1].includes(w), `the level-3 list lacks: ${w}`);
-  for (const w of ['secret', 'personal', 'accepted-risk entry', 'removes or weakens']) assert.ok(!waits[1].includes(w), `the level-3 list still names: ${w}`);
-  assert.ok(SKILL.includes('At level 3, a post carrying private work, an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire\'s E79 and E80), an install and cleanup still wait for the owner.'), 'the rules row does not name the four waits');
+  for (const w of ['would carry private-repository work onto a public record or another repository', 'an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire\'s E79 and E80)', 'an install', 'cleanup\'s yes']) assert.ok(waits[1].includes(w), `the level-3 list lacks: ${w}`);
+  // The fourth wait names what E79 and E80 do, so the words "secrets" and
+  // "personal data" appear there; the cut waits themselves must not.
+  for (const w of ['would expose a secret', 'carry personal data', 'a lowered class', 'writing or editing an accepted-risk entry', 'removes or weakens']) assert.ok(!waits[1].includes(w), `the level-3 list still names: ${w}`);
+  assert.ok(SKILL.includes('At level 3, a post carrying private work, an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire\'s E79 and E80), an install and cleanup still wait for the owner.'), 'the rules row does not name the four waits');
   const BACKGROUND = refs.find(([n]) => n === 'background.md')[1];
   assert.match(BACKGROUND, /Refuse the start, and tell the owner, when your own name as the lead holds anything but letters, digits, spaces and `\. _ -`,.*?or when your shell is Windows PowerShell 5\.1/,
     'background.md no longer refuses the start on the lead-name set and on PowerShell 5.1');
