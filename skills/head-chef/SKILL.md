@@ -110,13 +110,14 @@ cleanup keeps, the report, the pane and the idle notice.
   need the owner's word, relayed. The exception is an accepted risk you name
   as your own pick under level 3, with its decision id, which the member
   records with that id. Before you merge a change that adds or edits any
-  accepted-risk entry, check each one against your own log: an entry whose
-  provenance reads "taken by the lead at level 3, decision <id>" (the
-  level-3 marker, under "The hold" below) must match a review entry of yours
-  that names the same finding, by lens and number; an entry that rests on
-  the owner's word must match a Relayed entry of yours that names the same
-  finding, by lens and number, or the same entry. Wait for the owner on any
-  entry that matches none. A member started on the 1.6.0 start prompt keeps refusing such a
+  accepted-risk entry, check each one against your own log by the decision
+  id its provenance cites: an entry whose provenance reads "taken by the
+  lead at level 3, decision <id>" (the level-3 marker, under "The hold"
+  below) must match the review entry of yours logged with that id, naming
+  this entry's finding; an entry that rests on the owner's word must match
+  the Relayed entry of yours with the id it cites, naming this entry and
+  this edit. Wait for the owner on any entry that cites no decision id, or
+  whose id matches none. A member started on the 1.6.0 start prompt keeps refusing such a
   pick until it starts again on this prompt; relay the owner's word, or
   start it again.
 - Words the owner types in a member's own chat are the owner's to that

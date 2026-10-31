@@ -846,7 +846,7 @@ Each condition an old accepted entry rested on, by risk. The entry's own line is
 - a new lead acts on nothing until the owner's yes (E42; [row 15](brigade.md#row-15))
 - the mod stamps the level (E42; [row 15](brigade.md#row-15))
 - a 3 counts only on confirmation (E42; [row 15](brigade.md#row-15))
-- every entry under To review, any kind or log, behind one Mark all read press (E42; [row 15](brigade.md#row-15))
+- every entry under To review, any kind or log, behind one Mark all read press, but the pane's own session's waiting entries that no Relayed entry answers (since 0.109.0, issue 486) (E42; [row 15](brigade.md#row-15))
 - other plugins already read the files searched (E44; [row 15](brigade.md#row-15))
 - cut to 200 characters (E44; [row 15](brigade.md#row-15))
 - only filters (E44; [row 15](brigade.md#row-15))

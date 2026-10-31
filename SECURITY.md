@@ -248,7 +248,7 @@ works out its set again inside the marks queue's turn and acts only when the
 set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
 Lead, Relayed, waiting entries and alarms, and every ended session's line,
-but this session's own waiting entries that no Relayed entry answers (since
+but the pane's own session's waiting entries that no Relayed entry answers (since
 0.109.0, issue 486); before 0.98.0, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
 owner read, when the caps would push out a mark that is still an entry's
 newest state. A mark leaves the log untouched, so a waiting entry marked read

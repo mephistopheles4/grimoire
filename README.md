@@ -206,7 +206,7 @@ newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's
 heading, marks everything under To review read in one write, since 0.98.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line, but this session's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). It also leaves out what your search hides,
+and every ended session's line, but this lead's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). It also leaves out what your search hides,
 and a press marks nothing if the set changed since you looked, or if your
 marks file is so full that the write would push out marks of entries you
 read. A question marked read keeps its link, so an answer logged later still
