@@ -25,6 +25,7 @@ const {
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
   levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
   drawnLogs, markAllSet, parseMarkAllKey,
+  levelOption, commandEntry, parseLevelCommand, levelOriginAllowed, commandHolds, LEVEL_REPLIES,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -482,7 +483,7 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   }
   assert.ok('value' in checkLog(JSON.stringify(log)));
   const [owner, shown, reload, alarm] = log.entries;
-  assert.deepEqual([owner.question, owner.options, owner.pick, owner.why], ['Autonomy level', ['1 Manual', '2 Auto', '3 Full throttle'], '3 Full throttle', 'Moved in the pane']);
+  assert.deepEqual([owner.question, owner.options, owner.pick, owner.why], ['Autonomy level', ['1 Manual', '2 Auto', '3 Turbo mode'], '3 Turbo mode', 'Moved in the pane']);
   assert.deepEqual([shown.pick, shown.why, reload.why], ['1 Manual', 'The pane was shown again', 'The Brigade mod was reloaded']);
   assert.deepEqual([alarm.pick, alarm.why], ['2 Auto', 'Changed, not from a press']);
   for (const e of log.entries) assert.equal(inFixedShape(e), true, e.source);
@@ -529,9 +530,9 @@ test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape 
   const alarm = base(alarmEntry(3));
   const bent = [
     [owner, { work: 'issue 1' }], [owner, { question: 'Which level?' }], [owner, { options: ['1 Manual', '2 Auto'] }],
-    [owner, { options: ['2 Auto', '1 Manual', '3 Full throttle'] }], [owner, { pick: 'Yes', options: ['Yes', 'No'] }],
+    [owner, { options: ['2 Auto', '1 Manual', '3 Turbo mode'] }], [owner, { pick: 'Yes', options: ['Yes', 'No'] }],
     [owner, { why: 'The lead moved it' }], [owner, { undo: 'Nothing' }], [owner, { revisit: 'Tomorrow' }], [owner, { waiting: true, pick: '' }],
-    [pane, { pick: '3 Full throttle' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
+    [pane, { pick: '3 Turbo mode' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
     [alarm, { why: 'Moved in the pane' }], [alarm, { undo: 'Move the slider back' }],
     [pane, { level: 2 }], [alarm, { level: 3 }],
   ];
@@ -1245,4 +1246,98 @@ test('spec 448 claim 9: the Mark N relayed read key matches whole, from 1 to 500
   }
   assert.equal(parseMarkAllKey(`dmarkrelayed-3-${h}`), undefined);
   assert.equal(parseMarkEndedKey(`dmarkrelayed-3-${h}`), undefined);
+});
+
+// --- issue 464, spec v5: the level command, the command 3 and the rename ------------------
+// Each test names the claim of spec v5 (S7) it backs at this seam; the same
+// claims are driven through the engine in brigade/set-roster.test.ts.
+
+const fixedOf = (raw) => {
+  const r = appendEntry(emptyLog(null), raw, { at: NOW, level: 1, read: new Map(), fixed: true });
+  assert.ok('value' in r, JSON.stringify(r));
+  return r.value.log.entries[0];
+};
+
+test('C3: the grammar takes level 1, level 2 and level 3 with a goal, and refuses everything else with a fixed line', () => {
+  assert.deepEqual(parseLevelCommand('level 1'), { level: 1 });
+  assert.deepEqual(parseLevelCommand('  level   2  '), { level: 2 });
+  assert.deepEqual(parseLevelCommand('Level 3 grimoire#464 build'), { level: 3, goal: 'grimoire#464 build' });
+  // The goal is cleaned as oneLine cleans: controls become spaces, hidden characters go, runs of space fold.
+  assert.deepEqual(parseLevelCommand('level 3 issue\u{0}464\n on\u{200B}e   repo'), { level: 3, goal: 'issue 464 one repo' });
+  // Not a level command: today's /brigade path.
+  for (const args of ['', '   ', 'open', 'levels 3', 'levelx', 'go level 3']) assert.equal(parseLevelCommand(args), undefined, args);
+  for (const args of ['level', 'level 4', 'level 0', 'level three', 'level 1 now', 'level 2 issue 464', 'level -1', 'level 3x goal']) {
+    assert.deepEqual(parseLevelCommand(args), { refused: LEVEL_REPLIES.usage }, args);
+  }
+  for (const args of ['level 3', 'level 3    ', 'level 3 \u{200B}\u{200C}', 'level 3 \u{1}\u{2}']) {
+    assert.deepEqual(parseLevelCommand(args), { refused: LEVEL_REPLIES.needsGoal }, JSON.stringify(args));
+  }
+  // 300 characters after cleaning hold; 301 refuse, and the refusal holds none of the value.
+  const g300 = 'g'.repeat(300);
+  assert.deepEqual(parseLevelCommand(`level 3 ${g300}`), { level: 3, goal: g300 });
+  assert.deepEqual(parseLevelCommand(`level 3 ${g300}h`), { refused: LEVEL_REPLIES.goalLong });
+  // Astral characters count as one each, as oneLine counts them.
+  assert.deepEqual(parseLevelCommand(`level 3 ${'\u{1F600}'.repeat(300)}`), { level: 3, goal: '\u{1F600}'.repeat(300) });
+  assert.equal(LEVEL_REPLIES.goalLong, 'Not set: a goal holds at most 300 characters');
+  assert.equal(LEVEL_REPLIES.needsGoal, 'Not set: a 3 needs a goal: /brigade level 3 <the goal, by repository and issue>');
+  assert.equal(LEVEL_REPLIES.usage, 'Not set: type /brigade level 1, /brigade level 2 or /brigade level 3 <goal>');
+});
+
+test("C2: the gate takes only a run the engine stamps as the owner's Enter or a Remote Control message", () => {
+  assert.equal(levelOriginAllowed({ kind: 'composer' }), true);
+  assert.equal(levelOriginAllowed({ kind: 'bridge' }), true);
+  for (const kind of ['plugin', 'sdk', 'task-notification', 'scheduled-trigger', 'peer', 'peer-send-message', 'projects-relay', 'channel', 'coordinator', 'observer', 'observer-activity', 'auto-continuation', 'unclassified', 'Composer', '']) {
+    assert.equal(levelOriginAllowed({ kind, name: 'other' }), false, kind);
+  }
+  for (const bad of [undefined, null, 'composer', {}, [], { kind: ['composer'] }]) assert.equal(levelOriginAllowed(bad), false, JSON.stringify(bad));
+  assert.equal(LEVEL_REPLIES.notTyped, 'Not set: /brigade level counts only when the owner types it at the prompt or sends it from the phone.');
+});
+
+test('S4.1 (C4, C5, C7, C8): a 3 counts as set by the command only while its time is the press time, the level in force is 3 and no raise is in flight', () => {
+  const commanded = { at: NOW, goal: 'issue 464' };
+  assert.equal(commandHolds({ commanded, pressAt: NOW, level: 3, raising: false }), true);
+  assert.equal(commandHolds({ commanded: undefined, pressAt: NOW, level: 3, raising: false }), false);
+  assert.equal(commandHolds({ commanded, pressAt: NOW + 1, level: 3, raising: false }), false);
+  assert.equal(commandHolds({ commanded, pressAt: undefined, level: 3, raising: false }), false);
+  assert.equal(commandHolds({ commanded, pressAt: NOW, level: 2, raising: false }), false);
+  assert.equal(commandHolds({ commanded, pressAt: NOW, level: 1, raising: false }), false);
+  assert.equal(commandHolds({ commanded, pressAt: NOW, level: 3, raising: true }), false);
+});
+
+test("C1, C15: the command's Owner entry has its own fixed shape, holds no goal, and draws as Owner only when this pane wrote it", () => {
+  const e = fixedOf(commandEntry(3));
+  assert.deepEqual([e.source, e.question, e.options, e.pick, e.why, e.undo, e.revisit, e.answers], [
+    'owner', 'Autonomy level', ['1 Manual', '2 Auto', '3 Turbo mode'], '3 Turbo mode', "Set by the owner's command", 'Type /brigade level 1, or move the slider', '', '',
+  ]);
+  for (const l of [1, 2, 3]) assert.equal(inFixedShape(fixedOf(commandEntry(l))), true, String(l));
+  assert.ok('value' in checkLog(JSON.stringify({ ...emptyLog(null), next: 2, entries: [e] })));
+  assert.equal(sourceLabel(e, 'lead-a', true), 'Owner');
+  assert.equal(sourceLabel(e, 'lead-a'), 'Owner (as recorded)');
+  // Out of shape in any one field, and never with the slider's undo beside the command's why.
+  for (const over of [{ undo: 'Move the slider back' }, { why: 'Moved in the pane' }, { work: 'issue 464' }, { pick: '3 Full throttle' }]) {
+    assert.equal(inFixedShape({ ...e, ...over }), false, JSON.stringify(over));
+  }
+});
+
+test('C15a: level 3 is named Turbo mode, and logs written before the rename stay in their fixed shape, as whole old shapes only', () => {
+  assert.equal(levelOption(3), '3 Turbo mode');
+  const OLD = ['1 Manual', '2 Auto', '3 Full throttle'];
+  const owner = fixedOf(ownerEntry(3));
+  const pane = fixedOf(paneEntry('compact'));
+  const alarm = fixedOf(alarmEntry(3));
+  const command = fixedOf(commandEntry(3));
+  // Whole old shapes, as builds before the rename wrote them.
+  assert.equal(inFixedShape({ ...owner, options: OLD, pick: '3 Full throttle' }), true);
+  assert.equal(inFixedShape({ ...owner, options: OLD, pick: '2 Auto' }), true);
+  assert.equal(inFixedShape({ ...pane, options: OLD }), true);
+  assert.equal(inFixedShape({ ...alarm, options: OLD, pick: '3 Full throttle' }), true);
+  // Mixed shapes, and a command entry with the old name, which no build wrote, are out of shape.
+  assert.equal(inFixedShape({ ...owner, options: OLD }), false);
+  assert.equal(inFixedShape({ ...owner, pick: '3 Full throttle' }), false);
+  assert.equal(inFixedShape({ ...alarm, options: OLD }), false);
+  assert.equal(inFixedShape({ ...command, options: OLD, pick: '3 Full throttle' }), false);
+  assert.equal(inFixedShape({ ...owner, options: ['1 Manual', '2 Auto', '3 Full throttle', '3 Turbo mode'] }), false);
+  // An old alarm the pane wrote still holds a repeat back.
+  const log = { ...emptyLog(null), next: 2, entries: [{ ...alarm, options: OLD, pick: '3 Full throttle' }] };
+  assert.equal(unreadOwnAlarm(log, SID, new Set([markKey(SID, alarm.id, alarm.at)]), new Map()), true);
 });
