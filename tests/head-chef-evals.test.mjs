@@ -378,7 +378,7 @@ test('C18: the threat model and the security pages hold the level command, its g
     'or sets it with `/brigade level 3`, which acts only on a run the engine stamps',
     'into a level command with a goal of its own, which lasts through compactions',
     '- E78 · row 15 · accepted 2026-10-31',
-    "the level, a 3's press time, and a command 3's time and goal copied into the lead's transcript",
+    "the level, a 3's press time and press number, and a command 3's time and goal copied into the lead's transcript",
   ]) assert.ok(TM.includes(s), `the threat model lacks: ${s}`);
   for (const e of ['E35a', 'E35b', 'E36', 'E38d']) {
     assert.ok(new RegExp(`- ${e} · row 15 · accepted [^·]+ · widened [^·]*2026-10-31 \\(issue 464\\)`).test(TM), `${e} is not widened for issue 464`);

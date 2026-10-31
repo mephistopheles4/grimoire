@@ -4822,6 +4822,13 @@ test('a card naming a repository takes only that repository\'s answer, and a car
   assert.equal(typeof unavailableLine, 'function');
 });
 
+test('a card without repo never falls back to a named answer for its number', () => {
+  const named = new Map([['other/proj', new Map([[11, ghAnswer(11, { state: 'merged', title: 'Other 11', repo: 'other/proj' })]])]]);
+  const rows = prRows([prCard('f', 'working', '11')], new Set(), new Map(), NOW, undefined, named);
+  assert.deepEqual(rows.merged, []);
+  assert.deepEqual(rows.open.map(r => [r.title, r.state, r.href, r.detail.repo]), [['f', 'open', undefined, undefined]]);
+});
+
 test('the unavailable line names how many repositories had no answer', () => {
   const { unavailableLine } = view;
   assert.equal(unavailableLine(false, 0), undefined);
