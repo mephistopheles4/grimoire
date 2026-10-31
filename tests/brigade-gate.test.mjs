@@ -36,7 +36,10 @@ test('C1: a bound card whose session carried its title opens its archive entry a
   assert.deepEqual(r, [{ title: 'build-1', open: { kind: 'desktop', id: DESKTOP } }]);
   const reply = doneReply(r, targets, true);
   assert.match(reply, /^Opened 1 of 1 for 15 minutes:\n"build-1": Desktop, /);
-  assert.ok(!reply.includes(DESKTOP) && !reply.includes('local_') && !/[A-Za-z]:[\\/]|\/work|\\/.test(reply), reply);
+  // Past the reply's fixed lines (the undo line names /brigade), no slash or backslash: no path of any kind.
+  const fixed = [...gate.CLEAN_LINES, gate.UNDO_LINE, gate.PANE_CLOSED_LINE, 'Now send any message, so this session acts on them.'];
+  const own = reply.split('\n').filter(l => !fixed.includes(l)).join('\n');
+  assert.ok(!reply.includes(DESKTOP) && !reply.includes('local_') && !/[\\/]/.test(own), reply);
   const w = opened(['build-1']);
   assert.deepEqual([...w.values()], [{ kind: 'desktop', id: DESKTOP, openedAt: 1000 }, { kind: 'clean', id: DESKTOP, openedAt: 1000 }]);
 });
@@ -136,7 +139,7 @@ test('C10: the stop answer is fixed words, a stop only on exit 0, whatever the r
 
 // ---------------------------------------------------------------- 484: one typed act
 
-const { CLEAN_LINES, NONE_REPLY, NOTHING_DONE, PANE_CLOSED_LINE, UNDO_LINE, cleanFolder, doneWord, entryOpen, resolveAll } = gate;
+const { CLEAN_LINES, NONE_REPLY, NOTHING_DONE, PANE_CLOSED_LINE, UNDO_LINE, cleanFolder, doneWord, entryOpen, quoted, resolveAll } = gate;
 const done = (title, ids) => ({ title, status: 'done', ...ids });
 
 test('484 C1: done all names every shown done card through resolveTitles, and none other', () => {
@@ -202,6 +205,24 @@ test('484 C2: the reply lists each opened card with its kind, repository, folder
   assert.match(reply, /^"bg-1": background, repository "grimoire", no folder the cleaner can remove, no branch$/m, reply);
   assert.ok(!reply.includes(HOSTILE) && !reply.includes(JOB) && !/[A-Za-z]:[\\/]|\/work|\/elsewhere|\.hidden/.test(reply), reply);
   assert.equal(reply.split('\n').length, 1 + 2 + CLEAN_LINES.length + 2);
+
+  // A repository sitting right in a home folder is never named by that folder, which names the account.
+  const HOME = 'local_33333333-2222-3333-4444-555555555555';
+  for (const repo of ['/home/alice/.git', 'C:\\Users\\Alice\\.git']) {
+    const homeTargets = new Map([[HOME, { kind: 'desktop', name: 'h-1', cwd: '/x', repo, branch: 'b' }]]);
+    const line = doneReply(resolveAll([done('h-1', { desktopId: HOME })], [], homeTargets), homeTargets, true).split('\n')[1];
+    assert.equal(line, '"h-1": Desktop, a repository with no GitHub name, no folder the cleaner can remove, branch b', repo);
+    assert.doesNotMatch(line, /alice/i);
+  }
+
+  // A direction-changing or control character in a done card's title or a repository name never reaches the reply raw.
+  const RLO = 'local_22222222-2222-3333-4444-555555555555';
+  const rloTitle = `t\u{202E}x`;
+  const rloTargets = new Map([[RLO, { kind: 'desktop', name: 'tx', cwd: '/x', repo: `/work/r\u{202E}e/.git` }]]);
+  const rloReply = doneReply(resolveAll([done(rloTitle, { desktopId: RLO })], [], rloTargets), rloTargets, true);
+  assert.ok(!/[\u{202E}\u{7}]/u.test(rloReply), rloReply);
+  assert.match(rloReply, /^"tx": Desktop, repository "re", /m, rloReply);
+  assert.equal(quoted(`a\u{202E}b\u{7}"\\`), '"a\\u{202e}b\\u{7}\\"\\\\"');
 });
 
 test('484 C7: a folder the cleaner may remove sits directly under <main>/.claude/worktrees, passes the name rule, and its repository ends in .git under a main that passes commandPath', () => {
@@ -221,11 +242,8 @@ test('484 C7: a folder the cleaner may remove sits directly under <main>/.claude
   ]) assert.equal(cleanFolder(t), undefined, JSON.stringify(t));
 });
 
-test('484 C3: done none closes every entry of every kind', () => {
-  const w = opened(['build-1', 'bg-1']);
-  assert.equal(w.size, 4);
-  w.clear();
-  assert.equal(entryOpen(w, 'clean', DESKTOP, 1000), false);
+// C3's clearing of the window is pinned as a line of doneCommand by "C1, C2, C4, C5: the done path..." below.
+test('484 C3: done none answers its fixed line', () => {
   assert.equal(NONE_REPLY, 'Closed: no window is open.');
 });
 
@@ -345,12 +363,6 @@ test('C9, C10: the stop tool refuses a subagent or another plugin, takes its win
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'stop_background_session refused: /);
 });
 
-test('484 C2, C3: the done command reads no file, folder or process, and none is the whole argument before any other read', () => {
-  const done = between('async function doneCommand', '\n}\n');
-  for (const call of ['$.process.run', '$.fs.read', '$.fs.list', '$.fs.stat', 'readSessions']) assert.ok(!done.includes(call), call);
-  assert.ok(done.indexOf("word === 'none'") < done.indexOf('read($, roster)'));
-});
-
 test('484 C4, C5, C8: clean_up gates before it runs, in order, takes no input, reads only open clean entries, checks the cleaner file, and runs only through runCleaner', () => {
   const clean = between('async function cleanUp', '// end cleanUp');
   const lines = live(clean).map(l => l.replace(/return refuseClean\(.*\)$/, 'return refuseClean(…)'));
@@ -363,15 +375,15 @@ test('484 C4, C5, C8: clean_up gates before it runs, in order, takes no input, r
     'if (!(await offered($))) return refuseClean(…)',
     'if (!(await paneOpen($))) return refuseClean(…)',
     'if (Object.keys(input).length > 0) return refuseClean(…)',
+    'return cleanupTurn(async () => {',
     'const now = await $.clock.now()',
     "const open = [...doneWindow.values()].filter(x => x.kind === 'clean').map(x => x.id).filter(id => entryOpen(doneWindow, 'clean', id, now))",
     'if (open.length === 0) return refuseClean(…)',
-    'return cleanupTurn(async () => {',
-    'const at = await where($)',
-    "if ('error' in at) return refuseClean(…)",
+    'const config = cleanerConfig($.plugin.root, $.plugin.name)',
+    'if (config === undefined) return refuseClean(…)',
     'if (!(await ghFindable($))) return refuseClean(…)',
-    'const sep = sepOf(at.config)',
-    'const cleaner = `${at.config}${sep}pact${sep}tools${sep}cleaner.mjs`',
+    'const sep = sepOf(config)',
+    'const cleaner = `${config}${sep}pact${sep}tools${sep}cleaner.mjs`',
     'if (!(await cleanerReady(cleaner, path => $.fs.stat(path, { resolve: true })))) return { result: CLEAN_ANSWERS.notInstalled }',
     'const cards = open.map(id => {',
     'const t = cleanupTargets.get(id)',

@@ -54,7 +54,7 @@ import {
   rowMove,
   sepOf,
 } from './roster.ts'
-import { CLEAN_ANSWERS, bindTarget, cardId, cleanerReady, hooksReady, makeHooks, runCleaner } from './cleanup.ts'
+import { CLEAN_ANSWERS, bindTarget, cardId, cleanerConfig, cleanerReady, hooksReady, makeHooks, runCleaner } from './cleanup.ts'
 import type { CleanupIo, Target } from './cleanup.ts'
 import { ARCHIVE_REFUSAL, ARCHIVE_TOOL, DONE_REPLIES, ENVELOPE as GATE_ENVELOPE, NONE_REPLY, NOTHING_DONE, archivePasses, cleanFolder, doneReply, doneWord, entryOpen, fromEngine, isDoneCommand, openWindow, parseDone, resolveAll, resolveTitles, stopAnswer, takeEntry } from './gate.ts'
 import type { Window } from './gate.ts'
@@ -2863,17 +2863,19 @@ async function cleanUp($: EngineInterface, e: Record<string, unknown>, origin: u
   if (!(await offered($))) return refuseClean(OFFER_RULE)
   if (!(await paneOpen($))) return refuseClean('pane closed: the owner opens it with /brigade')
   if (Object.keys(input).length > 0) return refuseClean('shape: the tool takes no input')
-  const now = await $.clock.now()
-  const open = [...doneWindow.values()].filter(x => x.kind === 'clean').map(x => x.id).filter(id => entryOpen(doneWindow, 'clean', id, now))
-  if (open.length === 0) return refuseClean('window: no /brigade done window is open; the owner types /brigade done all or /brigade done <title>')
   return cleanupTurn(async () => {
-    const at = await where($)
-    if ('error' in at) return refuseClean("path: the plugin's data folder could not be named")
+    // Read once the turn is this call's, so a /brigade done none typed while another run went on holds.
+    const now = await $.clock.now()
+    const open = [...doneWindow.values()].filter(x => x.kind === 'clean').map(x => x.id).filter(id => entryOpen(doneWindow, 'clean', id, now))
+    if (open.length === 0) return refuseClean('window: no /brigade done window is open; the owner types /brigade done all or /brigade done <title>')
+    // The config folder only from where the plugin was installed, never from a record in plugin state.
+    const config = cleanerConfig($.plugin.root, $.plugin.name)
+    if (config === undefined) return refuseClean('path: the Claude config folder cannot be named from where the plugin was installed')
     // `node` by the pane's host and PATH rule, as `claude stop` is found.
     if (!(await ghFindable($))) return refuseClean("host: node cannot be found safely on this host's PATH, so nothing runs")
     // The pact installs into the home config folder; with another config folder the file is not found.
-    const sep = sepOf(at.config)
-    const cleaner = `${at.config}${sep}pact${sep}tools${sep}cleaner.mjs`
+    const sep = sepOf(config)
+    const cleaner = `${config}${sep}pact${sep}tools${sep}cleaner.mjs`
     if (!(await cleanerReady(cleaner, path => $.fs.stat(path, { resolve: true })))) return { result: CLEAN_ANSWERS.notInstalled }
     const cards = open.map(id => {
       const t = cleanupTargets.get(id)

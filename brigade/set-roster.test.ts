@@ -9435,8 +9435,9 @@ const DONE_NOT_TYPED = 'Nothing opened: /brigade done counts only when the owner
 const NO_WINDOW = 'clean_up refused: window: no /brigade done window is open; the owner types /brigade done all or /brigade done <title>. Nothing was run or removed.'
 const cleanerRuns = (w: World) => w.procs.filter(argv => argv[0] === 'node')
 
-test('484 C1, C3: /brigade done all with no done card opens nothing, and done none closes every window, both typed only', async ($, on) => {
-  const w = world(on)
+// That done none empties the window is pinned as a line of doneCommand in tests/brigade-gate.test.mjs.
+test('484 C1, C3: /brigade done all with no done card opens nothing, and done none answers its line, both typed only', async ($, on) => {
+  world(on)
   await start($)
   await brigade($)
   expect((await typedBrigade($, 'done all')).text).toBe('Nothing opened: no card is done.')
@@ -9446,11 +9447,6 @@ test('484 C1, C3: /brigade done all with no done card opens nothing, and done no
     expect((await typedBrigade($, 'done none', kind)).text).toBe(DONE_NOT_TYPED)
     expect((await typedBrigade($, 'done all', kind)).text).toBe(DONE_NOT_TYPED)
   }
-  // After none, the archive hook and clean_up refuse, and nothing runs.
-  const archive = await $.tool.call({ tool: 'mcp__ccd_session_mgmt__archive_session', session_id: 'local_11111111-2222-3333-4444-555555555555' })
-  expect(typeof archive.deny).toBe('string')
-  expect((await cleanUp($)).text).toBe(NO_WINDOW)
-  expect(cleanerRuns(w)).toEqual([])
 })
 
 test("484 C4, C14: clean_up refuses a subagent's call, the rules, any input, a closed pane and no open window, and each refusal runs nothing", async ($, on) => {

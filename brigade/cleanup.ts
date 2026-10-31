@@ -1,6 +1,6 @@
 import type { Card } from './types'
 import type { Placed, SessionRow } from './roster.ts'
-import { foldsCase, oneLine, pathKey, sepOf } from './roster.ts'
+import { configFromRoot, configFromSynced, foldsCase, oneLine, pathKey, sepOf } from './roster.ts'
 
 // Cleanup's rules (issue 454; issue 484), as plain TypeScript with no engine
 // import, so tests/brigade-cleanup.test.mjs runs them directly. Brigade
@@ -274,6 +274,13 @@ export async function runCleaner(cleaner: string, cards: readonly CleanCard[], r
     out.push(...dataBlock(`${shownText}\n${remove.stdout}`))
   }
   return out.join('\n')
+}
+
+/** The Claude config folder the pact's cleaner is run from: only as the
+ *  plugin's install root names it, never from the session-start record in
+ *  plugin state, which another plugin can rewrite. */
+export function cleanerConfig(root: string, name: string): string | undefined {
+  return configFromRoot(root) ?? configFromSynced(root, name)
 }
 
 /** Whether the cleaner file may run: a regular file, not a link, landing
