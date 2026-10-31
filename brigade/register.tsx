@@ -2767,9 +2767,11 @@ const refuseStop = (rule: string) => ({ deny: `stop_background_session refused: 
 // The done command's answer: the origin gate first, before anything of the
 // args beyond the word `done` is read; then the grammar; then each title.
 // No session file, git or folder is read. A throw answers one fixed line.
-async function doneCommand($: EngineInterface, origin: unknown, args: string): Promise<{ text: string }> {
+async function doneCommand($: EngineInterface, origin: unknown, dispatch: unknown, args: string): Promise<{ text: string }> {
   try {
-    if (!levelOriginAllowed(origin)) return { text: DONE_REPLIES.notTyped }
+    // The prompt's origin, and the dispatch's: a run another plugin raised
+    // names that plugin there, whatever prompt origin it supplies (A15).
+    if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }
     const titles = parseDone(args)
     if (titles === undefined) return { text: DONE_REPLIES.usage }
     const { cards } = await read($, roster)
@@ -3260,12 +3262,12 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'brigade' }, async ($, e) => {
+  on('command.run', { command: 'brigade' }, async ($, e, next) => {
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
     // `/brigade done <titles>` opens the cleanup gate's window (issue 359),
     // read before every other path, and never opens the pane.
-    if (isDoneCommand(e.args)) return doneCommand($, e.origin, e.args)
+    if (isDoneCommand(e.args)) return doneCommand($, e.origin, next.origin, e.args)
     if (isLevelCommand(e.args)) return levelCommand($, e.origin, e.args)
     const scanArg = switchArgs(e.args)
     if (scanArg !== undefined) return scanCommand($, e.origin?.kind, scanArg)

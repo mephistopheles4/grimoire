@@ -92,7 +92,7 @@ export function takeEntry(window: Window, kind: 'desktop' | 'bg', id: string, no
  *  `next.origin` as `{ plugin, tier }`, reading `{ plugin: "engine", tier:
  *  "core" }` for the engine; ADR 0012's A4 measured another plugin's name
  *  there. The model's own call is measured at the field test (H1). */
-export const fromEngine = (origin: unknown): boolean => isRecord(origin) && origin.plugin === 'engine'
+export const fromEngine = (origin: unknown): boolean => isRecord(origin) && origin.plugin === 'engine' && origin.tier === 'core'
 
 // The engine's own fields on a tool call, as brigade/scan.ts lists them.
 // Everything else is the model's input.

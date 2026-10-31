@@ -3,8 +3,10 @@
 Accepted, as built in 0.102.0 (issue 359, spec v5.2). The owner's typed
 `/brigade done <titles>` opens a 15-minute window in the Brigade mod's module
 memory for the bound cards it names. Desktop's archive tool passes only inside
-it, and a background session is stopped only by the mod's
-`stop_background_session`, which runs `claude stop` as an argument list. A
+it, and the head chef stops a background session with the mod's
+`stop_background_session`, which runs `claude stop` as an argument list only
+inside a window. A raw `claude stop` from a session's own shell stays open
+until the-pact issue 439's deny rule is installed (the owner's word, q6 A). A
 reload, a session start, a throw or a wrong shape leaves the window shut. No
 shell text is read: the shell reader and the confirm code and press of the
 earlier specs are gone, and worktree and branch removal moved to the-pact
@@ -48,7 +50,9 @@ list is yet a control or the owner's accepted risk.
 H7 holds for this record: after each new engine build, before the gate is
 relied on, A1 (the archive tool), A2, A3, A4, A5, A8, A10, A11, A14 and A14b
 are measured again, and a row that fails stops reliance on the gate until
-Design answers it.
+Design answers it. A15b, whether another plugin's command run can carry an
+origin it supplies, is not measured: until it is, the origin gate is not
+relied on against another plugin.
 
 ## Measured
 

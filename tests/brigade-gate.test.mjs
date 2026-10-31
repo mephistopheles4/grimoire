@@ -98,6 +98,8 @@ test('C7: the archive is refused with no window, past 15 minutes, for self, an u
     [{ session_id: DESKTOP, reason: 7 }, ENGINE],
     [{ session_id: DESKTOP, agentId: 'a1' }, ENGINE],
     [{ session_id: DESKTOP }, { plugin: 'other', tier: 'append' }],
+    [{ session_id: DESKTOP }, { plugin: 'engine', tier: 'append' }],
+    [{ session_id: DESKTOP }, { plugin: 'engine' }],
     [{ session_id: DESKTOP }, undefined],
     [{ session_id: JOB }, ENGINE],
   ];
@@ -151,11 +153,12 @@ test('C7: the archive hook matches Desktop\'s archive tool by the name ADR 0012 
 
 test('C1, C2, C4, C5: the done path is read first and returns, hands on the event\'s own origin, gates before it reads or opens anything, and fails closed', () => {
   const command = hook("on('command.run', { command: 'brigade' }");
-  assert.match(command, /\n {4}if \(isDoneCommand\(e\.args\)\) return doneCommand\(\$, e\.origin, e\.args\)\n/);
+  assert.match(command, /^on\('command\.run', \{ command: 'brigade' \}, async \(\$, e, next\) => \{/);
+  assert.match(command, /\n {4}if \(isDoneCommand\(e\.args\)\) return doneCommand\(\$, e\.origin, next\.origin, e\.args\)\n/);
   assert.ok(command.indexOf('isDoneCommand(e.args)') < command.indexOf('isLevelCommand(e.args)'));
   assert.match(command, /\.catch\(\(\$, e, next\) => \{\n {4}if \(isDoneCommand\(e\.args\)\) return \{ text: DONE_REPLIES\.failed \}/);
   const done = between('async function doneCommand', '\n}\n');
-  const gateAt = done.indexOf('if (!levelOriginAllowed(origin)) return { text: DONE_REPLIES.notTyped }');
+  const gateAt = done.indexOf('if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }');
   assert.ok(gateAt > 0 && gateAt < done.indexOf('parseDone(') && gateAt < done.indexOf('openWindow('));
   assert.match(done, /openWindow\(doneWindow, resolved, await \$\.clock\.now\(\)\)/);
   assert.match(done, /\} catch \{\n {4}return \{ text: DONE_REPLIES\.failed \}/);
