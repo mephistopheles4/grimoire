@@ -40,8 +40,10 @@ runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
 Claude Code version, and fails on any field the schema does not recognise in
-either manifest; its check of `skills/` is weaker. All
-three put their tool on the runner and never on your machine, so the command above
+either manifest; its check of `skills/` is weaker. The same workflow runs the
+Brigade mod's tests, `claude plugin test .`, on a Windows runner. All
+three put their tool on the runner and never on your machine (athanor's image,
+below, fetches the validator's Claude Code into the container), so the command above
 stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
@@ -68,18 +70,21 @@ temporary folders. Where `athanor` is not on your PATH, or produces no result, r
 
 The root `package.json` holds only the `athanor` key, because athanor reads its
 configuration from nowhere else. It names the Dockerfile in `tests/container/`,
-which is the whole build context, and two commands:
+which is the whole build context, and three commands:
 
 ```bash
 athanor run check
 athanor run fast
+athanor run validate
 ```
 
 `check` runs the same contract as `node scripts/check.mjs`, and it is the one
 that counts. `fast` runs every test file except `tests/check-*.test.mjs`, in
 about a third of the time of `check`, and skips the check's rules, so a pass
 there is not a contract pass. Its saving comes from the subset: the same files
-run on the host with `node --test`.
+run on the host with `node --test`. `validate` runs `claude plugin validate
+--strict` on the same three targets as CI, at the same pinned Claude Code,
+which the image fetches when athanor builds it.
 
 To install athanor, clone its source repository outside this repository's tree
 and check out commit `0fd9ad4`, the commit this configuration was tested with:
@@ -256,14 +261,16 @@ scripts on a small stand-in document, picks its controls by the keys the page
 gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
 page saved to its store. Those keys and the saved entry are the page's seam.
 
-**Two more gates for the mod's `set_roster` tool, run on your own machine.**
-They drive a live Claude Code session, so they run where you have one. CI fetches
-Claude Code in one place only, the plugin validator's workflow, and that is not
-the publishing path: the job has `contents: read`, holds no token or secret,
-writes nothing, and the `pages` workflow does not depend on it. Before a pull request that
-touches `brigade/`, run the first on any platform, and the second on Windows,
-and say in the pull request which you ran. Off Windows, say that the recording
-gate could not run there:
+**Two more gates for the mod's `set_roster` tool.** CI fetches Claude Code in
+one place only, the plugin validator's workflow, and that is not the publishing
+path: its jobs have `contents: read`, hold no token or secret, write nothing,
+and the `pages` workflow does not depend on them. The first gate runs there,
+as the workflow's `plugin-test` job, on a Windows runner. Run it yourself on
+Windows before you push a change to `brigade/`, if you like; off Windows it
+fails, because the tests' world is a Windows machine and the engine reads its
+`C:\` paths as relative ones. The second stays on your own machine: before a
+pull request that touches `brigade/`, run it on Windows and say so in the pull
+request. Off Windows, say that the recording gate could not run there:
 
 ```bash
 claude plugin test .
@@ -272,7 +279,8 @@ node scripts/record-brigade-stats.mjs
 
 The first runs `brigade/set-roster.test.ts` and `brigade/warning.test.tsx`
 under the engine's own plugin test runner, which drives each tool the way the
-model calls it. That runner gives a
+model calls it. A test file that does not load fails it, as a failing test
+does. That runner gives a
 plugin no file system, so the test answers every `stat`, read and write from a
 small file system in memory, and its answers about links, and the way a
 folder listing shows each kind of entry, come from
