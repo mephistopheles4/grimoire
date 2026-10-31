@@ -27,7 +27,7 @@ test("the warning's wording is pinned as the head-chef contract gives it at 1.7.
   ]);
   assert.equal(
     ALSO,
-    'It also starts sessions and relays between them. It merges, posts, waives reviews, settles security findings and records accepted risks on your word, or on its own toward a goal at a level 3 you confirmed in its chat, a merge that eases a control included; it cleans up, forcing where git refuses, only on your yes.',
+    'It also starts sessions and relays between them. It merges, posts, waives reviews, settles security findings and records accepted risks on your word, or on its own toward a goal at a level 3 you confirmed in its chat, a merge that eases a control included; it cleans up only on your typed /brigade done, and removes only what the pact\'s cleaner finds it can recover.',
   );
 });
 
