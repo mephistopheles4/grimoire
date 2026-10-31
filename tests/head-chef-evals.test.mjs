@@ -128,7 +128,7 @@ test('SKILL.md holds the data rule once, word for word, and none of the clauses 
   assert.ok(!SKILL.includes('never post a token or secret'), 'the members\' prompt still holds its secret line');
   const waits = SKILL.match(/\*\*At level 3 these still wait for the owner,\*\* each as a waiting entry with a to-do:(.*?)\*\*The hold\.\*\*/);
   assert.ok(waits, 'SKILL.md lacks the level-3 list');
-  for (const w of ['would carry private-repository work onto a public record or another repository', 'an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire\'s E79 and E80)', 'an install', 'cleanup\'s yes']) assert.ok(waits[1].includes(w), `the level-3 list lacks: ${w}`);
+  for (const w of ['would carry private-repository work onto a public record or another repository', 'an edit to a threat model\'s scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire\'s E79 and E80)', 'an install', 'cleanup\'s yes', 'A hand-off request or a fresh session a context figure prompts']) assert.ok(waits[1].includes(w), `the level-3 list lacks: ${w}`);
   // The fourth wait names what E79 and E80 do, so the words "secrets" and
   // "personal data" appear there; the cut waits themselves must not.
   for (const w of ['would expose a secret', 'carry personal data', 'a lowered class', 'writing or editing an accepted-risk entry', 'removes or weakens']) assert.ok(!waits[1].includes(w), `the level-3 list still names: ${w}`);
@@ -338,7 +338,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.8.0'), 'the contract is not at 1.8.0');
+  assert.ok(CONTRACT.includes('Version: 1.9.0'), 'the contract is not at 1.9.0');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {
@@ -396,4 +396,59 @@ test('C18: the threat model and the security pages hold the level command, its g
   for (const [name, text] of [['threat-model.md', TM], ['SECURITY.md', SEC], ['brigade.md', BRIGADE], ['CONTEXT.md', flat(read('CONTEXT.md'))]]) {
     assert.ok(!/only a (slider )?press (on the slider [^.]*)?sets a level above 1\./i.test(text), `${name} still says only a press sets the level`);
   }
+});
+
+// Issue 492, spec v3 S2.2 and S2.5: the Context rule, in the contract and in
+// SKILL.md, carries the lines behind C1, C2 and C3 word for word, and
+// AGENTS.md carries the same-change rule (C7).
+const CONTEXT_LINES = {
+  'skills/head-chef/SKILL.md': [
+    // C1
+    'At the start of each turn, read your own context percent with `get_usage` and no session id,',
+    'At 60% or above, say so in one line and suggest `/compact` once, after saving your hand-off with `set_lead_handoff`;',
+    'Suggest again only after a compaction, or when the figure reaches the next 10% step.',
+    // C2
+    "When you take a member's report, call `read_context` and read that member's line;",
+    'At 60% or above, suggest one line to the owner:',
+    "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
+    "A hand-off request or a fresh session a context figure prompts waits for the owner's words, at every level: suggest it in that one line, and send nothing to the member until the owner answers.",
+    "A hand-off request or a fresh session a context figure prompts also waits for the owner's words, at every level, as the Context rule under Tools says.",
+    'A hand-off request or a fresh session a context figure prompts waits too, at every level.',
+    "at a confirmed level 3, the leave toward the goal, except a fresh session a context figure prompts, which waits for the owner's words at every level |",
+    // C3
+    'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
+  ],
+  'skills/head-chef/references/CONTRACT.md': [
+    'At the start of each turn, it reads its own context percent with `get_usage` and no session id,',
+    'At 60% or above, it says so in one line and suggests `/compact` once, after saving its hand-off with `set_lead_handoff`;',
+    'It suggests again only after a compaction, or when the figure reaches the next 10% step.',
+    "When it takes a member's report, it calls `read_context` and reads that member's line;",
+    'At 60% or above, it suggests one line to the owner:',
+    "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
+    "A hand-off request or a fresh session a context figure prompts waits for the owner's words, at every level: it suggests it in that one line, and sends nothing to the member until the owner answers.",
+    "A hand-off request or a fresh session a context figure prompts also waits for the owner's words, at every level, as the Context clause under tools says.",
+    'A hand-off request or a fresh session a context figure prompts waits too, at every level.',
+    "at a confirmed level 3, the leave toward the goal, except a fresh session a context figure prompts, which waits for the owner's words at every level |",
+    "a hand-off request or a fresh session a context figure prompts also waits for the owner's words, at every level, as the Context clause under tools says.",
+    'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
+  ],
+};
+
+for (const [file, lines] of Object.entries(CONTEXT_LINES)) {
+  test(`${file} carries the Context rule's lines for C1, C2 and C3`, () => {
+    const text = flat(read(file));
+    for (const line of lines) assert.ok(text.includes(line), `${file} lacks: ${line}`);
+    // Decisions 476 and 482: the issue's level-3 own pick on a hand-off is cut.
+    for (const cut of ['take your own pick between asking the member for its hand-off', 'takes its own pick between asking the member for its hand-off']) {
+      assert.ok(!text.includes(cut), `${file} still holds: ${cut}`);
+    }
+  });
+}
+
+test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
+  assert.ok(
+    flat(read('AGENTS.md')).includes(
+      "A Brigade change that adds data the pane keeps says, in the same change, whether the lead can read it through a tool; when it can, the same change updates the head-chef contract and its `SKILL.md`, and its `docs/security/brigade.md` row says where the tool's answer then flows.",
+    ),
+  );
 });
