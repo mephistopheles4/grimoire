@@ -99,12 +99,14 @@ test('claim 14: every field refuses hidden and direction-changing characters and
   }
   for (const t of bad) {
     assert.ok('error' in checkInput(input({ options: [t, 'b'], pick: t })), JSON.stringify(t));
+    // Issue 459: a lead's flag, which is one line.
+    assert.match(checkInput(input({ flag: t })).error ?? '', /^flag /, JSON.stringify(t));
   }
 });
 
 test('claim 14: every field refuses session-id and Desktop-id shaped text, in any case, and keeps ordinary words', () => {
   for (const t of [SID, `see ${SID.toUpperCase()} now`, 'local_0123abcd-4567-89ab-cdef-0123456789ab', 'open LOCAL_deadbeef please']) {
-    for (const field of ['work', 'question', 'why', 'undo', 'revisit']) {
+    for (const field of ['work', 'question', 'why', 'undo', 'revisit', 'flag']) {
       const r = checkInput(input({ [field]: t }));
       assert.ok('error' in r, `${field} ${t}`);
       assert.match(r.error, /session id or Desktop id/);
@@ -138,7 +140,7 @@ test('every field refuses a key-shaped value, an email address and a home-folder
     ['in ~/.claude/plugins', /holds a home-folder path/],
     ['on \\\\wsl$\\Ubuntu\\home\\someone\\repo', /holds a home-folder path/],
   ];
-  for (const field of ['work', 'question', 'why', 'undo', 'revisit']) {
+  for (const field of ['work', 'question', 'why', 'undo', 'revisit', 'flag']) {
     for (const [t, rule] of cases) {
       const r = checkInput(input({ [field]: t }));
       assert.match(r.error ?? '', rule, `${field} ${t}`);
@@ -684,6 +686,24 @@ test('claim 14: every hand-off line refuses hidden and direction-changing charac
   assert.ok('value' in checkHandoffInput(sections({ rules: ['x'.repeat(300)] })));
 });
 
+// Issue 450's claim 16: set_lead_handoff refuses key shapes, emails and home
+// paths through the shared text check, whatever the outbound scan's setting.
+test('claim 16 (issue 450): every hand-off line refuses a key shape, an email address and a home path, never echoing the value', () => {
+  for (const [line, rule] of [
+    [`sk-ant-${'a'.repeat(24)}`, /holds text shaped like a key/],
+    ['write to someone@example.org', /holds an email address/],
+    ['see C:\\Users\\someone\\x', /holds a home-folder path/],
+    ['in /home/someone/repo', /holds a home-folder path/],
+  ]) {
+    for (const section of ['resume', 'rules', 'sessions', 'cleanup', 'owner']) {
+      const r = checkHandoffInput(sections({ [section]: ['fine', line] }));
+      assert.match(r.error ?? '', rule, `${section} ${line}`);
+      assert.match(r.error, new RegExp(`^${section} line 2 `));
+      assert.ok(!r.error.includes(line), 'the refusal never echoes the value');
+    }
+  }
+});
+
 test('S5.3: a hand-off input takes exactly the five sections, each a list of at most 20 lines, and nothing the mod stamps', () => {
   assert.ok('value' in checkHandoffInput(sections({ resume: Array.from({ length: 20 }, (_, i) => `Line ${i}`) })));
   assert.match(checkHandoffInput(sections({ resume: Array.from({ length: 21 }, (_, i) => `Line ${i}`) })).error, /^resume is not a list of at most 20 lines$/);
@@ -915,6 +935,17 @@ test('spec 444 claim 10: a newest mark whose older flag sits in another file is 
   assert.notEqual(mergeMarks([next, flagOther], NOW + 20000).get(markKey(OTHER, '1', NOW)), 'flagged');
   const unknown = addMarks(file, added, new Set([...known].filter(k => !k.startsWith(OTHER))), [flagOther], NOW + 20000);
   assert.ok(!unknown.marks.some(m => m.log === OTHER), 'an unknown entry\'s mark dropped first');
+});
+
+test('issue 459 claim 5: past the marks cap, the owner\'s newest mark on a lead-flagged entry is kept past step 3, so the lead\'s flag never comes back', () => {
+  for (const state of ['unflagged', 'read']) {
+    const marks = [mk(OTHER, '1', NOW, state, NOW + 2), ...Array.from({ length: MAX_MARKS - 1 }, (_, i) => mk(SID, String(i + 1), NOW, 'read', NOW + 10 + i))];
+    const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+    const leadFlags = new Set([markKey(OTHER, '1', NOW)]);
+    const next = addMarks({ kind: 'marks', v: 1, marks }, [mk(SID, '9000', NOW, 'read', NOW + 9000)], known, [], NOW + 20000, leadFlags);
+    assert.ok(next.marks.some(m => m.log === OTHER && m.state === state), `the owner's ${state} mark stays`);
+    assert.ok(!next.marks.some(m => m.log === SID && m.id === '1'), 'the oldest plain read drops instead');
+  }
 });
 
 test('spec 444 claim 10: a mark dated one minute ahead is inside the allowance, so it supersedes and the older flag of its entry drops first', () => {
@@ -1245,4 +1276,81 @@ test('spec 448 claim 9: the Mark N relayed read key matches whole, from 1 to 500
   }
   assert.equal(parseMarkAllKey(`dmarkrelayed-3-${h}`), undefined);
   assert.equal(parseMarkEndedKey(`dmarkrelayed-3-${h}`), undefined);
+});
+
+// --- issue 459: the lead flags its own unsure decisions ------------------------------
+//
+// A `flag` on log_decision is a one-line reason. A flagged Lead entry reads as
+// flagged until the owner marks it, so it sits in Flagged to revisit and never
+// in To review, where Mark all read takes from; the owner's latest mark wins.
+
+test('issue 459 claim 1: a flag is one line of 1 to 300 characters on a Lead entry that does not wait, kept only when sent', () => {
+  assert.equal(checkInput(input({ flag: 'Unsure: the tier may be too low.' })).value?.flag, 'Unsure: the tier may be too low.');
+  for (const none of [input(), input({ flag: '' })]) {
+    const c = checkInput(none);
+    assert.ok('value' in c, JSON.stringify(c));
+    assert.equal(Object.hasOwn(c.value, 'flag'), false, 'no flag key when none was sent');
+  }
+  assert.ok('value' in checkInput(input({ flag: 'x'.repeat(300) })));
+  const refused = [
+    [input({ flag: 'x'.repeat(301) }), /^flag is over 300 characters$/],
+    [input({ flag: 'two\nlines' }), /^flag holds a line break$/],
+    [input({ flag: '   ' }), /^flag is empty$/],
+    [input({ flag: 7 }), /^flag is not text$/],
+    [input({ source: 'relayed', flag: 'Unsure.' }), /^flag: only a Lead entry that does not wait may carry one$/],
+    [input({ waiting: true, pick: '', flag: 'Unsure.' }), /^flag: only a Lead entry that does not wait may carry one$/],
+  ];
+  for (const [v, re] of refused) assert.match(checkInput(v).error ?? '', re, JSON.stringify(v.flag));
+  const r = appendEntry(emptyLog(null), input({ flag: 'Unsure.' }), { at: NOW, level: 3, read: new Map() });
+  assert.equal(r.value.entry.flag, 'Unsure.');
+  assert.equal(r.value.entry.waiting, false, 'a flag holds nothing: the entry does not wait');
+  const plain = appendEntry(emptyLog(null), input(), { at: NOW, level: 3, read: new Map() });
+  assert.equal(JSON.stringify(plain.value.log).includes('"flag"'), false, 'an unflagged entry is stored as before');
+});
+
+test('issue 459 claim 2: the strict log check takes an entry with or without a flag, and refuses a flag the tool would refuse', () => {
+  const log = logOf(2, i => (i === 1 ? { flag: 'Unsure.' } : {}));
+  const back = checkLog(JSON.stringify(log));
+  assert.ok('value' in back, JSON.stringify(back));
+  assert.deepEqual(back.value, log);
+  for (const bent of [{ flag: '' }, { flag: 'a\nb' }, { source: 'relayed' }, { waiting: true, pick: '' }]) {
+    const b = structuredClone(log);
+    Object.assign(b.entries[1], bent);
+    assert.ok('error' in checkLog(JSON.stringify(b)), JSON.stringify(bent));
+  }
+});
+
+test('issue 459 claim 3: this lead\'s flagged entry sits in Flagged and never in To review until the owner marks it; another log\'s flag is only counted', () => {
+  const add = (log, over, at) => appendEntry(log, input(over), { at, level: 3, read: new Map() }).value.log;
+  const own = add(add(emptyLog(null), { work: 'plain' }, NOW), { work: 'mine flagged', flag: 'Unsure.' }, NOW + 1);
+  const other = add(add(emptyLog(null), { source: 'relayed', work: 'claim' }, NOW - 5), { work: 'theirs flagged', flag: 'Unsure too.' }, NOW - 4);
+  const ls = [{ sid: SID, writer: 'lead-a', log: own }, { sid: OTHER, writer: 'an ended session', log: other }];
+  const view = marks => {
+    const states = d.withLeadFlags(marks, ls, SID);
+    const v = drawnLogs(ls, SID, states, new Map([[OTHER, 'ended']]), true);
+    const cards = d.reviewCards(v.review, SID, states, new Set(), []);
+    return {
+      review: [...cards.shown, ...d.endedLines(v.ended, states, []).flatMap(l => l.rows)].map(r => r.entry.work).sort(),
+      flagged: flaggedRows(v.flagged, states, []).map(r => r.entry.work),
+      unshown: v.unshown,
+    };
+  };
+  // To review's shown rows and ended lines are all Mark all read can take: no flagged entry is there.
+  // Test round 1's q5 A (the owner's word, relayed): another log's flag is not carried, so its
+  // flagged plain pick is counted in the dim line as any plain pick is.
+  assert.deepEqual(view(new Map()), { review: ['claim', 'plain'], flagged: ['mine flagged'], unshown: 1 });
+  assert.deepEqual(flaggedRows(ls, d.withLeadFlags(new Map(), ls, OTHER), searchWords('too')).map(r => r.entry.work), ['theirs flagged'], 'the search reads the reason');
+  // The owner's latest mark wins: Unflag or Dismiss takes it out, and a later Flag keeps it in.
+  const k = markKey(SID, own.entries[1].id, own.entries[1].at);
+  assert.deepEqual(view(new Map([[k, 'unflagged']])).flagged, []);
+  assert.deepEqual(view(new Map([[k, 'read']])).flagged, []);
+  assert.deepEqual(view(new Map([[k, 'flagged']])).flagged, ['mine flagged']);
+  assert.equal(view(new Map([[k, 'unflagged']])).review.includes('mine flagged'), false, 'an unflagged entry is read');
+  // The owner's own flag on another log's entry still carries it.
+  const t = markKey(OTHER, other.entries[1].id, other.entries[1].at);
+  assert.deepEqual(view(new Map([[t, 'flagged']])).flagged, ['theirs flagged', 'mine flagged']);
+  // The states given are not changed.
+  const marks = new Map();
+  d.withLeadFlags(marks, ls, SID);
+  assert.equal(marks.size, 0);
 });

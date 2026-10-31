@@ -181,7 +181,14 @@ it read and puts it in Flagged to revisit; Skip shows the next without marking
 it. Flagged to revisit, folded at first, holds the flagged decisions oldest
 first; each row opens into the same card, with "⚑ Unflag", and its pick box
 feeds the same selection island as the Sessions view, whose Dismiss unflags
-the picked rows and marks them read. No press removes a decision from a log.
+the picked rows and marks them read. Since 0.93.0 the lead can flag a
+decision it is unsure of, with a one-line reason: the decision goes straight
+to Flagged to revisit and never to To review, so Mark all read never takes it,
+and its card shows "Flagged by the lead" with the reason. Only you unflag it,
+and the flag holds nothing up: the lead still acts on its pick. A session
+still on an older version cannot read a log that holds a flag until it
+reloads; never delete that log to clear its refusal. No press removes a
+decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
@@ -438,12 +445,23 @@ files you ask for:
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
   each cleanup a level-3 lead names back, by repository and branch only.
-  Before a cleanup, the lead reads git state in every repository the brigade
-  ran in, and in any folder an item that is not bound to its session names:
-  found work by file names, counts, short hashes and stash refs, never
-  contents; and each repository's `origin` as `owner/name` only. It then
-  asks GitHub, with your `gh` sign-in, for the merged pull requests of each
-  branch it names, by repository.
+  Since 0.94.0 the mod's `read_cleanup` tool does cleanup's reads, and the
+  lead runs none itself. When a card joins the roster, the mod reads that
+  session's folder, repository and branch once, from the session file holding
+  the card's Desktop id or job id, with two `git` calls, and keeps them in
+  memory only, never in a file or plugin state. At cleanup it runs `git` in
+  each such repository: found work by file names, counts, short hashes and
+  stash refs, never contents; and each repository's `origin` as `owner/name`
+  only. It then asks GitHub, with your `gh` sign-in, for the merged pull
+  requests of each branch it names, by repository. Every `git` call carries
+  flags that keep the repository's hooks, file watcher and signing program
+  from running, with a new hooks folder the mod makes for each use: one empty
+  file in a folder of its own in the plugin's data folder, never removed by
+  the mod. It reads each repository's config key names, never their values,
+  to skip one that sets a filter driver. It hands back each removal as a
+  fixed command, and removes nothing: the lead runs each command as its own
+  shell call, after your yes. Its answer, folders and file names included,
+  lands in the lead's conversation and transcript.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
@@ -451,11 +469,21 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Seven calls skip the permission prompt:** the `set_roster` tool, which
-  writes the roster file, the `log_decision` tool, which appends to the
+- **Brigade's outbound scan**, since 0.95.0, is off until you type
+  `/brigade scan on`, and `/brigade scan off` turns it off again; the setting
+  is one value in the plugin's store, for every session on the machine. While
+  it is on, it reads the text of each `gh` post, `git` commit or tag message,
+  `SendMessage` message and summary, and Brigade tool call, and any local file
+  such a command names as its body, up to 1 MiB, and refuses the call when the
+  text holds a secret's shape or, on all but `SendMessage`, an email address or
+  a home path. It keeps nothing it reads.
+- **Eight calls skip the permission prompt:** the `set_roster` tool, which
+  writes the roster file and binds each new card's cleanup target, the
+  `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
   write and read the lead's hand-off, the `read_autonomy` tool, which reads
-  the lead's autonomy level, the `show_permission_warning` tool,
+  the lead's autonomy level, the `read_cleanup` tool, which runs cleanup's
+  `git` and `gh` reads and writes its hooks folder, the `show_permission_warning` tool,
   which shows a reminder,
   and Open in app's call to the Desktop app's
   `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
@@ -464,12 +492,13 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `read_cleanup` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.95.0, `/brigade scan`, `/brigade scan on` and `/brigade scan off` show or set the outbound scan instead, and set it only when you typed the command. |
+| `tool.call` for `Bash`, `PowerShell`, `SendMessage`, `set_roster`, `log_decision` and `set_lead_handoff` | Since 0.95.0, the outbound scan, registered before the plugin's other hooks. A call it does not match passes on with no other work. With the scan off, a matched call passes on after one read of the setting. With it on, it reads the call's text and body files, refuses a hit in fixed words that never repeat the text, and keeps nothing. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `show_permission_warning` | Answers for the mod's own six tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup` and `show_permission_warning` | Answers for the mod's own seven tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
@@ -492,7 +521,7 @@ it:
 
 What the pane draws, decision text included, reaches the Desktop and mobile
 apps through Claude Code's own channel. Beyond that, nothing the mod reads
-leaves the machine except the `gh pr list` request above and Open in app's
+leaves the machine except the `gh pr list` requests above and Open in app's
 two routes: the call to the Desktop app carries the
 session's id and the fixed target `split`, and the fallback hands a checked
 `claude://` link to your system's opener.

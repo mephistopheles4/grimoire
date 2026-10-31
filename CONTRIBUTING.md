@@ -194,7 +194,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-cleanup.test.mjs tests/brigade-decisions.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-scan.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -237,8 +237,18 @@ decision log's rules module, `brigade/decisions.ts`, is the fourth:
 `tests/brigade-decisions.test.mjs` imports it to check a `log_decision`
 call's input, each file kind's strict check, the caps and drop rule, the
 marks merge, the review queue, the search, the SHA-256, and a hand-off's
-input check and which hand-off is chosen. Keep all
-four to erasable syntax (no enums, namespaces or parameter properties), so
+input check and which hand-off is chosen. Its cleanup
+module, `brigade/cleanup.ts`, is the fifth: `tests/brigade-cleanup.test.mjs`
+imports it with a runner that runs the real `git` on fixture repositories it
+makes at run time and a fake `gh`, to check the name-back facts, the four
+flags and the hooks folder on every call, the binding of a target, the
+removal commands and their guards, and the re-read. Its outbound scan's module,
+`brigade/scan.ts`, is the sixth: `tests/brigade-scan.test.mjs` imports it to
+check the scanner's rules and worst-case time, which calls it matches and the
+body files they name, and the decision a matched call gets, with the setting,
+the file system and the clock handed in, and it reads `brigade/register.tsx`'s
+text for the facts the scan's wiring rests on. Keep all
+six to erasable syntax (no enums, namespaces or parameter properties), so
 Node can strip their types. The
 contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`
 renders it through the interview script's `--out`, runs the page's own
