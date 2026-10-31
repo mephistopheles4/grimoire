@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 70 candidate lines in eleven groups, P0 to P10. None of these is in force.
+There are 71 candidate lines in eleven groups, P0 to P10. None of these is in force.
 
 <details>
-<summary>Candidates (70 lines)</summary>
+<summary>Candidates (71 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -397,6 +397,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - TA1, the hooks folder at the removal calls (adversarial-lens r2 TA1 on issue 450's plan; trade-off: Hardening, 2 of 0). The tool checks its hooks folder before each of its own git calls, but the lead's removal commands run later, as shell calls, with the same folder. A same-user write into the folder between the tool's check and the lead's call can plant a hook that git then runs in the lead. A program the owner runs is the same-user side (P0); another plugin is a widening of C4; a branch's code is C9. Proposed reason: the folder is new for each use, under the roster's path rule, and a writer with that reach can already run code as the owner. The owner chooses: accept it, or ask for a control.
 - `read_cleanup` and `set_roster`'s binding, with no permission prompt (adversarial-lens F3 and data-lens D1 in Test round 1 on issue 454). `read_cleanup` runs `git` and `gh pr list`, which sends a repository's `owner/name` and a branch to GitHub under the owner's sign-in, and writes a hooks folder, with no prompt, in every mode; it works only while the pane is open. `set_roster`, accepted as a roster write (E18), now also runs two `git` reads in a folder a session file names when a card joins. Before, the lead ran these reads as its own shell calls, which the permission rules, the classifier and the mode saw. A widening of C8, and of E18. It relies on P5's item 7, the `gh pr list` reach, which waits for the owner's word too. The owner chooses: accept both, or ask for a prompt.
 - A filter driver no longer runs in cleanup's reads. A repository or submodule whose own config (local or worktree scope) sets a `clean`, `smudge` or `process` filter gets no work read and no command, so R5's filter-driver residual no longer reaches cleanup's reads; a filter in the owner's own global or system config still runs, as the owner's. The owner chooses whether R5's line narrows.
+- Commands while the session still runs (adversarial-lens T1 in Test round 1 on issue 454; trade-off: Hardening, 0 of 0; q6 A, the lead's own pick under level 3). The re-read leaves an item's own session out of "another running session inside", and builds its commands even while that session's own file still holds its id, so a session whose archive failed without a word, and that still runs, gets removal commands. The harm is lost work, within C5's reach (E47); no attacker gains beyond it. Proposed reason: the archive comes first in the steps, a failed archive is a removal that failed, and whether Desktop's archive always removes the session's file is not measured, so a guard could stop every Desktop cleanup. The owner chooses: accept it, or ask for a guard once the archive is measured.
 - The binding stops come back. An item the mod holds no record for, or whose session file reads a different folder, or whose branch reads differently, now gets no command, which narrows P4's row 16 pending item 6 and P5's item 6. The owner chooses whether those two lines close.
 
 </details>
