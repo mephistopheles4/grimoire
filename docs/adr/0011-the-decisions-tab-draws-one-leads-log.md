@@ -62,7 +62,7 @@ links to it never leave by this press; an answer logged without that link, to
 a waiting entry in another session's log, counts as a claim and does. A mark from it records the press, not a reading, and a
 claim it marks stays in History only until its log's cap drops it.
 
-Amended in 0.93.0 (issue 466, the owner's words relayed by the lead on
+Amended in 0.94.0 (issue 466, the owner's words relayed by the lead on
 2026-10-31: "One button that clears everything."): Mark N relayed read goes,
 and so does each ended session's line's own "Mark these N read" (the owner's
 words again, relayed: "One button that clears everything."); "Mark all N read" marks everything under To review read in one write, of

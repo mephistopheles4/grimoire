@@ -181,7 +181,15 @@ it read and puts it in Flagged to revisit; Skip shows the next without marking
 it. Flagged to revisit, folded at first, holds the flagged decisions oldest
 first; each row opens into the same card, with "⚑ Unflag", and its pick box
 feeds the same selection island as the Sessions view, whose Dismiss unflags
-the picked rows and marks them read. No press removes a decision from a log.
+the picked rows and marks them read. Since 0.93.0 the lead can flag a
+decision it is unsure of, with a one-line reason: the decision goes straight
+to Flagged to revisit, in the pane of the lead that flagged it; another lead's
+pane only counts it. It never goes to To review, so Mark all read never takes
+it, and its card shows "Flagged by the lead" with the reason. Only you unflag it,
+and the flag holds nothing up: the lead still acts on its pick. A session
+still on an older version cannot read a log that holds a flag until it
+reloads; never delete that log to clear its refusal. No press removes a
+decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
@@ -195,7 +203,7 @@ session is only counted. Earlier sessions' logs stay on
 disk, unshown, and you can delete them by hand; the pane still reads the 20
 newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's
-heading, marks everything under To review read in one write, since 0.93.0
+heading, marks everything under To review read in one write, since 0.94.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
 and every ended session's line. It leaves out only what your search hides,
 and a press marks nothing if the set changed since you looked, or if your
@@ -212,8 +220,8 @@ everything draws as before. For each ended session with unread Relayed
 entries, or unread questions such an entry answers, To review shows one dim
 line instead of their cards: "From an ended session", the time of its newest
 such entry, up to three of the work names its entries give, how many are
-and how many are unread; from 0.90.0 to 0.92.0 it also had its own "✓ Mark
-these N read", which Mark all read replaces since 0.93.0. Its other questions and alarms
+and how many are unread; from 0.90.0 to 0.93.0 it also had its own "✓ Mark
+these N read", which Mark all read replaces since 0.94.0. Its other questions and alarms
 keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
@@ -268,7 +276,7 @@ time of its press and a Dismiss, which hides it until the next press of 3, the
 next alarm, or the next compaction or reload. From an alarm's catch, a
 warning line there names the level found and when, until you read the alarm's
 own card in To review or open it in History, or until a reload of the mod or a
-change of session; since 0.93.0 Mark all read marks the alarm read but leaves
+change of session; since 0.94.0 Mark all read marks the alarm read but leaves
 the line up. Both lines show on the terminal and Desktop only: the mobile app,
 claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
 older than 0.88.0, its Decisions tab leaves out a compaction's Pane entry and
@@ -418,7 +426,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.92.0 Mark these N read and from 0.91.0 to 0.92.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.93.0 Mark these N read and from 0.91.0 to 0.93.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats

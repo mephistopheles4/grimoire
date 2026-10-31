@@ -32,6 +32,9 @@ export type DecisionEntry = {
   undo: string
   revisit: string
   answers: string
+  /** Since issue 459: the lead's one-line reason for flagging its own pick.
+   *  Only a Lead entry that does not wait carries one, and only when sent. */
+  flag?: string
 }
 
 /** A session's decision log file. `next` only ever goes up, so an id is never reused. */
@@ -57,10 +60,11 @@ export const MAX_MARKS_BYTES = 256 * 1024
 export const HISTORY_PAGE = 50
 /** How many other sessions' files of each kind the pane reads, newest first. */
 export const MAX_OTHER_FILES = 20
-// The most one entry can take as JSON: 5,016 characters of text at four bytes
-// each, with its keys. The dim line reads a log this close to the byte cap as
-// one the cap rule may have dropped from.
-const MAX_ENTRY_BYTES = 21 * 1024
+// The most one entry can take as JSON: 5,316 characters of text at six bytes
+// each, the escape of an unpaired surrogate (issue 459, Test round 1, q8 A),
+// with its keys. The dim line reads a log this close to the byte cap as one
+// the cap rule may have dropped from.
+const MAX_ENTRY_BYTES = 32 * 1024
 
 type Checked<T> = { value: T } | { error: string }
 
@@ -135,7 +139,7 @@ function text(where: string, v: unknown, min: number, max: number): Checked<stri
 /** An entry's fields other than the three the mod stamps. */
 export type EntryInput = Omit<DecisionEntry, 'id' | 'at' | 'level'>
 
-const INPUT_KEYS = ['source', 'waiting', 'work', 'question', 'options', 'pick', 'why', 'undo', 'revisit', 'answers']
+const INPUT_KEYS = ['source', 'waiting', 'work', 'question', 'options', 'pick', 'why', 'undo', 'revisit', 'answers', 'flag']
 const STAMPED = ['id', 'at', 'level'] as const
 
 // The fields both checks share. `sources` is what this caller may write.
@@ -184,13 +188,21 @@ function fieldsOf(o: Record<string, unknown>, sources: readonly string[], requir
   if (answers !== '' && (source !== 'relayed' || waiting)) return { error: 'answers: only a relayed entry that is not waiting may answer one' }
   if (waiting && (source !== 'lead' || answers !== '')) return { error: 'waiting: only a lead entry that answers none may wait' }
   out.answers = answers
+  // Issue 459: an empty flag from the tool is no flag; the log never holds one.
+  if (o.flag !== undefined && (o.flag !== '' || required)) {
+    if (typeof o.flag === 'string' && o.flag.includes('\n')) return { error: 'flag holds a line break' }
+    const t = text('flag', o.flag, 1, 300)
+    if ('error' in t) return t
+    if (source !== 'lead' || waiting) return { error: 'flag: only a Lead entry that does not wait may carry one' }
+    out.flag = t.value
+  }
   return { value: out }
 }
 
 /** A log_decision call's input, checked: own keys only, of the shape S5.2
  *  sets, with no `id`, `at` or `level` and a source of `lead` or `relayed`.
- *  `waiting`, `revisit` and `answers` may be left out; a waiting entry may
- *  leave out its pick. */
+ *  `waiting`, `revisit`, `answers` and `flag` may be left out; a waiting
+ *  entry may leave out its pick. */
 export function checkInput(v: unknown): Checked<EntryInput> {
   if (!isRecord(v)) return { error: 'the entry is not an object' }
   for (const k of STAMPED) if (Object.hasOwn(v, k)) return { error: `${k} is stamped by the mod, not sent by the tool` }
@@ -313,6 +325,7 @@ export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): C
     undo: f.undo,
     revisit: f.revisit,
     answers: f.answers,
+    ...(f.flag === undefined ? {} : { flag: f.flag }),
   }
   const kept = [...log.entries, entry]
   // The text's size, kept up to date as entries drop: the frame, each entry,
@@ -428,7 +441,8 @@ export const addMark = (file: MarksFile | undefined, mark: Mark, known: Readonly
  *     or in `others`, the other marks files read;
  *  3. a mark whose entry's newest counted state is not flagged, unless it is
  *     its entry's newest counted mark while an older flag stays in `others`,
- *     since dropping it would bring that flag back;
+ *     or the entry carries a lead flag (`leadFlags`, issue 459), since
+ *     dropping it would bring that flag back;
  *  4. any mark left.
  *  Each step goes oldest first. "Counted" is as `mergeMarks` counts at `now`;
  *  the merge is worked out once for the write. */
@@ -438,6 +452,7 @@ export function addMarks(
   known: ReadonlySet<string>,
   others: readonly MarksFile[] = [],
   now = Number.POSITIVE_INFINITY,
+  leadFlags: ReadonlySet<string> = new Set(),
 ): MarksFile {
   const marks = [...(file?.marks ?? []), ...added]
   const sizes = marks.map(m => bytes(JSON.stringify(m)))
@@ -454,7 +469,7 @@ export function addMarks(
     const was = best.get(k)
     if (was === undefined || m.at > was.at) best.set(k, m)
   }
-  const flaggedElsewhere = new Set<string>()
+  const flaggedElsewhere = new Set<string>(leadFlags)
   for (const f of others) for (const m of f.marks) if (counted(m) && m.state === 'flagged') flaggedElsewhere.add(markKey(m.log, m.id, m.entryAt))
   const rank = (m: Mark): number => {
     const k = markKey(m.log, m.id, m.entryAt)
@@ -520,10 +535,10 @@ export const searchWords = (query: string): string[] =>
   [...query].slice(0, 200).join('').toLowerCase().split(/\s+/).filter(w => w !== '')
 
 /** Whether every word appears in the entry's writer name, id, work, question,
- *  options, pick, why, undo or revisit, in any case. */
+ *  options, pick, why, undo, revisit or the lead's flag, in any case. */
 export function matchesSearch(e: DecisionEntry, writer: string, words: readonly string[]): boolean {
   if (words.length === 0) return true
-  const hay = [writer, e.id, e.work, e.question, ...e.options, e.pick, e.why, e.undo, e.revisit].join('\n').toLowerCase()
+  const hay = [writer, e.id, e.work, e.question, ...e.options, e.pick, e.why, e.undo, e.revisit, e.flag ?? ''].join('\n').toLowerCase()
   return words.every(w => hay.includes(w))
 }
 
@@ -582,6 +597,22 @@ export function parsePairKey(key: string): { verb: string; id: string; at: numbe
   const m = PAIR_KEY.exec(key)
   if (m === null) return undefined
   return { verb: m[1] as string, id: m[2] as string, at: Number(m[3]), answerId: m[4] as string, answerAt: Number(m[5]) }
+}
+
+/** This lead's flagged entries' mark keys (issue 459): only the log of this
+ *  pane's session id `sid` carries them, so another log's flag is only
+ *  counted, as its plain picks are (Test round 1, q5 A). */
+export const leadFlagKeys = (logs: readonly ReadLog[], sid: string): Set<string> =>
+  new Set(rowsOf(logs.filter(l => l.sid === sid)).filter(r => r.entry.flag !== undefined).map(rowKey))
+
+/** The states with this lead's own flags (issue 459): an entry it logged with
+ *  a flag, and that has no mark, reads as flagged, so it sits in Flagged to
+ *  revisit and never in To review. The owner's latest mark wins, so Unflag and
+ *  Dismiss take it out. The states given are not changed. */
+export function withLeadFlags(states: ReadonlyMap<string, MarkState>, logs: readonly ReadLog[], sid: string): Map<string, MarkState> {
+  const out = new Map(states)
+  for (const k of leadFlagKeys(logs, sid)) if (!out.has(k)) out.set(k, 'flagged')
+  return out
 }
 
 /** Flagged to revisit: every entry across the logs read whose latest mark is
