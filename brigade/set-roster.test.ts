@@ -9178,4 +9178,3 @@ test("C15, C15a: the command's Owner entry draws as Owner, and a log holding ent
   // The slider names the level by its new name.
   expect(await shows(/^Autonomy · 3 Turbo mode$/)).toBe(true)
 })
-const texts = 1
