@@ -496,7 +496,7 @@ export function addMarks(
  *  an entry in a log read (`known`) other than the entries the write marks
  *  (`marked`): that is, whether the caps pushed out a mark that was still its
  *  entry's newest counted state, so the entry would read as it did before
- *  that mark. Mark these N read writes nothing when this holds (spec 447,
+ *  that mark. Mark all read writes nothing when this holds (spec 447,
  *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
 export function dropsLiveMark(
   before: MarksFile | undefined,
@@ -729,13 +729,14 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
   return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
 }
 
-/** The entries Mark all read takes from To review's order: this session's
- *  plain Lead entries. Waiting entries (so an answered pair's waiting side),
- *  alarms and Relayed entries (so an answer) are never taken. `hash` is the
- *  first 16 hex digits of SHA-256 over the set's mark keys, sorted and joined
- *  by line breaks: a staleness check on the press, not a secret. */
-export function markAllSet(order: readonly Row[], sid: string) {
-  const rows = order.filter(r => r.sid === sid && r.entry.source === 'lead' && !r.entry.waiting)
+/** The entries Mark all read takes (issue 466): everything under To review,
+ *  its shown rows and every ended session's line, of every kind and log, the
+ *  first 500 of them, so its key stays in range and a second press takes the
+ *  rest. `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
+ *  sorted and joined by line breaks: a staleness check on the press, not a
+ *  secret. */
+export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[]) {
+  const rows = [...shown, ...lines.flatMap(l => l.rows)].slice(0, MAX_ENTRIES)
   if (rows.length === 0) return { rows, n: 0, hash: '' }
   return { rows, n: rows.length, hash: setHash(rows) }
 }
@@ -743,27 +744,6 @@ export function markAllSet(order: readonly Row[], sid: string) {
 // A press's staleness check: the first 16 hex digits of SHA-256 over the
 // set's mark keys, sorted and joined by line breaks.
 const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
-
-/** The entries Mark N relayed read takes from To review's shown rows (spec
- *  448 S5): this session's Relayed entries that link to no waiting entry. A
- *  question and the answer linked to it leave only by a press on their own
- *  card, and no waiting entry, alarm, plain Lead entry or entry of another log
- *  is taken. An answer logged with no link, to another log's waiting entry,
- *  is a claim like any other and is taken.
- *  `hash` is as Mark all read's: a staleness check, not a secret. */
-export function markRelayedSet(order: readonly Row[], sid: string) {
-  const rows = order.filter(r => r.sid === sid && r.entry.source === 'relayed' && r.entry.answers === '')
-  if (rows.length === 0) return { rows, n: 0, hash: '' }
-  return { rows, n: rows.length, hash: setHash(rows) }
-}
-
-const MARK_RELAYED_KEY = /^dmarkrelayed-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
-/** A Mark N relayed read button's key, matched whole: its count (1 to 500) and hash. */
-export function parseMarkRelayedKey(key: string): { n: number; hash: string } | undefined {
-  const m = MARK_RELAYED_KEY.exec(key)
-  const n = Number(m?.[1])
-  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
-}
 
 const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
 /** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
@@ -778,15 +758,15 @@ const LINE_WORKS = 3
 const LINE_WORK_CHARS = 40
 
 /** One ended session's line in To review (spec 447 S4.2): its unread entries
- *  that match the search, newest first, their count and hash, the newest
+ *  that match the search, newest first, their count, the newest
  *  one's time, and the distinct `work` values, newest first, at most 3 of
  *  them, each cleaned as a roster line is and cut to 40 characters, with how
  *  many more there are. It names no session. */
-export type EndedLine = { rows: Row[]; n: number; hash: string; at: number; works: string[]; more: number }
+export type EndedLine = { rows: Row[]; n: number; at: number; works: string[]; more: number }
 
 /** To review's block: one line for each ended log in `ended` with an unread
  *  entry that matches the search, the line with the newest such entry first.
- *  Mark these N read takes exactly a line's rows. */
+ *  Mark all read takes every line's rows. */
 export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
   const lines: (EndedLine & { sid: string })[] = []
   for (const l of ended) {
@@ -801,7 +781,6 @@ export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string
       sid: l.sid,
       rows,
       n: rows.length,
-      hash: setHash(rows),
       at: first.entry.at,
       works: works.slice(0, LINE_WORKS),
       more: Math.max(works.length - LINE_WORKS, 0),
@@ -810,14 +789,6 @@ export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string
   return lines
     .sort((a, b) => b.at - a.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0))
     .map(({ sid: _, ...line }) => line)
-}
-
-const MARK_ENDED_KEY = /^dmarkended-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
-/** A Mark these N read button's key, matched whole: its count (1 to 500) and hash. */
-export function parseMarkEndedKey(key: string): { n: number; hash: string } | undefined {
-  const m = MARK_ENDED_KEY.exec(key)
-  const n = Number(m?.[1])
-  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
 }
 
 /** The source as the tab draws it. An Owner entry draws plain "Owner" only
