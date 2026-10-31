@@ -416,7 +416,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.92.0 Mark these N read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.92.0 Mark these N read and from 0.91.0 to 0.92.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats

@@ -5447,8 +5447,11 @@ test('issue 466: no button when To review is empty; one press marks everything u
   const [key] = await markAllKeys()
   expect(key).toMatch(/^dmarkall-7-[0-9a-f]{16}$/)
   const before = writesTo(w, OWN_MARKS)
+  const log = w.text(LOG)
   await press($, key as string)
   expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
+  // A mark never touches the log, so the waiting entry keeps its answer link.
+  expect(w.text(LOG)).toBe(log)
   const marks = parsed(w, OWN_MARKS).marks.map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()
   expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 3 read', 'own 4 read', 'own 5 read', 'peer 2 read', 'peer 3 read'])
   expect((await markAllKeys()).length).toBe(0)
@@ -5482,8 +5485,8 @@ test('spec 444 claim 8: a press whose set has moved marks nothing: the same key 
   expect(fresh).toMatch(/^dmarkall-1-/)
   expect(fresh).not.toBe(key)
   await press($, fresh as string)
-  expect(parsed(w, OWN_MARKS).marks.length).toBe(8)
-  expect(parsed(w, OWN_MARKS).marks.some((m: any) => m.log === SID && m.id === '6')).toBe(true)
+  const marks = parsed(w, OWN_MARKS).marks.map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()
+  expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 3 read', 'own 4 read', 'own 5 read', 'own 6 read', 'peer 1 read', 'peer 3 read'])
 })
 
 test('spec 444 claim 7: a press adds no plugin-state key, and the hash never reaches a state value', async ($, on) => {
@@ -8587,9 +8590,20 @@ test('issue 466: Mark all read takes an ended session\'s line too', async ($, on
   expect(await markAllLabel(7)).toBe(true)
   const [key] = await markAllKeys()
   await press($, key as string)
-  expect(ownMarks(w).length).toBe(7)
+  expect(ownMarks(w).map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()).toEqual(['own 1 read', 'own 2 read', 'peer 1 read', 'peer 2 read', 'peer 3 read', 'peer 4 read', 'peer 6 read'])
   expect((await endedKeys()).length).toBe(0)
   expect((await markAllKeys()).length).toBe(0)
+})
+
+test('spec 447 claim 7, issue 466: under a search the line counts, and Mark all read marks, only the line\'s entries that match', async ($, on) => {
+  const w = await endedPane(on, $)
+  await mounted.input({ key: 'dsearch', text: 'issue 8', kind: 'change' })
+  expect(await shows(/^1 unread entry: claims about your words and the questions they answer$/)).toBe(true)
+  expect(await shows(/^issue 7$/)).toBe(false)
+  expect(await markAllLabel(1)).toBe(true)
+  const [key] = await markAllKeys()
+  await press($, key as string)
+  expect(ownMarks(w).map((m: any) => [m.log, m.id])).toEqual([[PEER, '4']])
 })
 
 test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read or not, says which are unread, and keeps its state out of plugin state', async ($, on) => {

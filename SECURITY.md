@@ -298,7 +298,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or from 0.90.0 to 0.92.0 a Mark these N read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
+  a mark's time from a Mark all read press, or from 0.90.0 to 0.92.0 a Mark these N read press, or from 0.91.0 to 0.92.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the
