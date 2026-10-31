@@ -1,11 +1,16 @@
 # The cleanup gate keeps its window in module memory, and fails closed
 
-Proposed, and stopped by the probe. Issue 359's spec v3 (D11) has this record
-say that the cleanup gate keeps its window in the Brigade mod's module memory,
-fails closed on a reload and on its own failure, refuses a command it cannot
-read, and allows inside a window only cleanup's exact command shapes. That
-decision was to land with ticket 2, the gate code, only if the probe below
-passed and the owner said go (H4). Ticket 2 also waits on issue 446 (H1).
+Accepted, as built in 0.104.0 (issue 359, spec v5.2). The owner's typed
+`/brigade done <titles>` opens a 15-minute window in the Brigade mod's module
+memory for the bound cards it names. Desktop's archive tool passes only inside
+it, and the head chef stops a background session with the mod's
+`stop_background_session`, which runs `claude stop` as an argument list only
+inside a window. A raw `claude stop` from a session's own shell stays open
+until the-pact issue 439's deny rule is installed (the owner's word, q6 A). A
+reload, a session start, a throw or a wrong shape leaves the window shut. No
+shell text is read: the shell reader and the confirm code and press of the
+earlier specs are gone, and worktree and branch removal moved to the-pact
+issue 438's cleaner.
 
 Ticket 1 wrote the Measured section: what a throwaway probe saw on the engine,
 one line per assumption the spec rests on (S9). Ticket 1b, the second probe of
@@ -42,57 +47,12 @@ On the owner's word, relayed, ticket 2 starts with its pure removal reader
 only. Its hooks, the press and the window wait on H1, since no item on H1's
 list is yet a control or the owner's accepted risk.
 
-## For the next Design round
-
-What the probe leaves the redesign to answer, from the measurements and the
-Test review of this record:
-
-- Treat anything a command reply shows as reaching every model in the
-  brigade: the code, and the folder, repository and branch names step 1 would
-  show (A17). The confirm needs a channel the models cannot read, measured
-  again before it is relied on, and a threat-model entry once it is settled.
-- Measure whether another plugin's command run on Desktop can carry an origin
-  it supplies itself (A15 shows the runner passes one through). Until then the
-  origin allow-list of D3 is not relied on.
-- The archive tool's `_consent` field is the app's to set: a relaxed key rule
-  for D7 still refuses it when the model supplies it (A14).
-- Desktop's two worktree-cleanup tools are re-measured live, against
-  throwaway targets only, before the gate is relied on for them (A1).
-
-From ticket 1b:
-
-- In auto mode, Claude Code's own classifier refused an archive call the
-  probe's hook had let through, because the lead, not the owner, had asked for
-  it (A14b). The classifier judged it after the hook; a later call, which the
-  owner asked for, the hook refused first, so it never reached the classifier. The head chef's cleanup archive is the lead-asked path: the lead
-  asks, after the owner's press. Whether the press's note counts as the owner's
-  ask to that classifier is not measured. C36 meets it first, and Design says
-  what cleanup does when the classifier refuses.
-- The probe opened its one archive only when its Confirm's own `onPress` had
-  run, and the engine's types (as 2.1.314 wrote them) say a press runs the
-  pressed Button's own `onPress`, whatever the hooks above rewrote. D3 opens
-  from the `ui.press` hook on the key alone. Opening only when Confirm's own
-  `onPress` ran would close the forged-key route A23 set out to try, which
-  this run did not reach.
-- Another plugin's hook beneath the probe's took the owner's Cancel press, so
-  the Cancel's own `onPress` never ran, while the probe's hook above it still
-  ended the round (A23). D3's Cancel acts in the hook, which a plugin beneath
-  cannot stop; one above it can, which q22 and q27 hold. A Cancel that acted
-  only in `onPress` could be swallowed by either.
-- The press's note starts no turn by itself (A24), so D10's case holds: the
-  head chef's text tells the owner to send it any message after pressing.
-- One timer redraw came more than a second after its invalidate (A25). D3's
-  2-minute timeout redraw may lag by that much; the press redraws did not.
-- Until A21 is measured, a press from surface `mobile` has no measured row, as
-  `terminal` had none when round 3 took it off D3's list.
-- A23's counter counted the owner's own Confirm press that ends a round. A
-  re-measure counts a handler run only for a press the probe did not draw, and
-  keeps the second plugin's counts.
-
 H7 holds for this record: after each new engine build, before the gate is
-relied on, A1, A1b, A2, A5, A8, A14, A14b, A16, A18, A20, A21, A22, A24 and A25
-are measured again (revision 4.1's H7), and a row that fails stops reliance on
-the gate until Design answers it.
+relied on, A1 (the archive tool), A2, A3, A4, A5, A8, A10, A11, A14 and A14b
+are measured again, and a row that fails stops reliance on the gate until
+Design answers it. A15b, whether another plugin's command run can carry an
+origin it supplies, is not measured: until it is, the origin gate is not
+relied on against another plugin.
 
 ## Measured
 

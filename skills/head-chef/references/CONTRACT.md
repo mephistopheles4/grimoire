@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.5.0
+Version: 1.6.0
 Kind: skill
 Level: Thorough
 
@@ -287,10 +287,14 @@ need, without overwhelming me or showing me too much.
   re-read names found work by count only; and the re-read also compares the
   default branch and where else the branch is checked out, and reads the
   folder's branch again.
-- **Confirmed** (issue 454, spec 450 rev 4 S3.3; replacing rev 4 S4.5's
-  re-read before each removal). **One yes.** The owner's one yes in its chat,
-  naming the cleanup, covers the whole list. On it, it archives each item,
-  then calls the tool again, the re-read. An item whose found work, branch
+- **Confirmed** (issue 359, spec v5.2 D8; q3 A, the owner's words, relayed;
+  replacing issue 454's one yes in chat). **The typed yes.** The owner types
+  `/brigade done <titles>`, naming the titles the name-back showed; until
+  the-pact 438's cleaner lands, that one act covers the whole list, the
+  re-read's commands included. It names each session without a comma, so its
+  title can be typed. After asking for the command, it tells the owner to
+  send any message once typed. On it, it archives each item, then calls the
+  tool again, the re-read. An item whose found work, branch
   tip or lock changed since the name-back comes back as a new name-back for
   a new yes, with no command; the rest goes ahead. A detached head after
   Desktop's archive, and a worktree or branch already gone, are expected and
@@ -298,8 +302,11 @@ need, without overwhelming me or showing me too much.
 - **Confirmed** (issue 454, spec 450 rev 4 S3.3, q11, the owner's words,
   relayed; replacing rev 4 S4.6's removals by hand, and keeping q4 B's one
   doubled force). **The removal.** It archives the session first, as the
-  tool's name-back says: with Desktop's archive tool, or `claude stop <id>`
-  for a background session. A failed archive is a removal that failed. The
+  tool's name-back says: with Desktop's archive tool, or Brigade's
+  `stop_background_session` by the card's title for a background session.
+  A refused or failed archive or stop, the auto-mode classifier's refusal
+  included, is a removal that failed: the owner types `/brigade done` again
+  or archives by hand (issue 359). The
   re-read hands back each removal as a fixed command, and the head chef runs
   each as its own shell call, in order, a line marked "only if the line
   above refuses" only when the line above refused: for a background
@@ -714,7 +721,8 @@ still waits.
    tells the owner what asked, and does nothing.
 2. **Decided**; reworded **Confirmed** (issue 416, rev 4 S4.9). When cleanup
    is ready: it names back each session, its worktree folder, its branch and
-   what it found, by repository, in one list, and waits for one yes.
+   what it found, by repository, in one list, and waits for the owner's
+   typed `/brigade done`.
 3. **Confirmed**; reworded **Confirmed** (issue 416, rev 4 S4.8, replacing
    "When a cleanup check refuses, or a removal fails partway: it stops the
    cleanup and tells the owner what is left, never forcing or deleting
@@ -748,7 +756,8 @@ yes keeps for the owner.
   own name from the first line of the session list.
 - *Proposed.* It starts, stops and removes a background session with
   `claude --bg` (with `--remote-control`, `-n`, `-w`, `--model` and
-  `--effort` only), `claude stop <id>` and `claude rm <id>` (with no flag).
+  `--effort` only), Brigade's `stop_background_session` (issue 359) and
+  `claude rm <id>` (with no flag).
 - **Confirmed** (issue 454, spec 450 rev 4 S3.3; replacing rev 4 S3.1's
   status-file reads, kept until T3, and the file rule beside them). It reads
   no session file. The Brigade mod reads them, under its own file checks.
@@ -880,7 +889,7 @@ cleans up on your word."), drawn above the prompt:
 |---|---|---|---|
 | Starts a session | nothing: it reports the start right after, in the short form | the owner's words in this chat asking for the work; at a confirmed level 3, the leave toward the goal | **Confirmed**; the level-3 leave **Confirmed** (issue 416, spec 402 S5.5 as rev 4 S2 words it) |
 | Starts a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route | *Proposed* |
-| Archives a session, and removes its worktree and branch | the one name-back list, with what it found, by repository | one yes in this chat, naming the cleanup and covering the whole list, at every level; on that yes it reads each item again before its removal, and a changed item goes in a new name-back | **Decided**; the found work, the re-read and every level **Confirmed** (issue 416, rev 4 S4.5 and S3.4) |
+| Archives a session, and removes its worktree and branch | the one name-back list, with what it found, by repository | the owner's typed `/brigade done` naming the titles, covering the whole list, at every level; on it, it reads each item again before its removal, and a changed item goes in a new name-back | **Decided**; the found work, the re-read and every level **Confirmed** (issue 416, rev 4 S4.5 and S3.4); the typed yes **Confirmed** (issue 359) |
 | Merges, closes, edits, deletes or labels something on GitHub, files an issue, or posts a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at a confirmed level 3, the leave toward the goal, except what still waits | **Confirmed**; the level-3 leave **Confirmed** (issue 416, rev 4 S3.2) |
 
 **A hand-off's comment** (**Confirmed**): the head chef writes it in its own
@@ -943,7 +952,6 @@ its text.
 |---|---|---|---|
 | Whether the engine's session files keep their shape across Claude Code versions, `jobId` included, which the Brigade mod reads to bind a card's cleanup target (issue 454) | they are the engine's own files, not a published interface | a few Claude Code updates pass with no change, or one breaks it and the fallback holds | **Confirmed**; *Proposed* for `jobId` |
 | Whether the sender name a received message shows is stamped by the engine | the docs say it is whatever the sender wrote, and issue 450's probe could not show a stamp, so a member that knows its lead by name trusts a claim | the engine documents a stamp, or a Brigade mod stamp (H3 in issue 450) is built | *Proposed* |
-| Whether cleanup moves behind a typed `/brigade done`, gated by the Brigade mod | a mod hook refusing Desktop's archive tool and git's remove commands is unproven, and so is a command typed over Remote Control | a probe shows the hook can refuse those calls, and the gate is built | **Decided** |
 | Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; the suite runs once on Haiku, with a Haiku judge, when the owner asks for a run, and never as a standing step before a merge; an Opus judge (`--judge-model opus`) only calibrates the judge now and then, on the owner's ask; a check a pattern or a tool call can decide is a fixed grader, and each case keeps one `llm` grader for what needs judgement, which fails and writes unknown when it cannot decide; no Haiku-against-Sonnet measurement of the judge is run; the cases are kept and grow with the skill | a run the owner asked for passes, or a failure seen in use adds a case | **Decided** for running on the owner's request and never per merge; *Proposed* for the Haiku judge, fixed graders, the unknown exit, one `llm` grader per case, and no Haiku-against-Sonnet measurement (issue 401); *Proposed* for dropping the extra run on the lead's model (issue 392, q3) |
 
 **When to retire it** (**Confirmed**): Claude Desktop itself starts, briefs

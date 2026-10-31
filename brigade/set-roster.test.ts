@@ -579,12 +579,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 }
 
 // Every tool offered, in order, but the permission warning's, the decision
-// log's, the hand-off's two, the level's and cleanup's: every session offers
-// the first at each start, and warning.test.tsx tests it; the other five are
-// offered with set_roster at each of its sites, and the decision log's,
+// log's, the hand-off's two, the level's and cleanup's two: every session
+// offers the first at each start, and warning.test.tsx tests it; the other six
+// are offered with set_roster at each of its sites, and the decision log's,
 // cleanup's, hand-off's and slider's tests at the end check that. Any other
 // tool offered still shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup']
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -5206,7 +5206,7 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-for (const tool of ['log_decision', 'read_cleanup']) {
+for (const tool of ['log_decision', 'read_cleanup', 'stop_background_session']) {
   test(`${tool} is offered wherever set_roster is, and not before the pane opens`, async ($, on) => {
     const w = world(on)
     await start($)
@@ -6022,16 +6022,17 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision, the two hand-off tools, read_autonomy and read_cleanup are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop_background_session are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
-  // Each of the five is offered at each site, so the counts move together.
+  // Each of the six is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
     expect(count('set_lead_handoff')).toBe(n)
     expect(count('read_lead_handoff')).toBe(n)
     expect(count('read_autonomy')).toBe(n)
     expect(count('read_cleanup')).toBe(n)
+    expect(count('stop_background_session')).toBe(n)
     return n
   }
   await start($)

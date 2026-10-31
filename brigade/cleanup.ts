@@ -114,8 +114,10 @@ export async function makeHooks(
 
 /** A session's target, read once when its card joined the roster. `repo` is
  *  the repository's git common folder; `branch` is absent when the branch
- *  read failed or fell outside `BRANCH`. Kept in module memory only. */
-export type Target = { kind: 'desktop' | 'bg'; id: string; cwd: string; repo: string; branch?: string }
+ *  read failed or fell outside `BRANCH`. `name` is the session's own name
+ *  then, as a title is drawn, which `/brigade done` matches (issue 359).
+ *  Kept in module memory only. */
+export type Target = { kind: 'desktop' | 'bg'; id: string; cwd: string; repo: string; branch?: string; name: string }
 
 /** The card's own id: its Desktop id, else its background job id. */
 export function cardId(card: Pick<Card, 'desktopId' | 'bgId'>): { kind: 'desktop' | 'bg'; id: string } | undefined {
@@ -160,7 +162,7 @@ export async function bindTarget(card: Pick<Card, 'desktopId' | 'bgId'>, rows: r
     if (common === undefined || firstLine(common) === '') return { why: 'its repository could not be read' }
     const head = await git(io, ['-C', cwd, 'symbolic-ref', '--quiet', 'HEAD'])
     const ref = head === undefined ? undefined : /^refs\/heads\/(.+)$/.exec(firstLine(head))?.[1]
-    const target: Target = { kind: own.kind, id: own.id, cwd, repo: firstLine(common) }
+    const target: Target = { kind: own.kind, id: own.id, cwd, repo: firstLine(common), name: oneLine(found[0].name, 80) }
     if (ref !== undefined && BRANCH.test(ref)) target.branch = ref
     return target
   } catch (err) {
@@ -561,7 +563,7 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
     // An item left whole keeps no name-back: it was never archived.
     if (f.inside.length > 0) return out
     ctx.nameBacks.set(own.id, printOf(f))
-    out.push(t.kind === 'bg' ? `  archive it: ${render(['claude', 'stop', t.id])}` : "  archive it with Desktop's archive tool, after the owner's yes")
+    out.push(t.kind === 'bg' ? '  archive it with stop_background_session, after the owner types /brigade done' : "  archive it with Desktop's archive tool, after the owner types /brigade done")
     return out
   }
 
