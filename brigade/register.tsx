@@ -1615,6 +1615,8 @@ const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with
 const READY_UNLISTED_LINE = `The Brigade pane is opening but not ready yet, so a \`${TOOL}\` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.`
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
+// The turn the owner's bare /brigade hands the lead: fixed words, never typed ones (issue 478).
+const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead, then carry on with what you were doing.'
 const NOT_SHOWN_TOAST = 'The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'
 const NOT_OFFERED_LINE = `The Brigade pane is open, but \`${TOOL}\` could not be offered; keep no roster.`
 const ALREADY_OPEN_LINE = `The Brigade pane was already open. \`${TOOL}\` is ready: call it with the full roster on your next turn.`
@@ -3212,6 +3214,12 @@ export const register: Register = on => {
     // reason.
     const at = await where($)
     const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
+    // The reply goes to the owner, not the lead, so the owner's own bare
+    // /brigade also hands the lead a turn of fixed words (issue 478). Not
+    // awaited: the turn starts once the session is idle, after this reply.
+    if (offer === 'offered' && e.args.trim() === '' && levelOriginAllowed(e.origin)) {
+      void $.prompt.submit({ text: WAKE }).catch(() => undefined)
+    }
     return {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
