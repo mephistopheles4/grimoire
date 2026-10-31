@@ -61,7 +61,7 @@ test('SKILL.md tells the lead to send by name, read its own name, subscribe to i
     'After a compaction, a restart or reading a hand-off, subscribe again for every session you track.',
     'answer "approved", or "revise: ..."',
     'ask it to wrap up: commit, push, report, and say it is ready to close.',
-    'Before you are renamed or replaced by a hand-off, tell each member the new name, and ask the owner to give each member the new name in its own chat',
+    'Before you are renamed or replaced by a hand-off, tell each member the new name, and tell the owner.',
   ]) assert.ok(SKILL.includes(s), `SKILL.md lacks: ${s}`);
 });
 

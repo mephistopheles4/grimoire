@@ -190,20 +190,18 @@ need, without overwhelming me or showing me too much.
 - **Confirmed** (issue 450, rev 4 S3.1, adversarial F6 and unstated F3; q13
   A, the owner's words, relayed by the lead, 2026-10-30). **A rename.**
   Before the lead is renamed or replaced by a hand-off, it tells each member
-  the new name, and tells the owner. A member takes a new lead name only
-  from the owner's words in its own chat. **Confirmed** (Test round 1 on 452,
-  behaviour-lens F3, from spec S7): so it asks the owner to give each member
-  the new name there.
+  the new name, and tells the owner (issue 503 cut the member's rule on a
+  new lead name, and the owner's retyping it asked for).
 - *Proposed* (issue 335, the owner's decision of 2026-10-17, confirmed by the
   lead's decision under the owner's auto-mode instruction, 2026-10-25): a
-  session never asks the owner in its own chat; every question goes to the
-  lead as `q<n>`, and the owner answers in the lead's chat.
+  session sends its questions to the lead, and the owner answers in the
+  lead's chat.
 - **Confirmed.** It relays questions and answers between sessions and the
   owner, quoting each and naming its source.
 - **Confirmed.** It answers a session's question itself when the owner's
   direction already covers it, and tells the owner in one line.
 - **Confirmed.** It labels each decision it sends: its own, or the owner's
-  words, relayed. The session keeps that label beside "relayed by the lead".
+  words, relayed.
 - **Decided.** On the owner's "done", it archives each session, then
   whatever the archive left of its worktree and branch is removed. The
   archive goes first: git on a live session's worktree fails and leaves the
@@ -630,12 +628,11 @@ learned).
   refused call is said once in its next report, and it carries on. A card's
   `url` follows `references/roster.md`, and `work` names the repository and
   issue number only.
-- **Confirmed** (rev 4 S5.1, L7). **The owner answers in the lead's chat.** Its
-  briefs and the start prompt tell members never to ask the owner in their
-  own chat or box. The owner may still type to a member directly: those
-  words, in the member's own chat, are the owner's to that member. The
-  member names, by gist, what it acted on in its next report, and names each owner-kept act
-  it took on those words; it logs a review waiting entry for each such act.
+- **Confirmed** (rev 4 S5.1, L7). **The owner answers in the lead's chat.** The
+  start prompt tells members to send their questions to the lead. The owner
+  may still type to a member directly: those words, in the member's own
+  chat, are the owner's to that member. It logs a review waiting entry for
+  each owner-kept act a member reports it took on those words.
   To it, the member's account is data.
 - **Confirmed** (rev 4 S5.1, L8). **A team lead.** Members push their milestone
   reports; it routes, relays what one member learns that another needs, and
