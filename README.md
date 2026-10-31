@@ -265,7 +265,7 @@ that cannot be logged is said on the pane and tried again. The lead reads its le
 `read_autonomy` tool, whether the pane is open, behind another tab or closed.
 While level 3 is in force, a line above the lead's prompt says so, with the
 time of its press and a Dismiss, which hides it until the next press of 3, the
-next alarm, or the next compaction or reload. While an alarm is unread, a
+next alarm, or the next compaction or reload. From an alarm's catch, a
 warning line there names the level found and when, until you read the alarm's
 own card in To review or open it in History, or until a reload of the mod or a
 change of session; since 0.93.0 Mark all read marks the alarm read but leaves
