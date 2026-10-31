@@ -70,6 +70,11 @@ every kind and from every log, ended sessions' lines included, up to 500 a
 press. A mark leaves the log as it is, so a question marked read still pairs
 with an answer logged later.
 
+Amended in 0.109.0 (issue 486, decision 382, the owner's words relayed by the
+lead on 2026-10-31): Mark all N read leaves this session's own waiting entries
+that no Relayed entry answers, so each stays in To review until it is answered
+or a single Read press closes it. Entries in other logs drop on read as before.
+
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside

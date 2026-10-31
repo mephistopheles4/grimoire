@@ -231,7 +231,7 @@ An engine answer it supplies can misstate a session's liveness. Not inside C4: a
 - A relay counts as a decision. The lead's own calls are not limited, deletion included. A decision can switch off later checks.
 - A pane's repository redirect is pinned before the first `gh` answer.
 - A steered lead, or a session that loaded the skill unasked, can write false log entries and hand-offs.
-- A confirmed level 3 hands the kept decisions to the lead: it takes every decision toward the goal, accepted-risk records and merges that ease a named control included, each logged with a review entry; an install, cleanup, a post carrying private work and an edit to the threat model's scope or the line that names it still wait (E80). A resumed session may bring back a 3 with its earlier confirmation (E35b). Since 0.99.0 a 3 the owner's level command set lasts through compactions, in that session's memory. An unconfirmed 3, or a level kept anywhere but that session's memory, is not covered. Some surfaces show no sign of level 3.
+- A confirmed level 3 hands the kept decisions to the lead: it takes every decision toward the goal, accepted-risk records and merges that ease a named control included, each logged with a review entry; an install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire's E79 and E80) still wait (E80). A resumed session may bring back a 3 with its earlier confirmation (E35b). Since 0.99.0 a 3 the owner's level command set lasts through compactions, in that session's memory. An unconfirmed 3, or a level kept anywhere but that session's memory, is not covered. Some surfaces show no sign of level 3.
 
 Old rows 15 and 16. Entries E28, E35b, E36, E42, E45 to E48, E56, E57, E80.
 
@@ -244,7 +244,7 @@ Old rows 15 and 16. Entries E28, E35b, E36, E42, E45 to E48, E56, E57, E80.
 - Deletes are permanent, and history keeps text.
 - The head chef's posts carry what the owner asks, never error text (E60, E79); sessions' posts follow the owner's process (E62, E79).
 - Act values are not held to plain character sets.
-- At a confirmed level 3, the lead's own picks reach a merge, close, edit, label, issue or comment (E66), never because a report, record or relay asked; a delete is not covered. The lead takes every decision toward the goal, accepted-risk records and merges that ease a named control included, each logged with a review entry; an install, cleanup, a post carrying private work and an edit to the threat model's scope or the line that names it still wait (E80).
+- At a confirmed level 3, the lead's own picks reach a merge, close, edit, label, issue or comment (E66), never because a report, record or relay asked; a delete is not covered. The lead takes every decision toward the goal, accepted-risk records and merges that ease a named control included, each logged with a review entry; an install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire's E79 and E80) still wait (E80).
 
 Old row 16. Entries E49 to E51, E53, E54, E60, E62, E64, E66, E79, E80.
 

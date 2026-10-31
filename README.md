@@ -206,7 +206,7 @@ newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's
 heading, marks everything under To review read in one write, since 0.98.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line. It leaves out only what your search hides,
+and every ended session's line, but this session's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). It also leaves out what your search hides,
 and a press marks nothing if the set changed since you looked, or if your
 marks file is so full that the write would push out marks of entries you
 read. A question marked read keeps its link, so an answer logged later still
@@ -260,8 +260,8 @@ or from your phone, or press 3 and confirm it in the lead's own chat with a
 goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
 security findings without a word from you for each act, logging each one
 first. Still waiting for you, as to-dos: a post, merge text or commit message
-that would carry private work, an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80), an install, and cleanup, whose yes is yours at every level.
-Since head-chef 0.17.0 the skill holds these rules. Only your press or your own `/brigade level 1`, `/brigade level
+that would carry private work, an edit to the threat model's scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire's E79 and E80), an install, and cleanup, whose yes is yours at every level.
+Since head-chef 1.7.0 (issue 486) the skill holds these rules. Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view, 3 in the warning colour; a 3 the
 command set shows its goal under the slider. Each move

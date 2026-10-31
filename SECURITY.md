@@ -247,8 +247,9 @@ cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
 set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
-Lead, Relayed, waiting entries and alarms, and every ended session's line;
-before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
+Lead, Relayed, waiting entries and alarms, and every ended session's line,
+but this session's own waiting entries that no Relayed entry answers (since
+0.109.0, issue 486); before 0.98.0, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
 owner read, when the caps would push out a mark that is still an entry's
 newest state. A mark leaves the log untouched, so a waiting entry marked read
 keeps its link and a later answer still pairs with it. The hash is the mod's
@@ -396,7 +397,7 @@ words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
 logs each act before it. Since head-chef 1.7.0 (issue 486) these still wait
 for the owner at level 3: a post, merge text or commit message that would
-carry private work; an edit to the threat model's scope, the line that names it, or the accepted risks that record these removed rules and this leave (grimoire's E79 and E80); an install; and cleanup. Every other decision toward the goal, an
+carry private work; an edit to the threat model's scope, the line that names it, or the accepted risks that remove the secret and personal-data rules and widen the level-3 leave (grimoire's E79 and E80); an install; and cleanup. Every other decision toward the goal, an
 accepted-risk record and a merge that eases a named control included, is the
 lead's, logged with a review entry the owner answers in the Decisions tab
 (E80).
