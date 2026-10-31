@@ -70,12 +70,13 @@ temporary folders. Where `athanor` is not on your PATH, or produces no result, r
 
 The root `package.json` holds only the `athanor` key, because athanor reads its
 configuration from nowhere else. It names the Dockerfile in `tests/container/`,
-which is the whole build context, and three commands:
+which is the whole build context, and four commands:
 
 ```bash
 athanor run check
 athanor run fast
 athanor run validate
+athanor run plugin-test
 ```
 
 `check` runs the same contract as `node scripts/check.mjs`, and it is the one
@@ -84,7 +85,10 @@ about a third of the time of `check`, and skips the check's rules, so a pass
 there is not a contract pass. Its saving comes from the subset: the same files
 run on the host with `node --test`. `validate` runs `claude plugin validate
 --strict` on the same three targets as CI, at the same pinned Claude Code,
-which the image fetches when athanor builds it.
+which the image fetches when athanor builds it. `plugin-test` runs the mod's
+tests, `claude plugin test .`, with the same Claude Code. On Linux the tests
+that build a junction are not declared, and the run prints each one's title as
+skipped: junctions exist only on Windows.
 
 To install athanor, clone its source repository outside this repository's tree
 and check out commit `0fd9ad4`, the commit this configuration was tested with:
@@ -272,10 +276,11 @@ page saved to its store. Those keys and the saved entry are the page's seam.
 one place only, the plugin validator's workflow, and that is not the publishing
 path: its jobs have `contents: read`, hold no token or secret, write nothing,
 and the `pages` workflow does not depend on them. The first gate runs there,
-as the workflow's `plugin-test` job, on a Windows runner. Run it yourself on
-Windows before you push a change to `brigade/`, if you like; off Windows it
-fails, because the tests' world is a Windows machine and the engine reads its
-`C:\` paths as relative ones. The second stays on your own machine: before a
+as the workflow's `plugin-test` job on a Windows runner and its
+`plugin-test-linux` job on a Linux one. Run it yourself before you push a
+change to `brigade/`, if you like, with `athanor run plugin-test`. The tests'
+world follows its host; off Windows the tests that build a junction are not
+declared, and the run says so. The second stays on your own machine: before a
 pull request that touches `brigade/`, run it on Windows and say so in the pull
 request. Off Windows, say that the recording gate could not run there:
 

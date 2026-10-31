@@ -131,12 +131,12 @@ jobs:
   # runner. A test file that does not load fails the run ("the file did not
   # load"), and so does a failing test: the exit code is the gate (#477).
   #
-  # **Windows, not Linux.** The tests' world is a Windows machine: its paths
-  # are C:\ paths, and the link answers come from brigade/recorded-stats.ts,
-  # recorded on Windows. The engine resolves a path the way its host does, so
-  # on Linux those paths read as relative ones and most tests fail. Until the
-  # world follows its host, this job runs on Windows and athanor does not run
-  # these tests.
+  # **Windows and Linux, as two jobs.** The tests' world follows its host: its
+  # paths are the host's, and the tests that build a junction run on Windows
+  # only, since Linux has none and their answers in brigade/recorded-stats.ts
+  # were recorded on Windows. So this job is the one that runs those tests, and
+  # plugin-test-linux the one that runs the mod's paths as Linux spells them
+  # (#481). Two jobs and not a matrix, so this job's check keeps its name.
   #
   # **No credential.** The runner needs no sign-in and makes no model call:
   # measured on 2.1.314 with an empty config folder and no API key.
@@ -157,8 +157,8 @@ jobs:
 
       # The same fetch as validate's, of the Windows package, whose one
       # executable is `package/claude.exe`. These two version strings, the one
-      # in the version check below, validate's three and the one in
-      # tests/container/Dockerfile move together. `tar` runs in the folder,
+      # in the version check below, validate's three, plugin-test-linux's three
+      # and the one in tests/container/Dockerfile move together. `tar` runs in the folder,
       # since Git's tar reads a drive letter in a path as a remote host.
       - name: Fetch Claude Code
         run: |
@@ -166,6 +166,42 @@ jobs:
           cd "$RUNNER_TEMP/claude"
           npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.314"
           tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.314.tgz"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      - name: Check the version
+        run: |
+          expected="2.1.314 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      - name: Run the mod's tests
+        run: claude plugin test .
+
+  # The same tests on Linux, where the junction tests are not declared and the
+  # run prints each one's title as skipped.
+  plugin-test-linux:
+    # Pinned, as validate is: the fetch names a platform package, linux, x64,
+    # glibc.
+    runs-on: ubuntu-24.04
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # validate's fetch, unchanged; its version strings move with the others.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
 
       - name: Check the version
