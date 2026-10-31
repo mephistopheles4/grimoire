@@ -705,13 +705,13 @@ export function openWaiting(logs: readonly ReadLog[], sid: string): Set<string> 
  *  cards whose entry is one of the `open` keys `openWaiting` gives (issue
  *  486), taken whole up to 500 entries, so its key stays in range and a second
  *  press takes the rest. `n` counts what leaves To review and `total` all
- *  that is under it, each card once, a pair as one, and each ended line's
- *  entry (issue 496). `hash` is the first 16 hex digits of SHA-256 over the
+ *  that is under it, as To review's heading counts it: each card once, a
+ *  pair as one, and each ended line as one (issue 496). `hash` is the first 16 hex digits of SHA-256 over the
  *  set's mark keys, sorted and joined by line breaks: a staleness check on the
  *  press, not a secret. */
 export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLine[], open: ReadonlySet<string> = new Set()) {
   const fromCards = cards.map(c => (c.answer === undefined ? [c.row] : [c.row, c.answer]))
-  const fromLines = lines.flatMap(l => l.rows.map(r => [r]))
+  const fromLines = lines.map(l => [...l.rows])
   const total = fromCards.length + fromLines.length
   let size = 0
   let n = 0
@@ -719,9 +719,11 @@ export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLi
     const out: Row[] = []
     for (const u of units) {
       if (u.some(r => open.has(rowKey(r)))) continue
-      if (size + u.length > MAX_ENTRIES) break
-      out.push(...u)
-      size += u.length
+      // A unit over the cap on its own, a line past 500 entries, is taken in part.
+      const part = size === 0 ? u.slice(0, MAX_ENTRIES) : u
+      if (size + part.length > MAX_ENTRIES) break
+      out.push(...part)
+      size += part.length
       n++
     }
     return out

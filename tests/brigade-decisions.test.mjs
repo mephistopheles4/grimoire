@@ -1158,8 +1158,9 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   const set = markAllSet(cards.cards, lines);
   const all = [...cards.shown, ...lines.flatMap(l => l.rows)];
   assert.deepEqual(set.rows, all);
-  // #496: it counts what leaves To review: a card, a pair as one, and each ended line's entry.
-  assert.equal(set.n, all.length - 1);
+  // #496: it counts what leaves To review: a card, a pair as one, and an ended line as one (decision 524).
+  assert.equal(set.n, cards.cards.length + lines.length);
+  assert.ok(set.n < all.length - 1, 'the ended line holds more than one entry');
   assert.equal(set.total, set.n);
   for (const kind of ['lead', 'relayed', 'alarm']) assert.ok(set.rows.some(r => r.entry.source === kind), kind);
   assert.ok(set.rows.some(r => r.entry.waiting), 'a waiting entry');
@@ -1172,6 +1173,10 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   const big = markAllSet(many.map(row => ({ row, answer: undefined })), []);
   assert.deepEqual(big.rows, many.slice(0, 500));
   assert.deepEqual([big.n, big.total], [500, 501]);
+  // A pair that would straddle the cap is left whole for the next press, and nothing after it is taken.
+  const pair = { row: many[499], answer: many[500] };
+  const straddle = markAllSet([...many.slice(0, 499).map(row => ({ row, answer: undefined })), pair, { row: { ...many[0], entry: { ...many[0].entry, id: '900' } }, answer: undefined }], []);
+  assert.deepEqual([straddle.rows.length, straddle.n, straddle.total], [499, 499, 501]);
 });
 
 // Issue 486, read from brigade/register.tsx's text: the scan's test file held

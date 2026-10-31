@@ -7316,9 +7316,10 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     const w = await decisionsPane(on, $, surface)
     for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
       await press($, view)
-      // #496 (decision 521): the chip names the level with no number, as the Decisions heading does.
+      // #496 (decision 521): the chip names the level with no number, as the Decisions heading does,
+      // so the Decisions tab draws the text twice: the chip and the heading.
       const labels = await mounted.findAll({ type: 'Text', text: /^Autonomy · Manual$/ })
-      expect(labels.length).toBeGreaterThan(0)
+      expect(labels.length).toBe(view === 'view-decisions' ? 2 : 1)
       for (const label of labels) expect(label.props.color).toBeUndefined()
     }
     expect(await shows(/^Manual: the lead asks you on every decision\.$/)).toBe(true)
@@ -7327,7 +7328,9 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     await press($, 'level-3')
     for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
       await press($, view)
-      expect((await mounted.findAll({ type: 'Text', text: /^Autonomy · Turbo$/ })).some((label: any) => label.props.color === 'warning')).toBe(true)
+      // The chip in the warning colour; on the Decisions tab the heading beside it has none.
+      const labels = await mounted.findAll({ type: 'Text', text: /^Autonomy · Turbo$/ })
+      expect(labels.map((label: any) => label.props.color ?? 'none').sort()).toEqual(view === 'view-decisions' ? ['none', 'warning'] : ['warning'])
     }
     const line = await mounted.find({ type: 'Text', text: LEVEL_3_LINE })
     expect(line?.props.color).toBe('warning')
@@ -8772,8 +8775,10 @@ test('spec 447 claim 5: a log first seen after the session read began, with a re
 
 test('issue 466: Mark all read takes an ended session\'s line too', async ($, on) => {
   const w = await endedPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'Plain one?' }), kept(2, 300, { question: 'Plain two?' })])))
-  // This log's two, the peer's unanswered waiting entry and alarm, and the line's three.
-  expect(await markAllLabel('all 7')).toBe(true)
+  // This log's two, the peer's unanswered waiting entry and alarm, and the line, one unit for its three entries (#496, decision 524).
+  expect(await markAllLabel('all 5')).toBe(true)
+  // To review's heading counts the same five.
+  expect(await shows(/^ 5$/)).toBe(true)
   const [key] = await markAllKeys()
   await press($, key as string)
   expect(ownMarks(w).map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()).toEqual(['own 1 read', 'own 2 read', 'peer 1 read', 'peer 2 read', 'peer 3 read', 'peer 4 read', 'peer 6 read'])
@@ -8862,9 +8867,9 @@ test('spec 447 claim 8 (Test round 1, q3 A), issue 466: a Mark all read that wou
     LOGS.forEach((sid, n) => seed(w, `${DECISIONS}${SEP}${sid}.json`, big(n)))
     seed(w, OWN_MARKS, marksText(live))
   })
-  // The peer's waiting entry and alarm, and the line's three.
+  // The peer's waiting entry and alarm, and the line, one unit for its three entries (#496, decision 524).
   const [key] = await markAllKeys()
-  expect(key).toMatch(/^dmarkall-5-/)
+  expect(key).toMatch(/^dmarkall-3-/)
   const writes = writesTo(w, OWN_MARKS)
   await press($, key as string)
   expect(writesTo(w, OWN_MARKS)).toBe(writes)
@@ -9379,8 +9384,8 @@ test("C15, C15a, #496: the command's Owner entry draws as Owner, and a log holdi
   await press($, 'grp-d-history')
   expect(await shows(/^Owner$/)).toBe(true)
   expect(await shows(/not in their fixed shape/)).toBe(false)
-  // The slider names the level by its new name.
-  expect(await shows(/^Autonomy · Turbo$/)).toBe(true)
+  // The slider's heading names the level by its new name, beside the chip's same text.
+  expect((await mounted.findAll({ type: 'Text', text: /^Autonomy · Turbo$/ })).length).toBe(2)
 })
 
 // --- issue 478, spec v1: a bare /brigade wakes the lead to resend the roster ------------------

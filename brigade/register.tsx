@@ -4648,7 +4648,7 @@ export const register: Register = on => {
         {terminal ? (
           <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
-            <Text dimColor>{` ${dQueue.total}`}</Text>
+            <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
@@ -4661,7 +4661,7 @@ export const register: Register = on => {
           <Box paddingX="sm" marginTop="md" marginBottom="xs" flexDirection="row" alignItems="center" {...roundFill}>
             <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row">
               <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
-              <Text dimColor>{` ${dQueue.total}`}</Text>
+              <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
             </Box>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
