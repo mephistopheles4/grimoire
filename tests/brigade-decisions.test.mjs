@@ -919,6 +919,17 @@ test('spec 444 claim 10: a newest mark whose older flag sits in another file is 
   assert.ok(!unknown.marks.some(m => m.log === OTHER), 'an unknown entry\'s mark dropped first');
 });
 
+test('issue 459 claim 5: past the marks cap, the owner\'s newest mark on a lead-flagged entry is kept past step 3, so the lead\'s flag never comes back', () => {
+  for (const state of ['unflagged', 'read']) {
+    const marks = [mk(OTHER, '1', NOW, state, NOW + 2), ...Array.from({ length: MAX_MARKS - 1 }, (_, i) => mk(SID, String(i + 1), NOW, 'read', NOW + 10 + i))];
+    const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+    const leadFlags = new Set([markKey(OTHER, '1', NOW)]);
+    const next = addMarks({ kind: 'marks', v: 1, marks }, [mk(SID, '9000', NOW, 'read', NOW + 9000)], known, [], NOW + 20000, leadFlags);
+    assert.ok(next.marks.some(m => m.log === OTHER && m.state === state), `the owner's ${state} mark stays`);
+    assert.ok(!next.marks.some(m => m.log === SID && m.id === '1'), 'the oldest plain read drops instead');
+  }
+});
+
 test('spec 444 claim 10: a mark dated one minute ahead is inside the allowance, so it supersedes and the older flag of its entry drops first', () => {
   const now = NOW + 20000;
   const soon = { kind: 'marks', v: 1, marks: [mk(SID, '1', NOW, 'unflagged', now + 60 * 1000)] };

@@ -853,7 +853,8 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const now = await $.clock.now()
     const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
     const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
-    const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
+    const leadFlags = new Set(tabRead.logs.flatMap(l => l.log.entries.filter(e => e.flag !== undefined).map(e => markKey(l.sid, e.id, e.at))))
+    const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now, leadFlags)
     if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) {
       marksFull = true
       return false

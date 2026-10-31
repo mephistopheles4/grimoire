@@ -440,7 +440,8 @@ export const addMark = (file: MarksFile | undefined, mark: Mark, known: Readonly
  *     or in `others`, the other marks files read;
  *  3. a mark whose entry's newest counted state is not flagged, unless it is
  *     its entry's newest counted mark while an older flag stays in `others`,
- *     since dropping it would bring that flag back;
+ *     or the entry carries a lead flag (`leadFlags`, issue 459), since
+ *     dropping it would bring that flag back;
  *  4. any mark left.
  *  Each step goes oldest first. "Counted" is as `mergeMarks` counts at `now`;
  *  the merge is worked out once for the write. */
@@ -450,6 +451,7 @@ export function addMarks(
   known: ReadonlySet<string>,
   others: readonly MarksFile[] = [],
   now = Number.POSITIVE_INFINITY,
+  leadFlags: ReadonlySet<string> = new Set(),
 ): MarksFile {
   const marks = [...(file?.marks ?? []), ...added]
   const sizes = marks.map(m => bytes(JSON.stringify(m)))
@@ -466,7 +468,7 @@ export function addMarks(
     const was = best.get(k)
     if (was === undefined || m.at > was.at) best.set(k, m)
   }
-  const flaggedElsewhere = new Set<string>()
+  const flaggedElsewhere = new Set<string>(leadFlags)
   for (const f of others) for (const m of f.marks) if (counted(m) && m.state === 'flagged') flaggedElsewhere.add(markKey(m.log, m.id, m.entryAt))
   const rank = (m: Mark): number => {
     const k = markKey(m.log, m.id, m.entryAt)

@@ -6227,8 +6227,9 @@ test('claim 9: an opened Flagged row draws the card with Unflag in place of Flag
 test('issue 459: a decision the lead logs with a flag goes to Flagged, never To review; its card names the lead\'s reason, and the owner\'s Unflag takes it out', async ($, on) => {
   const w = await flagPane(on, $, 'desktop', () => {})
   const r = await decide($, { ...ENTRY, flag: 'Unsure the tier fits.' })
-  expect(r.text).toMatch(/^Logged decision 1 at /)
   const at = parsed(w, LOG).entries[0].at
+  // A flag holds nothing: the answer is any entry's.
+  expect(r.text).toBe(`Logged decision 1 at ${new Date(at).toISOString()}, at level 1 (Manual).`)
   expect(parsed(w, LOG).entries[0].flag).toBe('Unsure the tier fits.')
   expect(await shows(/^All caught up/)).toBe(true)
   expect(await mounted.find({ key: `dflag-1-${at}` })).toBeUndefined()
