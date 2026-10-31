@@ -444,23 +444,34 @@ files you ask for:
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
   each cleanup a level-3 lead names back, by repository and branch only.
-  Since 0.94.0 the mod's `read_cleanup` tool does cleanup's reads, and the
-  lead runs none itself. When a card joins the roster, the mod reads that
-  session's folder, repository and branch once, from the session file holding
-  the card's Desktop id or job id, with two `git` calls, and keeps them in
-  memory only, never in a file or plugin state. At cleanup it runs `git` in
-  each such repository: found work by file names, counts, short hashes and
-  stash refs, never contents; and each repository's `origin` as `owner/name`
-  only. It then asks GitHub, with your `gh` sign-in, for the merged pull
-  requests of each branch it names, by repository. Every `git` call carries
-  flags that keep the repository's hooks, file watcher and signing program
-  from running, with a new hooks folder the mod makes for each use: one empty
-  file in a folder of its own in the plugin's data folder, never removed by
-  the mod. It reads each repository's config key names, never their values,
-  to skip one that sets a filter driver. It hands back each removal as a
-  fixed command, and removes nothing: the lead runs each command as its own
-  shell call, after your yes. Its answer, folders and file names included,
-  lands in the lead's conversation and transcript.
+  When a card joins the roster, the mod reads that session's folder,
+  repository and branch once, from the session file holding the card's
+  Desktop id or job id, with two `git` calls, and keeps them in memory only,
+  never in a file or plugin state. Each `git` call carries flags that keep
+  the repository's hooks, file watcher and signing program from running, with
+  a hooks folder the mod makes: one empty file in a folder of its own in the
+  plugin's data folder, never removed by the mod.
+  Since 0.110.0 (issue 484) cleanup takes one typed act. Your typed
+  `/brigade done all`, or `/brigade done <title>, <title>`, is the only yes:
+  its reply lists each opened card's kind, repository, folder and branch as
+  they were when it joined, and `/brigade done none` takes it back. The lead
+  then archives or stops those sessions and calls the mod's `clean_up`, which
+  runs the pact's cleaner (`~/.claude/pact/tools/cleaner.mjs`, the-pact 446)
+  as `show --recoverable`, then `remove --recoverable` with the tags show
+  printed, for exactly the window's folders. The cleaner removes a worktree
+  and its branch only when everything in it can be recovered; anything else
+  stays and is listed with what it holds. Brigade removes nothing itself, and
+  runs no `claude rm`; without the pact's cleaner installed, nothing is
+  removed ([ADR 0014](docs/adr/0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md)).
+  The cleaner's answer, folder and file names included, lands in the lead's
+  conversation and transcript. From the phone over Remote Control, a typed
+  `/brigade done` arrives without its titles, so give the yes at the desktop.
+  To undo a wrong card, recreate its worktree at `.claude/worktrees/<name>`
+  with `git worktree add` from its remote branch or the tip the cleaner
+  printed, then unarchive the Desktop session or `claude attach` the stopped
+  one. A stopped background session stays until you run `claude rm <id>`
+  yourself, after its worktree has gone or you have saved what it holds:
+  `claude rm` deletes the worktree with whatever is left in it.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
@@ -473,12 +484,12 @@ files you ask for:
   `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
   write and read the lead's hand-off, the `read_autonomy` tool, which reads
-  the lead's autonomy level, the `read_cleanup` tool, which runs cleanup's
-  `git` and `gh` reads and writes its hooks folder, the
+  the lead's autonomy level, the
   `stop_background_session` tool, which runs `claude stop` for a background
-  session inside a `/brigade done` window, the `read_context` tool, which
-  reads each card's context figure from the meters the pane's last poll kept,
-  the `show_permission_warning` tool, which shows a reminder,
+  session inside a `/brigade done` window, the `clean_up` tool, which runs the
+  pact's cleaner inside that window, the `read_context` tool, which reads each
+  card's context figure from the meters the pane's last poll kept, the
+  `show_permission_warning` tool, which shows a reminder,
   and Open in app's call to the Desktop app's
   `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
 
@@ -486,13 +497,13 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.104.0 each start, clear or resume also closes every `/brigade done` window. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `clean_up` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.104.0 each start, clear or resume also closes every `/brigade done` window. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.104.0, `/brigade done <title>, <title>` opens a 15-minute window for those cards' sessions, again only when you typed it or sent it from your phone, and answers with the titles you typed, which opened and why each other did not, never an id or a path. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.104.0, `/brigade done <title>, <title>` opens a 15-minute window for those cards' sessions, again only when you typed it or sent it from your phone, and answers with the titles you typed, which opened and why each other did not, never an id or a path. Since 0.110.0, `/brigade done all` opens one for every card the pane shows as done, its reply lists each opened card's kind, repository, folder and branch, and `/brigade done none` closes every window. |
 | `tool.call` for Desktop's `mcp__ccd_session_mgmt__archive_session` | Since 0.104.0, in every session the mod loads in: lets one archive through for a session in an open `/brigade done` window, from the model's own main loop with only `session_id` and `reason`, and refuses every other archive call in one fixed line. It keeps nothing from the call. You can still archive by hand in Desktop. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `read_cleanup`, `stop_background_session`, `read_context` and `show_permission_warning` | Answers for the mod's own nine tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `clean_up`, `read_context` and `show_permission_warning` | Answers for the mod's own nine tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |

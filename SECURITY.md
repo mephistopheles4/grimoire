@@ -510,22 +510,19 @@ has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
 worktrees: head-chef.** The agent starts and archives Desktop sessions with
-Claude Desktop's session tools. Since head-chef 0.17.0 (issue 416) cleanup
-names back, by repository, every worktree and branch it will remove with
-what it found in each, and removes them only on the owner's one yes in chat,
-at every level: `git worktree remove`, forced once where git refuses and
-doubled for a worktree named back as locked, and `git branch -d`, or `-D`
-where that refuses, never for a default or checked-out branch; for a
-background session, `claude stop` and `claude rm` take the archive's place.
-It removes only the folder and branch it kept when it started the session. It
-reads every repository the brigade ran in, and any folder an item that is not
-bound to its session names, with hooks, the file watcher and signing switched
-off for its git commands; a filter driver can still run. What the reads print
-lands in the lead's transcript: file names, counts, short hashes, stash refs,
-every worktree's path and lock line, and merged branch names, never file
-contents; each repository's `origin` is read as `owner/name` only. Cleanup
-also asks GitHub, with the owner's `gh` sign-in, for the merged pull requests
-of each branch it names. The head chef starts a background session with
+Claude Desktop's session tools. Since head-chef 1.8.0 (plugin 0.110.0,
+issue 484) cleanup is one typed act: the owner's typed `/brigade done` is the
+only yes, at every level, and its reply lists each opened card's kind,
+repository, folder and branch, as bound when the card joined. The head chef
+then archives each Desktop session, stops each background session with
+`claude stop`, and calls the Brigade mod's `clean_up`, which runs the pact's
+cleaner with `--recoverable` for exactly the window's folders. Nothing in
+cleanup forces a removal, passes `-D`, runs `claude rm` or asks GitHub; the
+cleaner removes a worktree and its branch only when everything in it can be
+recovered, and keeps and lists anything else. The head chef removes nothing
+itself. What the cleaner prints lands in the lead's transcript: folder,
+branch and file names, short hashes and stash refs, never file contents. The
+head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that
 route. A session takes any message from the
 head chef as a relayed decision, on any matter, labelled as relayed and never

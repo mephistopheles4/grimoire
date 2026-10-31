@@ -88,28 +88,23 @@ or type `/brigade` to open it.
   push, report, and say it is ready to close.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
-- **Cleans up** on your "done", in every repository its sessions ran in: one
-  name-back, by repository, of each session, its worktree folder and its
-  branch, with what it found in each (uncommitted or stashed work, commits on
-  no remote, a lock, submodules, and where the branch's work lives), then
-  your typed `/brigade done`. Found work is shown, never a stop. Since 1.1.0 the Brigade mod's
-  `read_cleanup` tool does the reads, from the folder, repository and branch
-  the mod recorded when each session's card joined the roster, and hands back
-  each removal as a fixed command; the mod removes nothing. A session it has
-  no record for, or whose folder or branch reads differently, is named "not
-  bound to its session" and gets no command: you clean it up by hand. The
-  lead archives the session, calls the tool again, names back again anything
-  that changed, and then runs each command as its own shell call, forcing
-  once where git refuses, twice only for a worktree named back as locked, and
-  `-D` only where `-d` refuses and never on a default or checked-out branch.
-  Your yes is typing `/brigade done` with the sessions' titles: only then,
-  for 15 minutes, does the Brigade mod let the lead archive them. A
-  background session is stopped with the mod's `stop_background_session` in
-  place of the archive, then removed with `claude rm`, and the name-back
-  marks it.
-  `claude rm` keeps the session's transcript in the Claude config folder;
-  what it keeps of the job's own store was not checked. A removal that fails
-  is left and told to you. Cleanup's yes is yours at every level.
+- **Cleans up** on your "done", in one typed act, in every repository its
+  sessions ran in. You type `/brigade done all`, for every card the pane
+  shows as done, or `/brigade done <titles>`, at the desktop prompt, then
+  send any message: that is your only yes. The reply lists each card, its
+  repository, worktree folder and branch, as the Brigade mod recorded them
+  when the card joined the roster. The lead then archives each Desktop
+  session, or stops a background one with the mod's
+  `stop_background_session`, and calls the mod's `clean_up`, which runs the
+  pact's cleaner: a worktree and its branch go only when everything in them
+  can be recovered, and anything else stays and is listed, with what it
+  holds. `/brigade done none` takes the window back. The lead removes no
+  worktree or branch itself and never runs `claude rm`; to remove a stopped
+  session for good, you run `claude rm <id>` by hand, which deletes the
+  worktree with whatever is left in it. A wrong card is undone by recreating
+  its worktree with `git worktree add` from its remote branch or the tip the
+  cleaner printed, then unarchiving or attaching the session. Cleanup's yes
+  is yours at every level.
 - **Acts on GitHub** on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first. At a level 3 you confirmed, with a goal, it takes these
@@ -238,7 +233,7 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 |---|---|
 | `SKILL.md` | The skill. Generated from the contract. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
-| `references/cleanup.md` | Cleanup's steps: the `read_cleanup` calls, the name-back, the typed yes and the removal commands, read when cleanup starts. Generated with `SKILL.md`. |
+| `references/cleanup.md` | Cleanup's steps: the typed command, the archive or stop, `clean_up`, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
 | `references/starting.md` | The steps of a start, read before each start. Generated with `SKILL.md`. |
 | `references/background.md` | The background route after Desktop refused a start. Generated with `SKILL.md`. |
 | `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |
