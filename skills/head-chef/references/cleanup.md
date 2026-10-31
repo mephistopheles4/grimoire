@@ -2,9 +2,9 @@
 
 Read this when the owner says "done" with a session, or asks you to clean
 up. Cleanup shows the owner everything it will delete and what each item
-holds, then waits for one yes. It stops on nothing it finds: what it finds
-goes in the name-back, and the owner decides. Cleanup's yes, the archive
-included, is the owner's at every level.
+holds, then waits for the owner's typed `/brigade done`. It stops on
+nothing it finds: what it finds goes in the name-back, and the owner
+decides. Cleanup's yes, the archive included, is the owner's at every level.
 
 The Brigade mod's `read_cleanup` tool does the reads, and hands back each
 removal as a fixed command. It removes nothing. You run each command it
@@ -33,15 +33,20 @@ it. The tool works only while the Brigade pane is open.
    worktree folder and its branch, with what the tool found, by file names,
    counts, short hashes and stash refs. A message that holds the name-back
    holds nothing else to answer. Mark a background session as one, and name
-   the linked side sessions the archive takes with it. Then wait for one yes
-   (stop 2), and update the Brigade pane in the same step. At level 3 the yes
+   the linked side sessions the archive takes with it. Then ask the owner to
+   type `/brigade done` with the titles named back, separated by commas, and
+   to send any message once typed; that typed command is the yes (stop 2).
+   Update the Brigade pane in the same step. At level 3 the yes
    is still the owner's: log a waiting entry that names the cleanup by
    repository (the tool's `owner/name`, or else the repository folder's last
    name) and by branch, with no path or found work, add a to-do, and carry
    on with other work.
 4. **Archive** each item the yes covers, as the tool's archive step says:
-   Desktop's archive tool, or `claude stop <id>` for a background session. A
-   failed archive is a removal that failed. An item the tool leaves whole,
+   Desktop's archive tool, or `stop_background_session` with the card's
+   title for a background session. A refused or failed archive or stop, the
+   auto-mode classifier's refusal included, is a removal that failed: the
+   owner types `/brigade done` again or archives by hand. An item the tool
+   leaves whole,
    because another running session sits inside it, is not archived.
 5. **Call the tool again** with `step` set to `re-read`. An item that changed
    since the name-back comes back as a new name-back, with no command: show
