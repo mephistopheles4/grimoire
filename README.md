@@ -185,8 +185,10 @@ the picked rows and marks them read. Since 0.93.0 the lead can flag a
 decision it is unsure of, with a one-line reason: the decision goes straight
 to Flagged to revisit and never to To review, so Mark all read never takes it,
 and its card shows "Flagged by the lead" with the reason. Only you unflag it,
-and the flag holds nothing up: the lead still acts on its pick. No press
-removes a decision from a log.
+and the flag holds nothing up: the lead still acts on its pick. A session
+still on an older version cannot read a log that holds a flag until it
+reloads; never delete that log to clear its refusal. No press removes a
+decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.

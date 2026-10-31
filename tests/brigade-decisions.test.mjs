@@ -1302,13 +1302,13 @@ test('issue 459 claim 2: the strict log check takes an entry with or without a f
   }
 });
 
-test('issue 459 claim 3: a lead-flagged entry sits in Flagged and never in To review, from any log, until the owner marks it', () => {
+test('issue 459 claim 3: this lead\'s flagged entry sits in Flagged and never in To review until the owner marks it; another log\'s flag is only counted', () => {
   const add = (log, over, at) => appendEntry(log, input(over), { at, level: 3, read: new Map() }).value.log;
   const own = add(add(emptyLog(null), { work: 'plain' }, NOW), { work: 'mine flagged', flag: 'Unsure.' }, NOW + 1);
   const other = add(add(emptyLog(null), { source: 'relayed', work: 'claim' }, NOW - 5), { work: 'theirs flagged', flag: 'Unsure too.' }, NOW - 4);
   const ls = [{ sid: SID, writer: 'lead-a', log: own }, { sid: OTHER, writer: 'an ended session', log: other }];
   const view = marks => {
-    const states = d.withLeadFlags(marks, ls);
+    const states = d.withLeadFlags(marks, ls, SID);
     const v = drawnLogs(ls, SID, states, new Map([[OTHER, 'ended']]), true);
     const cards = d.reviewCards(v.review, SID, states, new Set(), []);
     return {
@@ -1318,16 +1318,21 @@ test('issue 459 claim 3: a lead-flagged entry sits in Flagged and never in To re
     };
   };
   // To review's shown rows and ended lines are all Mark all read can take: no flagged entry is there.
-  assert.deepEqual(view(new Map()), { review: ['claim', 'plain'], flagged: ['theirs flagged', 'mine flagged'], unshown: 0 });
-  assert.deepEqual(flaggedRows(ls, d.withLeadFlags(new Map(), ls), searchWords('too')).map(r => r.entry.work), ['theirs flagged'], 'the search reads the reason');
+  // Test round 1's q5 A (the owner's word, relayed): another log's flag is not carried, so its
+  // flagged plain pick is counted in the dim line as any plain pick is.
+  assert.deepEqual(view(new Map()), { review: ['claim', 'plain'], flagged: ['mine flagged'], unshown: 1 });
+  assert.deepEqual(flaggedRows(ls, d.withLeadFlags(new Map(), ls, OTHER), searchWords('too')).map(r => r.entry.work), ['theirs flagged'], 'the search reads the reason');
   // The owner's latest mark wins: Unflag or Dismiss takes it out, and a later Flag keeps it in.
   const k = markKey(SID, own.entries[1].id, own.entries[1].at);
-  assert.deepEqual(view(new Map([[k, 'unflagged']])).flagged, ['theirs flagged']);
-  assert.deepEqual(view(new Map([[k, 'read']])).flagged, ['theirs flagged']);
-  assert.deepEqual(view(new Map([[k, 'flagged']])).flagged, ['theirs flagged', 'mine flagged']);
+  assert.deepEqual(view(new Map([[k, 'unflagged']])).flagged, []);
+  assert.deepEqual(view(new Map([[k, 'read']])).flagged, []);
+  assert.deepEqual(view(new Map([[k, 'flagged']])).flagged, ['mine flagged']);
   assert.equal(view(new Map([[k, 'unflagged']])).review.includes('mine flagged'), false, 'an unflagged entry is read');
+  // The owner's own flag on another log's entry still carries it.
+  const t = markKey(OTHER, other.entries[1].id, other.entries[1].at);
+  assert.deepEqual(view(new Map([[t, 'flagged']])).flagged, ['theirs flagged', 'mine flagged']);
   // The states given are not changed.
   const marks = new Map();
-  d.withLeadFlags(marks, ls);
+  d.withLeadFlags(marks, ls, SID);
   assert.equal(marks.size, 0);
 });

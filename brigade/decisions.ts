@@ -60,10 +60,11 @@ export const MAX_MARKS_BYTES = 256 * 1024
 export const HISTORY_PAGE = 50
 /** How many other sessions' files of each kind the pane reads, newest first. */
 export const MAX_OTHER_FILES = 20
-// The most one entry can take as JSON: 5,316 characters of text at four bytes
-// each, with its keys. The dim line reads a log this close to the byte cap as
-// one the cap rule may have dropped from.
-const MAX_ENTRY_BYTES = 22 * 1024
+// The most one entry can take as JSON: 5,316 characters of text at six bytes
+// each, the escape of an unpaired surrogate (issue 459, Test round 1, q8 A),
+// with its keys. The dim line reads a log this close to the byte cap as one
+// the cap rule may have dropped from.
+const MAX_ENTRY_BYTES = 32 * 1024
 
 type Checked<T> = { value: T } | { error: string }
 
@@ -598,13 +599,19 @@ export function parsePairKey(key: string): { verb: string; id: string; at: numbe
   return { verb: m[1] as string, id: m[2] as string, at: Number(m[3]), answerId: m[4] as string, answerAt: Number(m[5]) }
 }
 
-/** The states with the lead's own flags (issue 459): an entry the lead logged
- *  with a flag, and that has no mark, reads as flagged, so it sits in Flagged
- *  to revisit and never in To review. The owner's latest mark wins, so Unflag
- *  and Dismiss take it out. The states given are not changed. */
-export function withLeadFlags(states: ReadonlyMap<string, MarkState>, logs: readonly ReadLog[]): Map<string, MarkState> {
+/** This lead's flagged entries' mark keys (issue 459): only the log of this
+ *  pane's session id `sid` carries them, so another log's flag is only
+ *  counted, as its plain picks are (Test round 1, q5 A). */
+export const leadFlagKeys = (logs: readonly ReadLog[], sid: string): Set<string> =>
+  new Set(rowsOf(logs.filter(l => l.sid === sid)).filter(r => r.entry.flag !== undefined).map(rowKey))
+
+/** The states with this lead's own flags (issue 459): an entry it logged with
+ *  a flag, and that has no mark, reads as flagged, so it sits in Flagged to
+ *  revisit and never in To review. The owner's latest mark wins, so Unflag and
+ *  Dismiss take it out. The states given are not changed. */
+export function withLeadFlags(states: ReadonlyMap<string, MarkState>, logs: readonly ReadLog[], sid: string): Map<string, MarkState> {
   const out = new Map(states)
-  for (const r of rowsOf(logs)) if (r.entry.flag !== undefined && !out.has(rowKey(r))) out.set(rowKey(r), 'flagged')
+  for (const k of leadFlagKeys(logs, sid)) if (!out.has(k)) out.set(k, 'flagged')
   return out
 }
 
