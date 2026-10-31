@@ -174,7 +174,7 @@ A pin trusts whatever code it names. The npm pin is not a content pin: no hash o
 
 ### What stops it today
 
-`audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file. When the owner turns it on, the Brigade mod's outbound scan (plugin 0.94.0, issue 453) also refuses a `gh` post, a `git` commit or tag message, or a `SendMessage` whose text holds a key's shape; [row 15](brigade.md#row-15) holds its routes and what it does not see.
+`audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file. When the owner turns it on, the Brigade mod's outbound scan (plugin 0.95.0, issue 453) also refuses a `gh` post, a `git` commit or tag message, or a `SendMessage` whose text holds a key's shape; [row 15](brigade.md#row-15) holds its routes and what it does not see.
 
 ### Residual gap
 

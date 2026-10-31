@@ -375,7 +375,7 @@ export function statRejection(message: string): StatAnswer {
 /** Where the file may go: `existing` is the file there now, which a writer
  *  must still find to be its own kind, a roster or a summary, before it
  *  overwrites it. */
-export type Placed = { file: string; existing?: { size: number } } | { refused: string }
+export type Placed = { file: string; existing?: { size: number; real?: string } } | { refused: string }
 
 // The folders below the config folder, in order, for each kind of file the
 // mod writes: the lead's roster, and each session's usage summary in a folder
@@ -383,7 +383,9 @@ export type Placed = { file: string; existing?: { size: number } } | { refused: 
 // the mod may create the rest.
 // The decision log, the owner's marks and the lead hand-off (spec 402) each
 // take a folder of their own beside `usage`.
-type Place = 'roster' | 'summary' | 'decisions' | 'marks' | 'handoff'
+// Cleanup's hooks folders (issue 454) take one more beside them: each is a
+// new folder named like a session id, not a file.
+type Place = 'roster' | 'summary' | 'decisions' | 'marks' | 'handoff' | 'hooks'
 const FOLDERS = (plugin: string, place: Place) =>
   place === 'roster' ? ['plugins', 'data', plugin, 'brigade'] : ['plugins', 'data', plugin, 'brigade', place === 'summary' ? 'usage' : place]
 
@@ -455,6 +457,15 @@ export function placeHandoff(config: string, plugin: string, sessionId: string, 
   return placeFile(config, plugin, sessionId, stat, 'handoff')
 }
 
+/** Decides whether one of cleanup's hooks folders may be made or used: the
+ *  same walk into `brigade/hooks`, ending at a folder named `name`, of a
+ *  session id's shape, instead of a file. A folder not there yet may be
+ *  made; one that is there must be a plain folder, not a link, landing where
+ *  its name says, and `existing.real` is where it lands. */
+export function placeHooks(config: string, plugin: string, name: string, stat: (path: string) => Promise<StatAnswer>): Promise<Placed> {
+  return placeFile(config, plugin, name, stat, 'hooks')
+}
+
 async function placeFile(
   config: string,
   plugin: string,
@@ -462,6 +473,7 @@ async function placeFile(
   stat: (path: string) => Promise<StatAnswer>,
   place: Place,
 ): Promise<Placed> {
+  const leaf = place === 'hooks' ? sessionId : `${sessionId}.json`
   if (!SESSION_ID.test(sessionId)) return { refused: 'path: the session id is not the engine\'s shape' }
   if (!/^[A-Za-z0-9_-]{1,200}$/.test(plugin)) return { refused: 'path: the plugin\'s data id is not of its shape' }
   const sep = sepOf(config)
@@ -480,7 +492,7 @@ async function placeFile(
     const s = await stat(at)
     if ('missing' in s) {
       if (name === 'plugins') return { refused: 'path: the config folder has no plugins folder' }
-      return { file: `${config}${sep}${folders.join(sep)}${sep}${sessionId}.json` }
+      return { file: `${config}${sep}${folders.join(sep)}${sep}${leaf}` }
     }
     if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
     if (s.found.isLink) return { refused: `link: ${name} is a link` }
@@ -489,16 +501,16 @@ async function placeFile(
       return { refused: `link: ${name} does not lead where its name says` }
     }
   }
-  const file = `${at}${sep}${sessionId}.json`
+  const file = `${at}${sep}${leaf}`
   const s = await stat(file)
   if ('missing' in s) return { file }
   if ('failed' in s) return { refused: `path: the ${place} file could not be read (${s.failed})` }
   if (s.found.isLink) return { refused: `link: the ${place} file is a link` }
-  if (s.found.kind !== 'file') return { refused: `path: the ${place} path is not a plain file` }
-  if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? `${sessionId}.json`.toLowerCase() : `${sessionId}.json`}`) {
+  if (s.found.kind !== (place === 'hooks' ? 'dir' : 'file')) return { refused: `path: the ${place} path is not a plain ${place === 'hooks' ? 'folder' : 'file'}` }
+  if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? leaf.toLowerCase() : leaf}`) {
     return { refused: `link: the ${place} file does not lead where its name says` }
   }
-  return { file, existing: { size: s.found.size } }
+  return { file, existing: place === 'hooks' ? { size: s.found.size, real: s.found.realPath } : { size: s.found.size } }
 }
 
 // The config folder and the marketplace from where the plugin was installed:
