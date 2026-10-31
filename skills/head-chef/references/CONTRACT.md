@@ -297,8 +297,10 @@ need, without overwhelming me or showing me too much.
   for a background session. A failed archive is a removal that failed. The
   re-read hands back each removal as a fixed command, and the head chef runs
   each as its own shell call, in order, a line marked "only if the line
-  above refuses" only when the line above refused: `claude rm <id>` for a
-  background session; from the kept repository's main working tree,
+  above refuses" only when the line above refused: for a background
+  session, `claude rm <id>` alone, whose refusal is a removal that failed
+  (Test round 3 on issue 454); otherwise, from the kept repository's main
+  working tree,
   `git worktree remove <worktree>`, and `git worktree remove --force
   <worktree>` where that refuses, or for a worktree named back as locked
   `git worktree remove --force --force <worktree>` alone; then

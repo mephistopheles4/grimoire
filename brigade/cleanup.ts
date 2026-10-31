@@ -494,6 +494,12 @@ const notBound = (why: string) => [`  not bound to its session: ${why}. Nothing 
 
 async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { kind: 'desktop' | 'bg'; id: string } | undefined): Promise<string[]> {
   if (own === undefined) return notBound('the card carries no Desktop id or job id, and a name alone binds nothing')
+  // The item's name-back is taken out, and put back only by a read that ends
+  // in a new name-back or in its commands: an item left whole, not bound,
+  // filtered or not read keeps none, so a later re-read builds nothing until
+  // a new name-back and yes (Test round 3 on issue 454, behaviour-lens F1).
+  const held = ctx.nameBacks.get(own.id)
+  ctx.nameBacks.delete(own.id)
   const t = ctx.targets.get(own.id)
   if (t === undefined || t.kind !== own.kind) return notBound('the mod holds no record of its session from when its card joined the roster')
   const rows = ownRows(own.kind, own.id, ctx.rows)
@@ -510,7 +516,7 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
   const f = await readFacts(ctx.io, t, branch, ctx.rows, rows[0]?.sessionId)
   const out: string[] = []
   if (f.main !== undefined && pathKey(f.main, fold) === pathKey(t.cwd, fold)) return ["  the repository's main working tree: never named for removal, and no command is built."]
-  if (step === 're-read' && ctx.nameBacks.get(own.id) === undefined) return ['  no name-back yet: call this tool with step "name-back" first. No command is built.']
+  if (step === 're-read' && held === undefined) return ['  no name-back yet: call this tool with step "name-back" first. No command is built.']
   // At both steps: a detached head is what Desktop's archive leaves, and
   // no change; another branch checked out in the folder is.
   if (f.worktree !== undefined && !f.worktree.detached && f.worktree.branch !== `refs/heads/${branch}`) {
@@ -552,20 +558,26 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
   }
 
   if (step === 'name-back') {
-    // An item left whole keeps no name-back: it was never archived, so a
-    // re-read after the other session goes builds no command for it, and it
-    // needs a new name-back and yes (Test round 2 on issue 454, behaviour-lens F1).
+    // An item left whole keeps no name-back: it was never archived.
     if (f.inside.length > 0) return out
     ctx.nameBacks.set(own.id, printOf(f))
     out.push(t.kind === 'bg' ? `  archive it: ${render(['claude', 'stop', t.id])}` : "  archive it with Desktop's archive tool, after the owner's yes")
     return out
   }
 
-  const was = ctx.nameBacks.get(own.id) as Print
-  const changed = changes(was, f)
+  const changed = changes(held as Print, f)
   if (changed.length > 0) {
     ctx.nameBacks.set(own.id, printOf(f))
     out.push(`  changed since the name-back: ${changed.join(', ')}. This is a new name-back: no command until the owner's yes on it.`)
+    return out
+  }
+  ctx.nameBacks.set(own.id, held as Print)
+  // A background session's archive is `claude stop`, then `claude rm`,
+  // which removes a clean worktree and its branch and refuses a dirty one.
+  // So it gets `claude rm` alone: a refusal is a removal that failed, and
+  // its worktree and branch stay.
+  if (t.kind === 'bg') {
+    out.push(`  run: ${render(['claude', 'rm', t.id])}`)
     return out
   }
   if (f.main === undefined || !commandPath(f.main) || !commandPath(ctx.io.hooks)) {
@@ -573,7 +585,6 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
     return out
   }
   const g = ['git', ...gitFlags(ctx.io.hooks), '-C', f.main]
-  if (t.kind === 'bg') out.push(`  run: ${render(['claude', 'rm', t.id])}`)
   if (f.worktree !== undefined) {
     if (f.worktree.locked) out.push(`  run: ${render([...g, 'worktree', 'remove', '--force', '--force', t.cwd])}`)
     else {

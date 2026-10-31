@@ -53,7 +53,7 @@ What crosses a boundary, with the class or candidate that holds it. Same-user re
 | One-line questions in the report store | Plugin state | Other plugins: candidate P6 (D1b) |
 | Text the owner asked to post | GitHub records, possibly public; a temporary post file until it is deleted | Anyone, for a public record (C6; E53, E60); other users of a shared `/tmp` (C7; E55, E63b) |
 | What earlier versions posted (quoted words, questions, check lines) | GitHub records | Stays after an upgrade: candidate P6 (D1d, D5b) |
-| Cleanup's repository metadata | The lead's transcript; since Brigade 0.93.0 also the mod's module memory | (C7; E68) |
+| Cleanup's repository metadata | The lead's transcript | (C7; E68) |
 
 **Not checked at the base,** each a candidate P6: Desktop's own session and task stores and the phone sync; how a rename, a reopen, `/clear` or `/compact` affects a kept id; what a phone send carries; POSIX socket permissions.
 

@@ -503,6 +503,10 @@ test('no record, a moved folder, a planted file or a borrowed name: not bound to
     // A card that borrows the name, with no id.
     [memory, [row(f.wt)], [{ title: 'build-1' }]],
   ];
+  // No session file at the name-back.
+  const gone = await runCleanup({ titles: ['build-1'], step: 'name-back' }, { cards: [card], rows: [], ...memory, io: io(hooks, r) });
+  assert.match(gone, /not bound to its session: no session file carries its id/);
+  assert.doesNotMatch(gone, /archive it/);
   for (const [mem, rows, cards] of cases) {
     for (const step of ['name-back', 're-read']) {
       const text = await runCleanup({ titles: ['build-1'], step }, { cards, rows, ...mem, io: io(hooks, r) });
@@ -664,7 +668,9 @@ test('a background session gets claude stop at the name-back and claude rm at th
   assert.ok(first.indexOf('archive it') > first.indexOf('End of the cleanup data.'), 'the archive step sits after the data');
   // `claude stop` takes the session's file away: the re-read expects that.
   const second = await runCleanup({ titles: ['bg-1'], step: 're-read' }, { cards: [bgCard], rows: [], ...mem, io: io(hooks, r) });
-  assert.equal(commandLines(second)[0].trim(), 'run: claude rm 0123abcd');
+  // `claude rm` alone: it removes a clean worktree and its branch, and its
+  // refusal is a removal that failed, so no git removal follows it.
+  assert.deepEqual(commandLines(second).map(l => l.trim()), ['run: claude rm 0123abcd']);
 });
 
 test('a locked worktree goes only with the doubled force', async () => {
@@ -774,9 +780,16 @@ test('a branch switched in the folder after the name-back is not bound at the re
   const text = await call(f, hooks, r, memory, 're-read');
   assert.match(text, /not bound to its session/);
   assert.equal(commandLines(text).length, 0);
+  // That item keeps no name-back, so a re-read after it builds nothing.
+  git(f.wt, 'checkout', '-q', 'feat');
+  assert.match(await call(f, hooks, r, memory, 're-read'), /no name-back yet/);
+
   // A detached head, which Desktop's archive leaves, is no change.
-  git(f.wt, 'checkout', '-q', '--detach', 'feat');
-  assert.ok(commandLines(await call(f, hooks, r, memory, 're-read')).length > 0);
+  const g = fixture();
+  const memory2 = await bound(g, hooks, r);
+  await call(g, hooks, r, memory2, 'name-back');
+  git(g.wt, 'checkout', '-q', '--detach', 'feat');
+  assert.ok(commandLines(await call(g, hooks, r, memory2, 're-read')).length > 0);
 });
 
 test('a re-read with no name-back before it gets no command', async () => {
@@ -812,6 +825,27 @@ test('another running session inside the worktree leaves the item, with no comma
   const after = await call(g, hooks, r, memory2, 're-read', [row(g.wt)]);
   assert.match(after, /no name-back yet/);
   assert.equal(commandLines(after).length, 0);
+
+  // Inside at the re-read, then gone: the next re-read builds nothing.
+  const h = fixture();
+  const memory3 = await bound(h, hooks, r);
+  const inside3 = row(path.join(h.wt, 'deep'), { name: 'helper', sessionId: OTHER_SID, hostId: undefined });
+  await call(h, hooks, r, memory3, 'name-back');
+  await call(h, hooks, r, memory3, 're-read', [row(h.wt), inside3]);
+  const later = await call(h, hooks, r, memory3, 're-read', [row(h.wt)]);
+  assert.match(later, /no name-back yet/);
+  assert.equal(commandLines(later).length, 0);
+
+  // A clean name-back, then one that finds a session inside: the first one
+  // does not stand, so a re-read after the session goes builds nothing.
+  const k = fixture();
+  const memory4 = await bound(k, hooks, r);
+  const inside4 = row(path.join(k.wt, 'deep'), { name: 'helper', sessionId: OTHER_SID, hostId: undefined });
+  await call(k, hooks, r, memory4, 'name-back');
+  await call(k, hooks, r, memory4, 'name-back', [row(k.wt), inside4]);
+  const stale = await call(k, hooks, r, memory4, 're-read', [row(k.wt)]);
+  assert.match(stale, /no name-back yet/);
+  assert.equal(commandLines(stale).length, 0);
 });
 
 test('the main working tree is never named for removal', async () => {
