@@ -140,7 +140,8 @@ repository. When the call is `node scripts/check.mjs` in any of its forms (the
 plain, `./` and backslash paths, quoted or not, behind `cd`, `;`, `&&`, `&`,
 `FOO=1` or `timeout`) and `athanor` works on the machine, the hook refuses it
 and tells the agent to run `athanor run check`. The host check stays the
-fallback for when athanor is missing or its run exits 124, 125 or 137. When
+fallback for when athanor is missing or its run exits 124, 125 or 137, but
+not for a sha512 mismatch, which also exits 125: stop and tell the owner. When
 athanor is missing the hook lets the plain host check through, and there is
 nothing to name. When a run exits 124, 125 or 137, or an agent needs the
 version-bump or allowance checks that a container run cannot cover, it adds
