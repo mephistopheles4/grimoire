@@ -7790,7 +7790,12 @@ test('issue 466 q4 (a1): Mark all read marks the alarm read but leaves the alarm
   expect(ownMarks(w).some((m: any) => m.id === alarm.id && m.state === 'read')).toBe(true)
   expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
   await press($, 'grp-d-history')
-  const open = (await mounted.findAll({ type: 'Button' })).map((x: any) => String(x.key)).find(k => k.startsWith('dopen-') && k.endsWith(`-${alarm.id}-${alarm.at}`))
+  const rows = (await mounted.findAll({ type: 'Button' })).map((x: any) => String(x.key)).filter(k => k.startsWith('dopen-'))
+  // Opening another row leaves the line up; only the alarm's own row clears it.
+  const other = rows.find(k => !k.endsWith(`-${alarm.id}-${alarm.at}`))
+  await press($, other as string)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  const open = rows.find(k => k.endsWith(`-${alarm.id}-${alarm.at}`))
   await press($, open as string)
   expect(await bandTexts(b)).toEqual([])
 })
