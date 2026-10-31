@@ -5,7 +5,8 @@
 # SKILL.md. It does not read either manifest against the schema Claude Code
 # itself loads. `claude plugin validate --strict` does, and it fails on an
 # unknown field the runtime would ignore in silence. **A check that reports and
-# changes nothing reads as a check that passed**, so this one is a gate.
+# changes nothing reads as a check that passed**, so this one is a gate. A
+# second job runs the Brigade mod's tests with the same Claude Code, on Windows.
 #
 # **Its own file, not a job in check.yml.** `check` installs nothing, which is
 # what CONTRIBUTING.md promises, and this job fetches Claude Code. A status
@@ -76,8 +77,8 @@ jobs:
       - name: Fetch Claude Code
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
-          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.296"
-          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.296.tgz" -C "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
 
       # Checked, not assumed. A missing binary, a placeholder or a different
@@ -85,7 +86,7 @@ jobs:
       # this string and the two version strings above together.
       - name: Check the version
         run: |
-          expected="2.1.296 (Claude Code)"
+          expected="2.1.314 (Claude Code)"
           actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
           if [ "$actual" != "$expected" ]; then
             echo "expected: ${expected}"
@@ -98,13 +99,13 @@ jobs:
       #
       # **Three runs, every time.** What one run covers is a property of the
       # CLI version, not of the command: on 2.1.289 `.` read only the
-      # marketplace manifest, and on 2.1.296 it reads the plugin manifest and
+      # marketplace manifest, and on 2.1.314 it reads the plugin manifest and
       # hooks/hooks.json too, and still not skills/. So each target is named.
       # Each status is recorded and the step fails at the end, so one red
       # target cannot hide the next.
       #
       # **The exit code is the gate.** A missing path, a mistyped one and an
-      # empty folder all exit 1 on 2.1.296, measured, so no output is parsed.
+      # empty folder all exit 1 on 2.1.314, measured, so no output is parsed.
       # `|| status=$?` records the status under `bash -e`; it is not
       # `|| true`, and nothing is allowed to fail quietly.
       - name: Validate the manifests and skills
@@ -124,3 +125,59 @@ jobs:
             echo "A target failed --strict, listed above. Fix the field, or argue it in the pull request."
             exit 1
           fi
+
+  # The Brigade mod's tests, `claude plugin test .`, which run
+  # brigade/*.test.ts and brigade/*.test.tsx under the engine's own test
+  # runner. A test file that does not load fails the run ("the file did not
+  # load"), and so does a failing test: the exit code is the gate (#477).
+  #
+  # **Windows, not Linux.** The tests' world is a Windows machine: its paths
+  # are C:\ paths, and the link answers come from brigade/recorded-stats.ts,
+  # recorded on Windows. The engine resolves a path the way its host does, so
+  # on Linux those paths read as relative ones and most tests fail. Until the
+  # world follows its host, this job runs on Windows and athanor does not run
+  # these tests.
+  #
+  # **No credential.** The runner needs no sign-in and makes no model call:
+  # measured on 2.1.314 with an empty config folder and no API key.
+  plugin-test:
+    # Pinned, as validate is, because the fetch names a platform package:
+    # windows, x64.
+    runs-on: windows-2025
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The same fetch as validate's, of the Windows package, whose one
+      # executable is `package/claude.exe`. These two version strings, the one
+      # in the version check below, validate's three and the one in
+      # tests/container/Dockerfile move together. `tar` runs in the folder,
+      # since Git's tar reads a drive letter in a path as a remote host.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.314"
+          tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.314.tgz"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      - name: Check the version
+        run: |
+          expected="2.1.314 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      - name: Run the mod's tests
+        run: claude plugin test .

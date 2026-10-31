@@ -1522,9 +1522,9 @@ async function paneListed($: EngineInterface) {
   return panes.find(p => p.id === PANE)
 }
 
-// set_roster, and with it log_decision, the two hand-off tools and
-// read_autonomy (spec 402), wherever the pane offers a tool. A failed offer
-// of one of those four leaves the others offered.
+// set_roster, and with it log_decision, the two hand-off tools,
+// read_autonomy (spec 402) and read_cleanup (spec 450), wherever the pane
+// offers a tool. A failed offer of one of those five leaves the others offered.
 async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
   try {
@@ -1616,6 +1616,15 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
 // reaches the model's prompt through them.
 const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with the full roster on your next turn.`
 const READY_UNLISTED_LINE = `The Brigade pane is opening but not ready yet, so a \`${TOOL}\` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.`
+// The turn the owner's bare /brigade hands the lead: fixed words, never typed ones (issue 478).
+const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
+// At most one wake a minute, whatever stamps the runs; the time of the last
+// one is held by the module alone, so a reload starts it over.
+const WAKE_GAP_MS = 60_000
+// The engine refuses a submit from inside the command's own hook, which holds
+// the turn the submit would wait on, so a short timer sends it after the reply.
+const WAKE_DELAY_MS = 500
+let lastWake: number | undefined
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
 const NOT_SHOWN_TOAST = 'The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'
@@ -3109,22 +3118,41 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
 }
 
 // A throw or an overrun, answered as scan.ts's caughtAnswer says, from a
-// bounded read of the setting.
-async function scanCaught<E extends { tool_use_id: string }, R>($: EngineInterface, e: E, next: ((e: E) => Promise<R>) & { called: boolean }) {
+// bounded read of the setting. On the mod's own tools, `own` answers in place
+// of a pass or a replay (#477): nothing beneath the mod answers them, so
+// `next(e)` reaches the engine's own refusal, never the tool's. The engine
+// counts the tool's hook against this one's budget and, in this handler, does
+// not count the call to it in `next.called`, so an overrun of the tool lands
+// here as the scan's. Each answer is a fresh copy, so no hook that edits one
+// changes the next.
+async function scanCaught<E extends { tool_use_id: string }, R>($: EngineInterface, e: E, next: ((e: E) => Promise<R>) & { called: boolean }, own?: { deny: string }) {
   const armed = scanning.delete(e.tool_use_id)
   const setting = next.called || armed ? 'on' : await readScan($)
-  return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : next(e)
+  return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : own !== undefined ? { ...own } : next(e)
+}
+
+// The refusals the mod's own three written tools answer when their hook
+// throws past its own catch or runs out of time.
+const ROSTER_CAUGHT = {
+  deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.',
+}
+const LOG_CAUGHT = {
+  deny: 'log_decision refused: error: the tool failed or ran out of time. The log may or may not hold the entry; act at level 1 and tell the owner.',
+}
+const HANDOFF_CAUGHT = {
+  deny: 'set_lead_handoff refused: error: the tool failed or ran out of time. The hand-off may or may not hold the new text; tell the owner.',
 }
 
 // Each tool under its own literal matcher, so `claude plugin validate` names
-// each hook the scan gates.
+// each hook the scan gates. The mod's own tools pass their own refusal to
+// scanCaught.
 function registerScan(on: Parameters<Register>[0]) {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => (await scanCall($, 'Bash', e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
   on('tool.call', { tool: 'PowerShell' }, async ($, e, next) => (await scanCall($, 'PowerShell', e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
   on('tool.call', { tool: 'SendMessage' }, async ($, e, next) => (await scanCall($, 'SendMessage', e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
-  on('tool.call', { tool: TOOL_NAME }, async ($, e, next) => (await scanCall($, TOOL_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
-  on('tool.call', { tool: LOG_TOOL_NAME }, async ($, e, next) => (await scanCall($, LOG_TOOL_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
-  on('tool.call', { tool: SET_HANDOFF_NAME }, async ($, e, next) => (await scanCall($, SET_HANDOFF_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))
+  on('tool.call', { tool: TOOL_NAME }, async ($, e, next) => (await scanCall($, TOOL_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next, ROSTER_CAUGHT))
+  on('tool.call', { tool: LOG_TOOL_NAME }, async ($, e, next) => (await scanCall($, LOG_TOOL_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next, LOG_CAUGHT))
+  on('tool.call', { tool: SET_HANDOFF_NAME }, async ($, e, next) => (await scanCall($, SET_HANDOFF_NAME, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next, HANDOFF_CAUGHT))
 }
 
 // `/brigade scan`, `/brigade scan on` and `/brigade scan off`: the setting
@@ -3195,6 +3223,7 @@ export const register: Register = on => {
     bandDismissed = undefined
     resetWaits = undefined
     toolsOfferedFor = undefined
+    lastWake = undefined
     stopLevelPoll()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
@@ -3281,6 +3310,21 @@ export const register: Register = on => {
     // reason.
     const at = await where($)
     const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
+    // The reply goes to the owner, not the lead, so the owner's own bare
+    // /brigade also hands the lead a turn of fixed words (issue 478), sent
+    // from a timer once this hook has returned; the turn starts once the
+    // session is idle.
+    if (offer === 'offered' && e.args.trim() === '' && levelOriginAllowed(e.origin)) {
+      try {
+        const now = await $.clock.now()
+        if (lastWake === undefined || now - lastWake >= WAKE_GAP_MS) {
+          lastWake = now
+          $.clock.after(WAKE_DELAY_MS, () => void $.prompt.submit({ text: WAKE }).catch(() => undefined))
+        }
+      } catch {
+        // No turn this time: the reply stands as it is.
+      }
+    }
     return {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
@@ -3318,9 +3362,7 @@ export const register: Register = on => {
       const why = `error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`
       return progress.written ? failedAfterWrite(why) : refuse(why)
     }
-  }).catch(() => ({
-    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.',
-  }))
+  }).catch(() => ({ ...ROSTER_CAUGHT }))
 
   // log_decision, answered here and nowhere beneath, as set_roster is. A throw
   // becomes a refusal with no engine message.
@@ -3331,9 +3373,7 @@ export const register: Register = on => {
     } catch {
       return progress.written ? failedAfterLog() : refuseLog('error: the tool failed')
     }
-  }).catch(() => ({
-    deny: 'log_decision refused: error: the tool failed or ran out of time. The log may or may not hold the entry; act at level 1 and tell the owner.',
-  }))
+  }).catch(() => ({ ...LOG_CAUGHT }))
 
   // The two hand-off tools, answered here and nowhere beneath, as
   // log_decision is. A throw becomes a refusal with no engine message.
@@ -3344,9 +3384,7 @@ export const register: Register = on => {
     } catch {
       return progress.written ? failedAfterHandoff() : refuseSet('error: the tool failed')
     }
-  }).catch(() => ({
-    deny: 'set_lead_handoff refused: error: the tool failed or ran out of time. The hand-off may or may not hold the new text; tell the owner.',
-  }))
+  }).catch(() => ({ ...HANDOFF_CAUGHT }))
   on('tool.call', { tool: READ_HANDOFF_NAME }, async ($, e, next) => {
     try {
       return await readLeadHandoff($, e as unknown as Record<string, unknown>, next.signal)

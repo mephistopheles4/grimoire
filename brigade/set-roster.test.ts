@@ -580,11 +580,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 
 // Every tool offered, in order, but the permission warning's, the decision
 // log's, the hand-off's two, the level's and cleanup's two: every session
-// offers the first at each start, and warning.test.tsx tests it; the others
+// offers the first at each start, and warning.test.tsx tests it; the other six
 // are offered with set_roster at each of its sites, and the decision log's,
-// hand-off's and slider's tests at the end check that, as the first
-// lifecycle test below does cleanup's two. Any other tool offered still shows
-// here.
+// cleanup's, hand-off's and slider's tests at the end check that. Any other
+// tool offered still shows here.
 const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
@@ -666,11 +665,8 @@ test('no tool before /brigade, and the tool after it; the reply names the tool a
   const w = world(on)
   await start($)
   expect(rosterOffers(w)).toEqual([])
-  expect(w.registered.filter(n => n === 'read_cleanup' || n === 'stop_background_session')).toEqual([])
   const reply = await brigade($)
   expect(rosterOffers(w)).toEqual(['set_roster'])
-  // Cleanup's two tools are offered with set_roster (issue 359, spec v5.2 D6).
-  expect(w.registered.filter(n => n === 'read_cleanup' || n === 'stop_background_session')).toEqual(['read_cleanup', 'stop_background_session'])
   // The expected value changed in #213 (spec v3 decision 3 on #212): the
   // reply used to carry "Roster file: <path>". No skill reads that line from
   // head-chef 0.2.0 on, Desktop rendered its path without the backslash
@@ -5210,15 +5206,17 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-test('log_decision is offered wherever set_roster is, and not before the pane opens', async ($, on) => {
-  const w = world(on)
-  await start($)
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual([])
-  await brigade($)
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision'])
-  await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision', 'log_decision'])
-})
+for (const tool of ['log_decision', 'read_cleanup', 'stop_background_session']) {
+  test(`${tool} is offered wherever set_roster is, and not before the pane opens`, async ($, on) => {
+    const w = world(on)
+    await start($)
+    expect(w.registered.filter(n => n === tool)).toEqual([])
+    await brigade($)
+    expect(w.registered.filter(n => n === tool)).toEqual([tool])
+    await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
+    expect(w.registered.filter(n => n === tool)).toEqual([tool, tool])
+  })
+}
 
 test('claim 2: log_decision appends an entry whose id, at and level the mod set, and answers with them', async ($, on) => {
   const w = world(on)
@@ -6024,15 +6022,17 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision, the two hand-off tools and read_autonomy are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop_background_session are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
-  // Each of the four is offered at each site, so the counts move together.
+  // Each of the six is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
     expect(count('set_lead_handoff')).toBe(n)
     expect(count('read_lead_handoff')).toBe(n)
     expect(count('read_autonomy')).toBe(n)
+    expect(count('read_cleanup')).toBe(n)
+    expect(count('stop_background_session')).toBe(n)
     return n
   }
   await start($)
@@ -8829,21 +8829,26 @@ test('spec 448 claim 2: a pair whose marks write fails changes neither entry and
   expect((await buttonKeys()).includes('dnext-1-200-2-300')).toBe(true)
 })
 
-test('spec 448 claim 3: a lone key pressed after the answer arrived marks nothing, and a pair key whose answer was read elsewhere marks nothing', async ($, on) => {
+// The kit presses only a key drawn now, so a press from a frame drawn before
+// the answer arrived cannot be sent; what is checked is that the key goes and
+// nothing is marked. pressReview's own check of a stale key has no test (#477).
+test('spec 448 claim 3: an answer that arrives after the draw takes the lone key away, and one read elsewhere takes the pair key away; nothing is marked', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([PAIR_448[0]])))
   expect((await buttonKeys()).includes('dnext-1-200')).toBe(true)
-  // The answer is appended after the draw: the lone card's press marks nothing, and the pair draws.
+  // The answer is appended after the draw: the lone key goes, and the pair draws.
   seed(w, LOG, logText(PAIR_448), 5)
   await w.clock.advance(5000)
-  await press($, 'dnext-1-200')
+  const paired = await buttonKeys()
+  expect(paired.includes('dnext-1-200')).toBe(false)
+  expect(paired.includes('dnext-1-200-2-300')).toBe(true)
   expect(ownMarks(w)).toEqual([])
-  expect((await buttonKeys()).includes('dnext-1-200-2-300')).toBe(true)
-  // The answer is read in another session's marks file: the pair's press marks nothing, and the waiting entry draws alone.
+  // The answer is read in another session's marks file: the pair key goes, and the waiting entry draws alone.
   seed(w, PEER_MARKS, marksText([{ log: SID, id: '2', entryAt: 300, state: 'read', at: w.clock.now() }]), 6)
   await w.clock.advance(5000)
-  await press($, 'dnext-1-200-2-300')
+  const lone = await buttonKeys()
+  expect(lone.includes('dnext-1-200-2-300')).toBe(false)
+  expect(lone.includes('dnext-1-200')).toBe(true)
   expect(ownMarks(w)).toEqual([])
-  expect((await buttonKeys()).includes('dnext-1-200')).toBe(true)
   expect(await shows(/^Mine asks\?$/)).toBe(true)
 })
 
@@ -9174,4 +9179,124 @@ test("C15, C15a: the command's Owner entry draws as Owner, and a log holding ent
   expect(await shows(/not in their fixed shape/)).toBe(false)
   // The slider names the level by its new name.
   expect(await shows(/^Autonomy · 3 Turbo mode$/)).toBe(true)
+})
+
+// --- issue 478, spec v1: a bare /brigade wakes the lead to resend the roster ------------------
+
+const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
+// The least time between two wakes, in milliseconds.
+const WAKE_GAP = 60_000
+// How long after the reply the wake is sent, in milliseconds.
+const WAKE_DELAY = 500
+const OPENED = 'Brigade pane opened. `set_roster` is ready: call it with the full roster.'
+// /brigade with its args and origin: the owner's own at the prompt by default, any other by its kind, or none.
+const typedBrigade = ($: any, args = '', kind: string | null = 'composer') =>
+  $.command.run({ command: 'brigade', args, ...(kind === null ? {} : { origin: kind === 'plugin' ? { kind, name: 'other' } : { kind } }) })
+// Runs the clock past the wake's timer, then lets what it started finish.
+const sent = async (w: World) => {
+  await w.clock.advance(WAKE_DELAY)
+  await w.clock.settle()
+}
+// The prompts the mod submits, as the engine beneath it receives them; `answer` stands in for the engine's.
+const submits = (on: On, answer: (e: any) => unknown = e => ({ text: e.text })) => {
+  const seen: any[] = []
+  on('prompt.submit', ($, e: any) => {
+    seen.push(e)
+    return answer(e) as any
+  })
+  return seen
+}
+
+for (const kind of ['composer', 'bridge']) {
+  test(`C1: a bare /brigade from ${kind} that offers the tool submits the one fixed prompt, framed as the plugin's, and replies as before`, async ($, on) => {
+    const w = world(on)
+    const seen = submits(on)
+    await start($)
+    expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
+    await w.clock.settle()
+    expect(seen).toEqual([])
+    await sent(w)
+    expect(seen.map(e => e.text)).toEqual([WAKE])
+    expect(seen[0].origin).toEqual({ kind: 'plugin', name: 'grimoire' })
+  })
+}
+
+test('C1: /brigade with args that are not level or scan opens the pane and submits nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  await start($)
+  expect((await typedBrigade($, 'roster please')).text).toBe(OPENED)
+  await sent(w)
+  expect(seen).toEqual([])
+})
+
+for (const kind of ['plugin', 'sdk', null]) {
+  test(`C2: a bare /brigade from ${kind ?? 'no origin'} submits nothing`, async ($, on) => {
+    const w = world(on)
+    const seen = submits(on)
+    await start($)
+    expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
+    await sent(w)
+    expect(seen).toEqual([])
+  })
+}
+
+test('C3: a bare /brigade whose pane is not listed submits nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  w.unlisted = true
+  await start($)
+  expect((await typedBrigade($)).text).toBe('Brigade pane opened.')
+  await sent(w)
+  expect(seen).toEqual([])
+})
+
+test('C3: a bare /brigade whose tool offer fails submits nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  w.failRegister = true
+  await start($)
+  expect((await typedBrigade($)).text).not.toBe(OPENED)
+  await sent(w)
+  expect(seen).toEqual([])
+})
+
+test('C4: /brigade level and /brigade scan submit nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  await start($)
+  for (const args of ['level 1', 'level 2', 'scan', 'scan off']) await typedBrigade($, args)
+  await sent(w)
+  expect(seen).toEqual([])
+})
+
+test('C5: a submit that fails, or never resolves, leaves the reply as before', async ($, on) => {
+  const w = world(on)
+  let calls = 0
+  submits(on, () => {
+    calls++
+    if (calls === 1) throw new Error('the engine refused the prompt')
+    return new Promise(() => undefined)
+  })
+  await start($)
+  expect((await typedBrigade($)).text).toBe(OPENED)
+  await sent(w)
+  await w.clock.advance(WAKE_GAP)
+  expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
+  await sent(w)
+  expect(calls).toBe(2)
+})
+
+test('C6: one wake per minute: a second bare /brigade inside the minute submits nothing, and one after it submits again', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  await start($)
+  await typedBrigade($)
+  await w.clock.advance(WAKE_GAP - 1)
+  expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
+  await sent(w)
+  expect(seen.length).toBe(1)
+  await typedBrigade($)
+  await sent(w)
+  expect(seen.map(e => e.text)).toEqual([WAKE, WAKE])
 })
