@@ -254,6 +254,27 @@ test('claim 4: Owner, Pane and alarm entries never drop, are written past the en
   assert.ok(new TextEncoder().encode(serializeLog(big).value).length <= MAX_LOG_BYTES);
 });
 
+test('claim 4 (#497): past the byte cap, a fixed append drops read lead entries, never an Owner, Pane, alarm or unread one', () => {
+  const wide = '\u{1F600}'.repeat(900);
+  let log = emptyLog(null);
+  log = appendEntry(log, { ...input(), source: 'pane' }, { at: NOW, level: 1, read: new Map(), fixed: true }).value.log;
+  for (let i = 1; ; i++) {
+    const a = appendEntry(log, input({ why: wide, question: wide }), { at: NOW + i, level: 1, read: new Map(), sid: SID });
+    if ('error' in a) break;
+    log = a.value.log;
+  }
+  const owner = { ...input({ why: wide, question: wide }), source: 'owner' };
+  // Nothing read: refused, as before.
+  assert.match(appendEntry(log, owner, { at: NOW + 99999, level: 1, read: new Map(), sid: SID, fixed: true }).error ?? '', /the decision log is full/);
+  // All read: the Pane entry stays, and the oldest lead entry drops.
+  const r = appendEntry(log, owner, { at: NOW + 99999, level: 1, read: readAll(log), sid: SID, fixed: true });
+  assert.ok('value' in r, JSON.stringify(r.error));
+  assert.equal(r.value.log.entries[0].source, 'pane');
+  assert.equal(r.value.log.entries[1].id, '3');
+  assert.equal(r.value.log.entries.at(-1).source, 'owner');
+  assert.ok(new TextEncoder().encode(serializeLog(r.value.log).value).length <= MAX_LOG_BYTES);
+});
+
 test('claim 4: past the byte cap, read entries drop until the log fits', () => {
   const wide = '\u{1F600}'.repeat(900);
   let log = emptyLog(null);

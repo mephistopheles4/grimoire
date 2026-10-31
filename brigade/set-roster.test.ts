@@ -9205,6 +9205,50 @@ test('C9: a level-3 command whose entry cannot be written, or that a press overt
   expect((await readLevel($)).text).toBe(LEVEL_1)
 })
 
+// A log that log_decision's drops keep full: within `room` bytes of the 256
+// KiB cap, so no Owner entry fits beside it unless an entry drops (issue 497).
+// Every entry is the lead's; the owner has read entry 1 only.
+const nearCapLog = (room: number) => {
+  const cap = 256 * 1024
+  const size = (entries: unknown[]) => new TextEncoder().encode(logText(entries)).length
+  const entries: unknown[] = []
+  const full = (i: number) => kept(i, i, { why: 'w'.repeat(1000) })
+  while (size([...entries, full(entries.length + 1), full(entries.length + 2)]) <= cap - room) entries.push(full(entries.length + 1))
+  // The last entry pads the log to exactly `room` bytes under the cap.
+  const id = entries.length + 1
+  const pad = cap - room - size([...entries, kept(id, id, { why: 'w', question: 'q' })])
+  entries.push(kept(id, id, { why: 'w'.repeat(1 + Math.min(999, pad)), question: 'q'.repeat(1 + Math.max(0, pad - 999)) }))
+  expect(size(entries)).toBe(cap - room)
+  return logText(entries)
+}
+const RAISES: [string, ($: any) => Promise<unknown>][] = [
+  ['/brigade level 2', $ => typedLevel($, 'level 2')],
+  ['a slider press of 2', $ => press($, 'level-2')],
+]
+for (const [what, raise] of RAISES) {
+  test(`#497: ${what} lands on a log at its byte cap by dropping the oldest read entry, as log_decision does`, async ($, on) => {
+    const w = await decisionsPane(on, $, 'desktop', w => {
+      seed(w, LOG, nearCapLog(100))
+      seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
+    })
+    const answer = await raise($)
+    if (what.startsWith('/')) expect((answer as { text: string }).text).toBe('Autonomy set to 2 (Auto).')
+    expect((await readLevel($)).text).toBe(LEVEL_2)
+    const log = parsed(w, LOG)
+    expect(log.entries[0].id).toBe('2')
+    expect(log.entries.at(-1).source).toBe('owner')
+    expect(new TextEncoder().encode(w.text(LOG) ?? '').length).toBeLessThanOrEqual(256 * 1024)
+  })
+}
+
+test('#497: with no entry the owner has read, a raise on a log at its byte cap still fails, and nothing drops', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, nearCapLog(100)))
+  const before = w.text(LOG)
+  expect((await typedLevel($, 'level 2')).text).toBe('Not set: the decision log could not be written')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(w.text(LOG)).toBe(before)
+})
+
 test('C10: a level command of 1 or 2 below the level in force lowers at once, logged after; one of the level in force writes nothing; a 2 above it is logged first', async ($, on) => {
   const w = await decisionsPane(on, $)
   expect((await typedLevel($, 'level 1')).text).toBe('Autonomy is already 1 (Manual).')

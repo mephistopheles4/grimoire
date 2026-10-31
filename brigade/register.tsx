@@ -1948,7 +1948,8 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
 
 // One entry appended to this session's own log, inside the log's queue: the
 // tool's entry, or with `fixed` the pane's own Owner, Pane or alarm entry,
-// which skips the marks scan and the entry cap but never the byte cap. A
+// which skips the entry cap but never the byte cap: past it, the marks are
+// scanned and read entries drop, as for the tool's entry (#497). A
 // refusal is fixed words for log_decision to answer with, or, for the pane's
 // own alarm, REPEAT, which appendFixed turns into 'repeat' and log_decision
 // never sees; `after` means the write began and the path then failed its check.
@@ -1981,7 +1982,7 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
   }
   const opts = { at: now, level: o.level, read: new Map(), sid: at.id, fixed: o.fixed }
   let r = appendEntry(log, raw, opts)
-  if ('error' in r && r.error === FULL && !o.fixed) r = appendEntry(log, raw, { ...opts, read: await allReadMarks($, at, now) })
+  if ('error' in r && r.error === FULL) r = appendEntry(log, raw, { ...opts, read: await allReadMarks($, at, now) })
   if ('error' in r) return { refused: r.error === FULL ? 'the decision log is full: review the Decisions tab' : `shape: ${r.error}` }
   const text = serializeLog(r.value.log)
   if ('error' in text) return { refused: 'the decision log is full: review the Decisions tab' }
