@@ -481,7 +481,8 @@ Measured on 2.1.314, in athanor's image with no network:
 - the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.314`, written
   the same three times;
 - `tests/container/Dockerfile`, athanor's image: the Linux package, written
-  three times in its one `RUN` line, for `athanor run validate`.
+  four times in its one `RUN` line, for `athanor run validate`, beside the
+  tarball's sha512, which the build checks before it unpacks anything.
 
 Each version step fails on any other output, so a missing binary or a wrong
 version fails before the gate can read as clean. 2.1.296 was the pin before
@@ -510,7 +511,9 @@ number, so this is close to a content pin and is not one. Checking the
 tarball's sha512 against a hash in the workflow would make it one. That is
 deferred until the job gains a token, a secret or a write permission, or a
 registry incident touches this package. Row 9 of the
-[threat model](threat-model.md) records the gap.
+[threat model](threat-model.md) records the gap. athanor's image is the
+exception: it is built and run on your own machine, which the deferral never
+covered, so its fetch is held to the tarball's sha512 (#477).
 
 **Dependabot does not watch it**: the CLI arrives through a `run:` line. A bump
 is a reviewed pull request.
@@ -524,9 +527,11 @@ and the check validates against a stale schema.
 
 **How.**
 
-1. Change the version in all nine places together: three in each job of the
-   workflow and three in `tests/container/Dockerfile`. Change the date beside
-   the pin above.
+1. Change the version in all ten places together: three in each job of the
+   workflow and four in `tests/container/Dockerfile`. Replace the image's
+   sha512 with the new version's: `npm view
+   @anthropic-ai/claude-code-linux-x64@<version> dist.integrity`, decoded from
+   base64 to hex. Change the date beside the pin above.
 2. Open the pull request, and let CI read the probes. The bump commit itself
    must pass all three targets. Then push a commit that adds an unknown field
    to `.claude-plugin/plugin.json`, and one that adds it to
