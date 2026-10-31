@@ -42,7 +42,8 @@ owner to clean it up by hand, and name what it holds as the tool gives it.
    because another running session sits inside it, is not archived.
 5. **Call the tool again** with `step` set to `re-read`. An item that changed
    since the name-back comes back as a new name-back, with no command: show
-   it, and wait for the owner's yes on it.
+   it, and wait for the owner's yes on it. On that yes, call the tool with
+   `re-read` again for it, and run what that call hands back.
 6. **Run each command** the re-read hands back, each as its own shell call,
    in order. Run a line marked "only if the line above refuses" only when the
    line above it refused. A command refused, or one that fails, is a removal

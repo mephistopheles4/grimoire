@@ -134,7 +134,9 @@ const firstLine = (text: string) => text.split(/\r?\n/)[0] ?? ''
 async function git(io: CleanupIo, args: readonly string[]): Promise<string | undefined> {
   if (!(await io.hooksReady())) throw new HooksDown()
   try {
-    const ran = await io.run(['git', ...gitFlags(io.hooks), ...args], { timeoutMs: GIT_MS })
+    // No lazy fetch: in a partial clone a read would otherwise fetch from the
+    // remote, under the owner's credentials.
+    const ran = await io.run(['git', ...gitFlags(io.hooks), ...args], { timeoutMs: GIT_MS, env: { GIT_NO_LAZY_FETCH: '1' } })
     return ran.exitCode === 0 && ran.isStdoutTruncated === false && typeof ran.stdout === 'string' ? ran.stdout : undefined
   } catch {
     return undefined
@@ -363,9 +365,12 @@ async function mergedPr(io: CleanupIo, repo: string, branch: string, tip: string
 }
 
 // What the re-read compares with the name-back: found work, the tip, the
-// lock. A worktree gone since takes its own reads with it, and a branch gone
-// its tip: both are what the archive or `claude rm` leaves.
-type Print = { work?: string; stash?: string; sub?: string; locked?: boolean; tip?: string; unpushed?: string }
+// lock, and the facts the `-D` guard reads (the default branch, and the
+// branch checked out elsewhere), so a `-D` is built only where the name-back
+// the owner said yes to allowed it too. A worktree gone since takes its own
+// reads with it, and a branch gone its tip: both are what the archive or
+// `claude rm` leaves.
+type Print = { work?: string; stash?: string; sub?: string; locked?: boolean; tip?: string; unpushed?: string; defaultBranch?: string; elsewhere: boolean }
 function printOf(f: Facts): Print {
   const sub = f.submodules === undefined ? undefined : JSON.stringify(f.submodules)
   return {
@@ -375,6 +380,8 @@ function printOf(f: Facts): Print {
     locked: f.worktree?.locked,
     tip: f.tip,
     unpushed: f.unpushed,
+    defaultBranch: f.defaultBranch,
+    elsewhere: f.elsewhere,
   }
 }
 
@@ -390,6 +397,8 @@ function changes(was: Print, now: Facts): string[] {
   if (!now.tipGone) {
     if (p.tip !== was.tip) out.push('the branch tip')
     if (p.unpushed !== was.unpushed) out.push('commits on no remote')
+    if (p.defaultBranch !== was.defaultBranch) out.push('the default branch')
+    if (p.elsewhere !== was.elsewhere) out.push('where else the branch is checked out')
   }
   return out
 }
@@ -465,7 +474,9 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
   const out: string[] = []
   if (f.main !== undefined && pathKey(f.main, fold) === pathKey(t.cwd, fold)) return ["  the repository's main working tree: never named for removal, and no command is built."]
   if (step === 're-read' && ctx.nameBacks.get(own.id) === undefined) return ['  no name-back yet: call this tool with step "name-back" first. No command is built.']
-  if (step === 'name-back' && f.worktree !== undefined && !f.worktree.detached && f.worktree.branch !== `refs/heads/${branch}`) {
+  // At both steps: a detached head is what Desktop's archive leaves, and
+  // no change; another branch checked out in the folder is.
+  if (f.worktree !== undefined && !f.worktree.detached && f.worktree.branch !== `refs/heads/${branch}`) {
     return notBound('the branch checked out in its folder reads differently from its record')
   }
   if (step === 'name-back' && f.worktreeGone) return notBound('its folder is not a worktree of its repository')
@@ -533,4 +544,12 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
   return out
 }
 
-const lastName = (path: string): string => oneLine(path.replace(/[\\/]+$/, '').replace(/[\\/]\.git$/, '').split(/[\\/]/).pop() ?? '', 100)
+// The repository folder's last name, for a repository `origin` gives no
+// `owner/name` for; a folder that sits right in a home folder would name the
+// account, so it reads as one with no GitHub name.
+function lastName(path: string): string {
+  const parts = path.replace(/[\\/]+$/, '').replace(/[\\/]\.git$/, '').split(/[\\/]/)
+  const parent = parts.at(-2)?.toLowerCase()
+  if (parent === 'home' || parent === 'users') return 'a repository with no GitHub name'
+  return oneLine(parts.at(-1) ?? '', 100)
+}

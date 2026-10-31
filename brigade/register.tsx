@@ -2652,6 +2652,7 @@ const refuseCleanup = (rule: string) => ({ deny: `read_cleanup refused: ${rule}.
 const cleanupTargets = new Map<string, Target>()
 const cleanupNameBacks: NameBacks = new Map()
 let hooksMade = 0
+let bindHooks: string | undefined
 let cleaning: Promise<unknown> = Promise.resolve()
 function cleanupTurn<T>(work: () => Promise<T>): Promise<T> {
   const run = cleaning.then(work, work)
@@ -2669,11 +2670,12 @@ const sessionIo = ($: EngineInterface) => ({
 })
 
 // A new hooks folder for one use, under the roster's path rule, named like a
-// session id from a count and the engine clock, so no two uses share one.
+// session id from a count and random digits, never the clock, so the name
+// records no time. The path rule refuses a name already there.
 async function newHooks($: EngineInterface, at: Where): Promise<string | undefined> {
   hooksMade += 1
-  const now = Math.max(0, Math.floor(Number(await $.clock.now())))
-  const name = `${hooksMade.toString(16).padStart(8, '0').slice(-8)}-0000-0000-0000-${now.toString(16).padStart(12, '0').slice(-12)}`
+  const random = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+  const name = `${hooksMade.toString(16).padStart(8, '0').slice(-8)}-0000-0000-0000-${random}`
   try {
     return await makeHooks({ place: n => placeHooks(at.config, at.plugin, n, (path: string) => statPath($, path)), write: (path, text) => $.fs.write(path, text), fs: hooksFs($) }, name)
   } catch {
@@ -2691,6 +2693,11 @@ function cleanupIo($: EngineInterface, hooks: string, gh: boolean): CleanupIo {
 // never read again, so a folder or branch that moves later reads differently
 // at cleanup. Never fails the call.
 async function bindJoined($: EngineInterface, at: Where, cards: readonly Card[]) {
+  // A name-back whose card left the roster is dropped. A target is kept: a
+  // card that leaves and comes back is never read again, so a folder or
+  // branch that moved meanwhile still reads differently at cleanup.
+  const onRoster = new Set(cards.flatMap(c => cardId(c)?.id ?? []))
+  for (const id of [...cleanupNameBacks.keys()]) if (!onRoster.has(id)) cleanupNameBacks.delete(id)
   const waiting = cards.filter(c => {
     const own = cardId(c)
     return own !== undefined && !cleanupTargets.has(own.id)
@@ -2703,7 +2710,10 @@ async function bindJoined($: EngineInterface, at: Where, cards: readonly Card[])
     return own !== undefined && sessions.rows.some(r => (own.kind === 'desktop' ? r.hostId : r.jobId) === own.id)
   })
   if (ready.length === 0 || !(await ghFindable($))) return
-  const hooks = await newHooks($, at)
+  // One hooks folder serves every binding in this module's life, checked
+  // before each call, so a card that keeps failing to bind adds no folder.
+  if (bindHooks === undefined || !(await hooksReady(bindHooks, hooksFs($)))) bindHooks = await newHooks($, at)
+  const hooks = bindHooks
   if (hooks === undefined) return
   for (const c of ready) {
     const t = await bindTarget(c, sessions.rows, cleanupIo($, hooks, false))

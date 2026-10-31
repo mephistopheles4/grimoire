@@ -20,9 +20,12 @@ const { HOOKS_MARKER, bindTarget, hooksReady, makeHooks, runCleanup } = cleanup;
 const { placeHooks } = await import('../brigade/roster.ts');
 
 const FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'log.showSignature=false'];
-// A git with no system or global config, so the owner's own settings never
-// reach a fixture.
-const GIT_ENV = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: os.devNull, GIT_TERMINAL_PROMPT: '0' };
+// A git with no system config and an empty global one, so the owner's own
+// settings never reach a fixture. Git for Windows refuses the null device as
+// a config file, so the global one is an empty file of the suite's own.
+const EMPTY_CONFIG = path.join(fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'brigade-cleanup-config-'))), 'gitconfig');
+fs.writeFileSync(EMPTY_CONFIG, '');
+const GIT_ENV = { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: EMPTY_CONFIG, GIT_TERMINAL_PROMPT: '0' };
 
 function git(cwd, ...args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, ...GIT_ENV } });
@@ -37,7 +40,7 @@ function tmp() {
   return d;
 }
 test.after(() => {
-  for (const d of tmpRoots) fs.rmSync(d, { recursive: true, force: true });
+  for (const d of [...tmpRoots, path.dirname(EMPTY_CONFIG)]) fs.rmSync(d, { recursive: true, force: true });
 });
 
 // A repository with one commit on `main`, an `origin` on github.com that is
@@ -194,8 +197,10 @@ test('with gh not findable, no gh runs and its line reads not checked', async ()
   assert.equal(r.calls.filter(c => c.argv[0] === 'gh').length, 0);
 });
 
-test('a worktree with submodules gets the submodule lines and the loss list', async () => {
-  const f = fixture();
+// A worktree holding one populated submodule, `mod`, cloned from a local
+// repository; the submodule's own git folder sits in the worktree's admin
+// `modules` folder.
+function withSubmodule(f) {
   const sub = path.join(f.root, 'subsrc');
   fs.mkdirSync(sub);
   git(sub, 'init', '-q', '-b', 'main');
@@ -206,22 +211,69 @@ test('a worktree with submodules gets the submodule lines and the loss list', as
   git(sub, 'commit', '-q', '-m', 's');
   git(f.wt, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
   git(f.wt, 'commit', '-q', '-m', 'add mod');
-  fs.writeFileSync(path.join(f.wt, 'mod', 'loose.txt'), 'l\n');
+  const mod = path.join(f.wt, 'mod');
+  git(mod, 'config', 'user.email', 'fixture@example.invalid');
+  git(mod, 'config', 'user.name', 'Fixture');
+  return mod;
+}
+const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+test('a worktree with submodules gets the submodule lines and the loss list', async () => {
+  const f = fixture();
+  const mod = withSubmodule(f);
+  // A commit on no remote and a stash inside the submodule, then loose work.
+  fs.writeFileSync(path.join(mod, 'c.txt'), 'c\n');
+  git(mod, 'add', 'c.txt');
+  git(mod, 'commit', '-q', '-m', 'c');
+  fs.writeFileSync(path.join(mod, 's.txt'), 'stashed\n');
+  git(mod, 'stash', 'push', '-q');
+  fs.writeFileSync(path.join(mod, 'loose.txt'), 'l\n');
   const hooks = hooksFolder();
   const r = runner();
   const memory = await bound(f, hooks, r);
   const text = await call(f, hooks, r, memory, 'name-back');
   assert.match(text, /submodules: 1 populated/);
   assert.match(text, /work inside the submodules: 1 file\(s\): loose\.txt/);
+  assert.match(text, /commit in a submodule on no remote: [0-9a-f]{7,}/);
+  assert.match(text, /stash in a submodule: stash@\{0\}/);
   assert.match(text, /a forced remove deletes each submodule's own git folder/);
-  // The inner commands of `submodule foreach` carry the flags too.
+  assert.doesNotMatch(text, /outside this worktree|unused submodule git folder/);
+  // The inner commands of `submodule foreach` carry the flags and this use's
+  // hooks folder too.
   const inner = r.calls.filter(c => c.argv.includes('foreach')).map(c => c.argv.at(-1));
   assert.ok(inner.length > 0);
-  for (const cmd of inner) assert.match(cmd, /^git --no-optional-locks -c core\.fsmonitor=false -c log\.showSignature=false -c 'core\.hooksPath=/);
+  const prefix = `git --no-optional-locks -c core.fsmonitor=false -c log.showSignature=false -c 'core.hooksPath=${hooks}' `;
+  for (const cmd of inner) assert.match(cmd, new RegExp(`^${escape(prefix)}`));
+
+  // New work inside the submodule after the name-back is a change.
+  fs.writeFileSync(path.join(mod, 'late.txt'), 'l\n');
+  const again = await call(f, hooks, r, memory, 're-read');
+  assert.match(again, /changed since the name-back: [^\n]*submodules/);
+  assert.equal(commandLines(again).length, 0);
+});
+
+test('a submodule git folder outside the worktree, and one no submodule uses, are named', async () => {
+  const f = fixture();
+  const mod = withSubmodule(f);
+  // Move the submodule's git folder out of the worktree's admin folder, and
+  // leave a copy behind that no submodule uses.
+  const admin = git(f.wt, 'rev-parse', '--absolute-git-dir');
+  const inside = path.join(admin, 'modules', 'mod');
+  const outside = path.join(f.root, 'elsewhere-mod');
+  fs.cpSync(inside, outside, { recursive: true });
+  fs.writeFileSync(path.join(mod, '.git'), `gitdir: ${outside}\n`);
+  git(f.root, 'config', '--file', path.join(outside, 'config'), 'core.worktree', mod);
+  const hooks = hooksFolder();
+  const r = runner();
+  const memory = await bound(f, hooks, r);
+  const text = await call(f, hooks, r, memory, 'name-back');
+  assert.match(text, /a submodule's git folder outside this worktree: 1/);
+  assert.match(text, /an unused submodule git folder: 1/);
 });
 
 test('a read that fails gives not checked, never git or gh text', async () => {
   const f = fixture();
+  withSubmodule(f);
   git(f.repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD');
   const hooks = hooksFolder();
   const r = runner(() => ({ exitCode: 1, stdout: '', stderr: 'gh: HTTP 401 a private message' }));
@@ -229,26 +281,60 @@ test('a read that fails gives not checked, never git or gh text', async () => {
   // A gh that fails, and git asked about a worktree that is gone.
   fs.rmSync(f.wt, { recursive: true, force: true });
   const text = await call(f, hooks, r, memory, 'name-back', [row(f.wt)]);
+  assert.match(text, /uncommitted or untracked work: not checked/);
+  assert.match(text, /stash entries: not checked/);
+  assert.match(text, /submodules: not checked/);
   assert.match(text, /default branch: not known/);
   assert.match(text, /merged into the default branch: not checked/);
+  assert.match(text, /merged pull request at its tip: not checked/);
   assert.doesNotMatch(text, /fatal|error|usage|HTTP|private message/i);
 });
 
 // --- claim 19: the flags, the hooks folder and the program ---------------------
 
-test('every git call carries the four flags and the checked hooks folder, with no working folder', async () => {
+// The git subcommands the tool may run: reads only.
+const READS = [
+  ['rev-parse'],
+  ['symbolic-ref'],
+  ['worktree', 'list'],
+  ['status'],
+  ['stash', 'list'],
+  ['submodule', 'status'],
+  ['submodule', 'foreach'],
+  ['log'],
+  ['branch', '--merged'],
+  ['remote', 'get-url'],
+];
+
+test('every git call is a read with the four flags and the checked hooks folder, run by name with no working folder', async () => {
   const f = fixture();
+  // A stub `git` in the fixture's folders, which a lookup there would run.
+  const marks = tmp();
+  for (const dir of [f.wt, f.repo]) {
+    const stub = path.join(dir, 'git');
+    fs.writeFileSync(stub, `#!/bin/sh\necho ran > '${path.join(marks, 'stub')}'\n`);
+    fs.chmodSync(stub, 0o755);
+  }
   const hooks = hooksFolder();
   const r = runner();
   const memory = await bound(f, hooks, r);
   await call(f, hooks, r, memory, 'name-back');
-  await call(f, hooks, r, memory, 're-read');
+  const text = await call(f, hooks, r, memory, 're-read');
+  assert.ok(commandLines(text).length > 0, 'the re-read handed back its commands');
   assert.ok(r.calls.length > 10);
   for (const c of r.calls) {
     assert.ok(c.argv[0] === 'git' || c.argv[0] === 'gh', `program: ${c.argv[0]}`);
     assert.equal(c.init.cwd, undefined, 'no working folder is passed');
-    if (c.argv[0] === 'git') assert.deepEqual(c.argv.slice(1, 8), [...FLAGS, '-c', `core.hooksPath=${hooks}`]);
+    if (c.argv[0] !== 'git') continue;
+    assert.deepEqual(c.argv.slice(1, 8), [...FLAGS, '-c', `core.hooksPath=${hooks}`]);
+    const rest = c.argv.slice(8);
+    const sub = rest[0] === '-C' ? rest.slice(2) : rest;
+    assert.ok(READS.some(words => words.every((w, i) => sub[i] === w)), `not a read: ${sub.slice(0, 2).join(' ')}`);
   }
+  // The mod removed nothing: the worktree and the branch are still there.
+  assert.ok(fs.existsSync(f.wt));
+  assert.equal(git(f.repo, 'rev-parse', '--verify', 'refs/heads/feat'), f.tip);
+  assert.deepEqual(fs.readdirSync(marks), [], 'the stub git did not run');
 });
 
 test('a hook, a hooks path and a file watcher planted in the fixture do not run; without the flags they do', async () => {
@@ -283,25 +369,16 @@ test('a hook, a hooks path and a file watcher planted in the fixture do not run;
   await call(f, hooks, r, memory, 're-read');
   assert.deepEqual(fs.readdirSync(marks), [], 'nothing planted ran');
 
-  // The same read without the flags runs the planted file watcher, so the
-  // check above can fail.
-  spawnSync('git', ['-C', f.wt, 'status', '--porcelain'], { env: { ...process.env, ...GIT_ENV } });
-  assert.ok(fs.readdirSync(marks).length > 0, 'the control run started a planted program');
-});
-
-test('a stub git in the fixture worktree is not run', async () => {
-  const f = fixture();
-  const marks = tmp();
-  for (const dir of [f.wt, f.repo]) {
-    const stub = path.join(dir, 'git');
-    fs.writeFileSync(stub, `#!/bin/sh\necho ran > '${path.join(marks, 'stub')}'\n`);
-    fs.chmodSync(stub, 0o755);
-  }
-  const hooks = hooksFolder();
-  const r = runner();
-  const memory = await bound(f, hooks, r);
-  await call(f, hooks, r, memory, 'name-back');
-  assert.deepEqual(fs.readdirSync(marks), []);
+  // Without the flags, a read runs the planted file watcher, and an index
+  // write runs the planted hooks path, so the check above can fail.
+  const env = { ...process.env, ...GIT_ENV };
+  spawnSync('git', ['-C', f.wt, 'status', '--porcelain'], { env });
+  spawnSync('git', ['-C', f.wt, '-c', 'core.fsmonitor=false', 'update-index', '--refresh'], { env });
+  fs.writeFileSync(path.join(f.wt, 'b.txt'), 'touched again\n');
+  spawnSync('git', ['-C', f.wt, '-c', 'core.fsmonitor=false', 'add', 'b.txt'], { env });
+  const ran = fs.readdirSync(marks);
+  assert.ok(ran.includes('fsmonitor'), 'the control run started the planted file watcher');
+  assert.ok(ran.includes('hookspath'), 'the control run started the planted hooks path');
 });
 
 test('a hooks folder that holds anything else, or is missing, stops every git call', async () => {
@@ -315,6 +392,15 @@ test('a hooks folder that holds anything else, or is missing, stops every git ca
   assert.equal(r.calls.length, before, 'no call ran');
   assert.match(text, /not checked: the hooks folder is not the mod's own empty folder/);
   assert.equal(commandLines(text).length, 0);
+
+  // A folder that fails its check partway through stops the calls after it.
+  fs.rmSync(path.join(hooks, 'pre-commit'));
+  let checks = 0;
+  const atStart = r.calls.length;
+  const partway = await call(f, hooks, r, memory, 'name-back', undefined, { hooksReady: async () => ++checks <= 3 });
+  assert.equal(r.calls.length - atStart, 2, 'the calls stop at the first failed check');
+  assert.match(partway, /not checked: the hooks folder is not the mod's own empty folder, so the reads stopped/);
+  assert.equal(commandLines(partway).length, 0);
 
   assert.equal(await hooksReady(path.join(tmp(), 'missing'), engineFs), false);
   const notEmpty = hooksFolder();
@@ -534,6 +620,54 @@ test('a fixture changed after the name-back gets a new name-back and no command'
     const again = await call(f, hooks, r, memory, 're-read');
     assert.ok(commandLines(again).length > 0, name);
   }
+});
+
+test('a -D guard the name-back showed, changed by the re-read, gets a new name-back and no -D', async () => {
+  const cases = {
+    'the branch is no longer checked out elsewhere': [
+      f => git(f.repo, 'worktree', 'add', '-q', '--force', path.join(f.root, 'again'), 'feat'),
+      f => git(path.join(f.root, 'again'), 'checkout', '-q', '--detach'),
+    ],
+    'the default branch becomes known': [
+      f => git(f.repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD'),
+      f => git(f.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'),
+    ],
+    'the default branch moves off the branch': [
+      f => {
+        git(f.repo, 'update-ref', 'refs/remotes/origin/feat', f.tip);
+        git(f.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/feat');
+      },
+      f => git(f.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'),
+    ],
+  };
+  for (const [name, [before, after]] of Object.entries(cases)) {
+    const f = fixture();
+    before(f);
+    const hooks = hooksFolder();
+    const r = runner();
+    const memory = await bound(f, hooks, r);
+    await call(f, hooks, r, memory, 'name-back');
+    after(f);
+    const text = await call(f, hooks, r, memory, 're-read');
+    assert.match(text, /changed since the name-back/, name);
+    assert.doesNotMatch(text, /branch -D/, name);
+    assert.equal(commandLines(text).length, 0, name);
+  }
+});
+
+test('a branch switched in the folder after the name-back is not bound at the re-read', async () => {
+  const f = fixture();
+  const hooks = hooksFolder();
+  const r = runner();
+  const memory = await bound(f, hooks, r);
+  await call(f, hooks, r, memory, 'name-back');
+  git(f.wt, 'checkout', '-q', '-b', 'other');
+  const text = await call(f, hooks, r, memory, 're-read');
+  assert.match(text, /not bound to its session/);
+  assert.equal(commandLines(text).length, 0);
+  // A detached head, which Desktop's archive leaves, is no change.
+  git(f.wt, 'checkout', '-q', '--detach', 'feat');
+  assert.ok(commandLines(await call(f, hooks, r, memory, 're-read')).length > 0);
 });
 
 test('a re-read with no name-back before it gets no command', async () => {
