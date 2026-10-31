@@ -6224,6 +6224,27 @@ test('claim 9: an opened Flagged row draws the card with Unflag in place of Flag
   expect(w.text(LOG)).toBe(before)
 })
 
+test('issue 459: a decision the lead logs with a flag goes to Flagged, never To review; its card names the lead\'s reason, and the owner\'s Unflag takes it out', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', () => {})
+  const r = await decide($, { ...ENTRY, flag: 'Unsure the tier fits.' })
+  const at = parsed(w, LOG).entries[0].at
+  // A flag holds nothing: the answer is any entry's.
+  expect(r.text).toBe(`Logged decision 1 at ${new Date(at).toISOString()}, at level 1 (Manual).`)
+  expect(parsed(w, LOG).entries[0].flag).toBe('Unsure the tier fits.')
+  expect(await shows(/^All caught up/)).toBe(true)
+  expect(await mounted.find({ key: `dflag-1-${at}` })).toBeUndefined()
+  // The flag is the lead's: no mark was written for it.
+  expect(ownMarks(w)).toEqual([])
+  await press($, 'grp-d-flagged')
+  await press($, `dfopen-0-1-${at}`)
+  expect(await shows(/^Flagged by the lead$/)).toBe(true)
+  expect(await shows(/^Unsure the tier fits\.$/)).toBe(true)
+  await press($, `dunflag-0-1-${at}`)
+  expect(ownMarks(w).at(-1)).toEqual(flagMark(SID, '1', at, 'unflagged', w.clock.now()))
+  expect(await mounted.find({ key: `dfopen-0-1-${at}` })).toBeUndefined()
+  expect(await shows(/^All caught up/)).toBe(true)
+})
+
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`claim 9: Dismiss unflags the picked rows and marks them read in one write, and every log still holds every entry (${surface})`, async ($, on) => {
     const w = await flagPane(on, $, surface, w => {

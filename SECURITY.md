@@ -208,8 +208,10 @@ The mod offers a third tool, `log_decision`, wherever it offers `set_roster`.
 It appends one entry per call to the lead session's own log,
 `brigade/decisions/<session id>.json` in the plugin's data folder: the
 entry's source (`lead` or `relayed`), whether it waits for the owner, its
-work, question, options, pick, reason, how to undo it, when to revisit it and
-which waiting entry it answers. The mod stamps the entry's id, its time from
+work, question, options, pick, reason, how to undo it, when to revisit it,
+which waiting entry it answers and, since 0.93.0 (issue 459), the lead's
+one-line reason for flagging its own pick, which only a `lead` entry that
+does not wait may carry. The mod stamps the entry's id, its time from
 the engine clock and the level in force (since 0.84.0, the level
 `read_autonomy` would answer),
 and refuses an input that carries any of them, a source other than `lead` or
