@@ -86,7 +86,6 @@ import {
   unreadOwnAlarm,
   levelInForce,
   clockTime,
-  levelOption,
   markKey,
   mergeMarks,
   missingIds,
@@ -263,11 +262,12 @@ const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
 const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
 // The groups that start folded each time the pane opens.
 const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
-// The line under the autonomy slider: what each level lets the lead do.
+// The line under the autonomy slider: what each level lets the lead do, in
+// one sentence each (issue 496); read_autonomy and the docs keep the full list.
 const LEVEL_LINES: Readonly<Record<Level, string>> = {
   1: 'Manual: the lead asks you on every decision.',
   2: 'Auto: the lead takes its own pick on decisions it is sure of and logs each one; a major or kept decision waits for you as a to-do.',
-  3: "Turbo mode: once you type /brigade level 3 with a goal, or confirm a press in the lead's chat, the lead merges, posts, starts sessions and settles security findings and accepted risks toward the goal without asking, and lists each in the Decisions tab for you to review; an install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80) still wait for you, and so does a hand-off request or a fresh session a context figure prompts",
+  3: 'Turbo: the lead decides toward your goal and logs each decision for you to review; installs, cleanup and a few risk edits still wait for you.',
 }
 // The Decisions tab's search text, read again through its cap before use, and
 // a counter the decision reads move so the pane redraws: it carries no text.
@@ -967,6 +967,10 @@ async function pressReview($: EngineInterface, verb: string, id: string, entryAt
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
 
+// Mark all read's label (issue 496): the cards a press clears, a pair as one,
+// and, when some stay, out of how many are under To review.
+const markAllText = (s: { n: number; total: number }) => (s.n === s.total ? `✓ Mark all ${s.n} read` : `✓ Mark ${s.n} of ${s.total} read`)
+
 // A press on To review's Mark all read (issue 466): everything under To
 // review, its cards and its ended lines, but this session's own waiting
 // entries that no Relayed entry answers (issue 486). In the marks queue's turn, after every
@@ -982,7 +986,7 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
     const v = tabView(now)
     const words = searchWords(queryFrom(await read($, query)))
     const q = reviewCards(v.review, tabRead.sid, v.states, skipped, words)
-    const set = markAllSet(q.shown, endedLines(v.ended, v.states, words), openWaiting(v.review, tabRead.sid))
+    const set = markAllSet(q.cards, endedLines(v.ended, v.states, words), openWaiting(v.review, tabRead.sid))
     if (set.n !== n || set.hash !== hash) return
     const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
@@ -3701,7 +3705,7 @@ export const register: Register = on => {
     const dFold = historyRows(dView.ended, words, endedPages)
     const dFlagged = flaggedRows(dView.flagged, dStates, words)
     const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
-    const dMarkAll = markAllSet(dQueue.shown, dLines, openWaiting(dView.review, tabRead.sid))
+    const dMarkAll = markAllSet(dQueue.cards, dLines, openWaiting(dView.review, tabRead.sid))
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
@@ -4527,7 +4531,7 @@ export const register: Register = on => {
     const trackText = ['●', '━━━━━', level >= 2 ? '●' : '○', '━━━━━', level >= 3 ? '●' : '○'].join('')
     const slider = (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} marginTop={terminal ? 1 : 'md'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: level === 3 ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
-        <Text weight="medium">{`Autonomy · ${levelOption(level)}`}</Text>
+        <Text weight="medium">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>
         {Image !== undefined ? (
           <Box flexDirection="column" flexGrow={1}>
             <Image source={track.source} alt={track.alt} height={track.height} />
@@ -4542,11 +4546,11 @@ export const register: Register = on => {
             <Box width={n === 2 ? '34%' : '33%'} flexDirection="row" justifyContent={n === 1 ? 'flex-start' : n === 2 ? 'center' : 'flex-end'}>
               {level === n ? (
                 <Button key={`level-${n}`} variant="primary" onPress={noop}>
-                  {levelOption(n)}
+                  {LEVEL_NAMES[n]}
                 </Button>
               ) : (
                 <Button key={`level-${n}`} dimColor onPress={noop}>
-                  {levelOption(n)}
+                  {LEVEL_NAMES[n]}
                 </Button>
               )}
             </Box>
@@ -4644,11 +4648,11 @@ export const register: Register = on => {
         {terminal ? (
           <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
-            <Text dimColor>{` ${dQueue.total}`}</Text>
+            <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
-                  {`✓ Mark all ${dMarkAll.n} read`}
+                  {markAllText(dMarkAll)}
                 </Button>
               </Box>
             )}
@@ -4657,12 +4661,12 @@ export const register: Register = on => {
           <Box paddingX="sm" marginTop="md" marginBottom="xs" flexDirection="row" alignItems="center" {...roundFill}>
             <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row">
               <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
-              <Text dimColor>{` ${dQueue.total}`}</Text>
+              <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
             </Box>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
-                  {`✓ Mark all ${dMarkAll.n} read`}
+                  {markAllText(dMarkAll)}
                 </Button>
               </Box>
             )}
@@ -4790,8 +4794,8 @@ export const register: Register = on => {
                   : (sessionsCount ?? '')}
             </Text>
           </Box>
-          {/* The level in force, on every tab. */}
-          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy ${level}`}</Text> : <Text>{`Autonomy ${level}`}</Text>}</Box>
+          {/* The level in force, on every tab, by name with no number (issue 496). */}
+          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
           {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}

@@ -75,6 +75,8 @@ lead on 2026-10-31): Mark all N read leaves this session's own waiting entries
 that no Relayed entry answers, so each stays in To review until it is answered
 or a single Read press closes it. Entries in other logs drop on read as before.
 
+Amended in 0.113.0 (issue 496, lead decision 510, the owner's words relayed): the button's N counts the cards a press clears, a question and its answer as one and an ended session's line as one, so it matches what leaves To review; when cards stay behind it reads "Mark N of M read", M all under To review. To review's heading counts the same way (lead decision 524, the lead's own pick under level 3).
+
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside

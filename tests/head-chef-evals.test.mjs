@@ -147,7 +147,7 @@ test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as is
     'When cleanup is due: it asks the owner to type `/brigade done all` or `/brigade done <titles>`, names no command of its own, and waits for it.',
     'When an archive or stop fails, or the cleaner leaves an item: it tells the owner what is left and leaves it, and goes on with the rest; this stop holds that item only.',
     '"Decision <id> from <lead name> waits for you in the Decisions tab"',
-    '"Turbo mode since HH:MM UTC, toward <goal by repository and issue>"',
+    '"Turbo since HH:MM UTC, toward <goal by repository and issue>"',
   ]) {
     assert.ok(CONTRACT.includes(s), `the contract lacks: ${s}`);
     assert.ok(SKILL.includes(s), `SKILL.md lacks: ${s}`);
@@ -338,7 +338,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.9.0'), 'the contract is not at 1.9.0');
+  assert.ok(CONTRACT.includes('Version: 1.9.1'), 'the contract is not at 1.9.1');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {
@@ -371,6 +371,23 @@ test('C15a: "Full throttle" is left in the shipped tree only where old logs and 
       const around = text.slice(Math.max(0, m.index - 40), m.index + 60);
       const legacy = fixtures.includes(f) && /OLD_LEVEL_OPTIONS|renamed it|'3 Full throttle'/.test(around);
       if (!legacy && !/\(Full throttle before (0\.99\.0|1\.5\.0)\)/.test(around)) left.push(`${f}: ${around}`);
+    }
+  }
+  assert.deepEqual(left, []);
+});
+
+test('#496: "Turbo mode" is left in the shipped tree only where old logs and history are read', () => {
+  const walk = d => readdirSync(join(root, d), { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));
+  const files = [...['brigade', 'skills', 'evals', 'docs/security'].flatMap(walk), 'README.md', 'SECURITY.md', 'CONTEXT.md'].filter(f => !f.endsWith('contract.changelog.md'));
+  // Allowed: the legacy reading and its fixtures, and the "(Turbo mode before ...)" notes.
+  const fixtures = ['brigade/decisions.ts', 'brigade/set-roster.test.ts'];
+  const left = [];
+  for (const f of files) {
+    const text = read(f).replace(/\s+/g, ' ');
+    for (const m of text.matchAll(/turbo mode/gi)) {
+      const around = text.slice(Math.max(0, m.index - 60), m.index + 60);
+      const legacy = fixtures.includes(f) && /OLD_LEVEL_OPTIONS|renamed it|'3 Turbo mode'|Turbo mode, from/.test(around);
+      if (!legacy && !/\(Turbo mode before (0\.113\.0|1\.9\.1)\)/.test(around)) left.push(`${f}: ${around}`);
     }
   }
   assert.deepEqual(left, []);

@@ -206,7 +206,7 @@ newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's
 heading, marks everything under To review read in one write, since 0.98.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line, but this lead's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). It also leaves out what your search hides,
+and every ended session's line, but this lead's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). Since 0.113.0, N counts the cards it clears, a question and its answer as one and an ended session's line as one, as To review's count beside it does, and when some cards stay the button reads "✓ Mark N of M read". It also leaves out what your search hides,
 and a press marks nothing if the set changed since you looked, or if your
 marks file is so full that the write would push out marks of entries you
 read. A question marked read keeps its link, so an answer logged later still
@@ -254,8 +254,8 @@ stays after you delete the hand-off folder.
 At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
 it takes its own pick on decisions it is sure of, and sends you the major ones
-and the ones you keep as to-dos while it carries on. At 3 Turbo mode (Full
-throttle before 0.99.0), once you type `/brigade level 3 <goal>` at the prompt
+and the ones you keep as to-dos while it carries on. At 3 Turbo (Turbo mode
+before 0.113.0), once you type `/brigade level 3 <goal>` at the prompt
 or from your phone, or press 3 and confirm it in the lead's own chat with a
 goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
 security findings without a word from you for each act, logging each one

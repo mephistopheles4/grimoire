@@ -22,8 +22,8 @@ the owner only through you.
 - **Permission warning:** the band above the prompt that says what the head
   chef's sessions put at risk, with an I understand button and a Don't show
   again box.
-- **Level:** how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo
-  mode, set only by the owner: a press on the Brigade pane's slider, or the
+- **Level:** how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo,
+  set only by the owner: a press on the Brigade pane's slider, or the
   `/brigade level` command.
 - **Goal:** the work a level-3 lead runs toward, in the owner's words in the
   lead's chat or in the `/brigade level 3` command.
@@ -148,7 +148,7 @@ cleanup keeps, the report, the pane and the idle notice.
 
 ## Autonomy levels
 
-The owner sets your level: 1 Manual, 2 Auto or 3 Turbo mode. Only the owner
+The owner sets your level: 1 Manual, 2 Auto or 3 Turbo. Only the owner
 sets it, with a press of the slider in the Brigade pane, or by typing
 `/brigade level 1`, `/brigade level 2` or `/brigade level 3 <goal>` at the
 prompt or from the phone.
@@ -242,7 +242,7 @@ or record.
   logged as a waiting entry, with a to-do for the owner; when the owner
   answers, log a Relayed entry that answers it. Hold only that effort's
   step, carry on with everything else, and show no blocking card.
-- **3 Turbo mode.** Once the 3 is confirmed, set by the owner's command or a
+- **3 Turbo.** Once the 3 is confirmed, set by the owner's command or a
   press the owner confirmed in this chat, with a goal, run toward the goal without stopping, and take your own pick on
   every decision toward it. The confirmation is the owner's user-level
   instructions file's leave, toward the goal, for every decision that file
@@ -300,7 +300,7 @@ waits goes to the owner.
 
 **Where no banner shows.** At level 3, when your chat is reached over Remote
 Control, or on a surface where the level-3 banner cannot show (the mobile app,
-claude.ai, VS Code), open each report with one line: "Turbo mode since
+claude.ai, VS Code), open each report with one line: "Turbo since
 HH:MM UTC, toward <goal by repository and issue>". You know the surface from
 what the Code tab's tools tell you (`wrap_up` says when it detects Remote
 Control) or from the owner's words; when you cannot tell, write the line.

@@ -449,7 +449,7 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   }
   assert.ok('value' in checkLog(JSON.stringify(log)));
   const [owner, shown, reload, alarm] = log.entries;
-  assert.deepEqual([owner.question, owner.options, owner.pick, owner.why], ['Autonomy level', ['1 Manual', '2 Auto', '3 Turbo mode'], '3 Turbo mode', 'Moved in the pane']);
+  assert.deepEqual([owner.question, owner.options, owner.pick, owner.why], ['Autonomy level', ['1 Manual', '2 Auto', '3 Turbo'], '3 Turbo', 'Moved in the pane']);
   assert.deepEqual([shown.pick, shown.why, reload.why], ['1 Manual', 'The pane was shown again', 'The Brigade mod was reloaded']);
   assert.deepEqual([alarm.pick, alarm.why], ['2 Auto', 'Changed, not from a press']);
   for (const e of log.entries) assert.equal(inFixedShape(e), true, e.source);
@@ -496,9 +496,9 @@ test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape 
   const alarm = base(alarmEntry(3));
   const bent = [
     [owner, { work: 'issue 1' }], [owner, { question: 'Which level?' }], [owner, { options: ['1 Manual', '2 Auto'] }],
-    [owner, { options: ['2 Auto', '1 Manual', '3 Turbo mode'] }], [owner, { pick: 'Yes', options: ['Yes', 'No'] }],
+    [owner, { options: ['2 Auto', '1 Manual', '3 Turbo'] }], [owner, { pick: 'Yes', options: ['Yes', 'No'] }],
     [owner, { why: 'The lead moved it' }], [owner, { undo: 'Nothing' }], [owner, { revisit: 'Tomorrow' }], [owner, { waiting: true, pick: '' }],
-    [pane, { pick: '3 Turbo mode' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
+    [pane, { pick: '3 Turbo' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
     [alarm, { why: 'Moved in the pane' }], [alarm, { undo: 'Move the slider back' }],
     [pane, { level: 2 }], [alarm, { level: 3 }],
   ];
@@ -1155,19 +1155,28 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
   const lines = endedLines(v.ended, new Map(), []);
   assert.ok(lines.length > 0, 'an ended line is drawn');
-  const set = markAllSet(cards.shown, lines);
+  const set = markAllSet(cards.cards, lines);
   const all = [...cards.shown, ...lines.flatMap(l => l.rows)];
   assert.deepEqual(set.rows, all);
-  assert.equal(set.n, all.length);
+  // #496: it counts what leaves To review: a card, a pair as one, and an ended line as one (decision 524).
+  assert.equal(set.n, cards.cards.length + lines.length);
+  assert.ok(set.n < all.length - 1, 'the ended line holds more than one entry');
+  assert.equal(set.total, set.n);
   for (const kind of ['lead', 'relayed', 'alarm']) assert.ok(set.rows.some(r => r.entry.source === kind), kind);
   assert.ok(set.rows.some(r => r.entry.waiting), 'a waiting entry');
   assert.ok(set.rows.some(r => r.sid === OTHER), 'another log\'s entry');
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
-  assert.notEqual(markAllSet(cards.shown.slice(1), lines).hash, set.hash);
-  assert.deepEqual(markAllSet([], []), { rows: [], n: 0, hash: '' });
-  // Past 500 it takes the first 500, so its key stays in range.
+  assert.notEqual(markAllSet(cards.cards.slice(1), lines).hash, set.hash);
+  assert.deepEqual(markAllSet([], []), { rows: [], n: 0, total: 0, hash: '' });
+  // Past 500 entries it takes the first 500, so its key stays in range, and counts the rest as staying.
   const many = Array.from({ length: 501 }, (_, i) => ({ sid: SID, writer: 'w', entry: { ...ls[0].log.entries[0], id: String(i + 1), at: NOW + i } }));
-  assert.deepEqual(markAllSet(many, []).rows, many.slice(0, 500));
+  const big = markAllSet(many.map(row => ({ row, answer: undefined })), []);
+  assert.deepEqual(big.rows, many.slice(0, 500));
+  assert.deepEqual([big.n, big.total], [500, 501]);
+  // A pair that would straddle the cap is left whole for the next press, and nothing after it is taken.
+  const pair = { row: many[499], answer: many[500] };
+  const straddle = markAllSet([...many.slice(0, 499).map(row => ({ row, answer: undefined })), pair, { row: { ...many[0], entry: { ...many[0].entry, id: '900' } }, answer: undefined }], []);
+  assert.deepEqual([straddle.rows.length, straddle.n, straddle.total], [499, 499, 501]);
 });
 
 // Issue 486, read from brigade/register.tsx's text: the scan's test file held
@@ -1189,17 +1198,19 @@ test('issue 486 claim 5b: Mark all read leaves an own unanswered waiting entry, 
   ls[0].log.entries.push(mine);
   const v = drawnLogs(ls, SID, new Map());
   const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
-  const set = markAllSet(cards.shown, [], d.openWaiting(v.review, SID));
+  const set = markAllSet(cards.cards, [], d.openWaiting(v.review, SID));
   assert.ok(cards.shown.some(r => r.entry === mine), 'it is under To review');
   assert.ok(!set.rows.some(r => r.entry === mine), 'Mark all read leaves it');
   assert.ok(set.rows.some(r => r.sid === SID && r.entry.work === 'mine waits'), 'an answered own waiting entry is taken');
   assert.ok(set.rows.some(r => r.sid === OTHER && r.entry.waiting && r.entry.work === 'waits'), 'another log\'s unanswered waiting entry is taken');
-  assert.equal(set.n, cards.shown.length - 1);
+  // #496: the count is in cards, a pair as one, and names the card that stays.
+  assert.ok(cards.cards.length < cards.shown.length, 'a pair is drawn');
+  assert.deepEqual([set.n, set.total], [cards.cards.length - 1, cards.cards.length]);
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
   const after = new Map(set.rows.map(r => [keyOf(r.sid, r.entry), 'read']));
   const left = d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []);
   assert.deepEqual(left.cards.map(c => c.row.entry.work), ['mine still waits']);
-  assert.deepEqual(markAllSet(left.shown, [], d.openWaiting(v.review, SID)), { rows: [], n: 0, hash: '' });
+  assert.deepEqual(markAllSet(left.cards, [], d.openWaiting(v.review, SID)), { rows: [], n: 0, total: 1, hash: '' });
   after.set(keyOf(SID, mine), 'read');
   assert.equal(d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []).total, 0);
 });
@@ -1345,7 +1356,7 @@ test('S4.1 (C4, C5, C7, C8): a 3 counts as set by the command only while its tim
 test("C1, C15: the command's Owner entry has its own fixed shape, holds no goal, and draws as Owner only when this pane wrote it", () => {
   const e = fixedOf(commandEntry(3));
   assert.deepEqual([e.source, e.question, e.options, e.pick, e.why, e.undo, e.revisit, e.answers], [
-    'owner', 'Autonomy level', ['1 Manual', '2 Auto', '3 Turbo mode'], '3 Turbo mode', "Set by the owner's command", 'Type /brigade level 1, or move the slider', '', '',
+    'owner', 'Autonomy level', ['1 Manual', '2 Auto', '3 Turbo'], '3 Turbo', "Set by the owner's command", 'Type /brigade level 1, or move the slider', '', '',
   ]);
   for (const l of [1, 2, 3]) assert.equal(inFixedShape(fixedOf(commandEntry(l))), true, String(l));
   assert.ok('value' in checkLog(JSON.stringify({ ...emptyLog(null), next: 2, entries: [e] })));
@@ -1357,8 +1368,14 @@ test("C1, C15: the command's Owner entry has its own fixed shape, holds no goal,
   }
 });
 
-test('C15a: level 3 is named Turbo mode, and logs written before the rename stay in their fixed shape, as whole old shapes only', () => {
-  assert.equal(levelOption(3), '3 Turbo mode');
+test('C15a, #496: level 3 is named Turbo, and logs written before either rename stay in their fixed shape, as whole old shapes only', () => {
+  assert.equal(levelOption(3), '3 Turbo');
+  // Turbo mode, from 0.99.0 to 0.112.0: every fixed entry, the command's included.
+  const MODE = ['1 Manual', '2 Auto', '3 Turbo mode'];
+  for (const e of [ownerEntry(3), commandEntry(3), alarmEntry(3)]) assert.equal(inFixedShape({ ...fixedOf(e), options: MODE, pick: '3 Turbo mode' }), true, e.why);
+  assert.equal(inFixedShape({ ...fixedOf(paneEntry('reload')), options: MODE }), true);
+  assert.equal(inFixedShape({ ...fixedOf(ownerEntry(3)), pick: '3 Turbo mode' }), false);
+  assert.equal(inFixedShape({ ...fixedOf(ownerEntry(3)), options: MODE }), false);
   const OLD = ['1 Manual', '2 Auto', '3 Full throttle'];
   const owner = fixedOf(ownerEntry(3));
   const pane = fixedOf(paneEntry('compact'));
