@@ -236,10 +236,9 @@ next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spe
 448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
 answer writes both marks in one write), or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
-(since 0.89.0, spec 444, one write for all the entries it takes), "✓ Mark
-these N read" (since 0.90.0, spec 447, one write for an ended session's line),
-or "✓ Mark N relayed read" (since 0.91.0, spec 448, one write for all the
-entries it takes), the pane writes a mark
+(since 0.89.0, spec 444, one write for all the entries it takes), or, from
+0.90.0 to 0.94.0, "✓ Mark these N read" (spec 447, one write for an ended
+session's line), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
@@ -248,40 +247,27 @@ file past 64 KiB and counts its entries unread). Past a cap the oldest marks
 drop in a fixed order that keeps a live flag for last and never brings back a
 cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
-set is unchanged; it never takes a waiting entry, an alarm, a Relayed entry or
-an answer. The hash is the mod's unkeyed SHA-256 of the set's mark keys and
-protects nothing secret. "Mark these N read" works the same way with a key of
-its own, `dmarkended-<n>-<hash>`, holding no session id: it works out every
-ended session's line again inside the marks queue's turn, writes only when
-exactly one line still has its count and hash, and takes only that line's
-entries, an ended session's unread Relayed entries and the waiting entries
-they answer; never an unanswered waiting entry, an alarm, a Lead entry, or an
-entry of a session the pane reads as running or cannot tell. It also writes
-nothing, and says the marks file is full of entries the owner read, when the
-marks file's caps would push out a mark that is still the newest state of an
-entry in a log the pane reads, so a bulk press never brings back such an entry.
-A mark for an entry in a log the pane no longer reads can still drop. Its hash is the same unkeyed SHA-256, a staleness
-check that protects nothing secret. Since 0.91.0 (spec 448) a waiting entry of
+set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
+review that the search shows, of every kind and from every log the tab draws:
+Lead, Relayed, waiting entries and alarms, and every ended session's line;
+before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
+owner read, when the caps would push out a mark that is still an entry's
+newest state. A mark leaves the log untouched, so a waiting entry marked read
+keeps its link and a later answer still pairs with it. The hash is the mod's
+unkeyed SHA-256 of the set's mark keys and protects nothing secret. A mark for
+an entry in a log the pane no longer reads can still drop. "Mark these N
+read" (0.90.0 to 0.94.0, spec 447), an ended session's line's own press with
+key `dmarkended-<n>-<hash>`, is gone since 0.98.0: Mark all read takes its
+entries. Since 0.91.0 (spec 448) a waiting entry of
 the pane's own session's log and the unread Relayed entry that answers it draw
 as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
 write. Its keys name both entries, `dnext-<id>-<time>-<answer id>-<answer
 time>`, holding no session id. Read, next, Flag and Skip now work out the card
 shown inside the marks queue's turn, and act only when that card is still
 the one shown with the same entries: a press on a card drawn alone never marks
-an answer that arrived after the draw. "✓ Mark N relayed read" (since 0.91.0,
-spec 448, one write) has a key of its own, `dmarkrelayed-<n>-<hash>`, holding
-no session id. It works out its set again inside the marks queue's turn and
-writes only when the set's count and hash are unchanged. It takes only the
-pane's own session's unread Relayed entries that answer no waiting entry,
-under the search; never a waiting entry, a Relayed entry that answers one, an
-alarm, a Lead entry, or an entry of another log, so a question and the answer
-the log links to it leave only from their own card. An answer logged without
-that link, as a lead logs one to a waiting entry in another session's log
-after a `/clear`, a resume or a hand-off, counts as a claim and is taken. Like Mark these N read it writes nothing, and
-says the marks file is full of entries the owner read, when the caps would
-push out a mark that is still an entry's newest state. Its hash is the same
-unkeyed SHA-256, a staleness check that protects nothing secret. The marks one
-bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
+an answer that arrived after the draw. "✓ Mark N relayed read" (0.91.0 to
+0.94.0, spec 448) is gone since 0.98.0: Mark all read takes its entries. The
+marks one bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
@@ -314,7 +300,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, or since 0.91.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
+  a mark's time from a Mark all read press, or from 0.90.0 to 0.94.0 a Mark these N read press, or from 0.91.0 to 0.94.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the
@@ -405,8 +391,8 @@ foot of the Decisions tab. What follows from it:
 
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
-Auto and 3 Turbo mode (Full throttle before 0.98.0), and only the owner sets
-a level above 1: by a press on it or, since 0.98.0, by the level command. **A
+Auto and 3 Turbo mode (Full throttle before 0.99.0), and only the owner sets
+a level above 1: by a press on it or, since 0.99.0, by the level command. **A
 level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
 words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
@@ -417,7 +403,7 @@ work; an accepted-risk record; a merge that removes or weakens a control the
 threat model or this file names; an install; and cleanup. A secret or
 personal-data finding holds every merge, push and pull request of its
 effort's branch, and of branches based on it, until the owner answers.
-**Since 0.98.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
+**Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
 owner's Enter or a Remote Control message, so a run the engine stamps as
@@ -448,7 +434,7 @@ the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
 lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
 of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
-except, since 0.98.0, a 3 the level command set, which a compaction keeps,
+except, since 0.99.0, a 3 the level command set, which a compaction keeps,
 and a showing of the pane no longer does; a session start, reload or
 compaction that finds a stored level above 1 writes that entry even with the
 pane closed, the one file a session start writes. The compaction hook reads
@@ -476,7 +462,8 @@ from the last press, so its alarm and Pane entry writes also happen with the pan
 reads no usage and keeps no report. The pane
 draws the level in force on every tab, level 3 in the warning colour, and
 since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
-press time and a Dismiss, and an unread alarm this mod caught, on the terminal
+press time and a Dismiss, and an alarm this mod caught until a card or
+History press, reload or new session, on the terminal
 and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
   slider moves and level commands, of the resets, the lead's compactions among them, and of the
@@ -496,7 +483,7 @@ and Desktop only. What follows from it:
   3 counts only once the owner confirms that press in the lead's chat, never
   on a confirmation given for an earlier press time, or once the owner's
   level command set it, and list what still waits for the owner at level 3.
-  Since 0.98.0 a plugin that hooks command runs, and possibly one that hooks
+  Since 0.99.0 a plugin that hooks command runs, and possibly one that hooks
   prompt submits, can turn a `/brigade` the owner types into a level command
   with a goal of its own, which lasts through compactions. The slider box
   and the band show a command 3 as it landed; the command's reply is no
@@ -506,7 +493,7 @@ and Desktop only. What follows from it:
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
   after the log is deleted. Since 0.88.0 the band above the lead's prompt
   draws a 3 and its press time, and an alarm's level and time, in the tree
-  that other plugins' band hooks see. Since 0.98.0 a 3 the level command set
+  that other plugins' band hooks see. Since 0.99.0 a 3 the level command set
   carries its goal, the owner's own unscreened text: other plugins' prompt
   and command hooks see it as typed; `read_autonomy`'s answers and the
   command's reply put it in the transcript, again after each compaction; and
