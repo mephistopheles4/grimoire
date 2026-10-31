@@ -156,11 +156,11 @@ SkillSpector is static pattern matching: an instruction written to read as ordin
 
 ### What stops it today
 
-Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code for the plugin validator, is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; its job holds no token or secret, has `contents: read`, and has no path into `pages`. See [scanners.md](scanners.md).
+Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code, for the plugin validator (`validate`) and the plugin tests (`plugin-test`, on Windows), is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; neither job holds a token or secret, has `contents: read`, and has no path into `pages`. See [scanners.md](scanners.md).
 
 ### Residual gap
 
-A pin trusts whatever code it names. The npm pin is not a content pin: no hash of the tarball is checked.
+A pin trusts whatever code it names. The CI npm pins are not content pins: no tarball hash is checked. The athanor image fetch is hash-pinned.
 
 ### Tags
 

@@ -13,7 +13,8 @@ dangles counts as missing), run the host check as it is. When an athanor run
 exits 124, 125 or 137, or you need the version-bump or allowance checks that
 only a host run covers, add `--host-fallback=<reason>` to the host check, in your
 own words with no path, token or pasted error text, and say in your report that
-you used the fallback. Read
+you used the fallback. A sha512 mismatch in the image build also exits 125; it
+is not a Docker fault, so stop and tell the owner. Read
 [The agent guard](CONTRIBUTING.md#the-agent-guard) for the rest.
 
 ## Three directories are called `scripts/`
