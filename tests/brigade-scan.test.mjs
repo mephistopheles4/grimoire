@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 const s = await import('../brigade/scan.ts');
 const {
   MAX_BYTES, MAX_FILES, MAX_TOTAL, TIME_LIMIT_MS, scanText, routeOf, decide, settingOf, readSetting,
-  caughtAnswer, switchArgs, switchReply, showLine, FAILED, TIMED_OUT, MOD_TOOLS,
+  caughtAnswer, settled, switchArgs, switchReply, showLine, FAILED, TIMED_OUT, MOD_TOOLS,
 } = s;
 
 // --- fixtures ---------------------------------------------------------------
@@ -47,6 +47,8 @@ const SECRETS = {
   stripeRestricted: 'r' + 'k_live_' + rep('Ab12', 6),
   slackUser: 'xo' + 'xp-' + '1234567890-abcdef',
   slackApp: 'xo' + 'xa-' + '1234567890-abcdef',
+  slackRefresh: 'xo' + 'xr-' + '1234567890-abcdef',
+  slackSession: 'xo' + 'xs-' + '1234567890-abcdef',
 };
 const KEY_HEADER = '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----';
 const URL_USER = 'https://' + 'someone:hunter2' + '@example.com/repo.git';
@@ -240,10 +242,45 @@ test('claim 14: a quoted value is never read as a flag, and a flag cluster endin
 test('S3.2 step 3: the scanned text starts at the matched call, after its global options', () => {
   const r = bash(`cd ${HOMES.linux} && git -C ${HOMES.linux} commit -m "fix"`);
   assert.ok(r);
-  assert.equal(r.parts.length, 1);
   assert.equal(r.parts[0].field, 'command');
   assert.ok(r.parts[0].text.startsWith('commit -m'), r.parts[0].text);
+  assert.equal(r.parts[0].families, undefined);
+  // The text before the call is read for secret shapes only.
+  assert.deepEqual(r.parts.slice(1).map(p => p.families), [['secret']]);
   assert.equal(r.folderChanged, true);
+});
+
+test('S3.2 step 3: a heredoc or here-string body anywhere in the command is read with both families, and the rest for secrets', async () => {
+  // The command writes the body file, then posts it: the old file is clean.
+  const old = deps({ files: { '/abs/b.md': file('clean old text') } });
+  const write = `cat > /abs/b.md <<'EOF'\nnew text ${EMAIL}\nEOF\ngh pr create --title t --body-file /abs/b.md`;
+  assert.match((await decide('Bash', { command: write }, old)).deny, /an email address in the command/);
+  const psWrite = `@'\nnew text ${SECRETS.github}\n'@ | Set-Content b.md; gh pr create --title t --body-file /abs/b.md`;
+  assert.match((await decide('PowerShell', { command: psWrite }, deps({ files: { '/abs/b.md': file('clean') } }))).deny, /token or key in the command/);
+  // A secret anywhere in the command is read; a home path before the call is not.
+  assert.match((await decide('Bash', { command: `export T=${SECRETS.github}; gh pr comment 1 --body x` }, deps())).deny, /token or key/);
+  assert.equal(await decide('Bash', { command: `cd ${HOMES.linux} && gh pr comment 1 --body x` }, deps()), undefined);
+});
+
+test('S3.2 step 3: a line continuation starts no word, in either shell', () => {
+  assert.deepEqual(bash('gh \\\n  pr create --title t --body-file b.md').files.map(f => f.path), ['b.md']);
+  assert.deepEqual(bash('gh pr create --title t \\\r\n  --body-file b.md').files.map(f => f.path), ['b.md']);
+  assert.deepEqual(ps('gh pr create --title t `\r\n  --body-file b.md').files.map(f => f.path), ['b.md']);
+  assert.deepEqual(ps('gh `\n  pr create --body-file b.md').files.map(f => f.path), ['b.md']);
+});
+
+test('claim 14: a glued value in a flag cluster and git\'s shortened --file name their file', () => {
+  assert.deepEqual(bash('git commit -aFmsg.txt').files.map(f => f.path), ['msg.txt']);
+  assert.deepEqual(bash('git commit --fil m.txt').files.map(f => f.path), ['m.txt']);
+  assert.deepEqual(bash('git commit --fil=m.txt').files.map(f => f.path), ['m.txt']);
+});
+
+test('S3.2 step 6: a command naming many body files is read in linear time', () => {
+  const many = Array.from({ length: 20000 }, (_, i) => `-F f${i}=@/a/${i}`).join(' ');
+  const t0 = performance.now();
+  const r = bash(`gh api x ${many}`);
+  assert.equal(r.files.length, 20000);
+  assert.ok(performance.now() - t0 < 1000, `${(performance.now() - t0).toFixed(0)} ms`);
 });
 
 test('S3.2 step 3: a heredoc body is in the scanned text, and a command inside it is data', () => {
@@ -326,7 +363,13 @@ function deps(o = {}) {
   let t = 0;
   const d = {
     calls,
-    setting: async () => { calls.push('setting'); if (o.settingThrows) throw new Error('store'); return 'setting' in o ? o.setting : 'on'; },
+    setting: async () => {
+      calls.push('setting');
+      if (o.settingThrows) throw new Error('store');
+      if (o.settingHangs) return new Promise(() => {});
+      return 'setting' in o ? o.setting : 'on';
+    },
+    seenOn: () => o.seenOn ?? false,
     cwd: async () => { calls.push('cwd'); return o.cwd ?? '/work'; },
     stat: async p => {
       calls.push(`stat ${p}`);
@@ -356,9 +399,17 @@ test('claim 15: with the setting off or unset, a matched call with a hit passes 
   }
 });
 
-test('claim 13: a setting that fails to read refuses a matched call as a failure', async () => {
-  const d = deps({ settingThrows: true });
-  assert.deepEqual(await decide('Bash', { command: 'gh pr create --body clean' }, d), { deny: FAILED });
+test('q14: a setting that cannot be read refuses once this session has read "on", and counts as off before', async () => {
+  const command = `gh pr create --body ${SECRETS.github}`;
+  assert.deepEqual(await decide('Bash', { command }, deps({ settingThrows: true, seenOn: true })), { deny: FAILED });
+  assert.equal(await decide('Bash', { command }, deps({ settingThrows: true, seenOn: false })), undefined);
+  // A read that never answers is unreadable once the time limit passes.
+  assert.deepEqual(await decide('Bash', { command }, deps({ settingHangs: true, seenOn: true, step: 1 })), { deny: FAILED });
+  assert.equal(await decide('Bash', { command }, deps({ settingHangs: true, seenOn: false, step: 1 })), undefined);
+  assert.equal(settled('unreadable', true), 'unreadable');
+  assert.equal(settled('unreadable', false), 'off');
+  assert.equal(settled('on', false), 'on');
+  assert.equal(settled('off', true), 'off');
   assert.equal(await readSetting(async () => { throw new Error('store'); }), 'unreadable');
   assert.equal(await readSetting(async () => 'on'), 'on');
   assert.equal(await readSetting(async () => undefined), 'off');
@@ -512,14 +563,14 @@ test('claim 13: a hook failure refuses the matched call, in its own fixed words'
 });
 
 test('claim 13: a run past the time bound is refused, in its own fixed words', async () => {
-  const slow = deps({ step: TIME_LIMIT_MS + 1, files: { '/abs/b.md': file('fine') } });
+  const slow = deps({ times: [1, 1, TIME_LIMIT_MS + 5], files: { '/abs/b.md': file('fine') } });
   assert.equal((await decide('Bash', { command: 'gh pr create --body-file /abs/b.md' }, slow)).deny, TIMED_OUT);
   const hang = deps({ readHangs: true, files: { '/abs/b.md': file('fine') } });
   assert.equal((await decide('Bash', { command: 'gh pr create --body-file /abs/b.md' }, hang)).deny, TIMED_OUT);
   // With no body file, a clock that passes the bound between the parts' scans.
-  const jump = deps({ times: [1, 1, TIME_LIMIT_MS + 5] });
+  const jump = deps({ times: [1, 1, 1, TIME_LIMIT_MS + 5] });
   assert.equal((await decide('SendMessage', { to: 'x', message: 'a', summary: 'b' }, jump)).deny, TIMED_OUT);
-  const after = deps({ times: [1, 1, 1, TIME_LIMIT_MS + 5] });
+  const after = deps({ times: [1, 1, 1, 1, TIME_LIMIT_MS + 5] });
   assert.equal((await decide('SendMessage', { to: 'x', message: 'a', summary: 'b' }, after)).deny, TIMED_OUT);
   assert.match(TIMED_OUT, /2-second/);
   assert.match(TIMED_OUT, /\/brigade scan off/);
@@ -584,8 +635,14 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   // The catch handler answers as caughtAnswer says.
   const caught = src.slice(src.indexOf('async function scanCaught'), src.indexOf('function registerScan('));
   assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : next\(e\)/);
-  // The switch takes the command's own origin, ahead of the pane.
+  // ... from the setting it read: "on" once armed, else a bounded read settled
+  // by what this session has seen.
+  assert.ok(caught.includes("const setting = next.called || armed ? 'on' : await Promise.race([readScan($), new Promise<Setting>(res => void $.clock.after(CAUGHT_READ_MS, () => res(settled('unreadable', seenOn))))])"));
+  assert.match(src, /const readScan = async \(\$: EngineInterface\) => settled\(await readSetting\(\(\) => storedScan\(\$\)\), seenOn\)/);
+  // The switch takes the command's own origin, ahead of the pane, and hands it on.
   assert.match(src, /const scanArg = switchArgs\(e\.args\)\n\s+if \(scanArg !== undefined\) return scanCommand\(\$, e\.origin\?\.kind, scanArg\)/);
+  const command = src.slice(src.indexOf('async function scanCommand('), src.indexOf('export const register: Register = on => {'));
+  assert.ok(command.includes('const r = switchReply(arg, origin, await readScan($))'));
 });
 
 // Claim 13's last part, as far as text can show it: the scan's code in
@@ -606,6 +663,10 @@ test('claim 13: the scan keeps nothing: its only write is the setting', async ()
   const reached = new Set(hooks.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? []);
   assert.deepEqual([...reached].sort(), ['$.clock.after', '$.fs.read', '$.fs.stat', '$.session.cwd']);
   for (const w of ['redraw(', 'update(', 'scanCommand(']) assert.ok(!hooks.includes(w), w);
+  // ... and calls nothing but these, so no writer elsewhere in the plugin is reached.
+  const called = new Set([...hooks.matchAll(/(?<![\w.$])([A-Za-z_]\w*)\(/g)].map(m => m[1]));
+  const allowed = ['scanCall', 'scanCaught', 'registerScan', 'decide', 'storedScan', 'settingOf', 'readScan', 'settled', 'caughtAnswer', 'next', 'on', 'res', 'String', 'Promise', 'Record'];
+  assert.deepEqual([...called].filter(c => !allowed.includes(c)), []);
   const helpers = src.slice(src.indexOf('const storedScan'), src.indexOf('// One matched call'));
   assert.deepEqual([...new Set(helpers.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? [])], ['$.store.get']);
   const mod = readFileSync(new URL('../brigade/scan.ts', import.meta.url), 'utf8');

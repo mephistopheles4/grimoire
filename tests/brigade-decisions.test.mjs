@@ -693,10 +693,12 @@ test('claim 16 (issue 450): every hand-off line refuses a key shape, an email ad
     ['see C:\\Users\\someone\\x', /holds a home-folder path/],
     ['in /home/someone/repo', /holds a home-folder path/],
   ]) {
-    const r = checkHandoffInput(sections({ owner: ['fine', line] }));
-    assert.match(r.error ?? '', rule, line);
-    assert.match(r.error, /^owner line 2 /);
-    assert.ok(!r.error.includes(line), 'the refusal never echoes the value');
+    for (const section of ['resume', 'rules', 'sessions', 'cleanup', 'owner']) {
+      const r = checkHandoffInput(sections({ [section]: ['fine', line] }));
+      assert.match(r.error ?? '', rule, `${section} ${line}`);
+      assert.match(r.error, new RegExp(`^${section} line 2 `));
+      assert.ok(!r.error.includes(line), 'the refusal never echoes the value');
+    }
   }
 });
 

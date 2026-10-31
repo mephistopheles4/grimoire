@@ -169,8 +169,11 @@ export function scanText(text: string, families: readonly Family[]): Finding[] {
 // a flag, so "-Fix" in a message is not read as `-F ix`.
 type Word = { text: string; at: number; end: number; quoted: boolean }
 
-function commandsOf(cmd: string, pwsh: boolean): Word[][] {
+// A command's words, as simple commands, and the spans of its heredoc and
+// here-string bodies.
+function commandsOf(cmd: string, pwsh: boolean): { cmds: Word[][]; bodies: [number, number][] } {
   const cmds: Word[][] = []
+  const bodies: [number, number][] = []
   let words: Word[] = []
   let cur = ''
   let at = -1
@@ -198,14 +201,22 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
     if (c === '\n') {
       endCmd()
       i++
-      // A Bash heredoc's lines are data, up to the line that holds its tag.
+      // A Bash heredoc's lines are data, up to the line that holds its tag;
+      // each body's span is kept, since the text it writes may be posted.
       for (const h of heredocs) {
+        const from = i
+        let to = cmd.length
         while (i < cmd.length) {
           const nl = cmd.indexOf('\n', i)
           const line = cmd.slice(i, nl === -1 ? cmd.length : nl)
+          const lineAt = i
           i = nl === -1 ? cmd.length : nl + 1
-          if ((h.strip ? line.replace(/^\t+/, '') : line) === h.tag) break
+          if ((h.strip ? line.replace(/^\t+/, '') : line) === h.tag) {
+            to = lineAt
+            break
+          }
         }
+        bodies.push([from, to])
       }
       heredocs = []
       continue
@@ -255,6 +266,7 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
       const body = cmd.indexOf('\n', i) + 1
       const end = cmd.indexOf(close, body - 1)
       start(i, true)
+      bodies.push([body, end === -1 ? cmd.length : end])
       cur += cmd.slice(body, end === -1 ? cmd.length : end)
       i = end === -1 ? cmd.length : end + close.length
       continue
@@ -297,9 +309,11 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
       continue
     }
     if (c === (pwsh ? '`' : '\\')) {
-      start(i)
+      // A line continuation joins the lines and starts no word.
       if (cmd[i + 1] === '\n') i += 2
+      else if (cmd[i + 1] === '\r' && cmd[i + 2] === '\n') i += 3
       else {
+        start(i)
         if (i + 1 < cmd.length) cur += cmd[i + 1]
         i += 2
       }
@@ -310,7 +324,7 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
     i++
   }
   endCmd()
-  return cmds
+  return { cmds, bodies }
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
@@ -347,9 +361,9 @@ function programAt(words: readonly Word[]): number {
 }
 
 // A flag's value: `--flag value`, `--flag=value`, a one-letter flag's
-// `-Fvalue`, or the last of a cluster of one-letter flags, `-aF value`. A
-// quoted word is never a flag. Returns the value and the span of the command
-// that holds it, which is a local path for a body file.
+// `-Fvalue`, or the one in a cluster of one-letter flags, `-aF value` or
+// `-aFvalue`. A quoted word is never a flag. Returns the value and the span of
+// the command that holds it, which is a local path for a body file.
 type Value = { value: string; span: [number, number] }
 function flagValue(words: readonly Word[], i: number, names: readonly string[]): Value | undefined {
   const word = words[i]
@@ -362,7 +376,10 @@ function flagValue(words: readonly Word[], i: number, names: readonly string[]):
       if (w.startsWith(`${n}=`)) return { value: w.slice(n.length + 1), span: [word.at, word.end] }
     } else if (w.startsWith(n) && w.length > n.length) {
       return { value: w.slice(n.length), span: [word.at, word.end] }
-    } else if (new RegExp(`^-[A-Za-z]+${n[1]}$`).test(w)) {
+    } else {
+      const cluster = new RegExp(`^-[A-Za-z]+${n[1]}(.*)$`, 's').exec(w)
+      if (cluster === null) continue
+      if (cluster[1] !== '') return { value: cluster[1], span: [word.at, word.end] }
       return next === undefined ? undefined : { value: next.text, span: [next.at, next.end] }
     }
   }
@@ -435,7 +452,7 @@ function gitCall(words: readonly Word[]): Matched | undefined {
   const files: BodyFile[] = []
   const spans: [number, number][] = []
   for (let k = 0; k < rest.length; k++) {
-    const v = flagValue(rest, k, ['--file', '-F'])
+    const v = flagValue(rest, k, ['--file', '--fil', '-F'])
     if (v === undefined || v.value === '-') continue
     files.push(base === undefined ? { path: v.value } : { path: v.value, base })
     spans.push(v.span)
@@ -450,7 +467,9 @@ const SHELLS = ['Bash', 'PowerShell']
 // The keys the engine puts beside a tool's own input, which the tool never sees.
 const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
 
-export type Part = { field: string; text: string }
+// A text the scan reads, the field a refusal names it by, and, when they are
+// fewer than the route's, the rule families that read it.
+export type Part = { field: string; text: string; families?: Family[] }
 export type Route = { families: Family[]; parts: Part[]; files: BodyFile[]; folderChanged: boolean }
 
 const BOTH: Family[] = ['secret', 'personal']
@@ -471,18 +490,35 @@ function textParts(v: unknown, path: string[], out: Part[]) {
   }
 }
 
-// A command's matched calls. The text is read from the first one's subcommand
-// to the command's end, so a folder named before it is not read as a home
-// path, and every matched call's body files are read. A body file's own path
-// is blanked out of that text: the program reads it here and never sends it.
-// A change of folder anywhere in the command makes a relative body file one
-// the scan refuses.
+// The command with each span turned to spaces, in one pass.
+function blank(command: string, spans: readonly [number, number][]): string {
+  const sorted = [...spans].sort((x, y) => x[0] - y[0])
+  let out = ''
+  let at = 0
+  for (const [a, b] of sorted) {
+    if (b <= at) continue
+    const from = Math.max(a, at)
+    out += command.slice(at, from) + ' '.repeat(b - from)
+    at = b
+  }
+  return out + command.slice(at)
+}
+
+// A command's matched calls. Both rule families read the text from the first
+// call's subcommand to the command's end, so a folder named before it is not
+// read as a home path, and every heredoc and here-string body, wherever it
+// sits, since the command may write one to the file it then posts. The secret
+// shapes read the rest of the command too. A body file's own path is blanked
+// out of the text: the program reads it here and never sends it. Every
+// matched call's body files are read, and a change of folder anywhere in the
+// command makes a relative body file one the scan refuses.
 function shellRoute(command: string, pwsh: boolean): Route | undefined {
   let folderChanged = false
   let from: number | undefined
   const files: BodyFile[] = []
   const spans: [number, number][] = []
-  for (const words of commandsOf(command, pwsh)) {
+  const { cmds, bodies } = commandsOf(command, pwsh)
+  for (const words of cmds) {
     const call = words.slice(programAt(words))
     if (call.length === 0) continue
     const program = programOf(call[0].text)
@@ -494,9 +530,13 @@ function shellRoute(command: string, pwsh: boolean): Route | undefined {
     spans.push(...m.spans)
   }
   if (from === undefined) return undefined
-  let text = command
-  for (const [a, b] of spans) if (a >= from) text = text.slice(0, a) + ' '.repeat(b - a) + text.slice(b)
-  return { families: BOTH, parts: [{ field: 'command', text: text.slice(from) }], files, folderChanged }
+  const text = blank(command, spans)
+  const parts: Part[] = [{ field: 'command', text: text.slice(from) }]
+  if (from > 0) {
+    parts.push({ field: 'command', text: text.slice(0, from), families: ['secret'] })
+    for (const [a, b] of bodies) if (a < from) parts.push({ field: 'command', text: command.slice(a, Math.min(b, from)) })
+  }
+  return { families: BOTH, parts, files, folderChanged }
 }
 
 /** The route a call takes, or undefined for a call the scan never touches. */
@@ -534,8 +574,9 @@ const onWindows = (cwd: string) => /^(?:[A-Za-z]:[\\/]|\\\\)/.test(cwd)
 // A path the hook would have to expand as a shell does: `~`, a variable, or
 // on Windows a Unix-rooted path other than Git Bash's `/c/...` drive form.
 const needsShell = (p: string) => p.startsWith('~') || /\$|%[A-Za-z_][A-Za-z0-9_]*%/.test(p)
-// A share, a device or the long-path namespace: two separators at the start.
-const isNetwork = (p: string) => /^[\\/]{2}/.test(p)
+// A share, a device or the long-path namespace: two separators at the start,
+// or Windows's object-manager prefix, a backslash, two question marks and a backslash.
+const isNetwork = (p: string) => /^(?:[\\/]{2}|\\\?\?\\)/.test(p)
 
 // --- the decision ------------------------------------------------------------
 
@@ -567,7 +608,7 @@ const found = (hits: readonly string[]) =>
 export const settingOf = (v: unknown): 'on' | 'off' => (v === 'on' ? 'on' : 'off')
 
 /** The setting as one read gives it: on, off, or unreadable when the read
- *  throws, which the hook treats as a failure and refuses a matched call on. */
+ *  throws or does not answer in time. */
 export type Setting = 'on' | 'off' | 'unreadable'
 export async function readSetting(get: () => Promise<unknown>): Promise<Setting> {
   try {
@@ -577,10 +618,18 @@ export async function readSetting(get: () => Promise<unknown>): Promise<Setting>
   }
 }
 
+/** The setting in force for one session: an unreadable setting counts as off
+ *  until this session has read "on" since its module loaded, and as a failure,
+ *  which refuses a matched call, once it has; a typed off clears what it read. */
+export const settled = (s: Setting, seenOn: boolean): Setting => (s === 'unreadable' && !seenOn ? 'off' : s)
+
 export type FileStat = { kind: string; size: number; isLink: boolean }
 export type Deps = {
-  /** The stored setting. A throw is a failure: a matched call is refused. */
+  /** The stored setting. A throw, or no answer within the time limit, reads
+   *  as unreadable, which `settled` resolves. */
   setting: () => Promise<unknown>
+  /** Whether this session has read "on" since its module loaded, and not typed off since. */
+  seenOn: () => boolean
   /** The folder the call runs in, as the hook reads it. */
   cwd: () => Promise<string>
   stat: (path: string) => Promise<FileStat>
@@ -609,13 +658,13 @@ const LATE = Symbol('late')
 
 /** The answer for one call: a refusal in fixed words, or undefined to let the
  *  call through untouched. An unmatched call reads nothing, the setting
- *  included. A matched call with the setting off reads only the setting. A
- *  failure after the match, the setting's read included, refuses the call. */
+ *  included. A matched call with the setting off reads only the setting. The
+ *  setting's read counts toward the time limit; an unreadable setting is
+ *  resolved by `settled`. Any other failure after the match refuses the call. */
 export async function decide(tool: string, input: Readonly<Record<string, unknown>>, deps: Deps): Promise<{ deny: string } | undefined> {
   const route = routeOf(tool, input)
   if (route === undefined) return undefined
   try {
-    if (settingOf(await deps.setting()) !== 'on') return undefined
     const started = deps.now()
     const late = () => deps.now() - started > TIME_LIMIT_MS
     const inTime = async <T>(p: Promise<T>): Promise<T | typeof LATE> => {
@@ -623,6 +672,10 @@ export async function decide(tool: string, input: Readonly<Record<string, unknow
       if (left < 0) return LATE
       return Promise.race([p, deps.after(left + 1).then(() => LATE)])
     }
+    const read = await inTime(readSetting(deps.setting))
+    const setting = settled(read === LATE ? 'unreadable' : read, deps.seenOn())
+    if (setting === 'off') return undefined
+    if (setting === 'unreadable') return { deny: FAILED }
     const parts: Part[] = [...route.parts]
     let total = 0
     for (const p of parts) {
@@ -673,7 +726,7 @@ export async function decide(tool: string, input: Readonly<Record<string, unknow
     const hits: string[] = []
     for (const p of parts) {
       if (late()) return { deny: TIMED_OUT }
-      for (const f of scanText(p.text, route.families)) {
+      for (const f of scanText(p.text, p.families ?? route.families)) {
         const hit = `${RULE_WORDS[f.rule]} in ${noun(p.field)}`
         if (!hits.includes(hit)) hits.push(hit)
       }

@@ -53,8 +53,8 @@ import {
   rowMove,
 } from './roster.ts'
 import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
-import { FAILED as SCAN_FAILED, caughtAnswer, decide, readSetting, settingOf, switchArgs, switchReply } from './scan.ts'
-import type { SwitchArg } from './scan.ts'
+import { FAILED as SCAN_FAILED, caughtAnswer, decide, readSetting, settingOf, settled, switchArgs, switchReply } from './scan.ts'
+import type { Setting, SwitchArg } from './scan.ts'
 import {
   FULL,
   HANDOFF_SECTIONS,
@@ -2734,8 +2734,8 @@ function registerBand(on: Parameters<Register>[0]) {
 // Registered before every other hook of this plugin, so it is the outermost
 // and sees the mod's own three tools before they answer. It keeps nothing
 // from a call: while one runs, only its tool_use_id sits in `scanning`, so a
-// throw or an overrun refuses it when the setting read on or cannot be read,
-// and lets it through when the setting reads off.
+// throw or an overrun refuses it when the setting read on, or cannot be read
+// after this session read on, and lets it through when the setting is off.
 
 const SCAN_KEY = 'scan'
 const scanning = new Set<string>()
@@ -2743,9 +2743,16 @@ const scanning = new Set<string>()
 // it: the scan is then off in this session, whatever the store holds, so a
 // broken store never leaves the owner without a way out. A stored write clears it.
 let typedOff = false
+// Whether this session has read "on" since this module loaded, and the owner
+// has not typed off since: what `settled` in scan.ts reads an unreadable
+// setting by. Kept in this module only; a reload starts it over.
+let seenOn = false
+// How long the catch handler waits for the store, inside its 1-second grace.
+const CAUGHT_READ_MS = 500
 
 const storedScan = ($: EngineInterface) => (typedOff ? Promise.resolve('off') : $.store.get(SCAN_KEY))
-const readScan = ($: EngineInterface) => readSetting(() => storedScan($))
+// The setting in force for this session, as the pane and read_autonomy show it.
+const readScan = async ($: EngineInterface) => settled(await readSetting(() => storedScan($)), seenOn)
 
 // One matched call's scan: a refusal, or undefined to pass it on.
 async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: string }) {
@@ -2754,9 +2761,13 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
     return await decide(tool, e as unknown as Record<string, unknown>, {
       setting: async () => {
         const v = await storedScan($)
-        if (settingOf(v) === 'on') scanning.add(id)
+        if (settingOf(v) === 'on') {
+          seenOn = true
+          scanning.add(id)
+        }
         return v
       },
+      seenOn: () => seenOn,
       cwd: () => $.session.cwd(),
       stat: async path => {
         const s = await $.fs.stat(path)
@@ -2771,10 +2782,11 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
   }
 }
 
-// A throw or an overrun, answered as scan.ts's caughtAnswer says.
+// A throw or an overrun, answered as scan.ts's caughtAnswer says. Its store
+// read is bounded, and one that does not answer in time reads as unreadable.
 async function scanCaught<E extends { tool_use_id: string }, R>($: EngineInterface, e: E, next: ((e: E) => Promise<R>) & { called: boolean }) {
   const armed = scanning.delete(e.tool_use_id)
-  const setting = next.called || armed ? 'on' : await readScan($)
+  const setting = next.called || armed ? 'on' : await Promise.race([readScan($), new Promise<Setting>(res => void $.clock.after(CAUGHT_READ_MS, () => res(settled('unreadable', seenOn))))])
   return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : next(e)
 }
 
@@ -2792,12 +2804,16 @@ function registerScan(on: Parameters<Register>[0]) {
 // `/brigade scan`, `/brigade scan on` and `/brigade scan off`: the setting
 // moves only on a command the owner typed (scan.ts says which origins). It
 // opens no pane, and no tool call gates it, so it works while the hook fails.
+// A typed off also clears what this session read, so an unreadable store then
+// counts as off here.
 async function scanCommand($: EngineInterface, origin: unknown, arg: SwitchArg) {
   const r = switchReply(arg, origin, await readScan($))
   if (r.set === undefined) return { text: r.text }
+  if (r.set === 'off') seenOn = false
   try {
     await $.store.set(SCAN_KEY, r.set)
     typedOff = false
+    if (r.set === 'on') seenOn = true
   } catch {
     if (r.set === 'off') {
       typedOff = true

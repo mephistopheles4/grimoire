@@ -131,8 +131,8 @@ need, without overwhelming me or showing me too much.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
 - **Confirmed** (issue 450, rev 4 S3.2 step 9, q9; built in issue 453). At a
-  brigade's first start, when `read_autonomy`'s answer ends "Outbound scan:
-  off.", the start report says once what the outbound scan does and that the
+  brigade's first start, the head chef reads `read_autonomy` before the start
+  report; when its answer ends "Outbound scan: off.", the report says once what the outbound scan does and that the
   owner turns it on by typing `/brigade scan on`. The head chef never turns
   it on itself.
 - **Decided.** It never relies on a card to start work the owner asked for.
