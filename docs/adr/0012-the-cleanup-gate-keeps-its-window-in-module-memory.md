@@ -27,16 +27,20 @@ passed with the caveat its line gives.
 
 ## Result, ticket 1b
 
-No row ticket 1b measured failed, so nothing in it stops the spec. A20, A24 and
-A25 pass: a press on the probe's own Confirm reaches its hook with every field
-D3 checks, a note appended from the press reaches the session, and the pane
-redraws within a second. A14b passes for the archive's keys and value, but the
-archive never ran, so what it removes was not measured. A23 is partial: no
-forged press was shown to run the probe's handler, and the probe's counter
-could not prove that none did. A21, A22, A1b and A15b were not reported.
+No row ticket 1b measured failed outright, so nothing in it stops the spec.
+A20 and A24 pass: a press on the probe's own Confirm reaches its hook with
+every field D3 checks, and a note appended from the press reaches the session,
+though it starts no turn by itself. A25 is partial: every redraw after a press
+came within a second, but one of the two after a timer came later. A14b passes
+for the archive's keys and value, but the archive never ran, so what it removes
+was not measured. A23 is partial: every Confirm handler run is accounted for
+by the owner's own presses, another plugin took a press on the probe's Cancel,
+and no forged press reached the probe's hook. A21, A22, A1b and A15b were not
+measured.
 
-Ticket 2 still waits: on the owner's go after reading this record (H4), and on
-H1, since no item on H1's list is yet a control or the owner's accepted risk.
+On the owner's word, relayed, ticket 2 starts with its pure removal reader
+only. Its hooks, the press and the window wait on H1, since no item on H1's
+list is yet a control or the owner's accepted risk.
 
 ## For the next Design round
 
@@ -59,19 +63,31 @@ From ticket 1b:
 
 - In auto mode, Claude Code's own classifier refused an archive call the
   probe's hook had let through, because the lead, not the owner, had asked for
-  it (A14b). The head chef's cleanup archive is that same path: the lead asks,
-  after the owner's press. Whether the press's note counts as the owner's ask
-  to that classifier is not measured. C36 meets it first, and Design says what
-  cleanup does when the classifier refuses.
+  it (A14b). The classifier judged it after the hook; a later call, which the
+  owner asked for, the hook refused first, so it never reached the classifier. The head chef's cleanup archive is the lead-asked path: the lead
+  asks, after the owner's press. Whether the press's note counts as the owner's
+  ask to that classifier is not measured. C36 meets it first, and Design says
+  what cleanup does when the classifier refuses.
 - The probe opened its one archive only when its Confirm's own `onPress` had
-  run, and the engine's types (as 2.1.314 wrote them) say a press runs the pressed Button's own
-  `onPress`, whatever the hooks above rewrote. D3 opens from the `ui.press`
-  hook on the key alone. Opening only when Confirm's own `onPress` ran would
-  close the forged-key route A23 tried.
+  run, and the engine's types (as 2.1.314 wrote them) say a press runs the
+  pressed Button's own `onPress`, whatever the hooks above rewrote. D3 opens
+  from the `ui.press` hook on the key alone. Opening only when Confirm's own
+  `onPress` ran would close the forged-key route A23 set out to try, which
+  this run did not reach.
+- Another plugin's hook beneath the probe's took the owner's Cancel press, so
+  the Cancel's own `onPress` never ran, while the probe's hook above it still
+  ended the round (A23). D3's Cancel acts in the hook, which a plugin beneath
+  cannot stop; one above it can, which q22 and q27 hold. A Cancel that acted
+  only in `onPress` could be swallowed by either.
+- The press's note starts no turn by itself (A24), so D10's case holds: the
+  head chef's text tells the owner to send it any message after pressing.
+- One timer redraw came more than a second after its invalidate (A25). D3's
+  2-minute timeout redraw may lag by that much; the press redraws did not.
 - Until A21 is measured, a press from surface `mobile` has no measured row, as
   `terminal` had none when round 3 took it off D3's list.
 - A23's counter counted the owner's own Confirm press that ends a round. A
-  re-measure counts a handler run only for a press the probe did not draw.
+  re-measure counts a handler run only for a press the probe did not draw, and
+  keeps the second plugin's counts.
 
 H7 holds for this record: after each new engine build, before the gate is
 relied on, A1, A1b, A2, A5, A8, A14, A14b, A16, A18, A20, A21, A22, A24 and A25
@@ -119,17 +135,21 @@ draws its own pane with Confirm and Cancel as D3 draws them, and the second
 plugin tries, as a plugin that means harm would, to pass for the probe's press
 and to rewrite its pane. They ran in one throwaway Desktop session on Windows,
 with a second throwaway session in a second worktree of the scratch repository
-(H2c). The owner ran the probe and reported its fixed-word results; this table
-holds what was reported, read against the probe's source.
+(H2c). This table reads the probe's own fixed-word results, which the owner
+printed on Desktop just before the run ended, against the probe's source, with
+the owner's account of the archive calls that came after the print. The second
+plugin's results were not kept. Five presses reached the probe's hook, four on
+Confirm and one on Cancel, and the owner's own steps account for each: A20's
+press, A14b's press, and the three forge rounds' ends.
 
 | # | Assumption | Observation | Result |
 | --- | --- | --- | --- |
 | A20 | A click on a Button the probe's pane draws reaches the probe's `ui.press` hook with its plugin name, the key, the pane's `requestId` and surface `desktop`; `onPress` runs; the pane reads listed and placed | Desktop: the hook saw a Confirm press under the probe's own name, from surface `desktop`, with the current key and the pane's `requestId`; the pane read listed and placed, and the button's `onPress` ran | pass |
-| A21 | Over Remote Control, the pane draws on the phone, and a press there reaches the hook with surface `mobile`, listed and placed | not measured | not measured: the owner decides on Remote Control (S9b) |
-| A22 | Nothing but the owner's hand raises a press or types into the composer | not reported | not reported |
-| A23 | Another plugin cannot pass for the probe's press or what the pane shows | Desktop: three forge rounds ran, and the running count of forge hits stood at 0, 1 and 2 as each ended. The probe counts a hit whenever its Confirm handler runs while a round is armed, and the press that ends a round runs that handler before the round is disarmed, so the owner's own Confirm press that ends a round counts as a hit. One round ended with no Confirm handler run, and the other two added one each, which is what the owner's own ending press adds. Read from the source, with the engine's rule that a press runs the pressed Button's own `onPress`, both hits are the owner's own presses, not forged ones. The counter cannot rule a forged run out, and the counts that would (a handler run for a press named another plugin's, the second plugin's own counts) were not reported. Whether the second plugin rewrote the probe's row, took a Cancel, or drew a Button that kept its own name was not reported | partial: no forged press shown to run the probe's handler; the other moves not reported |
-| A24 | A note appended with `$.session.append` from inside a press handler reaches the model as the fixed words, and the record says whether it starts a turn | Desktop: the note was appended from the press handler and seen. Whether it started a turn was not reported | pass; the turn not reported, which D10 covers either way |
-| A25 | `$.ui.invalidate("ui.render")` from a press handler and from a module timer redraws the pane on Desktop | Desktop: the pane redrew within 1 s after a press and after a timer | pass |
-| A14b | The archive of the second session: the keys at the hook are a subset of `session_id` and `reason`; `session_id` equals its `desktopId`; afterwards nothing is removed | Desktop: after A20 passed, a Desktop Confirm press allowed one archive of the second session, and the probe's hook let exactly one archive call through. The hook passes a call only when its keys are `session_id` and at most `reason`, `reason` is a string, and `session_id` equals the second session's Desktop id as read from its status file; so the keys were a subset, `_consent` was absent, and the value was equal. Claude Code's auto-mode classifier then refused that call, after the hook, because the lead, not the owner, had asked for it, and the archive did not run. A second archive call was refused by the probe as already used | pass for the keys and the value; what the archive removes not measured, since it never ran |
-| A1b | Desktop's two worktree-cleanup tools reach the hook and change nothing | not reported | not reported: the gate is not relied on for the two tools, the README says so, and A1b runs under H7 before reliance (S9b) |
-| A15b | The second plugin runs the probe's command with an origin it supplies; the kind the hook sees | not reported | not reported; a record, not a stop |
+| A21 | Over Remote Control, the pane draws on the phone, and a press there reaches the hook with surface `mobile`, listed and placed | Remote Control: the probe's command typed from the phone arrived as `bridge` (1 run). No press from surface `mobile` reached the hook | not measured: the owner decides on Remote Control (S9b) |
+| A22 | Nothing but the owner's hand raises a press or types into the composer | Desktop: no press reached the hook beyond the five the owner's own steps account for. The Skill tool reached the hook 3 times, and 2 peer, 2 `sdk` and 1 task-notification prompts arrived; none ran the probe's command, which ran only from `composer` (7) and `bridge` (1). Which routes were tried, and the desktop-input routes, are not in the counts | not measured as a capability test: no route raised a press in this run |
+| A23 | Another plugin cannot pass for the probe's press or what the pane shows | Desktop: three forge rounds ran, and the running count of forge hits stood at 0, 1 and 2 as each ended. The probe counts a hit whenever its Confirm handler runs while a round is armed, and the press that ends a round runs that handler before the round is disarmed, so the owner's own Confirm press that ends a round counts as a hit. The first round ended on the owner's press of the probe's Cancel, which reached the probe's hook under its own name with the current key while the Cancel's own `onPress` did not run: the second plugin's hook beneath took it. The other two ended on the owner's Confirm, one hit each. All four Confirm handler runs are the owner's own presses, so both hits are too, not forged ones. No press under another plugin's name reached the probe's hook, so no forged press was raised through it. Whether the second plugin drew its Button or rewrote the probe's row is in its results, which were not kept | partial: no forged press reached the probe's handler; another plugin can take the owner's Cancel; forging and rewriting not measured |
+| A24 | A note appended with `$.session.append` from inside a press handler reaches the model as the fixed words, and the record says whether it starts a turn | Desktop: two notes were appended from the press handler, and seen. Neither started a turn by itself: no turn started without a prompt after either, and after the last a prompt came before any turn | pass; no turn starts by itself, which D10 covers |
+| A25 | `$.ui.invalidate("ui.render")` from a press handler and from a module timer redraws the pane on Desktop | Desktop: each of 5 redraws after a press came within 1 s. Of 2 after a timer, one came within 1 s and one after | pass after a press; partial after a timer |
+| A14b | The archive of the second session: the keys at the hook are a subset of `session_id` and `reason`; `session_id` equals its `desktopId`; afterwards nothing is removed | Desktop: after A20 passed, a Desktop Confirm press allowed one archive of the second session, and the probe's hook let exactly one archive call through. The hook passes a call only when its keys are `session_id` and at most `reason`, `reason` is a string, and `session_id` equals the second session's Desktop id as read from its status file; so the keys were a subset, `_consent` was absent, and the value was equal. Claude Code's auto-mode classifier then refused that call, after the hook, because the lead, not the owner, had asked for it, and the archive did not run. A second archive call, which the owner asked for, the probe's hook refused, since its one allowance was spent; a third staging of an archive was refused as already let through | pass for the keys and the value; what the archive removes not measured, since it never ran |
+| A1b | Desktop's two worktree-cleanup tools reach the hook and change nothing | Desktop: no call of either tool reached the hook; whether either was called is not in the counts | not measured: the gate is not relied on for the two tools, the README says so, and A1b runs under H7 before reliance (S9b) |
+| A15b | The second plugin runs the probe's command with an origin it supplies; the kind the hook sees | Desktop: the probe's hook saw no run of its origin test; the second plugin's own count of the attempt was not kept | not measured; a record, not a stop |
