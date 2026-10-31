@@ -19,7 +19,7 @@ _Avoid_: idle ping, heartbeat, poll
 
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
-or 3 Turbo mode (Full throttle before 0.93.0). Only the owner sets it: by a
+or 3 Turbo mode (Full throttle before 0.95.0). Only the owner sets it: by a
 press of the slider, or with the `/brigade level` command.
 _Avoid_: auto mode, autonomy switch
 
@@ -31,7 +31,7 @@ _Avoid_: decision register, audit log
 **Decision source**:
 Who a decision log entry says decided: Owner (a press of the slider, or the
 owner's `/brigade level` command), Pane (a level reset at a reload of the mod
-or a compaction of the lead, which since 0.93.0 keeps a 3 the command set, or, in a log
+or a compaction of the lead, which since 0.95.0 keeps a 3 the command set, or, in a log
 written before 0.88.0, when the pane was shown again; the name stays from
 when only the pane made these resets, and the entry's why says which), Not from a press (a level change no
 press made), Lead (the lead's own pick) or Relayed (the owner's answer as the

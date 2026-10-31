@@ -388,9 +388,12 @@ file, key or line, and a risk by its class of path, never its steps.
 ## Cleanup
 
 On the owner's "done", follow `references/cleanup.md`: one name-back, by
-repository, of each session, worktree folder and branch with what you found
-in it, then one yes (stop 2). Found work is a line in the name-back, never a
-stop. A cleanup removes only the folder and branch you kept for the session. Cleanup's yes, the archive included, is the owner's at every level: at
+repository, of each session, worktree folder and branch with what the
+Brigade mod's `read_cleanup` found in it, then one yes (stop 2). Found work
+is a line in the name-back, never a stop. A cleanup removes only by the
+commands the tool's re-read hands back, each run as its own shell call; an
+item the tool builds none for, such as one "not bound to its session", the
+owner cleans up by hand. Cleanup's yes, the archive included, is the owner's at every level: at
 level 3, log a waiting entry naming the cleanup by repository and branch
 only, add a to-do, show the name-back in this chat, and carry on.
 
@@ -444,22 +447,17 @@ decide what a stop or the owner's yes keeps for the owner.
 - **Background sessions:** `claude --bg`, `claude stop <id>` and
   `claude rm <id>` (with no flag), as `references/background.md` says.
   Measured on Claude Code 2.1.302.
-- **The engine's status files,** only when you start or take a session and
-  at cleanup, under "The status files" in `references/cleanup.md`. Never
-  open, list or copy any other file in that folder, such as a `.key` file.
+- **No session file.** Read none; the Brigade mod reads them.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
-- **git,** for cleanup, with the reads, the removals and the flags
-  `references/cleanup.md` and `references/submodule-cleanup.md` give: every
-  cleanup git command carries `--no-optional-locks`,
-  `-c core.fsmonitor=false`, `-c log.showSignature=false` and
-  `-c core.hooksPath=<a new, empty folder in your scratch folder, by its
-  absolute path>`; a branch name enters a command only as
-  `references/cleanup.md` allows.
+- **git,** for cleanup, only as the commands `read_cleanup`'s re-read hands
+  back, each its own shell call, never changed. You run no cleanup read
+  yourself.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the
   warning; `set_roster` for the pane; `read_autonomy` for your level;
   `log_decision` for the decision log; `set_lead_handoff` and
-  `read_lead_handoff` for the hand-off. Load each first if it is deferred.
+  `read_lead_handoff` for the hand-off; `read_cleanup` for cleanup's reads
+  and commands. Load each first if it is deferred.
   Read `references/roster.md` before your first `set_roster` call in a
   session.
 - **The Code tab's `wrap_up`,** where it is offered, for the next-step box.
@@ -468,7 +466,7 @@ Limits:
 
 - Never use a forcing flag, a recursive delete, or a command that discards
   work. The exceptions are cleanup's git removals on the owner's yes, as
-  `references/cleanup.md` gives them, and `claude rm` with no flag. Never
+  `read_cleanup`'s re-read hands them back, and `claude rm` with no flag. Never
   force-push, never use `--admin`, and never delete a remote branch.
 - No session id, Desktop id, token, secret, local path, error text or check
   output goes on an issue, a card, a to-do, a start prompt, a post, a log
@@ -582,10 +580,9 @@ prompt. The first three rules are fixed, and so are the three after them.
 
 ## Additional resources
 
-- `references/cleanup.md`: the reads, the name-back, the one yes and the
-  removals. Read when the owner says "done", or asks you to clean up.
-- `references/submodule-cleanup.md`: the reads and the loss list for a
-  worktree with submodules. Read when cleanup meets one.
+- `references/cleanup.md`: the tool calls, the name-back, the one yes and
+  the removal commands. Read when the owner says "done", or asks you to
+  clean up.
 - `references/starting.md`: the steps of a start. Read before each start.
 - `references/handoff.md`: writing and reading your hand-off. Read before
   each.

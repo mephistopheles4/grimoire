@@ -208,8 +208,10 @@ The mod offers a third tool, `log_decision`, wherever it offers `set_roster`.
 It appends one entry per call to the lead session's own log,
 `brigade/decisions/<session id>.json` in the plugin's data folder: the
 entry's source (`lead` or `relayed`), whether it waits for the owner, its
-work, question, options, pick, reason, how to undo it, when to revisit it and
-which waiting entry it answers. The mod stamps the entry's id, its time from
+work, question, options, pick, reason, how to undo it, when to revisit it,
+which waiting entry it answers and, since 0.93.0 (issue 459), the lead's
+one-line reason for flagging its own pick, which only a `lead` entry that
+does not wait may carry. The mod stamps the entry's id, its time from
 the engine clock and the level in force (since 0.84.0, the level
 `read_autonomy` would answer),
 and refuses an input that carries any of them, a source other than `lead` or
@@ -403,8 +405,8 @@ foot of the Decisions tab. What follows from it:
 
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
-Auto and 3 Turbo mode (Full throttle before 0.93.0), and only the owner sets
-a level above 1: by a press on it or, since 0.93.0, by the level command. **A
+Auto and 3 Turbo mode (Full throttle before 0.95.0), and only the owner sets
+a level above 1: by a press on it or, since 0.95.0, by the level command. **A
 level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
 words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
@@ -415,7 +417,7 @@ work; an accepted-risk record; a merge that removes or weakens a control the
 threat model or this file names; an install; and cleanup. A secret or
 personal-data finding holds every merge, push and pull request of its
 effort's branch, and of branches based on it, until the owner answers.
-**Since 0.93.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
+**Since 0.95.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
 owner's Enter or a Remote Control message, so a run the engine stamps as
@@ -445,7 +447,7 @@ the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
 lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
 of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
-except, since 0.93.0, a 3 the level command set, which a compaction keeps,
+except, since 0.95.0, a 3 the level command set, which a compaction keeps,
 and a showing of the pane no longer does; a session start, reload or
 compaction that finds a stored level above 1 writes that entry even with the
 pane closed, the one file a session start writes. The compaction hook reads
@@ -493,7 +495,7 @@ and Desktop only. What follows from it:
   3 counts only once the owner confirms that press in the lead's chat, never
   on a confirmation given for an earlier press time, or once the owner's
   level command set it, and list what still waits for the owner at level 3.
-  Since 0.93.0 a plugin that hooks command runs, and possibly one that hooks
+  Since 0.95.0 a plugin that hooks command runs, and possibly one that hooks
   prompt submits, can turn a `/brigade` the owner types into a level command
   with a goal of its own, which lasts through compactions. The slider box
   and the band show a command 3 as it landed; the command's reply is no
@@ -503,7 +505,7 @@ and Desktop only. What follows from it:
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
   after the log is deleted. Since 0.88.0 the band above the lead's prompt
   draws a 3 and its press time, and an alarm's level and time, in the tree
-  that other plugins' band hooks see. Since 0.93.0 a 3 the level command set
+  that other plugins' band hooks see. Since 0.95.0 a 3 the level command set
   carries its goal, the owner's own unscreened text: other plugins' prompt
   and command hooks see it as typed; `read_autonomy`'s answers and the
   command's reply put it in the transcript, again after each compaction; and

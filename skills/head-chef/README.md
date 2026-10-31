@@ -86,11 +86,16 @@ or type `/brigade` to open it.
   name-back, by repository, of each session, its worktree folder and its
   branch, with what it found in each (uncommitted or stashed work, commits on
   no remote, a lock, submodules, and where the branch's work lives), then
-  one yes. Found work is shown, never a stop. It reads each item again before
-  removing it, and names back again anything that changed. It archives the
-  session, then removes with git what is left, forcing once where git
-  refuses, twice only for a worktree it named back as locked, and `-D` only
-  where `-d` refuses and never on a default or checked-out branch. A
+  one yes. Found work is shown, never a stop. Since 1.1.0 the Brigade mod's
+  `read_cleanup` tool does the reads, from the folder, repository and branch
+  the mod recorded when each session's card joined the roster, and hands back
+  each removal as a fixed command; the mod removes nothing. A session it has
+  no record for, or whose folder or branch reads differently, is named "not
+  bound to its session" and gets no command: you clean it up by hand. The
+  lead archives the session, calls the tool again, names back again anything
+  that changed, and then runs each command as its own shell call, forcing
+  once where git refuses, twice only for a worktree named back as locked, and
+  `-D` only where `-d` refuses and never on a default or checked-out branch. A
   background session is stopped and removed with `claude stop` and
   `claude rm` in place of the archive, and the name-back marks it.
   `claude rm` keeps the session's transcript in the Claude config folder;
@@ -223,8 +228,7 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 |---|---|
 | `SKILL.md` | The skill. Generated from the contract. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
-| `references/cleanup.md` | Cleanup's reads, name-back, one yes and removals, read when cleanup starts. Generated with `SKILL.md`. |
-| `references/submodule-cleanup.md` | The extra reads and the loss list for a worktree with submodules. Generated with `SKILL.md`. |
+| `references/cleanup.md` | Cleanup's steps: the `read_cleanup` calls, the name-back, one yes and the removal commands, read when cleanup starts. Generated with `SKILL.md`. |
 | `references/starting.md` | The steps of a start, read before each start. Generated with `SKILL.md`. |
 | `references/background.md` | The background route after Desktop refused a start. Generated with `SKILL.md`. |
 | `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |

@@ -275,7 +275,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
       assert.ok(text.includes(want), `${name} lacks: ${want}`);
     }
   }
-  assert.ok(CONTRACT.includes('Version: 1.1.0'), 'the contract is not at 1.1.0');
+  assert.ok(CONTRACT.includes('Version: 1.2.0'), 'the contract is not at 1.2.0');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {
@@ -297,7 +297,7 @@ test('C15a: "Full throttle" is left in the shipped tree only where old logs and 
   const walk = d => readdirSync(join(root, d), { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]));
   const files = [...['brigade', 'skills', 'evals', 'docs/security'].flatMap(walk), 'README.md', 'SECURITY.md', 'CONTEXT.md'].filter(f => /\.(md|ts|tsx|mjs|json|ya?ml)$/.test(f));
   // The legacy reading, its test fixture, the "before" notes and the changelog's old rows.
-  const allowed = l => /OLD_LEVEL_OPTIONS|renamed it|before 0\.93\.0|before 1\.1\.0|'3 Full throttle'/.test(l);
+  const allowed = l => /OLD_LEVEL_OPTIONS|renamed it|before 0\.95\.0|before 1\.2\.0|'3 Full throttle'/.test(l);
   const left = files.filter(f => !f.endsWith('contract.changelog.md')).flatMap(f => read(f).split('\n').filter(l => /full throttle/i.test(l) && !allowed(l)).map(l => `${f}: ${l.trim().slice(0, 80)}`));
   assert.deepEqual(left, []);
 });
