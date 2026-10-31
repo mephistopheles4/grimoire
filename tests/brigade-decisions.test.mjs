@@ -916,7 +916,7 @@ test('spec 444 claim 10: a mark dated over two minutes ahead supersedes nothing,
 //
 // Each test names the acceptance claim of spec 447 (S10) it backs.
 
-const { RECENT_MS, canTell, sessionStates, endedLines, parseMarkEndedKey, dropsLiveMark } = d;
+const { RECENT_MS, canTell, sessionStates, endedLines, dropsLiveMark } = d;
 const THIRD = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 // The other log's newest entry is NOW - 84, so 31 minutes on it is quiet.
 const LATER = NOW + 31 * 60 * 1000;
@@ -1047,26 +1047,6 @@ test('spec 447 claim 10: History\'s fold holds every Relayed and answered waitin
   const bv = view447([ls[0], { sid: OTHER, writer: 'x', log: big }]);
   assert.equal(historyRows(bv.ended, [], 1).rows.length, HISTORY_PAGE);
   assert.ok(historyRows(bv.ended, [], 1).more);
-});
-
-test('spec 447 claim 8: a line\'s hash is over its sorted mark keys and moves when its set does', () => {
-  const ls = tabLogsFor();
-  const [line] = endedLines(view447(ls).ended, new Map(), []);
-  assert.equal(line.hash, createHash('sha256').update(line.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
-  const read = new Map([[keyOf(OTHER, ls[1].log.entries[2]), 'read']]);
-  const [after] = endedLines(view447(ls, read).ended, read, []);
-  assert.equal(after.n, 2);
-  assert.notEqual(after.hash, line.hash);
-});
-
-test('spec 447 claim 13: the Mark these N read key holds no session id, matches whole, from 1 to 500', () => {
-  const h = 'abcdef0123456789';
-  assert.deepEqual(parseMarkEndedKey(`dmarkended-3-${h}`), { n: 3, hash: h });
-  assert.deepEqual(parseMarkEndedKey(`dmarkended-500-${h}`), { n: 500, hash: h });
-  for (const bad of [`dmarkended-0-${h}`, `dmarkended-501-${h}`, `dmarkended-03-${h}`, `dmarkended-1000-${h}`, `dmarkended-3-${h}x`, ` dmarkended-3-${h}`, `dmarkended-3-${h.toUpperCase()}`, `dmarkended-3-${h.slice(1)}`, `dmarkended-3-${h}\n`, `dmarkall-3-${h}`, `dmarkended-3-${SID}`]) {
-    assert.equal(parseMarkEndedKey(bad), undefined, bad);
-  }
-  assert.equal(parseMarkAllKey(`dmarkended-3-${h}`), undefined);
 });
 
 test('spec 447 claim 8 (Test round 1, q3 A): a write that pushes out a mark still its entry\'s newest state is caught; one that drops a mark for no log read is not', () => {

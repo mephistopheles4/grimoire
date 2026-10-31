@@ -90,7 +90,6 @@ import {
   markAllSet,
   matchesSearch,
   parseMarkAllKey,
-  parseMarkEndedKey,
   parsePairKey,
   canTell,
   dropsLiveMark,
@@ -831,7 +830,7 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
 
 // The body of a marks write, with no turn of its own: a caller already in the
 // marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
-// With `keepLive` (Mark these N read) it writes nothing when the caps would push
+// With `keepLive` (Mark all read) it writes nothing when the caps would push
 // out a mark that is still its entry's newest state.
 async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', keepLive = false): Promise<boolean> {
   marksFull = false
@@ -950,26 +949,6 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
     const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
     if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
-  })
-  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
-}
-
-// A press on an ended session's Mark these N read (spec 447 S6). In the marks
-// queue's turn every line is worked out again from the logs read, the marks as
-// just written, the session states and the search; it writes once, in the same
-// turn, only when exactly one line matches the key's count and hash, else
-// nothing, and the tab draws again. It also writes nothing, and says the mark
-// was not saved, when the marks file's caps would push out a mark that is still
-// its entry's newest state, so the press never undoes an earlier read.
-async function pressMarkEnded($: EngineInterface, n: number, hash: string) {
-  await marksTurn(async () => {
-    const now = await $.clock.now()
-    const v = tabView(now)
-    const found = endedLines(v.ended, v.states, searchWords(queryFrom(await read($, query)))).filter(l => l.n === n && l.hash === hash)
-    const line = found[0]
-    if (line === undefined || found.length !== 1) return
-    const saved = await writeMarksNow($, line.rows, 'read', true)
-    markFailed = !saved
   })
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
@@ -2992,11 +2971,6 @@ export const register: Register = on => {
       await pressMarkAll($, markAll.n, markAll.hash)
       return { element: e.element }
     }
-    const markEnded = parseMarkEndedKey(e.element)
-    if (markEnded !== undefined) {
-      await pressMarkEnded($, markEnded.n, markEnded.hash)
-      return { element: e.element }
-    }
     // History's fold of ended sessions' entries: its toggle, Show more and a
     // row by its place, each kept in this module (spec 447 S5.5).
     if (e.element === 'dended' || e.element === 'dendedmore') {
@@ -4083,21 +4057,6 @@ export const register: Register = on => {
           )}
         </Box>
         <Text dimColor wrap="wrap">{`${l.n} unread ${l.n === 1 ? 'entry' : 'entries'}: claims about your words and the questions they answer`}</Text>
-        {terminal ? (
-          <Box flexDirection="row">
-            <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
-              <Button key={`dmarkended-${l.n}-${l.hash}`} dimColor onPress={noop}>
-                {`✓ Mark these ${l.n} read`}
-              </Button>
-            </Box>
-          </Box>
-        ) : (
-          <Box flexDirection="row">
-            <Button key={`dmarkended-${l.n}-${l.hash}`} dimColor onPress={noop}>
-              {`✓ Mark these ${l.n} read`}
-            </Button>
-          </Box>
-        )}
       </Box>
     )
     // History's fold of ended sessions' entries, folded at first, its state in

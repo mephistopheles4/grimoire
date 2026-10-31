@@ -248,23 +248,15 @@ works out its set again inside the marks queue's turn and acts only when the
 set is unchanged. Since 0.93.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
 Lead, Relayed, waiting entries and alarms, and every ended session's line;
-before, it took only the pane's own session's plain Lead entries. Like Mark
-these N read it writes nothing, and says the marks file is full of entries the
+before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
 owner read, when the caps would push out a mark that is still an entry's
 newest state. A mark leaves the log untouched, so a waiting entry marked read
 keeps its link and a later answer still pairs with it. The hash is the mod's
-unkeyed SHA-256 of the set's mark keys and protects nothing secret. "Mark these N read" works the same way with a key of
-its own, `dmarkended-<n>-<hash>`, holding no session id: it works out every
-ended session's line again inside the marks queue's turn, writes only when
-exactly one line still has its count and hash, and takes only that line's
-entries, an ended session's unread Relayed entries and the waiting entries
-they answer; never an unanswered waiting entry, an alarm, a Lead entry, or an
-entry of a session the pane reads as running or cannot tell. It also writes
-nothing, and says the marks file is full of entries the owner read, when the
-marks file's caps would push out a mark that is still the newest state of an
-entry in a log the pane reads, so a bulk press never brings back such an entry.
-A mark for an entry in a log the pane no longer reads can still drop. Its hash is the same unkeyed SHA-256, a staleness
-check that protects nothing secret. Since 0.91.0 (spec 448) a waiting entry of
+unkeyed SHA-256 of the set's mark keys and protects nothing secret. A mark for
+an entry in a log the pane no longer reads can still drop. "Mark these N
+read" (0.90.0 to 0.92.0, spec 447), an ended session's line's own press with
+key `dmarkended-<n>-<hash>`, is gone since 0.93.0: Mark all read takes its
+entries. Since 0.91.0 (spec 448) a waiting entry of
 the pane's own session's log and the unread Relayed entry that answers it draw
 as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
 write. Its keys name both entries, `dnext-<id>-<time>-<answer id>-<answer
@@ -306,7 +298,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
+  a mark's time from a Mark all read press, or from 0.90.0 to 0.92.0 a Mark these N read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the

@@ -212,9 +212,8 @@ everything draws as before. For each ended session with unread Relayed
 entries, or unread questions such an entry answers, To review shows one dim
 line instead of their cards: "From an ended session", the time of its newest
 such entry, up to three of the work names its entries give, how many are
-unread, and "✓ Mark these N read", which marks exactly those in one write and
-nothing if the line changed since you looked, or if your marks file is so full
-that the write would push out marks of entries you read. Its other questions and alarms
+and how many are unread; from 0.90.0 to 0.92.0 it also had its own "✓ Mark
+these N read", which Mark all read replaces since 0.93.0. Its other questions and alarms
 keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
@@ -417,7 +416,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read and, since 0.90.0, Mark these N read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.92.0 Mark these N read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats

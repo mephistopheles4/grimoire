@@ -481,7 +481,7 @@ export function addMarks(
  *  an entry in a log read (`known`) other than the entries the write marks
  *  (`marked`): that is, whether the caps pushed out a mark that was still its
  *  entry's newest counted state, so the entry would read as it did before
- *  that mark. Mark these N read writes nothing when this holds (spec 447,
+ *  that mark. Mark all read writes nothing when this holds (spec 447,
  *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
 export function dropsLiveMark(
   before: MarksFile | undefined,
@@ -727,15 +727,15 @@ const LINE_WORKS = 3
 const LINE_WORK_CHARS = 40
 
 /** One ended session's line in To review (spec 447 S4.2): its unread entries
- *  that match the search, newest first, their count and hash, the newest
+ *  that match the search, newest first, their count, the newest
  *  one's time, and the distinct `work` values, newest first, at most 3 of
  *  them, each cleaned as a roster line is and cut to 40 characters, with how
  *  many more there are. It names no session. */
-export type EndedLine = { rows: Row[]; n: number; hash: string; at: number; works: string[]; more: number }
+export type EndedLine = { rows: Row[]; n: number; at: number; works: string[]; more: number }
 
 /** To review's block: one line for each ended log in `ended` with an unread
  *  entry that matches the search, the line with the newest such entry first.
- *  Mark these N read takes exactly a line's rows. */
+ *  Mark all read takes every line's rows. */
 export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
   const lines: (EndedLine & { sid: string })[] = []
   for (const l of ended) {
@@ -750,7 +750,6 @@ export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string
       sid: l.sid,
       rows,
       n: rows.length,
-      hash: setHash(rows),
       at: first.entry.at,
       works: works.slice(0, LINE_WORKS),
       more: Math.max(works.length - LINE_WORKS, 0),
@@ -759,14 +758,6 @@ export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string
   return lines
     .sort((a, b) => b.at - a.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0))
     .map(({ sid: _, ...line }) => line)
-}
-
-const MARK_ENDED_KEY = /^dmarkended-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
-/** A Mark these N read button's key, matched whole: its count (1 to 500) and hash. */
-export function parseMarkEndedKey(key: string): { n: number; hash: string } | undefined {
-  const m = MARK_ENDED_KEY.exec(key)
-  const n = Number(m?.[1])
-  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
 }
 
 /** The source as the tab draws it. An Owner entry draws plain "Owner" only
