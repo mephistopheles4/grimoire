@@ -12,7 +12,7 @@ detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
 `4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C10, K1 and K2 are
-[accepted classes](#accepted-risks-by-class); P0 to P7 and P9 are
+[accepted classes](#accepted-risks-by-class); P0 to P9 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
 
@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 59 candidate lines in nine groups, P0 to P7 and P9. None of these is in force.
+There are 65 candidate lines in ten groups, P0 to P9. None of these is in force.
 
 <details>
-<summary>Candidates (59 lines)</summary>
+<summary>Candidates (65 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -377,6 +377,15 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - E24. (Issue 312's q2 A, as for E22.) Another plugin reads, plants or hides the pane's refusal lines (C4).
 
 - E14a. A skill's write scope, and a contract's load beside its agent as a second agent, held by prose (C1). Row 13's only E14 acceptance is the case-only compare (E14b, C2).
+
+**P8. Head-chef 1.0.0 (issue 452, PR 457).** Each line waits for the owner's word as worded below.
+
+- The 1.0.0 lead-name form. A member takes a message as its lead's when it arrives under the lead's session name, with no status-file pairing, so a same-user process or a session that holds that name can pass as the lead, and receives the members' reports, decision gists, kept-local notices and messages to each other by name, and the lead's sends to an ended member's name (C5). The owner's word, relayed by the lead on 2026-10-30: "Yes, name only" (q4 on #450's plan) and q8 A on #452; worded as spec S6.4, with q8's clause.
+- Its widening, decided by the lead under the owner's standing word of 2026-10-30, relayed, open for the owner's revision (decision log 178): a brigade session misled by its issue's text, a name shared while a member runs, and a Remote Control session on another machine that holds the lead's name (C5).
+- The controls [row 16](brigade.md#row-16) names as withdrawn in head-chef 1.0.0 (issue 450), and E57's 0.12.0 line, which rested on them (C5); decided by the lead under the owner's standing word of 2026-10-30, relayed, open for the owner's revision (decision log 178).
+- E65 narrowed: the first-prompt compare and the members' check arguments are withdrawn, so only the start's command line remains (C7); decided by the lead under the owner's standing word of 2026-10-30, relayed, open for the owner's revision (decision log 178).
+- A member on a 0.12 to 0.16 start prompt takes a 1.0.0 lead's own level-3 pick on a question its rules keep for the owner as the owner's word, relayed, now that the 0.17.0 rule that held such picks back is dropped (C5). Decided by the lead under the owner's standing word of 2026-10-30, relayed, open for the owner's revision, flagged unsure for the owner (decision log 180).
+- The lead's session-list read for its own name puts each listed row, which may hold a folder and the account name, in its transcript, and idle notices and members' messages to each other sit in transcripts (C7). It closes P5's 0.9.0 item. Decided by the lead under the owner's standing word of 2026-10-30, relayed, open for the owner's revision, flagged unsure for the owner (decision log 181).
 
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 

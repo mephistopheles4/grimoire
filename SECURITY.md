@@ -513,18 +513,20 @@ also asks GitHub, with the owner's `gh` sign-in, for the merged pull requests
 of each branch it names. The head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that
 route. A session takes any message from the
-head chef that passes its sender check as a relayed decision, on any matter,
-labelled as relayed and never as the owner's own words. The check compares
-the sender's shown name with the session list, as text, so any session that
-can send it a message under that name can speak for the lead, unless another
-row holds the name too. The owner accepted the forged-sender risk of the
-0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision bound to the
-shown name alone, on 2026-10-21; the threat model's [class C5](docs/security/threat-model.md#c5) records both (E45, E57),
-with the other risks of 0.9.0 the owner accepted. Before
+head chef as a relayed decision, on any matter, labelled as relayed and never
+as the owner's own words. Since head-chef 1.0.0 it knows its lead by name
+only (ADR 0013), so any process of the same user, or any session that holds
+the lead's name, can speak for the lead. The owner accepted the forged-sender
+risk of the 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision
+bound to the shown name alone, on 2026-10-21; the threat model's [class C5](docs/security/threat-model.md#c5) records both (E45, E57),
+with the other risks of 0.9.0 the owner accepted. The 1.0.0 form, which drops
+the status-file pairing, rests on the owner's word of 2026-10-30 ("Yes, name
+only"), the threat model's candidate P8 under C5. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
-the prompt. Each turn the head chef reads the engine's own session files, in
-the config folder's `sessions` folder beside each session's key file, for each
-session's name, id and status, and its folder at cleanup: only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
+the prompt. When it starts or takes a session, and at cleanup, the head chef
+reads the engine's own session files, in the config folder's `sessions` folder
+beside each session's key file, for each session's name, id, status and
+folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post,

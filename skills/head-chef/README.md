@@ -68,8 +68,18 @@ or type `/brigade` to open it.
 - **Relays** questions and answers, quoted, with the source named.
 - **Decides small questions** your direction already covers, and tells you in
   one line.
-- **Watches** for a session that is blocked, quiet, or done without
-  reporting, and messages it to ask. Before it messages a session idle for over an hour, it tells you the message makes that session re-read its whole context at full price, and asks first, offering cheaper routes; a reply to the session's own question, or a step you asked for by name, needs no ask.
+- **Hears when a session stops** (since 1.0.0). After each start and each
+  report it asks for the session's idle notice, so it never polls. A session
+  that goes idle with no report since the lead's last message is asked once.
+  Before it messages a session idle for over an hour, it tells you in one line
+  that the session will re-read its whole context at full price. A session
+  waiting at a permission prompt may not go idle, so the lead may not notice
+  it; that session's own chat shows the prompt.
+- **Approves plans and closes sessions in plain text.** A session's "spec
+  ready" report asks the lead to approve; the lead answers "approved" or
+  "revise: ...". The go-ahead on a spec stays yours, or the lead's at a level
+  3 you confirmed. To close a session, the lead asks it to wrap up: commit,
+  push, report, and say it is ready to close.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
 - **Cleans up** on your "done", in every repository its sessions ran in: one
@@ -114,32 +124,18 @@ need your words naming them, each with its own button.
 
 ## What the sessions trust
 
-A session takes the lead's first message when the sender's shown name
-matches the lead's row in the session list and no other row holds that name.
-It answers it, and keeps the lead's Desktop id that the message carries.
-From then on it takes a message from the lead only when it carries that id,
-whatever name or address it shows, and it reports to the address of the
-lead's latest message. Before it takes one, or reports, it checks that a
-status file pairs the lead's id with that address, and holds the report
-when none does: once a lead ends, another program can take its address. The
-head chef notices when its own address changes after a restart, and messages
-each session idle for under an hour, so their next reports follow it; a session idle for longer gets the new address with the next message it is sent, and holds its reports until then. So renaming or restarting the lead
-should no longer cut its sessions off, as long as the lead's Desktop id stays
-the same; that is expected, not yet measured, until a field run shows it.
-The first message is checked against the status files too. A program of
-yours can still plant a status file, so this is a consistency check, not a
-guard. It takes each such message as a **relayed decision**, on any
-matter. It labels it as relayed by the lead, never as your own words, and
-names each decision it acted on in its next report to the lead. Until the
-first message, anything that can send it a message under the lead's name can
-steer it, and no probe has shown whether a local program can state another's
-id. The head chef tells you at once when a session reports a decision it
-never sent, a message it refused, or a send that failed.
+A session knows its lead by name only (since 1.0.0; ADR 0013). Its start
+prompt names the lead's session, and it sends its reports to that name. It
+takes each message that arrives under that name as a **relayed decision**,
+on any matter. It labels it as relayed by the lead, never as your own words,
+and names each decision it acted on in its next report to the lead. A program
+of yours, or another session that holds the lead's name, can pass as the
+lead: you accepted that on issue 450, and the threat model lists it under class C5 as candidate P8. The
+head chef tells you at once when a session reports a decision it never sent.
 
-Before a restart, `/clear` or resume of the lead, the head chef warns you
-that its sessions need its new id if its Desktop id changes: what those do to
-the id is not measured. A session that loses the id takes nothing from the
-lead until you give it the id in its own chat.
+Before the lead is renamed or handed off, the head chef tells each session
+and you the new name. A session takes a new lead name only from your words in
+its own chat, so give it there.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
@@ -158,10 +154,11 @@ time and a hash of the wording.
 
 ## Upgrading from an older head-chef
 
-Finish or clean up a brigade an older head chef started before you upgrade:
-its sessions follow their old start prompts, not this one. Sessions started
-before 0.12.0 check the lead by its name, so a rename still cuts them off;
-the head chef warns you before one.
+A brigade running when you install 1.0.0 keeps working: its sessions follow
+their old start prompts, and a 1.0.0 lead's messages, sent by name, still come
+from the lead's own address and session, which the 0.17.0 check pairs. Finish
+or clean up a brigade a head chef older than 0.17.0 started before you
+upgrade.
 
 **Leftovers from 0.4.0.** Its relay scripts may have left five kinds of
 file, which can hold your quoted words, questions and session ids. 0.9.0 no

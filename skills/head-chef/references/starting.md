@@ -10,7 +10,8 @@ Read this before each start. Start each session only when the owner's words in t
    tools, or it refuses, say the warning to the owner once in chat, as "The
    permission warning" in `SKILL.md` gives it, then go on.
 2. **Name the session yourself,** from letters, digits and `. _ -`,
-   starting with a letter or digit. Never copy a name from an issue.
+   starting with a letter or digit, never two alike. Never copy a name from
+   an issue. You send to it by this name.
 3. **Start it as a Desktop session under the lead,** with Desktop's start
    tool. Set its model and effort with Desktop's setters. The model and effort
    come from the owner's words or the owner's own process; this skill sets no
@@ -18,20 +19,18 @@ Read this before each start. Start each session only when the owner's words in t
    unless the owner's words name one.
 4. **Give it the start prompt** in "The start prompt" in `SKILL.md`, filled in. A
    hand-off is the same start, with the effort's context on the issue. Send
-   later updates to the session as messages.
-5. **Keep its Desktop id** from the start tool's result, and its session id
-   from its row in the status files once that row shows. Keep the two apart,
-   in this chat only. The Desktop id finds the row your sends go to, through
-   its `hostSessionId`, and serves its card, the archive, the title check and
-   the first answer's check; the session id finds its row in the status files
-   for each turn's checks. Keep too, for cleanup, its `cwd`, its repository
-   (the git common folder of that `cwd`) and the branch checked out there
-   when you first read it.
+   later updates to the session as messages, by its name.
+5. **Keep its Desktop id** from the start tool's result, in this chat only,
+   for its card and the archive. Keep too what `references/cleanup.md` says
+   to keep for cleanup when you start a session, read under its "The status
+   files".
 6. **Report the start in chat,** in the form of the example in `SKILL.md`'s "What a good
    report looks like": the session, its issue, how it runs, what the owner
    must do, and the 5-hour and weekly usage, read with Desktop's usage tool.
    Usage figures go in this chat only.
 7. **Update the Brigade pane** in the same step, as "The Brigade pane" in `SKILL.md` says.
+8. **Subscribe to its idle notice:** call the message tool with `to` set to
+   the session's name, `notify_when_idle` set to true, and no message.
 
 When Desktop's start tool refuses a start, such as one the owner typed from
 the phone over Remote Control, say so in one line and offer a click in the
