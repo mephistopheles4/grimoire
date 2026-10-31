@@ -78,11 +78,9 @@ the file itself.
   `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
   the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
   or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
-- No session id, and no question, decision or note text, goes on a card or a
-  to-do. Other plugins can read the pane's file. Decision text goes only
-  through `log_decision` and `set_lead_handoff`, under the skill's data
-  rules. A waiting entry's to-do has fixed text: "Decision <id> from <lead
-  name> waits for you in the Decisions tab".
+- A card and a to-do hold what `SKILL.md`'s "What goes out" allows: other
+  plugins can read the pane's file. A waiting entry's to-do has fixed text:
+  "Decision <id> from <lead name> waits for you in the Decisions tab".
 
 ## When to call it
 

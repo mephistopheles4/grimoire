@@ -84,6 +84,39 @@ test('SKILL.md keeps stop 4, the accepting reply\'s guard, the data rule, the ow
     'roster.md lacks the ready cue rule');
 });
 
+// Claims 23 to 25 (issue 450, rev 4 S5.4 and S3.5; issue 455): one data rule,
+// word for word, and none of the clauses it merged anywhere else in the skill.
+const S54 = '**What goes out.** No secret, token, session id, Desktop id, local path, error text, check output or personal detail goes in a post, merge title or body, release note, commit message, card, to-do, start prompt, log entry or hand-off. A card or a to-do carries no question or decision text, and a card keeps only its Desktop id or `bgId`, which the pane matches. Name a security finding by lens, number and class only, never its file, key or line, and a risk by its class of path, never its steps. Private-repository work goes onto no public record or other repository without the owner\'s word. Write a post\'s free text to a new file named `head-chef-post-<random>.md` in the system\'s temporary folder, outside any repository, post from it, and delete it after, whatever the result. Never pass a secret as a command argument, and never read a credential to check a result. A command the owner runs by hand holds only fixed text and values of letters, digits and `. _ - /`, none starting with `-` or holding `..`; give no command otherwise, and say why. The outbound scan, when the owner turns it on, is a backstop for accidents: it never replaces this rule.';
+
+test('SKILL.md holds the data rule once, word for word, and none of the clauses it merged', () => {
+  assert.equal(SKILL.split(S54).length - 1, 1, 'SKILL.md holds the data rule once');
+  const ROSTER = flat(read('skills/head-chef/references/roster.md'));
+  const HANDOFF = flat(read('skills/head-chef/references/handoff.md'));
+  const merged = [
+    'a post, issue, edit, merge title or body, or commit message you write that would carry personal data', // S28
+    'a post that would carry personal data or private work holds that post only', // S29
+    'What goes in a log or hand-off', // S39
+    'The box\'s recap and question carry no secret', // S40
+    'A command never takes a secret, token or id as an argument', // S42
+    'never by reading a credential file', // S42
+    'built from fixed text and values held to letters, digits', // S42
+    'No session id, Desktop id, token, secret, local path, error text or check output goes on an issue', // S52
+    'For an act on GitHub, write any free text to a file', // S56
+    'No session id, and no question, decision or note text, goes on a card', // R24
+    'a post carrying personal data or private work', // S28, the rules row
+  ];
+  for (const [name, text] of [['SKILL.md', SKILL], ['roster.md', ROSTER], ['handoff.md', HANDOFF]]) {
+    for (const s of merged) assert.ok(!text.includes(s), `${name} still holds: ${s}`);
+    assert.ok(!text.includes('data rules'), `${name} still points to "the data rules"`);
+  }
+  assert.ok(ROSTER.includes('"What goes out"') && HANDOFF.includes('"What goes out"'), 'roster.md and handoff.md point to the data rule');
+  assert.ok(SKILL.includes('Sign each post with your session name, and never post a token or secret.'), 'the members\' prompt lost its secret line');
+  const BACKGROUND = flat(read('skills/head-chef/references/background.md'));
+  for (const s of ['holds anything but letters, digits, spaces and `. _ -`', 'or when your shell is Windows PowerShell 5.1']) {
+    assert.ok(BACKGROUND.includes(s), `background.md lacks: ${s}`);
+  }
+});
+
 // Issue 416's exact texts that 1.0.0 keeps, in the contract and in SKILL.md;
 // the blocked record's to-do retires with S36 (issue 450, rev 4 S6.6).
 test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as issue 416 gave them, and the blocked record\'s to-do is gone', () => {

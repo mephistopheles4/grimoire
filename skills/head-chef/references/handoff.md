@@ -1,6 +1,6 @@
 # The hand-off
 
-Read this before you write or read your hand-off. Its data rules are in `SKILL.md`'s "What goes in a log or hand-off".
+Read this before you write or read your hand-off. What it may hold is `SKILL.md`'s "What goes out".
 
 Keep the goal in its rules section, in your own words,
 naming work by repository and issue only. After a compaction, read your own

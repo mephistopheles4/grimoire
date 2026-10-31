@@ -544,7 +544,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - cleanup runs `git branch -d` first, and `-D` only where `-d` refuses; never on a default or checked-out branch, or where the default is unknown ([row 16](brigade.md#row-16))
 - cleanup forces once, and twice only for a worktree named back as locked ([row 16](brigade.md#row-16))
 - a background start needs the owner's words choosing that route ([row 16](brigade.md#row-16))
-- no ids on cards, to-dos or start prompts, as on records ([row 16](brigade.md#row-16))
+- the data rule: no secret, id, path or personal detail goes out, on cards, to-dos and start prompts as on records ([row 16](brigade.md#row-16))
 - the head chef takes the "not ready" cue only from the mod's own line or note ([row 16](brigade.md#row-16))
 
 - `skills/head-chef/SKILL.md` and its references, scanned with the other skills ([row 16](brigade.md#row-16))
