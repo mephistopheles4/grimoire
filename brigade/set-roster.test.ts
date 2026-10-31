@@ -7414,9 +7414,12 @@ const BAND_CMD = (at: number) => `Turbo mode since ${hhmm(at)} UTC, set by your 
 const BAND_ALARM = (l: 1 | 2 | 3, at: number) =>
   `Autonomy changed to ${l} (${['', 'Manual', 'Auto', 'Turbo mode'][l]}) without a press at ${hhmm(at)} UTC: set to 1. Read the alarm in the Brigade pane`
 const bandTexts = async (b: any): Promise<string[]> => (await b.findAll({ type: 'Text' })).map((n: any) => String(n.text))
-// The keys of the band's own box's children, in the order they draw.
-const bandKeys = async (b: any): Promise<unknown[]> =>
-  (await b.find({ key: 'level-band' })).children.filter((c: any) => c !== null && typeof c === 'object').map((c: any) => c.key)
+// The band's own box's children in the order they draw: each line of the
+// band, or the engine's empty box beneath them.
+const bandOrder = async (b: any): Promise<string[]> =>
+  (await b.find({ key: 'level-band' })).children
+    .filter((c: any) => c !== null && typeof c === 'object')
+    .map((c: any) => (c.type === 'Box' && !c.children?.length ? 'engine' : 'line'))
 const compactNow = ($: any, over: Record<string, unknown> = {}) => $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'Hello.', toolUses: [] }], ...over })
 const compactStart = ($: any) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT })
 const COMPACTED = "pane 1 Manual · The lead's context was compacted · level 1"
@@ -8200,7 +8203,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const survey = await band($, surface, { hasSurvey: true })
     expect((await bandTexts(survey))[0]).toBe(BAND_3(at))
     expect(await survey.find({ key: `l3dismiss-${at}` })).toBeDefined()
-    expect(await bandKeys(survey)).toEqual(['level-band-three', 'engine'])
+    expect(await bandOrder(survey)).toEqual(['line', 'engine'])
   })
 }
 
@@ -8212,7 +8215,7 @@ test('#442: while a survey holds the band, an unread alarm still draws its line'
   const caught = w.clock.now()
   const b = await band($, 'desktop', { hasSurvey: true })
   expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
-  expect(await bandKeys(b)).toEqual(['level-band-alarm', 'engine'])
+  expect(await bandOrder(b)).toEqual(['line', 'engine'])
 })
 
 test("claim 27: the compaction hook returns the engine's result unchanged, and no message, instruction or summary text reaches state, the log, a toast or a tool answer", async ($, on) => {
