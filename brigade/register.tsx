@@ -88,13 +88,17 @@ import {
   paneEntry,
   projectDigest,
   markAllSet,
+  markRelayedSet,
   matchesSearch,
   parseMarkAllKey,
   parseMarkEndedKey,
+  parseMarkRelayedKey,
+  parsePairKey,
   canTell,
   dropsLiveMark,
   endedLines,
   sessionStates,
+  reviewCards,
   reviewQueue,
   searchWords,
   serializeHandoff,
@@ -898,23 +902,34 @@ const statesKey = (now: number) => {
 const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
 
 // A press on To review's Read, next, Flag or Skip: it acts only when the
-// entry its key names, by id and time, is still the one shown. Flag marks it
-// flagged, which counts as read, so it leaves To review for Flagged.
-async function pressReview($: EngineInterface, verb: string, id: string, entryAt: number) {
-  const now = await $.clock.now()
-  const v = tabView(now)
-  const q = reviewQueue(v.review, v.states, skipped, searchWords(queryFrom(await read($, query))))
-  const head = q.head
-  if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
-  const k = markKey(head.sid, head.entry.id, head.entry.at)
-  if (verb === 'dnext' || verb === 'dflag') {
-    const saved = await writeMarks($, [head], verb === 'dflag' ? 'flagged' : 'read')
-    markFailed = !saved
-    if (saved) skipped.delete(k)
-  } else {
-    skipped.add(k)
-    if (q.order.every(r => skipped.has(markKey(r.sid, r.entry.id, r.entry.at)))) skipped.clear()
-  }
+// card its key names is still the one shown. A lone card's key names its
+// entry by id and time, and acts only while that entry still draws alone; a
+// pair card's key names the waiting entry and its answer (spec 448 S4), and
+// acts only while that same answer still pairs with it, so an answer that
+// arrived after the draw is never marked. Flag marks flagged, which counts as
+// read, so the card leaves To review for Flagged. Since spec 448 the head is
+// worked out in the marks queue's turn, after every earlier write has landed,
+// and a pair's two marks are one write.
+async function pressReview($: EngineInterface, verb: string, id: string, entryAt: number, answer?: { id: string; at: number }) {
+  await marksTurn(async () => {
+    const now = await $.clock.now()
+    const v = tabView(now)
+    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const head = q.head
+    if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
+    const paired = q.answer
+    if (answer === undefined ? paired !== undefined : paired === undefined || paired.entry.id !== answer.id || paired.entry.at !== answer.at) return
+    const rows = paired === undefined ? [head] : [head, paired]
+    const keys = rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))
+    if (verb === 'dnext' || verb === 'dflag') {
+      const saved = await writeMarksNow($, rows, verb === 'dflag' ? 'flagged' : 'read')
+      markFailed = !saved
+      if (saved) for (const k of keys) skipped.delete(k)
+    } else {
+      for (const k of keys) skipped.add(k)
+      if (q.cards.every(c => skipped.has(markKey(c.row.sid, c.row.entry.id, c.row.entry.at)))) skipped.clear()
+    }
+  })
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
 
@@ -927,10 +942,30 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
   await marksTurn(async () => {
     const now = await $.clock.now()
     const v = tabView(now)
-    const q = reviewQueue(v.review, v.states, skipped, searchWords(queryFrom(await read($, query))))
-    const set = markAllSet(q.order, tabRead.sid)
+    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const set = markAllSet(q.shown, tabRead.sid)
     if (set.n !== n || set.hash !== hash) return
     const saved = await writeMarksNow($, set.rows, 'read')
+    markFailed = !saved
+    if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
+  })
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
+// A press on To review's Mark N relayed read (spec 448 S5): this session's own
+// unread Relayed entries that answer no waiting entry, under the search. In the
+// marks queue's turn the set is worked out again, as Mark all read's is, and
+// written once only when its size and hash match the key. It writes nothing,
+// and says the mark was not saved, when the marks file's caps would push out a
+// mark that is still its entry's newest state (q7 A).
+async function pressMarkRelayed($: EngineInterface, n: number, hash: string) {
+  await marksTurn(async () => {
+    const now = await $.clock.now()
+    const v = tabView(now)
+    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const set = markRelayedSet(q.shown, tabRead.sid)
+    if (set.n !== n || set.hash !== hash) return
+    const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
     if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
   })
@@ -2959,6 +2994,12 @@ export const register: Register = on => {
       await pressLevel($, Number(stop[1]) as Level, async () => (await paneListed($).catch(() => undefined))?.isPlaced === true)
       return { element: e.element }
     }
+    // A pair card's keys name both entries (spec 448 S4), matched whole before a lone card's.
+    const pair = parsePairKey(e.element)
+    if (pair !== undefined) {
+      await pressReview($, pair.verb, pair.id, pair.at, { id: pair.answerId, at: pair.answerAt })
+      return { element: e.element }
+    }
     const review = /^(dnext|dflag|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (review !== null) {
       await pressReview($, review[1] ?? '', review[2] ?? '', Number(review[3]))
@@ -2967,6 +3008,11 @@ export const register: Register = on => {
     const markAll = parseMarkAllKey(e.element)
     if (markAll !== undefined) {
       await pressMarkAll($, markAll.n, markAll.hash)
+      return { element: e.element }
+    }
+    const markRelayed = parseMarkRelayedKey(e.element)
+    if (markRelayed !== undefined) {
+      await pressMarkRelayed($, markRelayed.n, markRelayed.hash)
       return { element: e.element }
     }
     const markEnded = parseMarkEndedKey(e.element)
@@ -3157,7 +3203,9 @@ export const register: Register = on => {
     const words = searchWords(queryText)
     const dView = tabView(now)
     const dStates = dView.states
-    const dQueue = reviewQueue(dView.review, dStates, skipped, words)
+    // To review's cards (spec 448): an own answered pair is one card, so its
+    // count and "n of N" count cards; the top line's unread count counts entries.
+    const dQueue = reviewCards(dView.review, tabRead.sid, dStates, skipped, words)
     // The ended sessions' block (spec 447 S4.2): its lines under the search, and
     // the entries all its lines count, which the top line's unread count takes.
     const dLines = endedLines(dView.ended, dStates, words)
@@ -3167,7 +3215,8 @@ export const register: Register = on => {
     const dFold = historyRows(dView.ended, words, endedPages)
     const dFlagged = flaggedRows(dView.flagged, dStates, words)
     const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
-    const dMarkAll = markAllSet(dQueue.order, tabRead.sid)
+    const dMarkAll = markAllSet(dQueue.shown, tabRead.sid)
+    const dMarkRelayed = markRelayedSet(dQueue.shown, tabRead.sid)
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
@@ -3778,62 +3827,75 @@ export const register: Register = on => {
       const a = answerOf(r)
       return a === undefined ? 'Waits for you' : `Answered, as the lead records it: decision ${a.id}`
     }
-    const entryCard = (r: Row, top: JSX.Element | undefined, buttons: JSX.Element[]) => {
+    // A card's fields, in order: the headline, the writer, the source, time and
+    // level, the question, the options, why, to undo, revisit and the id.
+    const cardFields = (r: Row, top: JSX.Element | undefined): JSX.Element[] => {
       const d = r.entry
       const alarm = d.source === 'alarm'
-      return (
-        <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: alarm ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
-          <Box flexDirection="row" columnGap={1} alignItems="flex-start">
-            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-              {top}
-              {alarm ? (
-                <Text color="warning" weight="semibold" wrap="wrap">
-                  {headline(r)}
-                </Text>
-              ) : (
-                <Text weight="semibold" wrap="wrap">
-                  {headline(r)}
-                </Text>
-              )}
-              <Text dimColor>{r.writer}</Text>
-              {fromOther(r) !== '' && <Text dimColor>{FROM_OTHER}</Text>}
-            </Box>
-            <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
-              <Text>{labelOf(r)}</Text>
-              <Text dimColor tabular>
-                {stamp(d.at)}
+      return [
+        <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+            {top}
+            {alarm ? (
+              <Text color="warning" weight="semibold" wrap="wrap">
+                {headline(r)}
               </Text>
-              <Text dimColor>{`at level ${d.level}`}</Text>
-            </Box>
+            ) : (
+              <Text weight="semibold" wrap="wrap">
+                {headline(r)}
+              </Text>
+            )}
+            <Text dimColor>{r.writer}</Text>
+            {fromOther(r) !== '' && <Text dimColor>{FROM_OTHER}</Text>}
           </Box>
-          {part('Question', lines(d.question))}
-          {part(
-            'Options',
-            <Box flexDirection="column">
-              {d.options.map(o => (
-                <Box flexDirection="row" columnGap={1}>
-                  <Box flexShrink={0}>{!d.waiting && o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
-                  <Box flexShrink={1} minWidth={0}>
-                    <Text wrap="wrap">{oneLine(o, 300)}</Text>
-                  </Box>
+          <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
+            <Text>{labelOf(r)}</Text>
+            <Text dimColor tabular>
+              {stamp(d.at)}
+            </Text>
+            <Text dimColor>{`at level ${d.level}`}</Text>
+          </Box>
+        </Box>,
+        part('Question', lines(d.question)),
+        part(
+          'Options',
+          <Box flexDirection="column">
+            {d.options.map(o => (
+              <Box flexDirection="row" columnGap={1}>
+                <Box flexShrink={0}>{!d.waiting && o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
+                <Box flexShrink={1} minWidth={0}>
+                  <Text wrap="wrap">{oneLine(o, 300)}</Text>
                 </Box>
-              ))}
-            </Box>,
-          )}
-          {part('Why', lines(d.why))}
-          {part('To undo', lines(d.undo))}
-          {d.revisit !== '' && part('Revisit', lines(d.revisit))}
-          <Text dimColor>{`Decision ${d.id}`}</Text>
-          {buttons.length > 0 && (
-            <Box flexDirection="row" columnGap={1} justifyContent="flex-start" alignItems="center">
-              {buttons.map(b => (
-                <Box flexShrink={0}>{b}</Box>
-              ))}
-            </Box>
-          )}
-        </Box>
-      )
+              </Box>
+            ))}
+          </Box>,
+        ),
+        part('Why', lines(d.why)),
+        part('To undo', lines(d.undo)),
+        ...(d.revisit !== '' ? [part('Revisit', lines(d.revisit))] : []),
+        <Text dimColor>{`Decision ${d.id}`}</Text>,
+      ]
     }
+    // A card in To review, Flagged or History: its fields, then its presses.
+    // Since spec 448 a pair card draws its answer's fields after its own, as
+    // a block of its own: every field the answer's own card draws.
+    const entryCard = (r: Row, top: JSX.Element | undefined, buttons: JSX.Element[], answer?: Row) => (
+      <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: r.entry.source === 'alarm' ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
+        {cardFields(r, top)}
+        {answer !== undefined && (
+          <Box flexDirection="column" marginTop={terminal ? 1 : 'xs'} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: DARK_FILLS.bar })}>
+            {cardFields(answer, undefined)}
+          </Box>
+        )}
+        {buttons.length > 0 && (
+          <Box flexDirection="row" columnGap={1} justifyContent="flex-start" alignItems="center">
+            {buttons.map(b => (
+              <Box flexShrink={0}>{b}</Box>
+            ))}
+          </Box>
+        )}
+      </Box>
+    )
     const quiet = (text: string) => (
       <Box paddingX={3} paddingY={1}>
         <Text dimColor>{text}</Text>
@@ -4094,6 +4156,9 @@ export const register: Register = on => {
       </Box>
     )
     const head = dQueue.head
+    // A lone card's presses name its entry; a pair card's name both entries (spec 448 S4).
+    const headAnswer = dQueue.answer
+    const headKey = head === undefined ? '' : `${head.entry.id}-${head.entry.at}${headAnswer === undefined ? '' : `-${headAnswer.entry.id}-${headAnswer.entry.at}`}`
     const decisionsBody = (
       <Box flexDirection="column">
         {/* To review is a heading, not a fold: the spec folds only Flagged
@@ -4102,6 +4167,13 @@ export const register: Register = on => {
           <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
             <Text dimColor>{` ${dQueue.total}`}</Text>
+            {dMarkRelayed.n > 0 && (
+              <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
+                <Button key={`dmarkrelayed-${dMarkRelayed.n}-${dMarkRelayed.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark ${dMarkRelayed.n} relayed read`}
+                </Button>
+              </Box>
+            )}
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
@@ -4116,6 +4188,13 @@ export const register: Register = on => {
               <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
               <Text dimColor>{` ${dQueue.total}`}</Text>
             </Box>
+            {dMarkRelayed.n > 0 && (
+              <Box flexShrink={0} paddingX="sm">
+                <Button key={`dmarkrelayed-${dMarkRelayed.n}-${dMarkRelayed.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark ${dMarkRelayed.n} relayed read`}
+                </Button>
+              </Box>
+            )}
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
@@ -4127,17 +4206,22 @@ export const register: Register = on => {
         )}
         {dLines.length > 0 && <Box flexDirection="column">{dLines.map(endedLine)}</Box>}
         {(head !== undefined
-            ? entryCard(head, <Text dimColor>{`${dQueue.n} of ${dQueue.total}`}</Text>, [
-                <Button key={`dnext-${head.entry.id}-${head.entry.at}`} variant="primary" onPress={noop}>
-                  ✓ Read, next
-                </Button>,
-                <Button key={`dflag-${head.entry.id}-${head.entry.at}`} dimColor onPress={noop}>
-                  ⚑ Flag
-                </Button>,
-                <Button key={`dskip-${head.entry.id}-${head.entry.at}`} dimColor onPress={noop}>
-                  Skip
-                </Button>,
-              ])
+            ? entryCard(
+                head,
+                <Text dimColor>{`${dQueue.n} of ${dQueue.total}`}</Text>,
+                [
+                  <Button key={`dnext-${headKey}`} variant="primary" onPress={noop}>
+                    ✓ Read, next
+                  </Button>,
+                  <Button key={`dflag-${headKey}`} dimColor onPress={noop}>
+                    ⚑ Flag
+                  </Button>,
+                  <Button key={`dskip-${headKey}`} dimColor onPress={noop}>
+                    Skip
+                  </Button>,
+                ],
+                dQueue.answer,
+              )
             : dLines.length > 0
               ? undefined
               : words.length > 0 && dUnread > 0

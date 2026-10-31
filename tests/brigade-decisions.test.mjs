@@ -843,6 +843,10 @@ test('spec 444 claim 7: Mark all read takes only this log\'s shown plain Lead en
   ls[0].log.entries[1].work = 'needle';
   const q2 = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), searchWords('needle'));
   assert.deepEqual(markAllSet(q2.order, SID).rows.map(r => r.entry.id), ['2']);
+  // Spec 448 claim 6: with the own pair 4 and 5 on one card, the set and its count are unchanged.
+  const cards = d.reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []);
+  assert.ok(cards.cards.some(c => c.answer?.entry.id === '5'), 'the own pair draws on one card');
+  assert.deepEqual(markAllSet(cards.shown, SID), set);
 });
 
 test('spec 444 claim 8: the Mark all read key matches whole, from 1 to 500', () => {
@@ -1108,4 +1112,137 @@ test('spec 447 claim 8 (Test round 1, q3 A): a write that pushes out a mark stil
   assert.equal(dropsLiveMark(live, after3, [elsewhere], known, marked, NOW + 9000), false);
   // The entries the write marks are its own business.
   assert.equal(dropsLiveMark(undefined, { kind: 'marks', v: 1, marks: added }, [], marked, marked, NOW + 5000), false);
+});
+
+// --- spec 448: a lead's own answered pair on one card -------------------------------------------
+//
+// Each test names the acceptance claim of spec 448 (S8) it backs.
+
+const { reviewCards, parsePairKey } = d;
+// This session's log: a plain Lead entry, a waiting entry W, a Relayed entry A
+// that answers W, and a later plain entry; and another log's own pair.
+const pairLogs = () => {
+  let own = emptyLog(null);
+  const add = (raw, at) => {
+    own = appendEntry(own, raw, { at, level: 1, read: new Map() }).value.log;
+  };
+  add(input({ work: 'plain first' }), NOW + 1);
+  add(input({ waiting: true, pick: '', work: 'mine waits' }), NOW + 2);
+  add(input({ source: 'relayed', answers: '2', work: 'my answer' }), NOW + 3);
+  add(input({ work: 'plain later' }), NOW + 4);
+  const other = tabLogsFor()[1];
+  return [{ sid: SID, writer: 'lead-a', log: own }, other];
+};
+
+test('spec 448 claims 1 and 5: an own unread waiting entry and its answer are one card at the waiting entry\'s place, counted once; a carried pair stays two cards', () => {
+  const ls = pairLogs();
+  const v = drawnLogs(ls, SID, new Map());
+  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
+  const own = q.cards.filter(c => c.row.sid === SID);
+  assert.deepEqual(own.map(c => [c.row.entry.work, c.answer?.entry.work]), [['plain first', undefined], ['mine waits', 'my answer'], ['plain later', undefined]]);
+  // The answer has no card of its own, and To review's count counts the pair once.
+  assert.ok(!q.cards.some(c => c.row.sid === SID && c.row.entry.work === 'my answer'));
+  const entries = reviewQueue(v.review, new Map(), new Set(), []).total;
+  assert.equal(q.total, entries - 1);
+  // The shown rows hold every entry, both of the pair included, oldest first.
+  assert.deepEqual(q.shown, reviewQueue(v.review, new Map(), new Set(), []).order);
+  // The card takes the waiting entry's place, not the answer's: with the answer dated after the later plain entry, the pair still comes first.
+  const late = structuredClone(ls);
+  late[0].log.entries[2].at = NOW + 10;
+  const lateCards = reviewCards(drawnLogs(late, SID, new Map()).review, SID, new Map(), new Set(), []).cards.filter(c => c.row.sid === SID);
+  assert.deepEqual(lateCards.map(c => c.row.entry.work), ['plain first', 'mine waits', 'plain later']);
+  assert.equal(lateCards[1].answer?.entry.work, 'my answer');
+  // Claim 5: the other log's waiting entry and its answer draw as two cards.
+  const carried = q.cards.filter(c => c.row.sid === OTHER).map(c => c.row.entry.work);
+  assert.ok(carried.includes('answered') && carried.includes('the answer'));
+  assert.ok(q.cards.every(c => c.row.sid === SID || c.answer === undefined));
+});
+
+test('spec 448 claim 3: when only one of the pair is unread it draws alone', () => {
+  const ls = pairLogs();
+  const [, w, a] = ls[0].log.entries;
+  const v = drawnLogs(ls, SID, new Map());
+  for (const [read, alone] of [[w, a], [a, w]]) {
+    for (const state of ['read', 'flagged']) {
+      const states = new Map([[keyOf(SID, read), state]]);
+      const own = reviewCards(v.review, SID, states, new Set(), []).cards.filter(c => c.row.sid === SID);
+      assert.deepEqual(own.map(c => [c.row.entry.id, c.answer]), [['1', undefined], [alone.id, undefined], ['4', undefined]], `${read.work} ${state}`);
+    }
+  }
+});
+
+test('spec 448 claim 4: a search matching only the answer draws the pair, and one matching neither hides it', () => {
+  const ls = pairLogs();
+  const v = drawnLogs(ls, SID, new Map());
+  const only = reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer'));
+  assert.deepEqual(only.cards.map(c => [c.row.entry.work, c.answer?.entry.work]), [['mine waits', 'my answer']]);
+  assert.deepEqual(only.shown.map(r => r.entry.work), ['mine waits', 'my answer'], 'both count as shown');
+  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('mine waits')).shown.map(r => r.entry.work), ['mine waits', 'my answer']);
+  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('plain later')).cards.map(c => c.row.entry.work), ['plain later']);
+});
+
+test('spec 448 claim 2: a pair counts as skipped when its waiting entry is, and the queue wraps by card', () => {
+  const ls = [pairLogs()[0]];
+  const [, w] = ls[0].log.entries;
+  const first = keyOf(SID, ls[0].log.entries[0]);
+  const q = reviewCards(ls, SID, new Map(), new Set([first, keyOf(SID, w)]), []);
+  assert.equal(q.head.entry.work, 'plain later');
+  assert.equal(q.answer, undefined);
+  assert.deepEqual([q.n, q.total], [3, 3]);
+  const head = reviewCards(ls, SID, new Map(), new Set([first]), []);
+  assert.deepEqual([head.head.entry.work, head.answer?.entry.work, head.n], ['mine waits', 'my answer', 2]);
+  // Every card skipped: the first again.
+  const all = new Set([0, 1, 3].map(i => keyOf(SID, ls[0].log.entries[i])));
+  assert.equal(reviewCards(ls, SID, new Map(), all, []).n, 1);
+});
+
+test('spec 448 claim 3: a pair key matches whole, naming both entries by id and time', () => {
+  assert.deepEqual(parsePairKey('dnext-2-100-3-110'), { verb: 'dnext', id: '2', at: 100, answerId: '3', answerAt: 110 });
+  assert.deepEqual(parsePairKey('dflag-2-0-3-1'), { verb: 'dflag', id: '2', at: 0, answerId: '3', answerAt: 1 });
+  assert.deepEqual(parsePairKey('dskip-9999999999999999-9999999999999999-1-1')?.verb, 'dskip');
+  for (const bad of ['dnext-2-100', 'dnext-0-100-3-110', 'dnext-2-100-03-110', 'dnext-2-100-3-110-4', ' dnext-2-100-3-110', 'dnext-2-100-3-110\n', 'dread-2-100-3-110', 'dnext-2-100-3-', 'dnext-2-100-3-12345678901234567', 'dmarkall-2-100-3-110']) {
+    assert.equal(parsePairKey(bad), undefined, bad);
+  }
+});
+
+// --- spec 448 Part B: Mark N relayed read ---------------------------------------------------------
+
+const { markRelayedSet, parseMarkRelayedKey } = d;
+
+test('spec 448 claims 7 and 8: Mark N relayed read takes only this log\'s shown Relayed entries that answer nothing, with the hash over their sorted mark keys', () => {
+  const ls = pairLogs();
+  let own = ls[0].log;
+  for (const [raw, at] of [[input({ source: 'relayed', work: 'lone claim' }), NOW + 5], [alarmEntry(3), NOW + 6]]) {
+    own = appendEntry(own, raw, { at, level: 1, read: new Map(), fixed: raw.source === 'alarm' }).value.log;
+  }
+  ls[0].log = own;
+  const v = drawnLogs(ls, SID, new Map());
+  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
+  // The other log's relayed entries are in the order, and never taken.
+  assert.ok(q.shown.some(r => r.sid === OTHER && r.entry.source === 'relayed'));
+  const set = markRelayedSet(q.shown, SID);
+  assert.deepEqual(set.rows.map(r => r.entry.work), ['lone claim'], 'never the waiting entry, its answer, a plain Lead entry, an alarm or another log\'s entry');
+  assert.equal(set.n, 1);
+  assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
+  // A search that hides the claim leaves nothing; the answer drawn alone, its question read, is still not taken.
+  assert.deepEqual(markRelayedSet(reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer')).shown, SID), { rows: [], n: 0, hash: '' });
+  const wRead = new Map([[keyOf(SID, own.entries[1]), 'read']]);
+  assert.deepEqual(markRelayedSet(reviewCards(drawnLogs(ls, SID, wRead).review, SID, wRead, new Set(), []).shown, SID).rows.map(r => r.entry.work), ['lone claim']);
+  // The hash moves when the set does.
+  own = appendEntry(own, input({ source: 'relayed', work: 'second claim' }), { at: NOW + 7, level: 1, read: new Map() }).value.log;
+  ls[0].log = own;
+  const more = markRelayedSet(reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []).shown, SID);
+  assert.equal(more.n, 2);
+  assert.notEqual(more.hash, set.hash);
+});
+
+test('spec 448 claim 9: the Mark N relayed read key matches whole, from 1 to 500, and is no other press\'s key', () => {
+  const h = 'abcdef0123456789';
+  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-3-${h}`), { n: 3, hash: h });
+  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-500-${h}`), { n: 500, hash: h });
+  for (const bad of [`dmarkrelayed-0-${h}`, `dmarkrelayed-501-${h}`, `dmarkrelayed-03-${h}`, `dmarkrelayed-1000-${h}`, `dmarkrelayed-3-${h}x`, ` dmarkrelayed-3-${h}`, `dmarkrelayed-3-${h.toUpperCase()}`, `dmarkrelayed-3-${h.slice(1)}`, `dmarkrelayed-3-${h}\n`, `dmarkall-3-${h}`, `dmarkended-3-${h}`]) {
+    assert.equal(parseMarkRelayedKey(bad), undefined, bad);
+  }
+  assert.equal(parseMarkAllKey(`dmarkrelayed-3-${h}`), undefined);
+  assert.equal(parseMarkEndedKey(`dmarkrelayed-3-${h}`), undefined);
 });

@@ -230,10 +230,14 @@ unchanged. To tell which entries are read it lists the `brigade/marks/`
 folder and reads the marks files there, this session's own in full and the others newest
 first, up to 8 MiB in total (since 0.89.0; a file over its cap takes nothing
 from the bound; the rest count as unread, which fails safe). When the owner presses "✓ Read,
-next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
+next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spec
+448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
+answer writes both marks in one write), or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
-(since 0.89.0, spec 444, one write for all the entries it takes), or "✓ Mark
-these N read" (since 0.90.0, spec 447, one write for an ended session's line), the pane writes a mark
+(since 0.89.0, spec 444, one write for all the entries it takes), "✓ Mark
+these N read" (since 0.90.0, spec 447, one write for an ended session's line),
+or "✓ Mark N relayed read" (since 0.91.0, spec 448, one write for all the
+entries it takes), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
@@ -255,7 +259,27 @@ nothing, and says the marks file is full of entries the owner read, when the
 marks file's caps would push out a mark that is still the newest state of an
 entry in a log the pane reads, so a bulk press never brings back such an entry.
 A mark for an entry in a log the pane no longer reads can still drop. Its hash is the same unkeyed SHA-256, a staleness
-check that protects nothing secret. Both files go only where the roster's link-refusing path rule
+check that protects nothing secret. Since 0.91.0 (spec 448) a waiting entry of
+the pane's own session's log and the unread Relayed entry that answers it draw
+as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
+write. Its keys name both entries, `dnext-<id>-<time>-<answer id>-<answer
+time>`, holding no session id. Read, next, Flag and Skip now work out the card
+shown inside the marks queue's turn, and act only when that card is still
+the one shown with the same entries: a press on a card drawn alone never marks
+an answer that arrived after the draw. "✓ Mark N relayed read" (since 0.91.0,
+spec 448, one write) has a key of its own, `dmarkrelayed-<n>-<hash>`, holding
+no session id. It works out its set again inside the marks queue's turn and
+writes only when the set's count and hash are unchanged. It takes only the
+pane's own session's unread Relayed entries that answer no waiting entry,
+under the search; never a waiting entry, a Relayed entry that answers one, an
+alarm, a Lead entry, or an entry of another log, so a question and the answer
+the log links to it leave only from their own card. An answer logged without
+that link, as a lead logs one to a waiting entry in another session's log
+after a `/clear`, a resume or a hand-off, counts as a claim and is taken. Like Mark these N read it writes nothing, and
+says the marks file is full of entries the owner read, when the caps would
+push out a mark that is still an entry's newest state. Its hash is the same
+unkeyed SHA-256, a staleness check that protects nothing secret. The marks one
+bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
@@ -288,7 +312,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, records the press, not a reading of each entry. The files are
+  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, or since 0.91.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the
