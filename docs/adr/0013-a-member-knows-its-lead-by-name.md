@@ -19,6 +19,11 @@ The owner chose this on issue 450's plan ("Yes, name only", q4, relayed by the
 lead on 2026-10-30). The forged-lead risk it leaves is the owner's accepted risk,
 listed in the threat model as candidate P8, under class C5, for the owner's word.
 
+Amended in head-chef 1.10.0 (issue 503): the start prompt names only the issue
+and the lead, so the member no longer gets the rule that it takes a new lead
+name only from the owner's words. A message under the lead's name that names a
+new lead can redirect its reports, which candidate P8 covers.
+
 ## Options weighed
 
 - **Name only.** The harness delivers by name, so the skill needs no text of
