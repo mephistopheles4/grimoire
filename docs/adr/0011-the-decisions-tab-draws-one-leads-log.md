@@ -62,6 +62,13 @@ links to it never leave by this press; an answer logged without that link, to
 a waiting entry in another session's log, counts as a claim and does. A mark from it records the press, not a reading, and a
 claim it marks stays in History only until its log's cap drops it.
 
+Amended in 0.93.0 (issue 466, the owner's words relayed by the lead on
+2026-10-31: "One button that clears everything."): Mark N relayed read goes,
+and "Mark all N read" marks everything under To review read in one write, of
+every kind and from every log, ended sessions' lines included, up to 500 a
+press. A mark leaves the log as it is, so a question marked read still pairs
+with an answer logged later.
+
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside

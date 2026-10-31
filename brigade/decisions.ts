@@ -699,12 +699,13 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
 }
 
 /** The entries Mark all read takes (issue 466): everything under To review,
- *  its shown rows and every ended session's line, of every kind and log.
- *  `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
+ *  its shown rows and every ended session's line, of every kind and log, the
+ *  first 500 of them, so its key stays in range and a second press takes the
+ *  rest. `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
  *  sorted and joined by line breaks: a staleness check on the press, not a
  *  secret. */
 export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[]) {
-  const rows = [...shown, ...lines.flatMap(l => l.rows)]
+  const rows = [...shown, ...lines.flatMap(l => l.rows)].slice(0, MAX_ENTRIES)
   if (rows.length === 0) return { rows, n: 0, hash: '' }
   return { rows, n: rows.length, hash: setHash(rows) }
 }

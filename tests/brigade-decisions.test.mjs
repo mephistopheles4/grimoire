@@ -1198,4 +1198,7 @@ test('issue 466: Mark all read takes everything under To review, of every kind a
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
   assert.notEqual(markAllSet(cards.shown.slice(1), lines).hash, set.hash);
   assert.deepEqual(markAllSet([], []), { rows: [], n: 0, hash: '' });
+  // Past 500 it takes the first 500, so its key stays in range.
+  const many = Array.from({ length: 501 }, (_, i) => ({ sid: SID, writer: 'w', entry: { ...ls[0].log.entries[0], id: String(i + 1), at: NOW + i } }));
+  assert.deepEqual(markAllSet(many, []).rows, many.slice(0, 500));
 });

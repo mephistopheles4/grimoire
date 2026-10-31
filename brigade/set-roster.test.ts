@@ -5872,8 +5872,8 @@ test('spec 444 claims 4, 13, 14 and 15: another log draws only its waiting, Rela
   await press($, 'dnext-3-120')
   expect(await shows(/^Autonomy level$/)).toBe(true)
   expect(await shows(/^From another session$/)).toBe(true)
-  // Mark all read takes the carried waiting, Relayed and alarm entries alike.
-  expect(await markAllLabel(3)).toBe(true)
+  // Mark all read takes the carried alarm too, the one entry left unread.
+  expect(await markAllLabel(1)).toBe(true)
   await press($, 'grp-d-history')
   expect(await shows(/· decision 1$/)).toBe(false)
 })
