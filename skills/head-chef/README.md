@@ -52,8 +52,11 @@ or type `/brigade` to open it.
 
 - **Starts sessions.** Each one is a Desktop session under the lead by default, with its
   name, model and effort set. The model and effort come from your words or
-  your own process. Its start prompt is one short pointer: the stage and the
-  issue, which holds the brief, and how to report to the lead.
+  your own process. Its start prompt is one short pointer: the issue, which
+  holds the brief, and how to report to the lead. The session works out the
+  stage itself and follows the workflow in its own instructions, and each
+  report names the skills it loaded. Context the issue lacks goes in the
+  lead's first message.
 - **Offers a background session when Desktop refuses.** Desktop's start tool
   refuses a start you type from the phone over Remote Control. The head chef
   then says so in one line and offers to start the session in the background
@@ -85,7 +88,7 @@ or type `/brigade` to open it.
   ready" report asks the lead to approve; the lead answers "approved" or
   "revise: ...". The go-ahead on a spec stays yours, or the lead's at a level
   3 you confirmed. To close a session, the lead asks it to wrap up: commit,
-  push, report, and say it is ready to close.
+  push, report, and say it is ready to close, or why not yet.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
 - **Cleans up** on your "done", in one typed act, in every repository its

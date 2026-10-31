@@ -37,7 +37,10 @@ Read this when Desktop refused a start and the owner's words in the lead's chat 
    in this chat only: its card and cleanup use it. The card carries it, so
    the Brigade mod records the session's folder, repository and branch for
    cleanup. When it prints no id, it did not start: tell the owner in one
-   line, and write no card.
+   line, and write no card. When it started, send the session its first
+   message: "Context: none", or one sentence of context with its source, by
+   its name and never on the command line, as "The first message" in
+   `SKILL.md` says.
 3. **Report the start** as for any session, saying "a background session
    with Remote Control" in place of "a Desktop session", and that it opens
    from its card in the Brigade pane or from the claude.ai session list on

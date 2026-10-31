@@ -18,8 +18,11 @@ Read this before each start. Start each session only when the owner's words in t
    default of its own. Set no permission mode: the session takes the default
    unless the owner's words name one.
 4. **Give it the start prompt** in "The start prompt" in `SKILL.md`, filled in. A
-   hand-off is the same start, with the effort's context on the issue. Send
-   later updates to the session as messages, by its name.
+   hand-off is the same start, with the effort's context on the issue. Then,
+   in the same step, send the session its first message: "Context: none", or
+   one sentence of context with its source, and at a hand-off where the work
+   stands, as "The first message" in `SKILL.md` says. Send later updates to
+   the session as messages, by its name.
 5. **Keep its Desktop id** from the start tool's result, in this chat only,
    for its card and the archive. The card carries it, so the Brigade mod
    records the session's folder, repository and branch for cleanup.
