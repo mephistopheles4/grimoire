@@ -524,9 +524,11 @@ itself. What the cleaner prints lands in the lead's transcript: folder,
 branch and file names, short hashes and stash refs, never file contents. The
 head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that
-route. A session takes any message from the
-head chef as a relayed decision, on any matter, labelled as relayed and never
-as the owner's own words. Since head-chef 1.0.0 it knows its lead by name
+route. Until head-chef 1.10.0 (issue 503) a
+session took any message from the head chef as a relayed decision, on any
+matter, labelled as relayed and never as the owner's own words; since then
+its start prompt carries only its issue and the lead's name, and the
+session's own rules decide how it treats a lead message. Since head-chef 1.0.0 it knows its lead by name
 only (ADR 0013), so any process of the same user, or any session that holds
 the lead's name, can speak for the lead. The owner accepted the forged-sender
 risk of the 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision

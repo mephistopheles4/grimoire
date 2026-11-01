@@ -52,8 +52,8 @@ or type `/brigade` to open it.
 
 - **Starts sessions.** Each one is a Desktop session under the lead by default, with its
   name, model and effort set. The model and effort come from your words or
-  your own process. Its start prompt is one short pointer: the stage and the
-  issue, which holds the brief, and how to report to the lead.
+  your own process. Its start prompt is one sentence pair: the issue, which
+  holds the brief, and the lead to send questions and reports to.
 - **Offers a background session when Desktop refuses.** Desktop's start tool
   refuses a start you type from the phone over Remote Control. The head chef
   then says so in one line and offers to start the session in the background
@@ -137,17 +137,16 @@ them, each with its own button.
 ## What the sessions trust
 
 A session knows its lead by name only (since 1.0.0; ADR 0013). Its start
-prompt names the lead's session, and it sends its reports to that name. It
-takes each message that arrives under that name as a **relayed decision**,
-on any matter. It labels it as relayed by the lead, never as your own words,
-and names each decision it acted on in its next report to the lead. A program
-of yours, or another session that holds the lead's name, can pass as the
-lead: you accepted that on issue 450, and the threat model lists it under class C5 as candidate P8. The
-head chef tells you at once when a session reports a decision it never sent.
+prompt names the issue and the lead's session, and it sends its questions
+and reports to that name. Since 1.10.0 the prompt carries no rule: how the
+session treats a message under that name, and what it reports, follow its
+own rules. A program of yours, or another session that holds the lead's
+name, can pass as the lead, or name a new lead and redirect the reports: the
+threat model lists that under class C5 as candidate P8. The head chef tells
+you at once when a session reports a decision it never sent.
 
 Before the lead is renamed or handed off, the head chef tells each session
-and you the new name. A session takes a new lead name only from your words in
-its own chat, so give it there.
+and you the new name.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
