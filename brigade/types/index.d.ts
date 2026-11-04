@@ -5,7 +5,6 @@ export type Status = 'working' | 'needs-you' | 'done' | 'stopped'
 export type Card = {
   title: string
   work: string
-  phase: string
   settings: string
   status: Status
   /** A Desktop session's local id (local_...). */
@@ -21,7 +20,7 @@ export type Card = {
   /** The PR's repository as owner/name, when it is not the lead's own
    *  working folder's; checked against `REPO` wherever it is read. */
   repo?: string
-  /** When the card entered its current status and phase, in milliseconds on
+  /** When the card entered its current status, in milliseconds on
    *  the engine clock. The tool stamps it; the file may hold it. */
   since?: number
 }

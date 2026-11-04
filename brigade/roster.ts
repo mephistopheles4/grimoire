@@ -90,13 +90,21 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
   if (source === 'tool' && isRecord(v) && Object.hasOwn(v, 'since')) {
     return { error: `${where} since is stamped by the pane, not sent by the tool` }
   }
-  const f = fields(where, v, ['title', 'work', 'phase', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'repo', 'since'])
+  // `phase` is gone (issue 504): a tool call that holds it is refused in words
+  // that say so, and a roster file that holds it loads with the key dropped.
+  let given = v
+  if (isRecord(v) && Object.hasOwn(v, 'phase')) {
+    if (source === 'tool') return { error: 'phase is gone: send the cards without it' }
+    const { phase: _dropped, ...rest } = v
+    given = rest
+  }
+  const f = fields(where, given, ['title', 'work', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'repo', 'since'])
   if ('error' in f) return f
   const o = f.value
   const title = text(`${where} title`, o.title, MAX_TITLE, true)
   if ('error' in title) return title
-  const out: Card = { title: title.value ?? '', work: '', phase: '', settings: '', status: 'working' }
-  for (const k of ['work', 'phase', 'settings'] as const) {
+  const out: Card = { title: title.value ?? '', work: '', settings: '', status: 'working' }
+  for (const k of ['work', 'settings'] as const) {
     const t = text(`${where} ${k}`, o[k], MAX_TEXT, false)
     if ('error' in t) return t
     out[k] = t.value ?? ''
@@ -210,7 +218,7 @@ export function serialize(roster: Roster): Checked<string> {
 
 // --- the card's age ------------------------------------------------------------
 //
-// A card's `since` is when it entered its current status and phase. The
+// A card's `since` is when it entered its current status. The
 // set_roster tool stamps it from the engine clock, inside its queue, and the
 // model never sends one. A `since` written to the file by anything else is
 // drawn as written.
@@ -219,7 +227,7 @@ export function serialize(roster: Roster): Checked<string> {
 export const AHEAD_MS = 120000
 
 /** The cards with `since` set: kept from the previous roster's card of the
- *  same drawn title, status and phase when that value passes the file check
+ *  same drawn title and status when that value passes the file check
  *  and is at most 2 minutes ahead of the clock, else the clock's answer. A
  *  clock answer that is not a whole number from 0 to 2^53 - 1 refuses. */
 export function stampSince(previous: Roster | undefined, cards: readonly Card[], clock: unknown): Checked<Card[]> {
@@ -229,8 +237,7 @@ export function stampSince(previous: Roster | undefined, cards: readonly Card[],
   return {
     value: cards.map(c => {
       const was = before.get(oneLine(c.title, MAX_TITLE))
-      // The phase is compared as the pane draws it, so a hidden character or a trailing space is no change.
-      const keep = was !== undefined && was.status === c.status && oneLine(was.phase, 160) === oneLine(c.phase, 160) && isWhole(was.since) && was.since <= clock + AHEAD_MS
+      const keep = was !== undefined && was.status === c.status && isWhole(was.since) && was.since <= clock + AHEAD_MS
       return { ...c, since: keep ? was.since : clock }
     }),
   }
