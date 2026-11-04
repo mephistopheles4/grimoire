@@ -288,10 +288,10 @@ test('the retired cases are gone, and the idle cases grade sends by name', () =>
   }
 });
 
-test('head-chef\'s EA2 allowance names the confirmed level 3 it now covers', () => {
+test('head-chef\'s EA2 allowance names the level 3 it now covers', () => {
   const reasons = read('skills/head-chef/.skillspector-baseline.yaml').split('\n').filter(l => /^\s+reason: "False positive\. Texts that describe what an agent may do on its own/.test(l));
   assert.ok(reasons.length > 0, 'the baseline holds the EA2 reason');
-  for (const r of reasons) assert.ok(r.includes('accepted on the owner\'s word (2026-10-28)'), 'an EA2 reason does not record level 3 as accepted on the owner\'s word');
+  for (const r of reasons) assert.ok(r.includes('accepted on the owner\'s word (2026-10-28') && r.includes('a press of the slider or the level command sets level 3'), 'an EA2 reason does not record level 3, as a press or a level command sets it, as accepted on the owner\'s word');
 });
 
 test('no cleanup case grades the stops issue 416 removed, or the name-back and re-read issue 484 removed', () => {
