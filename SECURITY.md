@@ -530,8 +530,7 @@ folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` fil
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post; on
-the owner's own words in its chat, or at a level 3 the owner confirmed there
-or set with the level command, toward the owner's goal, the head chef merges, closes, edits,
+the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, the head chef merges, closes, edits,
 deletes or labels a record, files an issue or posts a comment; the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,

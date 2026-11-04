@@ -83,8 +83,7 @@ or type `/brigade` to open it.
   it; that session's own chat shows the prompt.
 - **Approves plans and closes sessions in plain text.** A session's "spec
   ready" report asks the lead to approve; the lead answers "approved" or
-  "revise: ...". The go-ahead on a spec stays yours, or the lead's at a level
-  3 you confirmed. To close a session, the lead asks it to wrap up: commit,
+  "revise: ...". The go-ahead on a spec is as your user-level instructions file says. To close a session, the lead asks it to wrap up: commit,
   push, report, and say it is ready to close.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.

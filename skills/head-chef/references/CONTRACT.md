@@ -677,8 +677,7 @@ yes keeps for the owner.
   a to-do carries no question, decision or note text, and a card keeps only
   its Desktop id or `bgId`, which the pane matches. Name a security finding
   by lens, number and class only, never its file, key or line, and a risk by
-  its class of path, never its steps. Private-repository work goes onto no
-  public record or other repository without the owner's word. Write the
+  its class of path, never its steps. Write the
   free text of any act on GitHub to a new file named
   `head-chef-post-<random>.md` in the system's temporary folder, outside any
   repository, post from it, and delete it after, whatever the result. A
