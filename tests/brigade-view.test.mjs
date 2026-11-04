@@ -3831,9 +3831,9 @@ const transcriptOf = (size, extra = '') => ({ text: file(row({ ms: OLD_MS })) + 
 // usage folders and `files`, which it adds them to, so a test that changes
 // `files` between polls changes what the next poll finds. The memories
 // persist across `poll` calls.
-function summaryPoll(files, { clock } = {}) {
+function summaryPoll(files, { clock, listing } = {}) {
   for (const [p, f] of Object.entries(usageDirs())) if (!(p in files)) files[p] = f;
-  const fs = fakeFs(files, clock === undefined ? {} : { clock });
+  const fs = fakeFs(files, { ...(clock === undefined ? {} : { clock }), ...(listing === undefined ? {} : { listing }) });
   const memory = new Map();
   const reads = { plugin: PLUGIN, held: newSummaryMemory() };
   const finder = newFinder();
@@ -4920,4 +4920,126 @@ test('read_context: a title with a line break and the end line prints on one lin
 test('read_context: 51 cards give at most 50 lines (C4)', () => {
   const cards = Array.from({ length: 51 }, (_, i) => ({ title: `c${i}` }));
   assert.equal(body(contextLines(cards, [], NOW)).length, 50);
+});
+
+// --- Every install's usage folder (issue 507, PR 1) ---------------------------
+//
+// A member started from another install writes its summary under that
+// install's data folder. The pane reads the lead's own folder and at most
+// seven other plain `grimoire-*` folders under plugins/data, in sorted order,
+// by the same strict checks.
+
+const OTHER = 'grimoire-mephistopheles4';
+const dataDirs = id => {
+  const dirs = ['plugins', 'data', id, 'brigade', 'usage'];
+  return Object.fromEntries(dirs.map((_, n) => [[CONFIG, ...dirs.slice(0, n + 1)].join('\\'), { kind: 'dir', text: '' }]));
+};
+const summaryIn = (id, i) => `${[CONFIG, 'plugins', 'data', id, 'brigade', 'usage'].join('\\')}\\${SID[i]}.json`;
+const dirEntry = (name, over = {}) => ({ name, kind: 'dir', isLink: false, ...over });
+const installs = (...names) => names.map(n => dirEntry(n));
+const withInstalls = (ids, files) => Object.assign({}, ...ids.map(dataDirs), files);
+const DATA = `${CONFIG}\\plugins\\data`;
+
+test("507 C1: a summary under another install's folder feeds the card of a lead whose own folder holds none", async () => {
+  const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(OTHER, 0)]: { text: summaryText() } });
+  const { fs, poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+  const out = await poll();
+  assert.equal(cardText(out).line, FILE_LINE);
+  assert.deepEqual(out.refusals, []);
+  assert.deepEqual(fs.lists, [DATA], 'one listing of the data folder a poll');
+  assert.deepEqual(fs.reads, [summaryIn(OTHER, 0)]);
+});
+
+test("507 C2: two folders hold one session: the newer last call feeds the card, and a tie goes to the lead's own folder", async () => {
+  const older = summaryText({ lastAt: NOW - 5000 });
+  const newer = summaryText({ lastAt: NOW - 1000 });
+  const pick = async (own, other) => {
+    const files = withInstalls([PLUGIN, OTHER], { [summaryIn(PLUGIN, 0)]: { text: own }, [summaryIn(OTHER, 0)]: { text: other } });
+    return (await summaryPoll(files, { listing: installs(OTHER, PLUGIN) }).poll()).warmth[0].at;
+  };
+  assert.equal(await pick(older, newer), NOW - 1000, 'the other folder is newer');
+  assert.equal(await pick(newer, older), NOW - 1000, 'the own folder is newer');
+  const tieOwn = summaryText({ lastAt: NOW - 1000, cache: 0 });
+  const tieOther = summaryText({ lastAt: NOW - 1000, cache: 1 });
+  const files = withInstalls([PLUGIN, OTHER], { [summaryIn(PLUGIN, 0)]: { text: tieOwn }, [summaryIn(OTHER, 0)]: { text: tieOther } });
+  const out = await summaryPoll(files, { listing: installs(OTHER, PLUGIN) }).poll();
+  assert.equal(out.warmth[0].windowMs, undefined, "the own folder's record wins the tie");
+});
+
+test('507 C3: only plain folders named grimoire-*, the own one and up to seven others in sorted order, are read', async () => {
+  const others = Array.from({ length: 8 }, (_, n) => `grimoire-x${n}`);
+  const names = ['other-plugin', 'grimoire', ...others];
+  const files = withInstalls([PLUGIN, 'grimoire-link', ...names], { [pathOf(0)]: transcriptOf(MIB) });
+  for (const n of ['grimoire-link', ...names]) files[summaryIn(n, 0)] = { text: summaryText({ lastAt: NOW - 3000 }) };
+  const listing = [dirEntry('grimoire-link', { isLink: true }), dirEntry('grimoire-file', { kind: 'file' }), { name: 7 }, ...installs(PLUGIN, ...names.reverse())];
+  const { fs, poll } = summaryPoll(files, { listing });
+  await poll();
+  const read = fs.reads.filter(p => p.includes('\\usage\\')).map(p => p.split('\\')[4]);
+  assert.deepEqual(read, others.slice(0, 7));
+});
+
+test("507 C3: the lead's own folder is read first even when the listing does not name it", async () => {
+  const others = Array.from({ length: 8 }, (_, n) => `grimoire-x${n}`);
+  const files = withInstalls([PLUGIN, ...others], { [pathOf(0)]: transcriptOf(MIB) });
+  const { fs, poll } = summaryPoll(files, { listing: installs(...others) });
+  await poll();
+  const read = fs.stats.filter(p => p.endsWith(`${SID[0]}.json`)).map(p => p.split('\\')[4]);
+  assert.deepEqual(read, [PLUGIN, ...others.slice(0, 7)]);
+});
+
+test('507 C3: a listing that fails, is not a list or is over the cap means the own folder alone', async () => {
+  const over = Array.from({ length: view.MAX_LISTING + 1 }, () => dirEntry(OTHER));
+  for (const listing of [() => { throw new Error('boom'); }, () => ({ length: 1, 0: dirEntry(OTHER) }), () => over]) {
+    const files = withInstalls([PLUGIN, OTHER], {
+      [pathOf(0)]: transcriptOf(6 * MIB),
+      [summaryIn(OTHER, 0)]: { text: summaryText() },
+      [summaryIn(PLUGIN, 0)]: { text: summaryText({ lastAt: NOW - 2000 }) },
+    });
+    const out = await summaryPoll(files, { listing }).poll();
+    assert.equal(out.warmth[0].at, NOW - 2000, 'the own folder feeds the card');
+  }
+});
+
+test('507 C3: a bad file in one folder leaves a good one in another drawn, with no refusal line', async () => {
+  for (const bad of [{ text: '{}' }, { text: summaryText(), isLink: true }]) {
+    const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(PLUGIN, 0)]: bad, [summaryIn(OTHER, 0)]: { text: summaryText() } });
+    const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+    for (let n = 0; n < 3; n += 1) {
+      const out = await poll();
+      assert.equal(cardText(out).line, FILE_LINE, JSON.stringify(bad));
+      assert.deepEqual(out.refusals, []);
+    }
+  }
+  // A bad file in an earlier other folder does not hide a good one in a later folder.
+  const later = withInstalls([PLUGIN, OTHER, 'grimoire-zz'], {
+    [pathOf(0)]: transcriptOf(6 * MIB),
+    [summaryIn(OTHER, 0)]: { text: '{}' },
+    [summaryIn('grimoire-zz', 0)]: { text: summaryText() },
+  });
+  const afterBad = summaryPoll(later, { listing: installs(PLUGIN, OTHER, 'grimoire-zz') });
+  for (let n = 0; n < 3; n += 1) assert.equal(cardText(await afterBad.poll()).line, FILE_LINE);
+});
+
+test("507 C3: a failure in another folder is not drawn, and the own folder's refusal is, when none passes", async () => {
+  const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [summaryIn(OTHER, 0)]: { text: '{}' } });
+  const quiet = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+  for (let n = 0; n < 3; n += 1) assert.deepEqual((await quiet.poll()).refusals, [], "another folder's failure draws nothing");
+  files[summaryIn(PLUGIN, 0)] = { text: summaryText(), isLink: true };
+  assert.deepEqual((await quiet.poll()).refusals, [{ name: 'A', value: 'path' }]);
+});
+
+test("507 C4: the own folder's file failing two polls running draws its refusal line while another install is listed with no file", async () => {
+  // The memory is kept per folder: another folder's missing file does not clear the own folder's strike.
+  const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [summaryIn(PLUGIN, 0)]: { text: '{}' } });
+  const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+  assert.deepEqual((await poll()).refusals, []);
+  assert.deepEqual((await poll()).refusals, [{ name: 'A', value: 'file' }]);
+});
+
+test('507 C4: a member with no summary in any folder falls back to its transcript, and a poll lists the data folder once', async () => {
+  const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [pathOf(1)]: transcriptOf(MIB) });
+  const { fs, poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+  const out = await poll([agent('A', 0), agent('B', 1)], ['A', 'B']);
+  assert.equal(cardText(out).line, OLD_LINE);
+  assert.equal(fs.lists.filter(p => p === DATA).length, 1, 'one listing for both members');
 });

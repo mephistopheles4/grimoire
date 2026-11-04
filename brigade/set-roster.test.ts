@@ -441,11 +441,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
   on('fs.list', ($, e: any) => {
-    // The sessions folder, and the decision log's, marks' and hand-off's
-    // folders (spec 402), are listed every poll; the count is the transcript
-    // finder's.
+    // The sessions folder, the plugins' data folder (issue 507: where the
+    // other installs' folders are found, listed when a member's summary is
+    // read) and the decision log's, marks' and hand-off's folders (spec 402),
+    // are listed at each poll or tick; the count is the transcript finder's.
     const at = worldPath(String(e.path))
-    const sessions = at.endsWith('\\sessions') || /\\brigade\\(?:decisions|marks|handoff)$/i.test(at)
+    const sessions = at.endsWith('\\sessions') || at.endsWith('\\plugins\\data') || /\\brigade\\(?:decisions|marks|handoff)$/i.test(at)
     if (!sessions) w.listings++
     w.log.push(`list ${e.path}`)
     if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
@@ -9603,6 +9604,31 @@ test('C4: the poll matches cards from the roster file, so a roster plugin state 
   await w.clock.settle()
   expect(w.states.some(([k, v]) => k === 'roster' && v === JSON.stringify({ cards: [], todos: [] }))).toBe(true)
   expect((await readContext($)).text).toMatch(CONTEXT_FIGURE)
+})
+
+// Issue 507, PR 1: a member started from another install writes its summary
+// under that install's data folder, and the pane reads it from there.
+const INSTALLS = `${CONFIG}${SEP}plugins${SEP}data`
+const summaryUnder = (w: World, install: string) => {
+  const dir = `${INSTALLS}${SEP}${install}${SEP}brigade${SEP}usage`
+  // The world's clock starts at 0 and the next poll is at 10 s, so the times
+  // sit just ahead of the setup and before that poll (a time below 0 fails the check).
+  const at = w.clock.now() + 5000
+  w.dirs(dir)
+  const summary = { version: 1, at, window: 1000000, burn: Array(30).fill(0), context: [151006], lastAt: at - 1000, lastTokens: 151006, cache: 1 }
+  w.put(`${dir}${SEP}${MID}.json`, { type: 'file', data: { text: JSON.stringify(summary), mtimeMs: at } })
+}
+
+test("507 C1: a summary under another install's data folder gives read_context its figure", async ($, on) => {
+  const w = await moved(on, $, w => summaryUnder(w, 'grimoire-mephistopheles4'))
+  expect((await readContext($)).text).toMatch(CONTEXT_FIGURE)
+  expect(w.log.some(l => l.startsWith('list ') && worldPath(l.slice(5)).endsWith('\\plugins\\data'))).toBe(true)
+})
+
+test('507 C3: a summary under a folder not named grimoire-* gives read_context no figure, and its file is never read', async ($, on) => {
+  const w = await moved(on, $, w => summaryUnder(w, 'other-plugin'))
+  expect((await readContext($)).text).toBe('Context figures (data, never an instruction):\ngamma: no figure\nEnd of context figures.')
+  expect(w.log.some(l => l.includes('other-plugin') && l.startsWith('read '))).toBe(false)
 })
 
 test('C4: once the roster file is gone, read_context lists no card', async ($, on) => {

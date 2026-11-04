@@ -196,8 +196,7 @@ words. It asks no permission. What follows from it:
     named, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E22: a gap the base
-    named, not accepted);
-  - a writer whose files keep failing a check with fresh times freezes its
+    named, not accepted);  - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so ([candidate P3](docs/security/threat-model.md#candidates-for-the-owners-word), E21,
     still accepted as at the base until the owner names it).
 
