@@ -1,5 +1,8 @@
 # Brigade runs the pact's cleaner in the typed window
 
+*Replaced by [0015](0015-brigade-runs-the-configured-cleaner.md): Brigade now
+runs the cleaner the owner configures, and none by default.*
+
 Accepted, as built in 0.110.0 (issue 484, spec revision 4). Until then,
 cleanup took two owner acts. The owner typed `/brigade done <titles>` for the
 archive, and then gave the pact's cleaner its own yes for the worktrees and
