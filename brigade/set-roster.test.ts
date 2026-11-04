@@ -9244,7 +9244,7 @@ test('504 C7: a relative path, a quoted path, a link, a missing file, a folder a
   }
   // None of it changed the setting that stood before.
   expect((await typedBrigade($, 'cleaner')).text).toBe('The cleaner is my cleaner.mjs.')
-  expect((await doneBuild($)).text.split('\n')).toContain(`Cleaner for this window: ${CLEANER_FILE}`)
+  expect((await doneBuild($)).text.split('\n')).toContain('Cleaner for this window: my cleaner.mjs')
   expect(nodes).toEqual([])
 })
 
