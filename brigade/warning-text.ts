@@ -13,7 +13,7 @@ export const RISKS = [
   'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
 ]
 export const ALSO =
-  'It also starts sessions, merges, posts and decides on your word, or on its own toward a level 3 goal you set; cleanup waits for your typed /brigade done.'
+  'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own toward a level 3 goal you set, as your user-level instructions allow.'
 export const WORDING: readonly string[] = [TITLE, ...RISKS, ALSO]
 
 /** The owner's "Don't show again": when, and which version of the wording. */

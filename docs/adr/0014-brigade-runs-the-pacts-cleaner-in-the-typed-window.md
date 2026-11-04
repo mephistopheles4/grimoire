@@ -1,7 +1,7 @@
 # Brigade runs the pact's cleaner in the typed window
 
 *Replaced by [0015](0015-brigade-runs-the-configured-cleaner.md): Brigade now
-runs the cleaner the owner configures, and none by default.*
+runs the cleaner the owner configures, and none by default. Since 0.118.0 [0016](0016-cleanup-is-the-owners-yes-in-chat.md) replaces that in turn: Brigade runs no cleaner.*
 
 Accepted, as built in 0.110.0 (issue 484, spec revision 4). Until then,
 cleanup took two owner acts. The owner typed `/brigade done <titles>` for the

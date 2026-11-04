@@ -87,23 +87,25 @@ or type `/brigade` to open it.
   push, report, and say it is ready to close.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
-- **Cleans up** on your "done", in one typed act, in every repository its
-  sessions ran in. You type `/brigade done all`, for every card the pane
-  shows as done, or `/brigade done <titles>`, at the desktop prompt, then
-  send any message: that is your only yes. The reply lists each card, its
-  repository, worktree folder and branch, as the Brigade mod recorded them
-  when the card joined the roster. The lead then archives each Desktop
-  session, or stops a background one with the mod's
-  `stop_background_session`, and calls the mod's `clean_up`, which runs the
-  cleaner you configured with `/brigade cleaner <absolute path>`: with none
-  set, nothing is removed. Whether a removal can be undone is that cleaner's
-  own promise; the mod passes `--recoverable` and cannot check it. `/brigade done none` takes the window back. The lead removes no
-  worktree or branch itself and never runs `claude rm`; to remove a stopped
-  session for good, you run `claude rm <id>` by hand, which deletes the
-  worktree with whatever is left in it. A wrong card is undone by recreating
-  its worktree with `git worktree add` from its remote branch or the tip the
-  cleaner printed, then unarchiving or attaching the session. Cleanup's yes
-  is yours at every level.
+- **Cleans up** on your "done", in every repository its sessions ran in, and
+  on your word in chat, from the desktop or the phone. At levels 1 and 2, a
+  message that names each session by its title and says to clean it up is the
+  yes: the lead archives or stops those sessions at once, then lists what it
+  touched. Anything vaguer ("done with build-4", "clean up the done ones",
+  "all") gets a list first: each session's title and kind, its folder and
+  branch, and the cleaner your instructions name. It waits for your yes. It
+  archives each Desktop session, or stops a background one with the mod's
+  `stop_background_session`. It runs a cleaner only if your own instructions
+  state the program and how to run it, from its own shell and under your
+  normal permission prompt; with none named it removes nothing and says what
+  stays. Whether a removal can be undone, and what it keeps, is that
+  cleaner's own promise. The lead removes no worktree or branch itself and
+  never runs `claude rm`; to remove a stopped session for good, you run
+  `claude rm <id>` by hand, which deletes the worktree with whatever is left
+  in it. A wrong card is undone by recreating its worktree with
+  `git worktree add` from its remote branch or the tip the cleaner printed,
+  then unarchiving or attaching the session. At level 3 your user-level
+  instructions file decides cleanup, as it does merges.
 - **Acts on GitHub** on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first. At levels 2 and 3, your user-level instructions file says which of these wait
@@ -115,9 +117,9 @@ or type `/brigade` to open it.
   decides what it is sure of and sends you the rest as to-dos; at 3 it runs
   toward your goal and lists each decision in the Decisions tab for you to
   review. At levels 2 and 3 it follows your user-level instructions file:
-  what that file keeps for you waits. Cleanup waits for your typed yes at
-  every level, and so does a hand-off request or a fresh session a context
-  figure prompts.
+  what that file keeps for you waits. Cleanup waits for your yes in chat at
+  levels 1 and 2, and a hand-off request or a fresh session a context figure
+  prompts waits at every level.
 
 ## What counts as your yes
 
@@ -130,8 +132,7 @@ keeps it; a reload, a clear and a resume reset it to 1. A pressed 3 takes its
 goal from your words in the lead's chat, and the lead asks for one, acting at 2 until you give it, when there
 is none; a level or a goal named anywhere else is data. "/make-it-so"
 accepts the picks in the lead's own last message, and not when a session's
-report came between; it never counts as cleanup's yes, which needs your typed
-command.
+report came between; it never counts as cleanup's yes.
 
 ## What the sessions trust
 
@@ -231,7 +232,7 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 |---|---|
 | `SKILL.md` | The skill. Generated from the contract. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
-| `references/cleanup.md` | Cleanup's steps: the typed command, the archive or stop, `clean_up`, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
+| `references/cleanup.md` | Cleanup's steps: your yes, the list, the archive or stop, the cleaner, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
 | `references/starting.md` | The steps of a start, read before each start. Generated with `SKILL.md`. |
 | `references/background.md` | The background route after Desktop refused a start. Generated with `SKILL.md`. |
 | `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |

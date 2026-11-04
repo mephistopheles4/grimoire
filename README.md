@@ -129,8 +129,8 @@ or want to lead several at once. head-chef starts each session as a Desktop
 session under the lead, one you can talk to directly, with the model and
 effort set. Its start prompt points the session to its issue, which holds the
 brief. It takes the session's milestone reports, relays between sessions, and
-cleans a session up when you say it is done, after one name-back and your typed
-`/brigade done`.
+cleans a session up when you say it is done, on your yes in chat, from the desktop
+or your phone.
 It takes the when and the why from your own process, and it never counts a
 message from another session as your yes to start, archive or delete. On your
 own words in its chat, it can also merge, close, edit, delete or label an
@@ -260,8 +260,9 @@ it runs toward your goal: it checks whether the goal is met, and if not,
 continues, until it is met or you say otherwise. A press counts at once; the
 lead asks for a goal in its chat when there is none, and acts at Auto until it has one. At levels 2 and 3 the
 lead follows your user-level instructions file: what that file keeps for you
-waits for you, as a to-do. Cleanup's yes is yours at every level, and so is a
-hand-off request or a fresh session a context figure prompts.
+waits for you, as a to-do. Cleanup's yes is yours in chat at levels 1 and 2, and at level 3 your user-level
+instructions file decides it; a hand-off request or a fresh session a context
+figure prompts waits for you at every level.
 Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view, 3 in the warning colour; a 3 the
@@ -447,80 +448,36 @@ files you ask for:
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
   each cleanup a level-3 lead names back, by repository and branch only.
-  When a card joins the roster, the mod reads that session's folder,
-  repository and branch once, from the session file holding the card's
-  Desktop id or job id, with two `git` calls, and keeps them in memory only,
-  never in a file or plugin state. Each `git` call carries flags that keep
-  the repository's hooks, file watcher and signing program from running, with
-  a hooks folder the mod makes: one empty file in a folder of its own in the
-  plugin's data folder, never removed by the mod.
-  Since 0.110.0 (issue 484) cleanup takes one typed act. Your typed
-  `/brigade done all`, or `/brigade done <title>, <title>`, is the only yes:
-  its reply lists each opened card's kind, repository, folder and branch as
-  they were when it joined, and `/brigade done none` takes it back. The lead
-  then archives or stops those sessions and calls the mod's `clean_up`, which
-  runs the cleaner you configured, as `show --recoverable`, then
-  `remove --recoverable` with the tags show printed, for exactly the window's
-  folders. Brigade removes nothing itself, and runs no `claude rm`
-  ([ADR 0015](docs/adr/0015-brigade-runs-the-configured-cleaner.md)).
-  Since 0.117.0 there is no built-in cleaner, and none is set by default:
-  type `/brigade cleaner <absolute path>` at the desktop prompt to name one,
-  `/brigade cleaner none` to unset it, and `/brigade cleaner` alone to show it.
-  Everything after `cleaner ` is the path, spaces included, with no quoting. A
-  path holding a quote or a control character, a relative path, and a path that
-  is not a regular file (not a link) are refused. The command works only when
-  you type it at the desktop, never from the phone, because it names a program
-  to run. The path is kept in the plugin's lasting store, so one command holds
-  across sessions, and it is shown with your home folder as `~`. A
-  `/brigade done` copies it into its window and names it in its reply, and
-  `clean_up` runs that copy only; a second `/brigade done` in an open window
-  replaces the copy for all its open cards. With no cleaner set, the window still
-  opens, archiving and stopping go ahead, and `clean_up` removes no worktree or
-  branch and says so. Brigade passes `--recoverable` and cannot check what it
-  means: whether a removal can be undone is the cleaner's own promise.
-
-  **What a cleaner must do.** Brigade runs the file as `node <file>` with
-  `NODE_OPTIONS` empty, one repository at a time, with no shell:
-
-  - `<main>` is the absolute path of the repository's main working tree (the
-    folder that holds `.git`). `<folder>` is the name of a worktree directly
-    under `<main>/.claude/worktrees`: a bare name of letters, digits, `.`, `_`
-    and `-`, never a path. Brigade sets no working folder for the run.
-  - `--recoverable` obliges the cleaner to remove a worktree and its branch
-    only when nothing in them would be lost, and to keep and list anything
-    else; Brigade passes it and cannot check it.
-  - `show --recoverable --repo <main> --worktree <folder>...` (one `--worktree`
-    for each folder) lists what it would remove, changes nothing and exits 0. Its
-    last line is `RESULT: shown <n>`, followed by a space and the removable
-    items' tags, comma-separated, when `<n>` is not 0. A tag is 10 lowercase
-    hexadecimal characters. It must finish within 60 seconds.
-  - `remove --recoverable --repo <main> --worktree <folder>... --yes <tags>`
-    takes the same arguments and the tags show printed, removes only those
-    items, and exits 0 or 1. Its last line is
-    `RESULT: removed <n> left <n> changed <n>`. It must finish within 90
-    seconds. A line starting `the cleaner stopped part way` says it did not
-    finish.
-  - A `show` with any other exit code or last line, or over its limit, reads as
-    "did not run", and nothing further runs. A `remove` with any other exit
-    code or last line, over its limit, or with a `the cleaner stopped part way`
-    line, reads as "did not finish": some items may have been removed, and the
-    answer shows only `show`'s output. Only stdout is read, and stdout the
-    engine cut short counts as not finished. `--yes` takes the tags as one
-    comma-joined argument. Each line a finished run prints is shown to the lead
-    as data between two fixed lines, and a line with a control character, or
-    longer than 300 characters, is left out and counted.
-  - `node` must be found on the host's PATH by the pane's rule, or `clean_up`
-    refuses and nothing runs.
-
+  Since 0.118.0 (issue 516) cleanup is your yes in chat, and the mod keeps no
+  window, binding or cleaner of its own
+  ([ADR 0016](docs/adr/0016-cleanup-is-the-owners-yes-in-chat.md)). At levels
+  1 and 2, a message that names each session by its title and says to clean it
+  up is the yes: the lead archives or stops those sessions at once and lists
+  what it touched. Anything vaguer gets a list first, with each session's
+  title and kind, folder and branch, and the cleaner your instructions name,
+  and waits for your yes. At level 3 your user-level instructions file decides.
+  The lead archives each Desktop session, or stops a background one with the
+  mod's `stop_background_session`, which reads the session files at each call
+  and stops only the session whose job id and name match the card. It runs a
+  cleaner only if your own instructions state its program and how to run it,
+  from its own shell and under your normal permission prompt; with none named
+  it removes nothing and says what stays. **Naming a cleaner:** write its
+  program and how to run it in your user-level instructions. What it keeps
+  depends on how your instructions have it run, and whether a removal can be
+  undone is the cleaner's own promise; Brigade no longer passes or checks
+  anything. A cleaner path you set with 0.117.0's command is no longer read.
   The cleaner's answer, folder and file names included, lands in the lead's
-  conversation and transcript. From the phone over Remote Control, a typed
-  `/brigade done` arrives without its titles, so give the yes at the desktop.
-  To undo a wrong card, recreate its worktree at `.claude/worktrees/<name>`
-  with `git worktree add` from its remote branch or, if the cleaner printed
-  one, the tip it printed, then unarchive the Desktop session or `claude attach` the stopped
-  one. A stopped background session stays until you run `claude rm <id>`
-  yourself, after its worktree has gone or you have saved what it holds:
-  `claude rm` deletes the worktree with whatever is left in it.
+  conversation and transcript. A lead started, or a skill copied, before this
+  update may still tell you to type a command: it now only opens the pane, so
+  say the yes in chat. If an archive is refused with a message that names a
+  window you open, the mod is older than 0.118.0: update it, or archive by
+  hand. To undo a wrong card, recreate its worktree at
+  `.claude/worktrees/<name>` with `git worktree add` from its remote branch or,
+  if the cleaner printed one, the tip it printed, then unarchive the Desktop
+  session or `claude attach` the stopped one. A stopped background session
+  stays until you run `claude rm <id>` yourself, after its worktree has gone or
+  you have saved what it holds: `claude rm` deletes the worktree with whatever
+  is left in it.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
@@ -528,15 +485,14 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Ten calls skip the permission prompt:** the `set_roster` tool, which
-  writes the roster file and binds each new card's cleanup target, the
+- **Nine calls skip the permission prompt:** the `set_roster` tool, which
+  writes the roster file, the
   `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
   write and read the lead's hand-off, the `read_autonomy` tool, which reads
   the lead's autonomy level, the
   `stop_background_session` tool, which runs `claude stop` for a background
-  session inside a `/brigade done` window, the `clean_up` tool, which runs the
-  cleaner you configured inside that window, the `read_context` tool, which reads each
+  session your words in the lead's chat named, the `read_context` tool, which reads each
   card's context figure from the meters the pane's last poll kept, the
   `show_permission_warning` tool, which shows a reminder,
   and Open in app's call to the Desktop app's
@@ -546,13 +502,12 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `clean_up` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.104.0 each start, clear or resume also closes every `/brigade done` window. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.117.0, `/brigade cleaner <absolute path>`, `/brigade cleaner none` and a bare `/brigade cleaner` set, unset and show the cleaner `clean_up` runs, only when you type them at the desktop prompt, never from the phone. Since 0.104.0, `/brigade done <title>, <title>` opens a 15-minute window for those cards' sessions, again only when you typed it or sent it from your phone, and answers with the titles you typed, which opened and why each other did not, never an id or a path but the one cleaner line, which names the cleaner as `~`-or-name. Since 0.110.0, `/brigade done all` opens one for every card the pane shows as done, its reply lists each opened card's kind, repository, folder and branch, and `/brigade done none` closes every window. |
-| `tool.call` for Desktop's `mcp__ccd_session_mgmt__archive_session` | Since 0.104.0, in every session the mod loads in: lets one archive through for a session in an open `/brigade done` window, from the model's own main loop with only `session_id` and `reason`, and refuses every other archive call in one fixed line. It keeps nothing from the call. You can still archive by hand in Desktop. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `clean_up`, `read_context` and `show_permission_warning` | Answers for the mod's own nine tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `read_context` and `show_permission_warning` | Answers for the mod's own eight tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |

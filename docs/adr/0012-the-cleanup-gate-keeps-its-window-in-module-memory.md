@@ -1,5 +1,7 @@
 # The cleanup gate keeps its window in module memory, and fails closed
 
+*The window and the gate are gone since 0.118.0 ([ADR 0016](0016-cleanup-is-the-owners-yes-in-chat.md)). The measured tables below stay as a record of the engine; H7's list of measurements to repeat no longer applies.*
+
 Accepted, as built in 0.104.0 (issue 359, spec v5.2). The owner's typed
 `/brigade done <titles>` opens a 15-minute window in the Brigade mod's module
 memory for the bound cards it names. Desktop's archive tool passes only inside
