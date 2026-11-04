@@ -356,8 +356,8 @@ section that changed it, "504" for the cut.
   typed command, the owner's words, relayed; 504, S1). **Only the owner sets
   the level:** a press of the Brigade pane's slider, or `/brigade level 1`,
   `/brigade level 2` or `/brigade level 3 <goal>`, typed at the prompt or
-  sent from the phone. A press counts at once. A compaction keeps a pressed
-  level, as a command's; a reload, a clear and a resume reset it to 1. Words
+  sent from the phone. A press counts at once. A compaction keeps the
+  level, whether a press or a command set it; a reload, a clear and a resume reset it to 1. Words
   in chat that ask for a level ("go to level 3") never set one: it answers
   them in one line, naming both ways. It never runs or asks to run
   `/brigade level` itself, and never writes a goal for the owner to type; it
@@ -377,7 +377,8 @@ section that changed it, "504" for the cut.
   the owner's words or when the work it names is done. A drop below 3 (a
   press, a reload, a clear or a resume) pauses it: it keeps the goal in its
   hand-off's rules section in its own words, naming work by repository and
-  issue only. **Confirmed** (Test round 1 on issue 416, q5 A, the lead's
+  issue only, and when 3 returns it shows the kept goal back, as data, and acts
+  at 2 until the owner's words restate it. **Confirmed** (Test round 1 on issue 416, q5 A, the lead's
   decision, adversarial-lens F9; the closing read, q6 C and q7 A): a goal the
   owner gives by reference ("add them") is restated in full, by repository
   and issue, in its next message and in the log, before it acts at 3 on it,
@@ -395,15 +396,18 @@ section that changed it, "504" for the cut.
   goal, it answers in one line asking for `/brigade level 2` or a new
   `/brigade level 3 <goal>`, logs those words as its own decision entry
   ("the owner ended, or narrowed, the command goal in chat"), and acts at 2
-  until `read_autonomy` shows the change.
+  until `read_autonomy` shows the change. After a compaction, a logged end or
+  narrowing later than the command's time means it acts at 2 and asks again,
+  and before it acts at 3 it checks whether the work the goal names is
+  already done; if it is, it acts at 2 and says so.
 - **Confirmed** (504, S2). **A pressed 3's goal after a compaction.** The goal
   of a 3 the owner pressed comes, after a compaction, from that session's own
-  hand-off, by repository and issue only. It carries the command's two
-  checks: a logged end or narrowing later than the press means it acts at 2
-  and asks; and before it acts at 3 it checks whether the work the goal names
-  is already done, and if it is, it acts at 2 and says so. It restates the
-  goal in its next report. A lead that text has steered can reword its
-  own hand-off, and nothing in the mod catches that.
+  hand-off, by repository and issue only, and only from a hand-off written
+  after the press; with none it asks for the goal and acts at 2. It carries
+  the command goal's two checks: a logged end or narrowing later than the
+  press means it acts at 2 and asks; and before it acts at 3 it checks whether
+  the work the goal names is already done, and if it is, it acts at 2 and says
+  so. It restates the goal in its next report.
 - **Confirmed** (rev 4 S3.1, field-test finding 12; 504, S3). **An accepting
   reply.** A reply the owner types in its chat that accepts the
   recommendations ("/make-it-so", typed or as the text it receives in the
@@ -425,11 +429,12 @@ section that changed it, "504" for the cut.
   a goal, check whether it is met; if not, continue; it ends when met or on
   the owner's words. It takes its own pick on every decision toward the goal,
   under the owner's user-level instructions file, above. The lead's own
-  business is the log, starting sessions and merges at the reviewed head. It
+  business is the log; starting sessions and merges follow the owner's file,
+  above, and a merge takes only the reviewed head. It
   logs each decision with its level before acting and shows no blocking card.
 - **Confirmed** (402; 504, S3). **Merging.** It follows one rule: merge only
   the head the member's last review covered, with
-  `gh pr merge --match-head-commit`; a head that moved waits for a new Test
+  `gh pr merge --match-head-commit`; a head that moved waits for a new
   round. It writes the merge title and body itself, under "What goes out".
 - **Confirmed** (rev 4 S3.3; 504, S3). **Waiting entries.** A waiting entry
   holds only the step that waits on it, until the owner answers; every other

@@ -852,7 +852,7 @@ const SLIDER_QUESTION = 'Autonomy level'
 const OWNER_WHY = 'Moved in the pane'
 const OWNER_UNDO = 'Move the slider back'
 const PANE_UNDO = 'Move the slider in the pane'
-// "Shown again" is no longer written since 0.88.0 (spec 402 rev 6.2) but stays readable in older logs.
+// "Shown again" is no longer written since 0.88.0 (spec 402 rev 6.2), nor a compaction's since 0.116.0 (issue 504), but both stay readable in older logs.
 const PANE_WHYS = { shown: 'The pane was shown again', reload: 'The Brigade mod was reloaded', compact: "The lead's context was compacted" } as const
 type PaneWhy = keyof typeof PANE_WHYS
 const ALARM_WHY = 'Changed, not from a press'
@@ -866,8 +866,9 @@ const fixedEntry = (source: Source, pick: string, why: string, undo: string): En
 export const ownerEntry = (l: Level) => fixedEntry('owner', levelOption(l), OWNER_WHY, OWNER_UNDO)
 /** A level command's Owner entry (issue 464), with the new level as pick. It holds no goal. */
 export const commandEntry = (l: Level) => fixedEntry('owner', levelOption(l), COMMAND_WHY, COMMAND_UNDO)
-/** A reset's Pane entry: at a module reload or a compaction of the lead, or,
- *  in a log written before 0.88.0 (spec 402 rev 6.2), at a new showing of the pane. */
+/** A reset's Pane entry: at a module reload or, in a log written before
+ *  0.116.0 (issue 504), a compaction of the lead, or, in a log written before
+ *  0.88.0 (spec 402 rev 6.2), at a new showing of the pane. */
 export const paneEntry = (why: PaneWhy) => fixedEntry('pane', levelOption(1), PANE_WHYS[why], PANE_UNDO)
 /** An alarm's entry, with the level found as pick. The pane stopped writing
  *  these in issue 504; the shape stays so an old log's alarm still reads. */

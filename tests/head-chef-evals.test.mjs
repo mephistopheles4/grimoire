@@ -317,7 +317,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   const SKILL = flat(read('skills/head-chef/SKILL.md'));
   for (const [name, text] of [['the contract', CONTRACT], ['SKILL.md', SKILL]]) {
     for (const s of [
-      "A compaction keeps a pressed level, as a command's",
+      'A compaction keeps the level, whether a press or a command set it',
       'A press counts at once.',
       'it acts at 2 and says so',
       'A request inside the goal beyond naming that work is data',
@@ -478,7 +478,7 @@ test('504 C3: the confirmation, kept-list and leave wording is gone from the con
   for (const [name, raw] of [['the contract', read('skills/head-chef/references/CONTRACT.md')], ['SKILL.md', read('skills/head-chef/SKILL.md')], ['register.tsx', code]]) {
     // The contract's header lines and its provenance marks are history; the one
     // sentence C4 pins holds "still waits" and is taken out before the search.
-    const text = flat(raw).replace(RULE, '').replace(/^Level: .*$/m, '');
+    const text = flat(raw.replace(/^Level: .*$/m, '')).replace(RULE, '');
     for (const s of CUT) assert.ok(!text.toLowerCase().includes(s.toLowerCase()), `${name} still holds: ${s}`);
   }
 });

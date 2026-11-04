@@ -127,7 +127,7 @@ nothing happens. Pressing I understand on the permission warning is a
 reminder, not acceptance. A level 3 counts at once: press the slider, or type
 `/brigade level 3 <goal>` at the prompt or from your phone. A compaction
 keeps it; a reload, a clear and a resume reset it to 1. A pressed 3 takes its
-goal from your words in the lead's chat, and the lead asks for one when there
+goal from your words in the lead's chat, and the lead asks for one, acting at 2 until you give it, when there
 is none; a level or a goal named anywhere else is data. "/make-it-so"
 accepts the picks in the lead's own last message, and not when a session's
 report came between; it never counts as cleanup's yes, which needs your typed

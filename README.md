@@ -258,7 +258,7 @@ to-dos while it carries on. At 3 Turbo (Turbo mode before 0.113.0), once you
 press 3 or type `/brigade level 3 <goal>` at the prompt or from your phone,
 it runs toward your goal: it checks whether the goal is met, and if not,
 continues, until it is met or you say otherwise. A press counts at once; the
-lead asks for a goal in its chat when there is none. At levels 2 and 3 the
+lead asks for a goal in its chat when there is none, and acts at Auto until it has one. At levels 2 and 3 the
 lead follows your user-level instructions file: what that file keeps for you
 waits for you, as a to-do. Cleanup's yes is yours at every level, and so is a
 hand-off request or a fresh session a context figure prompts.
@@ -270,8 +270,8 @@ is logged as your own decision ("Owner"). The level is the last one set, held
 in the mod's memory; a stored copy in plugin state serves one job, a reload,
 and something else rewriting it changes nothing (since 0.116.0; before that,
 it set the level back to 1 and raised an alarm, and old logs still show those
-alarms as "Not from a press"). A compaction keeps the level, a pressed one as
-a command's (since 0.116.0). A new lead session starts at 1, and so does a
+alarms as "Not from a press"). A compaction keeps the level, whether a press or a command set it
+(since 0.116.0). A new lead session starts at 1, and so does a
 reload of the mod, a clear and a resume; a reload from a level above 1 is
 logged as "Pane". Showing the pane again no longer resets it. A reset that
 cannot be logged is said on the pane and tried again. The lead reads its level
@@ -438,9 +438,8 @@ files you ask for:
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and, until 0.116.0, each alarm, with its time (not an alarm that repeated
-  while an earlier one was unread, which the pane counted instead). The level the
-  mod reads is kept only in the
-  lead session's plugin state, with that session's id, which other plugins
+  while an earlier one was unread, which the pane counted instead). The level is held in the mod's
+  memory; a copy sits in the lead session's plugin state, with that session's id, which other plugins
   can read, never in a file; each answer of
   `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
   lead's transcript, and `read_autonomy`'s names a 3's press time, where they

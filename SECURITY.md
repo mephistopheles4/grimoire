@@ -397,7 +397,7 @@ as far as the owner's user-level instructions file allows (since head-chef
 1.11.0, issue 504, the skill keeps no list of its own, and what that file
 keeps for the owner waits as a to-do); it logs each act before it. A press
 counts at once, with no confirmation in the lead's chat; the lead asks for a
-goal there when it has none. Cleanup waits for the owner's typed yes at every
+goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's typed yes at every
 level, and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
@@ -436,7 +436,7 @@ happens. Each new lead session starts at 1; a reload of the mod, a clear and a
 resume reset a level above 1 to 1, the same session id included, and a showing
 of the pane no longer does. A reload writes a Pane entry; a clear or a resume
 writes none. Since 0.116.0 a compaction of the lead's main conversation keeps
-the level, a pressed one as a command's, with no Pane entry (before 0.116.0 it
+the level, whether a press or a command set it, with no Pane entry (before 0.116.0 it
 reset a pressed level; old logs hold that entry). The compaction hook reads
 only who is compacting, the compaction's trigger and whether it was skipped,
 never the conversation, the instructions or the summary. A reset that cannot
