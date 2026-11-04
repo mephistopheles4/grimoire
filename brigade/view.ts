@@ -2168,25 +2168,59 @@ const readOrder = (readAt: number | undefined) => (readAt !== undefined && Numbe
 // summary writer" below), feeds its card whenever one passes its checks, at
 // every transcript size, and is never compared with the transcript (spec
 // revision 5 on #304, S4 "The reader"). The file is found by the session row's
-// session id in the lead's own plugin data folder, under the roster's path
-// rule, read every poll, and checked from its stat size before any read.
+// session id in the lead's own plugin data folder and in the data folder of
+// every other install of this plugin (issue 507), each under the roster's
+// path rule, read every poll, and checked from its stat size before any read.
 
 /** A file-fed card's cache window: a fixed hour, since a step's usage does
  *  not say whether a call cached for 5 minutes or an hour. */
 export const HOUR_SUMMARY_MS = HOUR_MS
 
-/** What the summary reads remember of each member, by the session row's
- *  session id, in module memory only: the last summary that passed its
- *  checks, and the modified time of the file that last failed one. */
+/** What the summary reads remember of each member, by data folder and the
+ *  session row's session id (`<folder>/<session id>`), in module memory
+ *  only: the last summary that passed its checks, and the modified time of
+ *  the file that last failed one. One folder's file never clears or holds
+ *  another's. */
 export type SummaryMemory = Map<string, { good?: Summary; failedAt?: number }>
 
 /** Nothing remembered yet. */
 export const newSummaryMemory = (): SummaryMemory => new Map()
 
 /** The summary reads a poll makes: the lead's own plugin data id, which names
- *  the folder the files are found in, and what the reads remember between
- *  polls. */
+ *  the first folder the files are looked for in (the other installs' folders
+ *  come from `listInstalls`), and what the reads remember between polls. */
 export type SummaryReads = { plugin: string; held: SummaryMemory }
+
+// The other installs' data folders a poll reads (issue 507): a member started
+// from another install of this plugin writes its summary there. Only a plain
+// folder named `grimoire-` and a short id is taken, the lead's own never
+// counted, and at most seven of them, in sorted order.
+const INSTALL_NAME = /^grimoire-[A-Za-z0-9_-]{1,80}$/
+const MAX_OTHER_INSTALLS = 7
+
+/** The other installs' data folder names under `<config>/plugins/data`, at
+ *  most seven, sorted. A listing that rejects, is not a list or is over
+ *  `MAX_LISTING` entries gives none, and so does an engine with no listing.
+ *  An entry that is not a plain folder (a link included) is skipped; each
+ *  folder named still passes the roster path rule, folder by folder, when its
+ *  summary is placed. Never rejects. */
+export async function listInstalls(config: string, own: string, io: FinderIo): Promise<string[]> {
+  let entries: unknown
+  try {
+    if (io.list === undefined) return []
+    const sep = sepOf(config)
+    entries = await io.list(`${config}${sep}plugins${sep}data`)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(entries) || entries.length > MAX_LISTING) return []
+  const names = new Set<string>()
+  for (const e of entries) {
+    if (!isRecord(e) || e.kind !== 'dir' || e.isLink !== false || typeof e.name !== 'string') continue
+    if (e.name !== own && INSTALL_NAME.test(e.name)) names.add(e.name)
+  }
+  return [...names].sort().slice(0, MAX_OTHER_INSTALLS)
+}
 
 // The two kinds of refusal a card can draw, and their lines. A stored word
 // outside these draws nothing. No ◆: the ◆ line is the cache warmth's.
@@ -2237,7 +2271,7 @@ type SummarySource = { summary: Summary } | { none: true } | { refused: 'path' |
 
 // The path rule's `stat`, from the poll's: a rejection sorted into missing or
 // failed by its message, a link anything but an answer of exactly false, and
-// the file's modified time kept in `seen`, for `readSummary`, from the same
+// the file's modified time kept in `seen`, for `readSummaryIn`, from the same
 // `stat` that placed it.
 function ruleStat(io: FinderIo, seen: Map<string, number>): (path: string) => Promise<StatAnswer> {
   return path =>
@@ -2266,40 +2300,59 @@ function ruleStat(io: FinderIo, seen: Map<string, number>): (path: string) => Pr
  *    running gives the "file" refusal, with nothing held after.
  *  With no clock (`now` not a number) the file is not read: the held summary,
  *  or none, and no failure is counted. Never rejects. */
-async function readSummary(config: string, sessionId: string, io: PollIo, now: number, reads: SummaryReads): Promise<SummarySource> {
-  const { held } = reads
+async function readSummaryIn(config: string, folder: string, sessionId: string, io: PollIo, now: number, held: SummaryMemory): Promise<SummarySource> {
+  const key = `${folder}/${sessionId}`
   const seen = new Map<string, number>()
-  const placed = await placeSummary(config, reads.plugin, sessionId, ruleStat(io, seen)).catch(() => ({ refused: '' }))
+  const placed = await placeSummary(config, folder, sessionId, ruleStat(io, seen)).catch(() => ({ refused: '' }))
   if ('refused' in placed) {
-    held.delete(sessionId)
+    held.delete(key)
     return { refused: 'path' }
   }
   const existing = placed.existing
   if (existing === undefined) {
-    held.delete(sessionId)
+    held.delete(key)
     return { none: true }
   }
-  const had = held.get(sessionId)
+  const had = held.get(key)
   const keep = (): SummarySource => (had?.good === undefined ? { none: true } : { summary: had.good })
   if (!Number.isFinite(now)) return keep()
   const mtimeMs = seen.get(placed.file)
   const checked = await checkedSummary(placed.file, existing.size, mtimeMs, now, io)
   if (checked === UNKNOWN_SUMMARY_VERSION) {
-    held.delete(sessionId)
+    held.delete(key)
     return { none: true }
   }
   if (typeof checked !== 'string') {
-    held.set(sessionId, { good: checked })
+    held.set(key, { good: checked })
     return { summary: checked }
   }
   // A failure. The same file failing again, by its modified time, is not a
   // summary file; a time that is not a number is never the same.
   if (had?.failedAt !== undefined && had.failedAt === mtimeMs) {
-    held.set(sessionId, { failedAt: mtimeMs })
+    held.set(key, { failedAt: mtimeMs })
     return { refused: 'file' }
   }
-  held.set(sessionId, { ...(had?.good === undefined ? {} : { good: had.good }), ...(typeof mtimeMs === 'number' && Number.isFinite(mtimeMs) ? { failedAt: mtimeMs } : {}) })
+  held.set(key, { ...(had?.good === undefined ? {} : { good: had.good }), ...(typeof mtimeMs === 'number' && Number.isFinite(mtimeMs) ? { failedAt: mtimeMs } : {}) })
   return keep()
+}
+
+/** One member's summary across the folders, the lead's own first: each
+ *  folder by `readSummaryIn`'s rules, and then
+ *  - the passing summary with the newest last call feeds the card, the
+ *    earlier folder winning a tie, so a refusal elsewhere hides nothing;
+ *  - with none passing, the lead's own folder's refusal is drawn, and a
+ *    refusal in any other folder draws nothing;
+ *  - else none. Never rejects. */
+async function readSummary(config: string, folders: readonly string[], sessionId: string, io: PollIo, now: number, held: SummaryMemory): Promise<SummarySource> {
+  let best: Summary | undefined
+  let own: SummarySource = { none: true }
+  for (const [n, folder] of folders.entries()) {
+    const source = await readSummaryIn(config, folder, sessionId, io, now, held)
+    if (n === 0) own = source
+    if ('summary' in source && (best === undefined || source.summary.lastAt > best.lastAt)) best = source.summary
+  }
+  if (best !== undefined) return { summary: best }
+  return 'refused' in own ? own : { none: true }
 }
 
 // The summary at `file`, or why not, in fixed words: the stat size against
@@ -2343,7 +2396,8 @@ function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Met
  *  `finder.byName` for the link reads. A name on rows with two or more
  *  session ids, or on two rows one of which has none, is shared: neither
  *  its summary file nor its transcript is looked for. With `summaries`, each
- *  other member's summary file is read by `readSummary`'s rules: one that
+ *  other member's summary files are read by `readSummary`'s rules, in the
+ *  lead's own data folder and the other installs' (`listInstalls`): one that
  *  passes gives its card's records at any transcript size, with no
  *  transcript read for them, and a refusal adds a pair, the member's name
  *  and `path` or `file`. A member with no summary to draw from is read from
@@ -2385,6 +2439,9 @@ export async function readCalls(
   const named = new Set<string>()
   const ids = new Set<string>()
   let asked = false
+  // The data folders the summaries are looked for in, listed once a poll and
+  // only when a member's summary is read: the lead's own, then the others.
+  let folders: string[] | undefined
   // The clock, asked once a poll, before the summary reads need it.
   let now = Number.NaN
   let clocked = false
@@ -2430,7 +2487,9 @@ export async function readCalls(
     // A passing summary file feeds the card at any transcript size; the
     // transcript stays found for the link read.
     if (summaries !== undefined && SESSION_ID.test(row.sessionId)) {
-      const source = await readSummary(config, row.sessionId, io, await clock(), summaries)
+      folders ??= [summaries.plugin, ...(await listInstalls(config, summaries.plugin, io))]
+      if (!io.live()) return undefined
+      const source = await readSummary(config, folders, row.sessionId, io, await clock(), summaries.held)
       if (!io.live()) return undefined
       if ('refused' in source) refusals.push({ name, value: source.refused })
       if ('summary' in source) {
@@ -2500,7 +2559,7 @@ export async function readCalls(
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
-  if (summaries !== undefined) for (const id of [...summaries.held.keys()]) if (!ids.has(id)) summaries.held.delete(id)
+  if (summaries !== undefined) for (const key of [...summaries.held.keys()]) if (!ids.has(key.slice(key.indexOf('/') + 1))) summaries.held.delete(key)
   return { warmth, meters, refusals }
 }
 
