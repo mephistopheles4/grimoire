@@ -441,10 +441,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
   on('fs.list', ($, e: any) => {
-    // The sessions folder, the plugins' data folder (issue 507: the other
-    // installs' usage folders) and the decision log's, marks' and hand-off's
-    // folders (spec 402), are listed every poll; the count is the transcript
-    // finder's.
+    // The sessions folder, the plugins' data folder (issue 507: where the
+    // other installs' folders are found, listed when a member's summary is
+    // read) and the decision log's, marks' and hand-off's folders (spec 402),
+    // are listed at each poll or tick; the count is the transcript finder's.
     const at = worldPath(String(e.path))
     const sessions = at.endsWith('\\sessions') || at.endsWith('\\plugins\\data') || /\\brigade\\(?:decisions|marks|handoff)$/i.test(at)
     if (!sessions) w.listings++

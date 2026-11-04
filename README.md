@@ -318,7 +318,7 @@ Since 0.115.0 the pane looks for a member's summary in the data folder of every
 install of the plugin, not only the lead's own, because a member started from
 another install writes to that install's folder. It reads the lead's own folder
 and at most seven others, each a plain folder named `grimoire-` and an id, by
-the same checks. The newest passing file feeds the card.
+the same checks. The passing file with the newest last call feeds the card.
 Since 0.62.0 a member keeps the Remote Control link the pane read while its
 transcript was 4 MiB or less, once the transcript grows past that and after a
 plugin reload. **Known limits:** a member first seen with a transcript already

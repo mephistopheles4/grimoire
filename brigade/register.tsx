@@ -503,7 +503,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       const config = at.config
 
       // Each roster member's cache warmth and meters: from its summary file
-      // in this plugin's data folder when one passes its checks, else from
+      // in this plugin's data folder or another install's when one passes its checks, else from
       // its transcript's call series, found by the transcript finder. The
       // rules for what is found and read, and when, are in view.ts.
       // The matched rows are handed over under their card's title.

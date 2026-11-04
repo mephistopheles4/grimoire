@@ -2193,7 +2193,7 @@ export type SummaryReads = { plugin: string; held: SummaryMemory }
 
 // The other installs' data folders a poll reads (issue 507): a member started
 // from another install of this plugin writes its summary there. Only a plain
-// folder named `grimoire-` and a short id is taken, the lead's own never
+// folder named `grimoire-` and an id of 1 to 80 characters is taken, the lead's own never
 // counted, and at most seven of them, in sorted order.
 const INSTALL_NAME = /^grimoire-[A-Za-z0-9_-]{1,80}$/
 const MAX_OTHER_INSTALLS = 7
@@ -2339,7 +2339,7 @@ async function readSummaryIn(config: string, folder: string, sessionId: string, 
 /** One member's summary across the folders, the lead's own first: each
  *  folder by `readSummaryIn`'s rules, and then
  *  - the passing summary with the newest last call feeds the card, the
- *    earlier folder winning a tie, so a refusal elsewhere hides nothing;
+ *    earlier folder winning a tie; a refusal in any folder never hides it;
  *  - with none passing, the lead's own folder's refusal is drawn, and a
  *    refusal in any other folder draws nothing;
  *  - else none. Never rejects. */
@@ -2559,6 +2559,7 @@ export async function readCalls(
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
+  // A held key is `<folder>/<session id>` (see `SummaryMemory`); a folder name holds no `/`.
   if (summaries !== undefined) for (const key of [...summaries.held.keys()]) if (!ids.has(key.slice(key.indexOf('/') + 1))) summaries.held.delete(key)
   return { warmth, meters, refusals }
 }

@@ -196,13 +196,7 @@ words. It asks no permission. What follows from it:
     named, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E22: a gap the base
-    named, not accepted);
-  - since 0.115.0 the pane reads summaries from the data folder of every
-    install of the plugin, the lead's own and at most seven others named
-    `grimoire-` and an id, each under the same path rule, so a plugin whose
-    data folder carries such a name can plant one; the newest passing file wins
-    ([candidate P1](docs/security/threat-model.md#candidates-for-the-owners-word));
-  - a writer whose files keep failing a check with fresh times freezes its
+    named, not accepted);  - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so ([candidate P3](docs/security/threat-model.md#candidates-for-the-owners-word), E21,
     still accepted as at the base until the owner names it).
 

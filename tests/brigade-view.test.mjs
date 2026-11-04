@@ -4925,8 +4925,9 @@ test('read_context: 51 cards give at most 50 lines (C4)', () => {
 // --- Every install's usage folder (issue 507, PR 1) ---------------------------
 //
 // A member started from another install writes its summary under that
-// install's data folder. The pane reads the lead's own folder and every other
-// `grimoire-*` folder under plugins/data, by the same strict checks.
+// install's data folder. The pane reads the lead's own folder and at most
+// seven other plain `grimoire-*` folders under plugins/data, in sorted order,
+// by the same strict checks.
 
 const OTHER = 'grimoire-mephistopheles4';
 const dataDirs = id => {
@@ -4939,7 +4940,7 @@ const installs = (...names) => names.map(n => dirEntry(n));
 const withInstalls = (ids, files) => Object.assign({}, ...ids.map(dataDirs), files);
 const DATA = `${CONFIG}\\plugins\\data`;
 
-test("claim 1: a summary under another install's folder feeds the card of a lead whose own folder holds none", async () => {
+test("507 C1: a summary under another install's folder feeds the card of a lead whose own folder holds none", async () => {
   const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(OTHER, 0)]: { text: summaryText() } });
   const { fs, poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
   const out = await poll();
@@ -4949,7 +4950,7 @@ test("claim 1: a summary under another install's folder feeds the card of a lead
   assert.deepEqual(fs.reads, [summaryIn(OTHER, 0)]);
 });
 
-test("claim 2: two folders hold one session: the newer last call feeds the card, and a tie goes to the lead's own folder", async () => {
+test("507 C2: two folders hold one session: the newer last call feeds the card, and a tie goes to the lead's own folder", async () => {
   const older = summaryText({ lastAt: NOW - 5000 });
   const newer = summaryText({ lastAt: NOW - 1000 });
   const pick = async (own, other) => {
@@ -4965,19 +4966,19 @@ test("claim 2: two folders hold one session: the newer last call feeds the card,
   assert.equal(out.warmth[0].windowMs, undefined, "the own folder's record wins the tie");
 });
 
-test('claim 3: only plain folders named grimoire-*, the own one and up to seven others in sorted order, are read', async () => {
+test('507 C3: only plain folders named grimoire-*, the own one and up to seven others in sorted order, are read', async () => {
   const others = Array.from({ length: 8 }, (_, n) => `grimoire-x${n}`);
   const names = ['other-plugin', 'grimoire', ...others];
   const files = withInstalls([PLUGIN, 'grimoire-link', ...names], { [pathOf(0)]: transcriptOf(MIB) });
   for (const n of ['grimoire-link', ...names]) files[summaryIn(n, 0)] = { text: summaryText({ lastAt: NOW - 3000 }) };
-  const listing = [dirEntry('grimoire-link', { isLink: true }), dirEntry('grimoire-file', { kind: 'file' }), { name: 7 }, ...installs(...names.reverse())];
+  const listing = [dirEntry('grimoire-link', { isLink: true }), dirEntry('grimoire-file', { kind: 'file' }), { name: 7 }, ...installs(PLUGIN, ...names.reverse())];
   const { fs, poll } = summaryPoll(files, { listing });
   await poll();
   const read = fs.reads.filter(p => p.includes('\\usage\\')).map(p => p.split('\\')[4]);
   assert.deepEqual(read, others.slice(0, 7));
 });
 
-test("claim 3: the lead's own folder is read even when the listing does not name it, and is never counted among the seven", async () => {
+test("507 C3: the lead's own folder is read first even when the listing does not name it", async () => {
   const others = Array.from({ length: 8 }, (_, n) => `grimoire-x${n}`);
   const files = withInstalls([PLUGIN, ...others], { [pathOf(0)]: transcriptOf(MIB) });
   const { fs, poll } = summaryPoll(files, { listing: installs(...others) });
@@ -4986,9 +4987,9 @@ test("claim 3: the lead's own folder is read even when the listing does not name
   assert.deepEqual(read, [PLUGIN, ...others.slice(0, 7)]);
 });
 
-test('claim 3: a listing that fails, is not a list or is over the cap means the own folder alone', async () => {
+test('507 C3: a listing that fails, is not a list or is over the cap means the own folder alone', async () => {
   const over = Array.from({ length: view.MAX_LISTING + 1 }, () => dirEntry(OTHER));
-  for (const listing of [() => { throw new Error('boom'); }, () => 'nope', () => over]) {
+  for (const listing of [() => { throw new Error('boom'); }, () => ({ length: 1, 0: dirEntry(OTHER) }), () => over]) {
     const files = withInstalls([PLUGIN, OTHER], {
       [pathOf(0)]: transcriptOf(6 * MIB),
       [summaryIn(OTHER, 0)]: { text: summaryText() },
@@ -4999,7 +5000,7 @@ test('claim 3: a listing that fails, is not a list or is over the cap means the 
   }
 });
 
-test('claim 3: a bad file in one folder leaves a good one in another drawn, with no refusal line', async () => {
+test('507 C3: a bad file in one folder leaves a good one in another drawn, with no refusal line', async () => {
   for (const bad of [{ text: '{}' }, { text: summaryText(), isLink: true }]) {
     const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(PLUGIN, 0)]: bad, [summaryIn(OTHER, 0)]: { text: summaryText() } });
     const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
@@ -5009,9 +5010,17 @@ test('claim 3: a bad file in one folder leaves a good one in another drawn, with
       assert.deepEqual(out.refusals, []);
     }
   }
+  // A bad file in an earlier other folder does not hide a good one in a later folder.
+  const later = withInstalls([PLUGIN, OTHER, 'grimoire-zz'], {
+    [pathOf(0)]: transcriptOf(6 * MIB),
+    [summaryIn(OTHER, 0)]: { text: '{}' },
+    [summaryIn('grimoire-zz', 0)]: { text: summaryText() },
+  });
+  const afterBad = summaryPoll(later, { listing: installs(PLUGIN, OTHER, 'grimoire-zz') });
+  for (let n = 0; n < 3; n += 1) assert.equal(cardText(await afterBad.poll()).line, FILE_LINE);
 });
 
-test("claim 3: a failure in another folder is not drawn, and the own folder's refusal is, when none passes", async () => {
+test("507 C3: a failure in another folder is not drawn, and the own folder's refusal is, when none passes", async () => {
   const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [summaryIn(OTHER, 0)]: { text: '{}' } });
   const quiet = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
   for (let n = 0; n < 3; n += 1) assert.deepEqual((await quiet.poll()).refusals, [], "another folder's failure draws nothing");
@@ -5019,17 +5028,15 @@ test("claim 3: a failure in another folder is not drawn, and the own folder's re
   assert.deepEqual((await quiet.poll()).refusals, [{ name: 'A', value: 'path' }]);
 });
 
-test("claim 3: one folder's failing file does not clear the record held from another folder", async () => {
-  const files = withInstalls([PLUGIN, OTHER, 'grimoire-third'], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(OTHER, 0)]: { text: summaryText() } });
-  const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER, 'grimoire-third') });
-  assert.equal(cardText(await poll()).line, FILE_LINE);
-  // The same session gets a bad file in a second folder; the first folder's record stays held.
-  files[summaryIn('grimoire-third', 0)] = { text: '{}', mtimeMs: MTIME + 1 };
-  assert.equal(cardText(await poll()).line, FILE_LINE);
-  assert.equal(cardText(await poll()).line, FILE_LINE);
+test("507 C4: the own folder's file failing two polls running draws its refusal line while another install is listed with no file", async () => {
+  // The memory is kept per folder: another folder's missing file does not clear the own folder's strike.
+  const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [summaryIn(PLUGIN, 0)]: { text: '{}' } });
+  const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
+  assert.deepEqual((await poll()).refusals, []);
+  assert.deepEqual((await poll()).refusals, [{ name: 'A', value: 'file' }]);
 });
 
-test('claim 4: a member with no summary in any folder falls back to its transcript, and a poll lists the data folder once', async () => {
+test('507 C4: a member with no summary in any folder falls back to its transcript, and a poll lists the data folder once', async () => {
   const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [pathOf(1)]: transcriptOf(MIB) });
   const { fs, poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
   const out = await poll([agent('A', 0), agent('B', 1)], ['A', 'B']);
