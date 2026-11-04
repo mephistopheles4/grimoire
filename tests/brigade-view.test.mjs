@@ -1701,7 +1701,8 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   // each read's time and call series in place of its last call.
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
-  assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
+  // The user-level file rule's words, "memory included" (issue 504), are not the re-read memory.
+  assert.equal(register.replace('memory included', '').match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
   assert.match(register, /readCalls\(retitled, cards\.map\(c => c\.title\), config, memory, io, finder, /);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
@@ -2095,7 +2096,7 @@ test('the not-found line: "◆ transcript not found", dim, whatever the live sta
 // the four words, or one that names a prototype key, counts nowhere.
 
 const { STATUS, statusOf, groupCards, reportCount, drawnTitle } = view;
-const cardOf = (title, status) => ({ title, work: 'w', phase: 'p', settings: 's', status });
+const cardOf = (title, status) => ({ title, work: 'w', settings: 's', status });
 const placed = list => list.map(({ c, i }) => [i, c.title]);
 
 test('the status Map gives each of the four statuses its glyph, word, theme key and class, in display order', () => {
@@ -2577,7 +2578,7 @@ test('the to-do bar view: "N of M done", 20 eighth-block cells, and nothing with
 });
 
 test('a roster whose titles and to-do texts hold hostile text draws, and none of that text reaches the strip or the to-do bar', () => {
-  const cards = ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ ...cardOf(`${MARKED}${i}`, s), work: MARKED, phase: MARKED, settings: MARKED }));
+  const cards = ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ ...cardOf(`${MARKED}${i}`, s), work: MARKED, settings: MARKED }));
   const todos = [{ id: 't1', text: MARKED, session: MARKED }, { id: 't2', text: MARKED }];
   // The builders take no report: the inbox never reaches them. The pane's own
   // test draws a hostile report beside these, on both surfaces.
@@ -4661,7 +4662,7 @@ test('the session-row reader keeps the Desktop id, job id, waiting reason and up
 });
 
 const rowOf = (name, extra) => ({ name, status: 'busy', sessionId: 'sid-' + name, ...extra });
-const cardWith = (title, extra) => ({ title, work: 'w', phase: 'p', settings: 's', status: 'working', ...extra });
+const cardWith = (title, extra) => ({ title, work: 'w', settings: 's', status: 'working', ...extra });
 
 test('a card finds its row by Desktop id first, by job id for a background card, and by title only without an id', () => {
   const { matchRows } = roster;

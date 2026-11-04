@@ -23,7 +23,7 @@ const {
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
-  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
+  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, clockTime,
   drawnLogs, markAllSet, parseMarkAllKey,
   levelOption, commandEntry, parseLevelCommand, isLevelCommand, levelOriginAllowed, commandHolds, LEVEL_REPLIES,
 } = d;
@@ -430,14 +430,12 @@ test('claim 11: a stored level other than the number 1, 2 or 3 reads as 1, and o
   for (const planted of [undefined, null, 'x', {}, { [SID]: 3 }, [null], [{ session: SID }]]) assert.equal(storedLevel(planted, SID), 1);
 });
 
-test('claim 11: the level in force is 1 when the stored level differs from the last pressed one, an alarm or a Pane entry waits, or a 3 has no press time', () => {
-  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, waiting: false }), 2);
-  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: NOW, waiting: false }), 3);
-  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: undefined, waiting: false }), 1);
-  assert.equal(levelInForce({ stored: 3, pressed: 2, pressAt: NOW, waiting: false }), 1);
-  assert.equal(levelInForce({ stored: 2, pressed: 3, pressAt: NOW, waiting: false }), 1);
-  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, waiting: true }), 1);
-  assert.equal(levelInForce({ stored: 1, pressed: 1, pressAt: undefined, waiting: false }), 1);
+test('issue 504: the level in force is the last level set, 1 while a Pane entry waits or for a 3 with no press time; the stored copy is never compared', () => {
+  assert.equal(levelInForce({ pressed: 2, pressAt: undefined, waiting: false }), 2);
+  assert.equal(levelInForce({ pressed: 3, pressAt: NOW, waiting: false }), 3);
+  assert.equal(levelInForce({ pressed: 3, pressAt: undefined, waiting: false }), 1);
+  assert.equal(levelInForce({ pressed: 2, pressAt: undefined, waiting: true }), 1);
+  assert.equal(levelInForce({ pressed: 1, pressAt: undefined, waiting: false }), 1);
 });
 
 test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape each, pass the log\'s check, and draw as their sources', () => {
@@ -503,29 +501,6 @@ test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape 
     [pane, { level: 2 }], [alarm, { level: 3 }],
   ];
   for (const [e, over] of bent) assert.equal(inFixedShape({ ...e, ...over }), false, `${e.source} ${JSON.stringify(over)}`);
-});
-
-test('claim 11: a repeat alarm is held back only while an alarm the pane wrote sits unread, in its shape, in this log', () => {
-  let log = emptyLog(null);
-  for (const raw of [alarmEntry(3), input()]) {
-    const r = appendEntry(log, raw, { at: NOW, level: 1, read: new Map(), fixed: raw.source === 'alarm' });
-    assert.ok('value' in r);
-    log = r.value.log;
-  }
-  const [alarm, lead] = log.entries;
-  const wrote = new Set([markKey(SID, alarm.id, alarm.at)]);
-  assert.equal(unreadOwnAlarm(log, SID, wrote, new Map()), true);
-  // Read, or flagged, by any mark: the next alarm is logged.
-  for (const state of ['read', 'flagged', 'unflagged']) {
-    assert.equal(unreadOwnAlarm(log, SID, wrote, new Map([[markKey(SID, alarm.id, alarm.at), state]])), false, state);
-  }
-  // An alarm the pane did not write, or one it wrote in another session's log, holds nothing back.
-  assert.equal(unreadOwnAlarm(log, SID, new Set(), new Map()), false);
-  assert.equal(unreadOwnAlarm(log, OTHER, wrote, new Map()), false);
-  // Nor does one rewritten out of its shape, nor another entry under an alarm's key.
-  const bent = { ...log, entries: [{ ...alarm, why: 'Moved in the pane' }, lead] };
-  assert.equal(unreadOwnAlarm(bent, SID, wrote, new Map()), false);
-  assert.equal(unreadOwnAlarm(log, SID, new Set([markKey(SID, lead.id, lead.at)]), new Map()), false);
 });
 
 // --- claim 9: Flagged to revisit and Dismiss ------------------------------------------------
@@ -1392,7 +1367,4 @@ test('C15a, #496: level 3 is named Turbo, and logs written before either rename 
   assert.equal(inFixedShape({ ...alarm, options: OLD }), false);
   assert.equal(inFixedShape({ ...command, options: OLD, pick: '3 Full throttle' }), false);
   assert.equal(inFixedShape({ ...owner, options: ['1 Manual', '2 Auto', '3 Full throttle', '3 Turbo mode'] }), false);
-  // An old alarm the pane wrote still holds a repeat back.
-  const log = { ...emptyLog(null), next: 2, entries: [{ ...alarm, options: OLD, pick: '3 Full throttle' }] };
-  assert.equal(unreadOwnAlarm(log, SID, new Set([markKey(SID, alarm.id, alarm.at)]), new Map()), true);
 });

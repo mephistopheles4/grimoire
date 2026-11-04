@@ -19,7 +19,7 @@ const { RECORDED } = await import('../brigade/recorded-stats.ts');
 const { MAX_ROSTER_BYTES, checkRoster, foldsCase, placeRoster, serialize, statRejection } = roster;
 
 const SID = '11111111-2222-3333-4444-555555555555';
-const card = (title, over = {}) => ({ title, work: '', phase: '', settings: '', status: 'working', ...over });
+const card = (title, over = {}) => ({ title, work: '', settings: '', status: 'working', ...over });
 
 // --- the shape check ------------------------------------------------------------
 
@@ -696,17 +696,17 @@ test('since comes from the file as a whole number from 0 to 2^53 - 1, and never 
   assert.equal(checkRoster(JSON.stringify({ cards: [card('a', { since: 7 })], todos: [] })).value.cards[0].since, 7);
 });
 
-test('the stamp keeps a card\'s since when its drawn title, status and phase match and the kept value is sane', () => {
+test('the stamp keeps a card\'s since when its drawn title and status match and the kept value is sane', () => {
   const now = 10_000_000;
-  const before = { cards: [card('alpha', { phase: 'p', since: 5_000 }), card('beta', { phase: 'p', since: 6_000 })], todos: [] };
-  const next = [card('alpha', { phase: 'p' }), card('beta', { phase: 'changed' }), card('gamma')];
+  const before = { cards: [card('alpha', { since: 5_000 }), card('beta', { since: 6_000 })], todos: [] };
+  const next = [card('alpha'), card('beta', { status: 'stopped' }), card('gamma')];
   const r = stampSince(before, next, now);
   assert.deepEqual(r.value.map(c => c.since), [5_000, now, now]);
   // Titles are matched as drawn: a hidden character does not make a new card.
-  const hidden = stampSince(before, [card('al\u{200b}pha', { phase: 'p' })], now);
+  const hidden = stampSince(before, [card('al\u{200b}pha')], now);
   assert.equal(hidden.value[0].since, 5_000);
   // A status change restamps.
-  assert.equal(stampSince(before, [card('alpha', { phase: 'p', status: 'done' })], now).value[0].since, now);
+  assert.equal(stampSince(before, [card('alpha', { status: 'done' })], now).value[0].since, now);
   // No previous roster stamps everything.
   assert.equal(stampSince(undefined, [card('alpha')], now).value[0].since, now);
 });
@@ -975,4 +975,14 @@ test('the head-chef roster reference gives the repo rule as the check holds it (
   const contract = await readFile(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8');
   assert.match(contract.replace(/\s+/g, ' '), /A card whose pull request is in another repository than the lead's own working folder's carries that repository as `repo`, an `owner\/name` with no host, and a card whose pull request is in the lead's own repository carries none\./);
   assert.match(ref.replace(/\s+/g, ' '), /`repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`; the name 1 to 100 letters, digits, `-`, `\.` or `_`, not starting with `-` or `\.`/);
+});
+
+test('issue 504: a roster file holding phase loads with the key dropped, and a tool call holding it is refused in words that say so', () => {
+  const withPhase = JSON.stringify({ cards: [{ ...card('a'), phase: 'building' }], todos: [] });
+  const fromFile = checkRoster(withPhase, true, 'file');
+  assert.ok('value' in fromFile);
+  assert.equal(Object.hasOwn(fromFile.value.cards[0], 'phase'), false);
+  assert.deepEqual(fromFile.value.cards[0], card('a'));
+  const fromTool = checkRoster(withPhase, true, 'tool');
+  assert.deepEqual(fromTool, { error: 'phase is gone: send the cards without it' });
 });

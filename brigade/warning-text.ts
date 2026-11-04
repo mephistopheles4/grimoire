@@ -13,7 +13,7 @@ export const RISKS = [
   'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
 ]
 export const ALSO =
-  'It also starts sessions and relays between them. It merges, posts, waives reviews, settles security findings and records accepted risks on your word, or on its own toward a goal at a level 3 you confirmed in its chat, a merge that eases a control included; it cleans up only on your typed /brigade done, and removes only what the pact\'s cleaner finds it can recover.'
+  'It also starts sessions, merges, posts and decides on your word, or on its own toward a level 3 goal you set; cleanup waits for your typed /brigade done.'
 export const WORDING: readonly string[] = [TITLE, ...RISKS, ALSO]
 
 /** The owner's "Don't show again": when, and which version of the wording. */

@@ -796,12 +796,14 @@ export function sourceLabel(e: DecisionEntry, writer: string, mine = false): str
 
 // --- the autonomy level (S5.1, S5.2 and S5.4) ------------------------------------
 //
-// The level a lead reads, set only by a press on the Decisions tab's slider.
-// register.tsx keeps the stored level in plugin state, which other plugins can
-// rewrite, and the last level a press set, a 3's press time and a pending
-// alarm in its own module memory; these rules read them. The pane's own log
-// entries, Owner, Pane and alarm, each have one fixed shape, built and checked
-// from the same words, so an entry in any other shape is skipped.
+// The level a lead reads, set only by a press on the Decisions tab's slider or
+// the owner's level command. register.tsx keeps the last level set and a 3's
+// press time in its own module memory; these rules read them. A copy in plugin
+// state, which other plugins can rewrite, serves a reload alone (issue 504).
+// The pane's own log entries, Owner, Pane and alarm, each have one fixed
+// shape, built and checked from the same words, so an entry in any other
+// shape is skipped. The pane no longer writes an alarm; an old log's stays
+// readable.
 
 export type Level = 1 | 2 | 3
 // Level 3 was "Full throttle" until issue 464 renamed it "Turbo mode", and
@@ -836,13 +838,13 @@ export const anyStoredAbove1 = (stored: unknown): boolean => Array.isArray(store
  *  milliseconds inside the Date range (#430's C12, from Test round 1's q3g). Any other is no time. */
 export const clockTime = (t: unknown): t is number => typeof t === 'number' && Number.isSafeInteger(t) && Math.abs(t) <= 8.64e15
 
-/** The level in force: 1 when the stored level differs from the last one a
- *  press set, while an alarm or a reset's Pane entry waits to be logged, and
- *  for a 3 with no live press time; else the stored level. */
-export function levelInForce(o: { stored: Level; pressed: Level; pressAt: number | undefined; waiting: boolean }): Level {
-  if (o.stored !== o.pressed || o.waiting) return 1
-  if (o.stored === 3 && o.pressAt === undefined) return 1
-  return o.stored
+/** The level in force: the last level set, and 1 while a reset's Pane entry
+ *  waits to be logged or a reset waits to land, and for a 3 with no live press
+ *  time. The stored copy in plugin state is never compared (issue 504). */
+export function levelInForce(o: { pressed: Level; pressAt: number | undefined; waiting: boolean }): Level {
+  if (o.waiting) return 1
+  if (o.pressed === 3 && o.pressAt === undefined) return 1
+  return o.pressed
 }
 
 const SLIDER_WORK = 'Autonomy slider'
@@ -850,7 +852,7 @@ const SLIDER_QUESTION = 'Autonomy level'
 const OWNER_WHY = 'Moved in the pane'
 const OWNER_UNDO = 'Move the slider back'
 const PANE_UNDO = 'Move the slider in the pane'
-// "Shown again" is no longer written since 0.88.0 (spec 402 rev 6.2) but stays readable in older logs.
+// "Shown again" is no longer written since 0.88.0 (spec 402 rev 6.2), nor a compaction's since 0.116.0 (issue 504), but both stay readable in older logs.
 const PANE_WHYS = { shown: 'The pane was shown again', reload: 'The Brigade mod was reloaded', compact: "The lead's context was compacted" } as const
 type PaneWhy = keyof typeof PANE_WHYS
 const ALARM_WHY = 'Changed, not from a press'
@@ -864,24 +866,13 @@ const fixedEntry = (source: Source, pick: string, why: string, undo: string): En
 export const ownerEntry = (l: Level) => fixedEntry('owner', levelOption(l), OWNER_WHY, OWNER_UNDO)
 /** A level command's Owner entry (issue 464), with the new level as pick. It holds no goal. */
 export const commandEntry = (l: Level) => fixedEntry('owner', levelOption(l), COMMAND_WHY, COMMAND_UNDO)
-/** A reset's Pane entry: at a module reload or a compaction of the lead, or,
- *  in a log written before 0.88.0 (spec 402 rev 6.2), at a new showing of the pane. */
+/** A reset's Pane entry: at a module reload or, in a log written before
+ *  0.116.0 (issue 504), a compaction of the lead, or, in a log written before
+ *  0.88.0 (spec 402 rev 6.2), at a new showing of the pane. */
 export const paneEntry = (why: PaneWhy) => fixedEntry('pane', levelOption(1), PANE_WHYS[why], PANE_UNDO)
-/** An alarm's entry, with the level found as pick. */
+/** An alarm's entry, with the level found as pick. The pane stopped writing
+ *  these in issue 504; the shape stays so an old log's alarm still reads. */
 export const alarmEntry = (found: Level) => fixedEntry('alarm', levelOption(found), ALARM_WHY, PANE_UNDO)
-
-/** Whether this session's own log holds an alarm the pane wrote, in its
- *  fixed shape, that no mark covers. `wrote` keys each alarm the pane wrote
- *  by `markKey` of the log's session id, the entry's id and its time. While
- *  one sits unread, a repeat alarm is counted in the pane, not appended, so
- *  a level rewritten at every poll cannot fill the log; an alarm another
- *  writer planted holds nothing back. */
-export function unreadOwnAlarm(log: DecisionLog, sid: string, wrote: ReadonlySet<string>, states: ReadonlyMap<string, MarkState>): boolean {
-  return log.entries.some(e => {
-    const key = markKey(sid, e.id, e.at)
-    return e.source === 'alarm' && inFixedShape(e) && wrote.has(key) && !isRead(states.get(key))
-  })
-}
 
 /** Whether an entry is in its source's fixed shape: always true for a Lead
  *  or Relayed entry, which the tool's own check holds. A log written before

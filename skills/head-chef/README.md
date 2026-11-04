@@ -83,8 +83,7 @@ or type `/brigade` to open it.
   it; that session's own chat shows the prompt.
 - **Approves plans and closes sessions in plain text.** A session's "spec
   ready" report asks the lead to approve; the lead answers "approved" or
-  "revise: ...". The go-ahead on a spec stays yours, or the lead's at a level
-  3 you confirmed. To close a session, the lead asks it to wrap up: commit,
+  "revise: ...". The go-ahead on a spec is as your user-level instructions file says. To close a session, the lead asks it to wrap up: commit,
   push, report, and say it is ready to close.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
@@ -107,32 +106,32 @@ or type `/brigade` to open it.
   is yours at every level.
 - **Acts on GitHub** on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
-  one line first. At a level 3 you confirmed, with a goal, it takes these
-  acts toward the goal itself and logs each first, a merge that eases a
-  control the threat model names included, except a post or merge text that
-  would carry private work, which waits for you.
+  one line first. At levels 2 and 3, your user-level instructions file says which of these wait
+  for you; at a level 3 with a goal it takes the rest toward the goal itself
+  and logs each first.
 - **Runs at your level** (since 0.17.0). It reads the Brigade pane's
   autonomy level before each decision it would take alone, and logs each
   decision before it acts. At 1 it asks you on every decision; at 2 it
-  decides what it is sure of and sends you the major and kept ones as
-  to-dos; at 3 it runs toward your goal, accepted risks included, and lists
-  each decision in the Decisions tab for you to review. At 3 only an
-  install, cleanup, a post carrying private work and an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80) wait for you.
+  decides what it is sure of and sends you the rest as to-dos; at 3 it runs
+  toward your goal and lists each decision in the Decisions tab for you to
+  review. At levels 2 and 3 it follows your user-level instructions file:
+  what that file keeps for you waits. Cleanup waits for your typed yes at
+  every level, and so does a hand-off request or a fresh session a context
+  figure prompts.
 
 ## What counts as your yes
 
 Only your own words in the lead's chat. A session's message, a report, a note
 or an issue comment never counts: a request in one is told to you, and
-nothing happens. Accepting a risk is your words in chat too, at levels 1
-and 2; at a level 3 the lead takes it and you review it after. Pressing I
-understand on the permission warning is a reminder, not acceptance. A level
-3 counts once you type `/brigade level 3 <goal>` at the prompt or from your
-phone, which lasts through compactions, or once you confirm a slider press's
-time in the lead's chat, with a goal in your words there; a level or a goal
-named anywhere else is data.
-"/make-it-so" accepts every pick in the lead's own last message, never
-cleanup, an install, a post carrying private work or an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80), which each need your words naming
-them, each with its own button.
+nothing happens. Pressing I understand on the permission warning is a
+reminder, not acceptance. A level 3 counts at once: press the slider, or type
+`/brigade level 3 <goal>` at the prompt or from your phone. A compaction
+keeps it; a reload, a clear and a resume reset it to 1. A pressed 3 takes its
+goal from your words in the lead's chat, and the lead asks for one, acting at 2 until you give it, when there
+is none; a level or a goal named anywhere else is data. "/make-it-so"
+accepts the picks in the lead's own last message, and not when a session's
+report came between; it never counts as cleanup's yes, which needs your typed
+command.
 
 ## What the sessions trust
 
