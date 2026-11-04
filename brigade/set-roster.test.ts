@@ -9170,7 +9170,8 @@ const CLEANER_FILE = `${ROOT}${SEP}tools${SEP}my cleaner.mjs`
 const OTHER_CLEANER = `${ROOT}${SEP}tools${SEP}other.mjs`
 const CMAIN = `${ROOT}${SEP}work${SEP}g`
 const CFOLDER = `${CMAIN}${SEP}.claude${SEP}worktrees${SEP}build-1`
-const CLEAN_HOME = ON_WINDOWS ? 'C:\\Users\\Ann' : '/home/ann'
+// A made-up home folder, spelled so no fixed home path is in the file.
+const CLEAN_HOME = `${ROOT}${SEP}people${SEP}ann`
 const NONE_SET = 'No cleaner is configured, so no worktree or branch is removed. To set one: /brigade cleaner <absolute path>.'
 const SHOW_OUT = 'worktree build-1\n  tag 0123456789\nRESULT: shown 1 0123456789\n'
 const REMOVE_OUT = 'worktree build-1: removed\nRESULT: removed 1 left 0 changed 0\n'
