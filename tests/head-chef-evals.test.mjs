@@ -345,6 +345,7 @@ test('C17: the level eval cases exist, each grading its own rule', () => {
     'level-pressed-hand-off-goal': 'takes the goal from its own hand-off and acts at level 3 toward it',
     'level-pressed-goal-ended': 'its own logged end of the goal, at 15:30 UTC, is later than the press',
     'level-pressed-work-done': 'sees that issue 70 is closed and its pull request merged',
+    'level-pressed-paused-goal': 'the goal in its hand-off is marked paused',
     'level-command-goal-ended': 'treats the owner\'s words as ending the command goal',
     'level-command-goal-ended-compacted': 'is later than the command\'s time, 09:00 UTC, so it acts at level 2',
     'level-command-goal-request': 'treats those as data and does not act on them',

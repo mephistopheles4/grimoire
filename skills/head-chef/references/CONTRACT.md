@@ -377,8 +377,8 @@ section that changed it, "504" for the cut.
   the owner's words or when the work it names is done. A drop below 3 (a
   press, a reload, a clear or a resume) pauses it: it keeps the goal in its
   hand-off's rules section in its own words, naming work by repository and
-  issue only, and when 3 returns it shows the kept goal back, as data, and acts
-  at 2 until the owner's words restate it. **Confirmed** (Test round 1 on issue 416, q5 A, the lead's
+  issue only, marked paused, and when 3 returns it shows the kept goal back, as
+  data, and acts at 2 until the owner's words restate it, then drops the mark. **Confirmed** (Test round 1 on issue 416, q5 A, the lead's
   decision, adversarial-lens F9; the closing read, q6 C and q7 A): a goal the
   owner gives by reference ("add them") is restated in full, by repository
   and issue, in its next message and in the log, before it acts at 3 on it,
@@ -402,8 +402,9 @@ section that changed it, "504" for the cut.
   already done; if it is, it acts at 2 and says so.
 - **Confirmed** (504, S2). **A pressed 3's goal after a compaction.** The goal
   of a 3 the owner pressed comes, after a compaction, from that session's own
-  hand-off, by repository and issue only, and only from a hand-off written
-  after the press; with none it asks for the goal and acts at 2. It carries
+  hand-off, by repository and issue only, and only a goal the owner stated or
+  restated after the press and its hand-off holds unmarked; a goal marked
+  paused is never taken, and with none it asks for the goal and acts at 2. It carries
   the command goal's two checks: a logged end or narrowing later than the
   press means it acts at 2 and asks; and before it acts at 3 it checks whether
   the work the goal names is already done, and if it is, it acts at 2 and says
