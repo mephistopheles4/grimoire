@@ -501,12 +501,13 @@ issue 484) cleanup is one typed act: the owner's typed `/brigade done` is the
 only yes, at every level, and its reply lists each opened card's kind,
 repository, folder and branch, as bound when the card joined. The head chef
 then archives each Desktop session, stops each background session with
-`claude stop`, and calls the Brigade mod's `clean_up`, which runs the pact's
-cleaner with `--recoverable` for exactly the window's folders. Nothing in
-cleanup forces a removal, passes `-D`, runs `claude rm` or asks GitHub; the
-cleaner removes a worktree and its branch only when everything in it can be
-recovered, and keeps and lists anything else. The head chef removes nothing
-itself. What the cleaner prints lands in the lead's transcript: folder,
+`claude stop`, and calls the Brigade mod's `clean_up`, which runs the cleaner
+you configured with `/brigade cleaner` (typed at the desktop, never from the
+phone), with `--recoverable`, for exactly the window's folders. With none
+configured, nothing is removed. Nothing in Brigade forces a removal, passes
+`-D`, runs `claude rm` or asks GitHub; whether a removal can be undone is the
+configured cleaner's own promise, which Brigade cannot check. The head chef
+removes nothing itself. What the cleaner prints lands in the lead's transcript: folder,
 branch and file names, short hashes and stash refs, never file contents. The
 head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that

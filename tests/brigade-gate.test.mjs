@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const gate = await import('../brigade/gate.ts');
+const { CLEAN_ANSWERS } = await import('../brigade/cleanup.ts');
 const { ARCHIVE_REFUSAL, DONE_REPLIES, WINDOW_MS, archivePasses, doneReply, isDoneCommand, openWindow, parseDone, resolveTitles, takeEntry } = gate;
 
 const DESKTOP = 'local_11111111-2222-3333-4444-555555555555';
@@ -34,10 +35,10 @@ const opened = (titles, now = 1000) => {
 test('C1: a bound card whose session carried its title opens its archive entry and its clean entry, and the reply names the title and no id or path', () => {
   const r = resolveTitles(parseDone('done build-1'), cards, targets);
   assert.deepEqual(r, [{ title: 'build-1', open: { kind: 'desktop', id: DESKTOP } }]);
-  const reply = doneReply(r, targets, true);
+  const reply = doneReply(r, targets, true, undefined, false);
   assert.match(reply, /^Opened 1 of 1 for 15 minutes:\n"build-1": Desktop, /);
   // Past the reply's fixed lines (the undo line names /brigade), no slash or backslash: no path of any kind.
-  const fixed = [...gate.CLEAN_LINES, gate.UNDO_LINE, gate.PANE_CLOSED_LINE, 'Now send any message, so this session acts on them.'];
+  const fixed = [...gate.CLEAN_LINES, gate.UNDO_LINE, gate.PANE_CLOSED_LINE, CLEAN_ANSWERS.noneSet, 'Now send any message, so this session acts on them.'];
   const own = reply.split('\n').filter(l => !fixed.includes(l)).join('\n');
   assert.ok(!reply.includes(DESKTOP) && !reply.includes('local_') && !/[\\/]/.test(own), reply);
   const w = opened(['build-1']);
@@ -48,7 +49,7 @@ test('C3: no card, an unbound card, or a card whose bound name differs opens not
   const r = resolveTitles(['nobody', 'loose', 'renamed'], cards, targets);
   assert.deepEqual(r.map(x => x.why), ['no card has this title', 'not bound to its session', 'changed since it joined']);
   assert.equal(opened(['nobody', 'loose', 'renamed']).size, 0);
-  assert.equal(doneReply(r, targets, true), 'Opened 0 of 3 for 15 minutes.\nNot opened: "nobody": no card has this title.\nNot opened: "loose": not bound to its session.\nNot opened: "renamed": changed since it joined.');
+  assert.equal(doneReply(r, targets, true, undefined, false), 'Opened 0 of 3 for 15 minutes.\nNot opened: "nobody": no card has this title.\nNot opened: "loose": not bound to its session.\nNot opened: "renamed": changed since it joined.');
   // A swap after binding: the card titled bg-1 now carries the Desktop id bound as build-1.
   const swapped = [{ title: 'bg-1', desktopId: DESKTOP }, { title: 'build-1', bgId: JOB }];
   assert.deepEqual(resolveTitles(['bg-1', 'build-1'], swapped, targets).map(x => x.why), ['changed since it joined', 'changed since it joined']);
@@ -67,7 +68,7 @@ test('C3: the grammar takes 1 to 20 titles split on commas, cleans each as a tit
   // A hidden character goes, so it never reaches the reply.
   const [t] = parseDone('done build\u{200B}-1\u{202E}');
   assert.equal(t, 'build-1');
-  assert.ok(!doneReply(resolveTitles([t], cards, targets), targets, true).includes('\u{202E}'));
+  assert.ok(!doneReply(resolveTitles([t], cards, targets), targets, true, undefined, false).includes('\u{202E}'));
   // A title over 80 characters is cut as the roster cuts a drawn title.
   assert.equal([...parseDone(`done ${'x'.repeat(90)}`)[0]].length, 80);
 });
@@ -181,15 +182,16 @@ test('484 C1: done all names every shown done card through resolveTitles, and no
 
 test('484 C2: the reply lists each opened card with its kind, repository, folder and branch in labelled fields, and holds no id, path, line break or folder outside the rule', () => {
   const r = resolveAll([done('build-1', { desktopId: DESKTOP }), done('bg-1', { bgId: JOB })], [], targets);
-  assert.equal(doneReply(r, targets, true), [
+  assert.equal(doneReply(r, targets, true, undefined, false), [
     'Opened 2 of 2 for 15 minutes:',
     '"build-1": Desktop, repository "grimoire", folder build-1, branch worktree-build-1',
     '"bg-1": background, repository "grimoire", folder bg-1, no branch',
     ...CLEAN_LINES,
+    CLEAN_ANSWERS.noneSet,
     'Now send any message, so this session acts on them.',
     UNDO_LINE,
   ].join('\n'));
-  assert.deepEqual(CLEAN_LINES, ['Folders and branches are as they were when each session joined.', 'Each worktree and branch goes only if the cleaner finds everything in it recoverable; anything else stays and is listed after.']);
+  assert.deepEqual(CLEAN_LINES, ['Folders and branches are as they were when each session joined.', "Each worktree and branch goes only if the cleaner finds everything in it recoverable, which is the cleaner's own promise; anything else stays and is listed after."]);
   assert.equal(UNDO_LINE, "The lead may act on this at its next turn, which a member's message can start. To take it back, type /brigade done none now.");
 
   // Hostile names: a title with a quote, a backslash and the reply's own words; a folder outside the rule; a repository name with a line break.
@@ -200,17 +202,17 @@ test('484 C2: the reply lists each opened card with its kind, repository, folder
     [JOB, { kind: 'bg', name: 'bg-1', cwd: '/elsewhere/bg-1', repo: '/work/grimoire/.git' }],
   ]);
   const hr = resolveAll([done(title, { desktopId: HOSTILE }), done('bg-1', { bgId: JOB })], [], bad);
-  const reply = doneReply(hr, bad, true);
+  const reply = doneReply(hr, bad, true, undefined, false);
   assert.match(reply, /^"x\\" kept: \\\\ \\"build-1\\": Desktop": Desktop, repository "odd repo", no folder the cleaner can remove, branch b$/m, reply);
   assert.match(reply, /^"bg-1": background, repository "grimoire", no folder the cleaner can remove, no branch$/m, reply);
   assert.ok(!reply.includes(HOSTILE) && !reply.includes(JOB) && !/[A-Za-z]:[\\/]|\/work|\/elsewhere|\.hidden/.test(reply), reply);
-  assert.equal(reply.split('\n').length, 1 + 2 + CLEAN_LINES.length + 2);
+  assert.equal(reply.split('\n').length, 1 + 2 + CLEAN_LINES.length + 3);
 
   // A repository sitting right in a home folder is never named by that folder, which names the account.
   const HOME = 'local_33333333-2222-3333-4444-555555555555';
   for (const repo of ['/home/alice/.git', 'C:\\Users\\Alice\\.git']) {
     const homeTargets = new Map([[HOME, { kind: 'desktop', name: 'h-1', cwd: '/x', repo, branch: 'b' }]]);
-    const line = doneReply(resolveAll([done('h-1', { desktopId: HOME })], [], homeTargets), homeTargets, true).split('\n')[1];
+    const line = doneReply(resolveAll([done('h-1', { desktopId: HOME })], [], homeTargets), homeTargets, true, undefined, false).split('\n')[1];
     assert.equal(line, '"h-1": Desktop, a repository with no GitHub name, no folder the cleaner can remove, branch b', repo);
     assert.doesNotMatch(line, /alice/i);
   }
@@ -219,10 +221,25 @@ test('484 C2: the reply lists each opened card with its kind, repository, folder
   const RLO = 'local_22222222-2222-3333-4444-555555555555';
   const rloTitle = `t\u{202E}x`;
   const rloTargets = new Map([[RLO, { kind: 'desktop', name: 'tx', cwd: '/x', repo: `/work/r\u{202E}e/.git` }]]);
-  const rloReply = doneReply(resolveAll([done(rloTitle, { desktopId: RLO })], [], rloTargets), rloTargets, true);
+  const rloReply = doneReply(resolveAll([done(rloTitle, { desktopId: RLO })], [], rloTargets), rloTargets, true, undefined, false);
   assert.ok(!/[\u{202E}\u{7}]/u.test(rloReply), rloReply);
   assert.match(rloReply, /^"tx": Desktop, repository "re", /m, rloReply);
   assert.equal(quoted(`a\u{202E}b\u{7}"\\`), '"a\\u{202e}b\\u{7}\\"\\\\"');
+});
+
+test('504 C7: the reply names the pinned cleaner as it is given, or says none is set, and says when a window was already open; it is the one line that may name a path', () => {
+  const r = resolveTitles(['build-1'], cards, targets);
+  const lines = reply => reply.split('\n');
+  assert.ok(lines(doneReply(r, targets, true, '~/tools/my cleaner.mjs', false)).includes('Cleaner for this window: ~/tools/my cleaner.mjs'));
+  assert.ok(!doneReply(r, targets, true, '~/tools/my cleaner.mjs', false).includes(gate.REPINNED_LINE));
+  assert.ok(lines(doneReply(r, targets, true, 'c.mjs', true)).includes(gate.REPINNED_LINE), 'a second done in an open window says it repins');
+  assert.ok(lines(doneReply(r, targets, true, undefined, false)).includes(CLEAN_ANSWERS.noneSet));
+  assert.equal(CLEAN_ANSWERS.noneSet, 'No cleaner is configured, so no worktree or branch is removed. To set one: /brigade cleaner <absolute path>.');
+  // The pane line and the undo line keep their places after the cleaner lines.
+  assert.ok(doneReply(r, targets, false, 'c.mjs', true).endsWith(`\n${PANE_CLOSED_LINE}\n${UNDO_LINE}`));
+  // A reply that opened nothing says nothing of the cleaner.
+  const none = doneReply(resolveTitles(['nobody'], cards, targets), targets, true, 'c.mjs', true);
+  assert.ok(!none.includes('Cleaner for this window') && !none.includes(gate.REPINNED_LINE));
 });
 
 test('484 C7: a folder the cleaner may remove sits directly under <main>/.claude/worktrees, passes the name rule, and its repository ends in .git under a main that passes commandPath', () => {
@@ -258,8 +275,8 @@ test('484 C4, C9: a clean entry stays open for 15 minutes however often it is re
 test('484 C14: with the pane closed the reply holds the pane line; with it open, none', () => {
   const r = resolveTitles(['build-1'], cards, targets);
   assert.equal(PANE_CLOSED_LINE, 'The Brigade pane is closed, so the stop and the cleanup will be refused: send /brigade to open it, then any message.');
-  assert.ok(doneReply(r, targets, false).endsWith(`\n${PANE_CLOSED_LINE}\n${UNDO_LINE}`), 'the undo line stays last (S2.1)');
-  assert.ok(!doneReply(r, targets, true).includes('pane'));
+  assert.ok(doneReply(r, targets, false, undefined, false).endsWith(`\n${PANE_CLOSED_LINE}\n${UNDO_LINE}`), 'the undo line stays last (S2.1)');
+  assert.ok(!doneReply(r, targets, true, undefined, false).includes('pane'));
 });
 
 test('484 S2.5: the stop answer names clean_up, not read_cleanup', () => {
@@ -291,7 +308,10 @@ test('C1, C2, C4, C5: the done path is read first and returns, hands on the even
   assert.match(command, /^on\('command\.run', \{ command: 'brigade' \}, async \(\$, e, next\) => \{/);
   assert.match(command, /\n {4}if \(isDoneCommand\(e\.args\)\) return doneCommand\(\$, e\.origin, next\.origin, e\.args\)\n/);
   assert.ok(command.indexOf('isDoneCommand(e.args)') < command.indexOf('isLevelCommand(e.args)'));
-  assert.match(command, /\.catch\(\(\$, e, next\) => \{\n {4}if \(isDoneCommand\(e\.args\)\) return \{ text: DONE_REPLIES\.failed \}/);
+  // The cleaner command comes next, before the level command and before the pane opens, and a throw answers its own line.
+  assert.match(command, /\n {4}if \(isCleanerCommand\(e\.args\)\) return cleanerCommand\(\$, e\.origin, next\.origin, e\.args\)\n/);
+  assert.ok(command.indexOf('isDoneCommand(e.args)') < command.indexOf('isCleanerCommand(e.args)') && command.indexOf('isCleanerCommand(e.args)') < command.indexOf('isLevelCommand(e.args)'));
+  assert.match(command, /\.catch\(\(\$, e, next\) => \{\n {4}if \(isDoneCommand\(e\.args\)\) return \{ text: DONE_REPLIES\.failed \}\n {4}if \(isCleanerCommand\(e\.args\)\) return \{ text: CLEANER_REPLIES\.failed \}/);
   // Every live line of the function, in order: a line commented out, moved,
   // added or changed fails here.
   assert.deepEqual(live(between('async function doneCommand', '\n}\n')), [
@@ -301,6 +321,7 @@ test('C1, C2, C4, C5: the done path is read first and returns, hands on the even
     'const word = doneWord(args)',
     "if (word === 'none') {",
     'doneWindow.clear()',
+    'pinnedCleaner = undefined',
     'return { text: NONE_REPLY }',
     '}',
     "const titles = word === 'all' ? [] : parseDone(args)",
@@ -309,13 +330,53 @@ test('C1, C2, C4, C5: the done path is read first and returns, hands on the even
     "const resolved = word === 'all' ? resolveAll(cards, await read($, dismissed), cleanupTargets) : resolveTitles(titles, cards, cleanupTargets)",
     'if (resolved === undefined) return { text: DONE_REPLIES.usage }',
     'if (resolved.length === 0) return { text: NOTHING_DONE }',
-    'openWindow(doneWindow, resolved, await $.clock.now())',
-    'return { text: doneReply(resolved, cleanupTargets, await paneOpen($)) }',
+    'const now = await $.clock.now()',
+    "const repinned = [...doneWindow.values()].some(x => x.kind === 'clean' && entryOpen(doneWindow, 'clean', x.id, now))",
+    'openWindow(doneWindow, resolved, now)',
+    "if (resolved.some(r => 'open' in r)) pinnedCleaner = await storedCleaner($)",
+    'return { text: doneReply(resolved, cleanupTargets, await paneOpen($), pinnedCleaner === undefined ? undefined : shownPath(pinnedCleaner, await homeFolder($)), repinned) }',
     '} catch {',
     'return { text: DONE_REPLIES.failed }',
     '}',
   ]);
   assert.equal(DONE_REPLIES.failed, 'Nothing opened: the done command failed.');
+});
+
+test('504 C7: the cleaner command is typed at the desktop prompt only, reads and writes the store, runs nothing, and fails closed', () => {
+  assert.deepEqual(live(between('async function cleanerCommand', '\n}\n')), [
+    'async function cleanerCommand($: EngineInterface, origin: unknown, dispatch: unknown, args: string): Promise<{ text: string }> {',
+    'try {',
+    "if (typeof origin !== 'object' || origin === null || (origin as { kind?: unknown }).kind !== 'composer' || !fromEngine(dispatch)) return { text: CLEANER_REPLIES.notTyped }",
+    'const arg = cleanerArg(args)',
+    'const home = await homeFolder($)',
+    "if (arg === '') {",
+    'const kept = await storedCleaner($)',
+    'return { text: kept === undefined ? CLEANER_REPLIES.unset : cleanerCurrent(shownPath(kept, home)) }',
+    '}',
+    "if (arg === 'none') {",
+    'try {',
+    "await $.store.set(CLEANER_KEY, '')",
+    '} catch {',
+    'return { text: CLEANER_REPLIES.unsaved }',
+    '}',
+    'return { text: CLEANER_REPLIES.cleared }',
+    '}',
+    'if (!cleanerPathOk(arg)) return { text: CLEANER_REPLIES.refused }',
+    'if (!(await cleanerReady(arg, path => $.fs.stat(path, { resolve: true })))) return { text: CLEANER_REPLIES.notFile }',
+    'try {',
+    'await $.store.set(CLEANER_KEY, arg)',
+    '} catch {',
+    'return { text: CLEANER_REPLIES.unsaved }',
+    '}',
+    'return { text: cleanerSet(shownPath(arg, home)) }',
+    '} catch {',
+    'return { text: CLEANER_REPLIES.failed }',
+    '}',
+  ]);
+  const fn = between('async function cleanerCommand', '\n}\n');
+  assert.ok(!fn.includes('process.run') && !fn.includes('levelOriginAllowed'), 'it runs nothing, and the phone origin the level command allows does not pass');
+  // Nothing but the command and the window's pin reads the store's key.
+  assert.deepEqual([...register.matchAll(/store\.(?:get|set)\(CLEANER_KEY/g)].length, 3);
 });
 
 test('C8: a session start empties the window first thing, and so does a clear or a resume', () => {
@@ -377,12 +438,10 @@ test('484 C4, C5, C8: clean_up gates before it runs, in order, takes no input, r
     'const now = await $.clock.now()',
     "const open = [...doneWindow.values()].filter(x => x.kind === 'clean').map(x => x.id).filter(id => entryOpen(doneWindow, 'clean', id, now))",
     'if (open.length === 0) return refuseClean(…)',
-    'const config = cleanerConfig($.plugin.root, $.plugin.name)',
-    'if (config === undefined) return refuseClean(…)',
+    'const cleaner = pinnedCleaner',
+    'if (cleaner === undefined) return { result: CLEAN_ANSWERS.noneSet }',
     'if (!(await ghFindable($))) return refuseClean(…)',
-    'const sep = sepOf(config)',
-    'const cleaner = `${config}${sep}pact${sep}tools${sep}cleaner.mjs`',
-    'if (!(await cleanerReady(cleaner, path => $.fs.stat(path, { resolve: true })))) return { result: CLEAN_ANSWERS.notInstalled }',
+    'if (!(await cleanerReady(cleaner, path => $.fs.stat(path, { resolve: true })))) return { result: CLEAN_ANSWERS.failedCheck }',
     'const cards = open.map(id => {',
     'const t = cleanupTargets.get(id)',
     "return { title: t?.name ?? 'a card not bound to its session', where: t === undefined ? undefined : cleanFolder(t) }",
@@ -421,4 +480,21 @@ test('484 C10: brigade/ holds no removal command text, and read_cleanup is gone'
     const text = fs.readFileSync(new URL(f.replace(/\\/g, '/'), dir), 'utf8');
     for (const bad of ['worktree remove', 'branch -d', 'branch -D', "'-D'", '--force', 'claude rm', "'rm'", 'read_cleanup']) assert.ok(!text.includes(bad), `${f}: ${bad}`);
   }
+});
+
+test("504 C8: no file S5 lists names the other package or its numbers; ADR 0015 exists and ADR 0014 says it is replaced", () => {
+  const root = new URL('../', import.meta.url);
+  const read = rel => fs.readFileSync(new URL(rel, root), 'utf8');
+  const listed = [
+    'brigade/cleanup.ts', 'brigade/gate.ts', 'brigade/register.tsx',
+    'skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md', 'skills/head-chef/references/cleanup.md',
+    'skills/head-chef/README.md', 'README.md', 'SECURITY.md', 'docs/security/brigade.md',
+    'evals/head-chef/cleanup-submodule-nameback/graders/criteria.md',
+  ];
+  for (const rel of listed) {
+    const text = read(rel).replace(/\s+/g, ' ');
+    assert.doesNotMatch(text, /\bpact\b|the-pact|issue 446|\bR14\b|git \(2\.45/i, rel);
+  }
+  assert.ok(fs.existsSync(new URL('docs/adr/0015-brigade-runs-the-configured-cleaner.md', root)));
+  assert.match(read('docs/adr/0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md'), /Replaced by \[0015\]\(0015-brigade-runs-the-configured-cleaner\.md\)/);
 });

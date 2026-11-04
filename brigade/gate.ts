@@ -1,12 +1,12 @@
 import type { Card } from './types'
 import type { Target } from './cleanup.ts'
-import { NO_NAME, cardId, commandPath, lastName } from './cleanup.ts'
+import { CLEAN_ANSWERS, NO_NAME, cardId, commandPath, lastName } from './cleanup.ts'
 import { foldsCase, oneLine, pathKey } from './roster.ts'
 
 // The cleanup gate (issue 359, spec v5.2; issue 484): the owner's typed
 // `/brigade done` opens a short window in module memory, and only inside it
 // does Desktop's archive tool pass, `stop_background_session` stop a
-// background session, or `clean_up` run the pact's cleaner. That typed
+// background session, or `clean_up` run the configured cleaner. That typed
 // command is the owner's only yes. Plain TypeScript with no engine import, so
 // tests/brigade-gate.test.mjs runs these rules directly. No shell text is read
 // anywhere here.
@@ -98,7 +98,7 @@ export function resolveTitles(
  *  starting with `.` or `-`. */
 const FOLDER = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/
 
-/** The repository and folder the pact's cleaner may be run for: the target's
+/** The repository and folder the configured cleaner may be run for: the target's
  *  repository folder ends in `.git`, its parent `<main>` passes commandPath,
  *  and the target's folder sits directly under `<main>/.claude/worktrees`,
  *  by the roster's path rule, with a name inside the cleaner's rule. */
@@ -114,7 +114,7 @@ export function cleanFolder(t: Pick<Target, 'cwd' | 'repo'>): { main: string; fo
   return { main, folder }
 }
 
-/** A name in quotes, as the pact's cleaner prints one: a backslash doubled,
+/** A name in quotes, as a cleaner prints one: a backslash doubled,
  *  a quote escaped, and any control, separator or format character but the
  *  space as \u{hex}. */
 export function quoted(s: string): string {
@@ -123,8 +123,9 @@ export function quoted(s: string): string {
 
 export const CLEAN_LINES = [
   'Folders and branches are as they were when each session joined.',
-  'Each worktree and branch goes only if the cleaner finds everything in it recoverable; anything else stays and is listed after.',
+  "Each worktree and branch goes only if the cleaner finds everything in it recoverable, which is the cleaner's own promise; anything else stays and is listed after.",
 ] as const
+export const REPINNED_LINE = 'A window was already open: its cleaner is now the one named above, for all its open cards.'
 export const UNDO_LINE = "The lead may act on this at its next turn, which a member's message can start. To take it back, type /brigade done none now."
 export const PANE_CLOSED_LINE = 'The Brigade pane is closed, so the stop and the cleanup will be refused: send /brigade to open it, then any message.'
 
@@ -143,11 +144,16 @@ function cardLine(title: string, t: Pick<Target, 'kind' | 'cwd' | 'repo' | 'bran
 }
 
 /** The command's reply: fixed words, the cleaned titles in quotes and each
- *  opened card's labelled fields, never an id or a path. */
+ *  opened card's labelled fields, never an id or a path. The one exception is
+ *  the cleaner's own line, which names the pinned file as `shownPath` draws it
+ *  (`~` for the home folder), or says none is set; `repinned` adds the line
+ *  that a window was already open. */
 export function doneReply(
   resolved: readonly Resolved[],
   targets: ReadonlyMap<string, Pick<Target, 'kind' | 'cwd' | 'repo' | 'branch'>>,
   paneOpen: boolean,
+  cleaner: string | undefined,
+  repinned: boolean,
 ): string {
   const opened = resolved.filter(r => 'open' in r)
   const lines = [`Opened ${opened.length} of ${resolved.length} for 15 minutes${opened.length > 0 ? ':' : '.'}`]
@@ -155,7 +161,7 @@ export function doneReply(
   for (const r of resolved) if ('why' in r) lines.push(`Not opened: ${quoted(r.title)}: ${r.why}.`)
   if (opened.length > 0) {
     // The pane line comes before the undo line, which stays the reply's last.
-    lines.push(...CLEAN_LINES, 'Now send any message, so this session acts on them.', ...(paneOpen ? [] : [PANE_CLOSED_LINE]), UNDO_LINE)
+    lines.push(...CLEAN_LINES, cleaner === undefined ? CLEAN_ANSWERS.noneSet : `Cleaner for this window: ${cleaner}`, ...(repinned ? [REPINNED_LINE] : []), 'Now send any message, so this session acts on them.', ...(paneOpen ? [] : [PANE_CLOSED_LINE]), UNDO_LINE)
   }
   return lines.join('\n')
 }

@@ -95,9 +95,9 @@ or type `/brigade` to open it.
   when the card joined the roster. The lead then archives each Desktop
   session, or stops a background one with the mod's
   `stop_background_session`, and calls the mod's `clean_up`, which runs the
-  pact's cleaner: a worktree and its branch go only when everything in them
-  can be recovered, and anything else stays and is listed, with what it
-  holds. `/brigade done none` takes the window back. The lead removes no
+  cleaner you configured with `/brigade cleaner <absolute path>`: with none
+  set, nothing is removed. Whether a removal can be undone is that cleaner's
+  own promise; the mod passes `--recoverable` and cannot check it. `/brigade done none` takes the window back. The lead removes no
   worktree or branch itself and never runs `claude rm`; to remove a stopped
   session for good, you run `claude rm <id>` by hand, which deletes the
   worktree with whatever is left in it. A wrong card is undone by recreating
