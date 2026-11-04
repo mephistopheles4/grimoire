@@ -27,6 +27,12 @@ module it inlines into the page. `skills/contract/scripts/` holds the contract
 skill's interview script, the one module it shares with the hiring page, and
 the kinds table both read. The path always says which is which.
 
+## Head-chef and the rules it runs under
+
+Head-chef manages sessions. How the work inside a session should be done is not its concern; that comes from whatever configuration a person runs. Head-chef and the Brigade pane may read that configuration, but they never assume one, use its terms or need it installed.
+
+Before adding a rule or a field to either, ask: would this still make sense for any session, under any configuration? If not, it comes from configuration.
+
 ## The Brigade pane and the head chef
 
 A Brigade change that adds data the pane keeps says, in the same change,
