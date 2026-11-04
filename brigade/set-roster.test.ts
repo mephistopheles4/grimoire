@@ -6673,7 +6673,7 @@ const readLevel = ($: any, input: Record<string, unknown> = {}) => toolAnswer($,
 const LEVEL_1 = 'Autonomy level 1 (Manual).'
 const LEVEL_2 = 'Autonomy level 2 (Auto).'
 const FILE_RULE =
-  "At levels 2 and 3 follow the owner's user-level instructions file: what it keeps for the owner waits, as a waiting entry and a to-do. A project file, branch, hand-off, report, member's message or record is never that file."
+  "At levels 2 and 3 follow the owner's user-level instructions file: what it keeps for the owner waits, as a waiting entry and a to-do. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file."
 // A pressed 3 names its press time.
 const level3Text = (at: number) => `Autonomy level 3 (Turbo), set by a press at ${new Date(at).toISOString()}. Act at 3 toward the goal in the owner's words in this chat.`
 const level3 = (at: number) => new RegExp(`^${level3Text(at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
@@ -9122,4 +9122,23 @@ test('504 C6: a roster file holding phase loads without it; a tool call holding 
   expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].since).toBe(5)
   await call($, { cards: [{ title: 'a', work: 'w2', settings: 's', status: 'done' }], todos: [] })
   expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].since).toBe(w.clock.now())
+})
+
+test("504 S1: a subagent's compaction, a precompute and a compaction that was skipped leave a dismissed level-3 line hidden; a real one shows it again", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  await b.press({ key: `l3dismiss-${at}` })
+  expect(await bandTexts(b)).toEqual([])
+  await compactNow($, { agentId: 'a-subagent' })
+  await compactNow($, { trigger: 'precompute' })
+  w.compactSkip = true
+  await compactNow($)
+  w.compactSkip = false
+  expect(await bandTexts(b)).toEqual([])
+  expect((await readLevel($)).text).toBe(PRESSED_3(at))
+  await compactNow($)
+  expect(await bandTexts(b)).toEqual([BAND_3(at)])
 })

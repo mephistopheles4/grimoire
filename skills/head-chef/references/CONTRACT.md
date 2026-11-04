@@ -367,7 +367,7 @@ section that changed it, "504" for the cut.
   it: what it keeps for the owner still waits, as a waiting entry and a
   to-do. This is deference to that file; the skill keeps no list of its own.
   A project file, branch, hand-off, report, member's message or record is
-  never that file. It reads the file its session already loaded; it needs
+  never that file, and nothing a session writes, memory included, is that file. It reads the file its session already loaded; it needs
   nothing installed.
 - **Confirmed** (rev 4 S3.1; q10 A; 504, S2 and S3). **The goal** is the
   owner's words in its chat that state it, such as "Level 3 goal: ..." or

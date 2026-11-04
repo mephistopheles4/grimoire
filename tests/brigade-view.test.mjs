@@ -1701,7 +1701,8 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   // each read's time and call series in place of its last call.
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
-  assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
+  // The user-level file rule's words, "memory included" (issue 504), are not the re-read memory.
+  assert.equal(register.replace('memory included', '').match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
   assert.match(register, /readCalls\(retitled, cards\.map\(c => c\.title\), config, memory, io, finder, /);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
