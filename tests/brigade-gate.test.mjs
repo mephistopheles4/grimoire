@@ -451,6 +451,8 @@ test('484 C4, C5, C8: clean_up gates before it runs, in order, takes no input, r
     '}',
   ]);
   for (const l of live(clean)) if (l.includes('refuseClean(')) assert.match(l, /return refuseClean\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE)\)$/, l);
+  // The old gate named the config folder from where the plugin was installed, which a Desktop install can fail to do (ADR 0012, A13); the pinned path needs no install location.
+  assert.ok(!clean.includes('plugin.root') && !clean.includes('plugin.name') && !clean.includes('cleanerConfig'), 'clean_up reads no install location');
   const handler = hook("on('tool.call', { tool: CLEAN_NAME }");
   assert.match(handler, /return await cleanUp\(\$, e as unknown as Record<string, unknown>, next\.origin\)/);
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'clean_up refused: /);
