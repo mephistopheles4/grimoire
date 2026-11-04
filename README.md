@@ -145,9 +145,9 @@ started. A switch at the top shows Sessions, Pull requests or Decisions, and
 the pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports
 its sessions sent since you opened the pane. A row shows a checkbox, a status
-dot, the title, the phase, the latest report's first line, the live busy or idle
+dot, the title, the latest report's first line, the live busy or idle
 state (a session that waits on you moves its row under Waiting on you, and a row
-shows the session's own title) and how long the session has been in its status and phase. Model and
+shows the session's own title) and how long the session has been in its status. Model and
 effort show as one character each, with the full settings in a tooltip. Open and
 Dismiss appear when you point at a row; in the terminal they are always shown.
 Tick several rows and a bar at the foot dismisses them together. A session that
@@ -253,38 +253,37 @@ stays after you delete the hand-off folder.
 
 At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
-it takes its own pick on decisions it is sure of, and sends you the major ones
-and the ones you keep as to-dos while it carries on. At 3 Turbo (Turbo mode
-before 0.113.0), once you type `/brigade level 3 <goal>` at the prompt
-or from your phone, or press 3 and confirm it in the lead's own chat with a
-goal in your words there, it runs to the goal: it merges, posts, starts sessions, waives reviews and settles
-security findings without a word from you for each act, logging each one
-first. Still waiting for you, as to-dos: a post, merge text or commit message
-that would carry private work, an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80), an install, and cleanup, whose yes is yours at every level. Since head-chef 1.9.0 (issue 492), a hand-off request or a fresh session a context figure prompts also waits for your words, at every level.
-Since head-chef 1.7.0 (issue 486) the skill holds these rules. Only your press or your own `/brigade level 1`, `/brigade level
+it takes its own pick on decisions it is sure of, and sends you the rest as
+to-dos while it carries on. At 3 Turbo (Turbo mode before 0.113.0), once you
+press 3 or type `/brigade level 3 <goal>` at the prompt or from your phone,
+it runs toward your goal: it checks whether the goal is met, and if not,
+continues, until it is met or you say otherwise. A press counts at once; the
+lead asks for a goal in its chat when there is none. At levels 2 and 3 the
+lead follows your user-level instructions file: what that file keeps for you
+waits for you, as a to-do. Cleanup's yes is yours at every level, and so is a
+hand-off request or a fresh session a context figure prompts.
+Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view, 3 in the warning colour; a 3 the
 command set shows its goal under the slider. Each move
-is logged as your own decision ("Owner"). A new lead session starts at 1, and
-so does a reload of the mod and, since 0.88.0, each compaction of the lead's
-conversation, except, since 0.99.0, a 3 your command set, which lasts until a
-slider press, another level command, a reload or a clear; resets are logged as "Pane" (the name stays from when only the pane made these resets; the entry's why says which); showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
-alarm ("Not from a press") in To review; while that alarm is unread, further
-such changes are counted on the pane, not logged again. A reset or an alarm
-that cannot be logged is said on the pane and tried again. The lead reads its level with the
-`read_autonomy` tool, whether the pane is open, behind another tab or closed.
-While level 3 is in force, a line above the lead's prompt says so, with the
-time of its press and a Dismiss, which hides it until the next press of 3, the
-next alarm, or the next compaction or reload. From an alarm's catch, a
-warning line there names the level found and when, until you read the alarm's
-own card in To review or open it in History, or until a reload of the mod or a
-change of session; since 0.98.0 Mark all read marks the alarm read but leaves
-the line up. Both lines show on the terminal and Desktop only: the mobile app,
-claude.ai and VS Code draw nothing above the prompt. Since 0.105.0 they stay
-above the next-step box at the end of the lead's turn, and above any other
-survey. If you go back to a mod
-older than 0.88.0, its Decisions tab leaves out a compaction's Pane entry and
-counts it among the entries it cannot draw.
+is logged as your own decision ("Owner"). The level is the last one set, held
+in the mod's memory; a stored copy in plugin state serves one job, a reload,
+and something else rewriting it changes nothing (since 0.116.0; before that,
+it set the level back to 1 and raised an alarm, and old logs still show those
+alarms as "Not from a press"). A compaction keeps the level, a pressed one as
+a command's (since 0.116.0). A new lead session starts at 1, and so does a
+reload of the mod, a clear and a resume; a reload from a level above 1 is
+logged as "Pane". Showing the pane again no longer resets it. A reset that
+cannot be logged is said on the pane and tried again. The lead reads its level
+with the `read_autonomy` tool, whether the pane is open, behind another tab or
+closed. While level 3 is in force, a line above the lead's prompt says so,
+with the time of its press and a Dismiss, which hides it until the next press
+of 3, or the next compaction or reload. The line shows on the terminal and
+Desktop only: the mobile app, claude.ai and VS Code draw nothing above the
+prompt. Since 0.105.0 it stays above the next-step box at the end of the
+lead's turn, and above any other survey. If you go back to a mod older than
+0.88.0, its Decisions tab leaves out a compaction's Pane entry and counts it
+among the entries it cannot draw.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its

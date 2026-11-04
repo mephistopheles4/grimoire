@@ -31,10 +31,10 @@ _Avoid_: decision register, audit log
 **Decision source**:
 Who a decision log entry says decided: Owner (a press of the slider, or the
 owner's `/brigade level` command), Pane (a level reset at a reload of the mod
-or a compaction of the lead, which since 0.99.0 keeps a 3 the command set, or, in a log
+or, in a log written before 0.116.0, a compaction of the lead, or, in a log
 written before 0.88.0, when the pane was shown again; the name stays from
 when only the pane made these resets, and the entry's why says which), Not from a press (a level change no
-press made), Lead (the lead's own pick) or Relayed (the owner's answer as the
+press made; the pane stopped writing it in 0.116.0, and an old log's still reads), Lead (the lead's own pick) or Relayed (the owner's answer as the
 lead passed it on).
 _Avoid_: author, origin
 

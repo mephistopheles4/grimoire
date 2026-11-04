@@ -264,8 +264,8 @@ const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 // one sentence each (issue 496); read_autonomy and the docs keep the full list.
 const LEVEL_LINES: Readonly<Record<Level, string>> = {
   1: 'Manual: the lead asks you on every decision.',
-  2: 'Auto: the lead takes its own pick on decisions it is sure of and logs each one; a major or kept decision waits for you as a to-do.',
-  3: 'Turbo: the lead decides toward your goal and logs each decision for you to review; installs, cleanup and a few risk edits still wait for you.',
+  2: 'Auto: the lead takes its own pick on decisions it is sure of and logs each one; the rest waits for you as a to-do.',
+  3: 'Turbo: the lead decides toward your goal and logs each decision for you to review; what your user-level instructions file keeps for you waits.',
 }
 // The Decisions tab's search text, read again through its cap before use, and
 // a counter the decision reads move so the pane redraws: it carries no text.

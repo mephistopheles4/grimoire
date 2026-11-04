@@ -6681,7 +6681,7 @@ const NOT_CHANGED = /^Not changed: the decision log could not be written$/
 const RESET_LINE = /^Autonomy reset to 1 and the reset could not be logged$/
 // #496: one sentence under the slider; read_autonomy and the docs keep the full list.
 const LEVEL_3_LINE =
-  'Turbo: the lead decides toward your goal and logs each decision for you to review; installs, cleanup and a few risk edits still wait for you.'
+  'Turbo: the lead decides toward your goal and logs each decision for you to review; what your user-level instructions file keeps for you waits.'
 // The pane's own entries, as the log keeps them, by source, pick, why and level.
 const ownEntries = (w: World): string[] => (parsed(w, LOG)?.entries ?? []).map((e: any) => `${e.source} ${e.pick} · ${e.why} · level ${e.level}`)
 // The next time the pane sets the stored level, another plugin writes this in its place, once.

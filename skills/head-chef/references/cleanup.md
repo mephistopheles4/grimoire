@@ -59,7 +59,7 @@ findable with `git fsck --lost-found` until git prunes it.
 
 After its worktree has gone, or after saving what it holds, the owner runs
 `claude rm <id>` by hand. `claude rm` deletes the worktree with whatever is
-left in it. Grimoire's threat model (D4f) says it keeps the transcript; what
+left in it. Grimoire's threat model says it keeps the transcript; what
 it keeps of the job's own store is not checked.
 
 ## What never happens

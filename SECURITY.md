@@ -391,17 +391,16 @@ foot of the Decisions tab. What follows from it:
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
 Auto and 3 Turbo (Turbo mode before 0.113.0), and only the owner sets
 a level above 1: by a press on it or, since 0.99.0, by the level command. **A
-level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
-words there, lets the lead merge pull requests, post, waive reviews and settle
-security findings toward that goal without a per-act word from the owner**; it
-logs each act before it. Since head-chef 1.7.0 (issue 486) these still wait
-for the owner at level 3: a post, merge text or commit message that would
-carry private work; an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80); an install; and cleanup. Since head-chef 1.9.0 (issue
-492), a hand-off request or a fresh session a context figure prompts waits too,
-at every level. Every other decision toward the goal, an
-accepted-risk record and a merge that eases a named control included, is the
-lead's, logged with a review entry the owner answers in the Decisions tab
-(E80).
+level 3 lets the lead merge pull requests, post, waive reviews and settle
+security findings toward the goal without a per-act word from the owner**,
+as far as the owner's user-level instructions file allows (since head-chef
+1.11.0, issue 504, the skill keeps no list of its own, and what that file
+keeps for the owner waits as a to-do); it logs each act before it. A press
+counts at once, with no confirmation in the lead's chat; the lead asks for a
+goal there when it has none. Cleanup waits for the owner's typed yes at every
+level, and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
+session a context figure prompts waits too. A project file, branch,
+hand-off, report or session message is never the owner's user-level file.
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
@@ -410,10 +409,10 @@ anything else sets nothing. Whether another plugin, or the model itself, can run
 the command with the owner's stamp, or a hook can change the stamp, is not yet
 measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
-confirmation (E35a in the threat model). A 3 it sets is confirmed, with
-its goal, which is cleaned, held to 300 characters and not screened for
+confirmation (E35a in the threat model). A 3 it sets carries its goal, which is
+cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
-compaction keeps them. Any slider press, another level command, an alarm, a
+compaction keeps them. Any slider press, another level command, a
 reload, a clear or a resume the engine reports, or a read under another
 session id ends it. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
@@ -422,85 +421,73 @@ skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 until the mod has offered it to this
 session since its last reload, and otherwise the level in force, since 0.88.0 whether the pane is
 shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
-The stored level sits in plugin state as `autonomy`, this session's id and
-its level, never in a file; the last level a press set, a 3's press time, the
-Owner entries the pane wrote, the alarms it wrote, a pending alarm and a
-reset's pending Pane entry stay in the module's memory. The level in force
-is 1 whenever the stored level differs from the last press, while an alarm
-or a reset's Pane entry waits to be logged, and for a 3 with no press time.
-A press that raises the level first logs what waits, then an Owner entry in
-the session's own log, and the raise does not happen if either cannot be
-written; a lowering always happens. Each new
-lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
-of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
-except, since 0.99.0, a 3 the level command set, which a compaction keeps,
-and a showing of the pane no longer does; a session start, reload or
-compaction that finds a stored level above 1 writes that entry even with the
-pane closed, the one file a session start writes. The compaction hook reads
+**Since 0.116.0 (issue 504) the level is the last one a press or a command set,
+held in the module's memory.** A copy sits in plugin state as `autonomy`, this
+session's id and its level, never in a file, for one job: a reload of the mod
+finds a stored level above 1, resets it to 1 and logs a Pane entry. A stored
+value that another plugin rewrites changes nothing and raises no alarm; the
+mod no longer compares it with the last press. Before 0.116.0 it did, and set
+the level to 1 and logged an alarm ("Not from a press"); an old log's alarm
+still reads and draws. The level in force is 1 while a reset's Pane entry
+waits to be logged, and for a 3 with no press time. A press that raises the
+level first logs what waits, then an Owner entry in the session's own log, and
+the raise does not happen if either cannot be written; a lowering always
+happens. Each new lead session starts at 1; a reload of the mod, a clear and a
+resume reset a level above 1 to 1, the same session id included, and a showing
+of the pane no longer does. A reload writes a Pane entry; a clear or a resume
+writes none. Since 0.116.0 a compaction of the lead's main conversation keeps
+the level, a pressed one as a command's, with no Pane entry (before 0.116.0 it
+reset a pressed level; old logs hold that entry). The compaction hook reads
 only who is compacting, the compaction's trigger and whether it was skipped,
-never the conversation, the instructions or the summary, and a compaction first logs a
-stored level that differs from the last press as an alarm. A reset that cannot
+never the conversation, the instructions or the summary. A reset that cannot
 read the session id, or one of whose steps throws, waits, reading 1, until it
 lands. Since 0.88.0 a press on the slider that would raise the level acts only
 while the engine lists the pane and it is placed, and one pressed on a hidden or
 closed pane is dropped; a lowering acts whatever the pane list answers. A pane
 list that does not answer within 5 seconds counts as not placed. A Pane entry that cannot be written keeps the
-level at 1 and is tried again at the next poll, as an alarm is; an entry
+level at 1 and is tried again at the next poll; an entry
 written late carries the time it was written. A clear or a resume
-forgets every other session's level and press time, writing no entry; an
-alarm still waiting is logged once its session comes back. At each tick of the
-level's own 5-second poll a stored level that differs from the last press is set to 1 and logged as one
-unread alarm, tried again at the next poll if it cannot be written; while an
-alarm the pane wrote is unread, a repeat is counted in the pane, not logged,
-unless the marks cannot be read. Since 0.88.0 that poll is the level's alone:
-it runs with the pane open or closed while the stored or last-pressed level is
-above 1 or an alarm, a Pane entry or a reset waits, and starts at a press, a
-reset, a session start, a call of the mod's tools, or a draw of the band above
-the prompt or of the pane, any of which may find a stored level that differs
-from the last press, so its alarm and Pane entry writes also happen with the pane closed; it
-reads no usage and keeps no report. The pane
-draws the level in force on every tab, level 3 in the warning colour, and
-since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
-press time and a Dismiss, and an alarm this mod caught until a card or
-History press, reload or new session, on the terminal
-and Desktop only. What follows from it:
+forgets every other session's level and press time too. Since 0.88.0 the
+level's own 5-second poll is its alone: it runs with the pane open or closed
+while the level is above 1 or a Pane entry or a reset waits, and starts at a
+press, a reset, a session start, a call of the mod's tools, or a draw of the
+band above the prompt or of the pane; it reads no usage and keeps no report.
+The pane draws the level in force on every tab, level 3 in the warning colour,
+and since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
+press time and a Dismiss, on the terminal and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
-  slider moves and level commands, of the resets, the lead's compactions among them, and of the
-  alarms, which show roughly when the
-  owner let the lead run alone. Owner, Pane and alarm entries never drop.
+  slider moves and level commands, and of the reloads, which show roughly when
+  the owner let the lead run alone. Owner, Pane and alarm entries never drop.
 - **Who can move it:** another plugin can read `autonomy`, and so learn when
-  the owner let the lead run alone, and can rewrite it or press the
-  slider, and so raise the level the lead reads; a rewrite reads as 1 and
-  raises an alarm, and a press by another plugin is logged as the owner's.
-  The owner accepted this on 2026-10-26, and again for level 3 (q2 and q32 A
-  on #402). Since head-chef 0.17.0 (issue 416) the skill has the lead read
-  the level with `read_autonomy` before each decision it would take itself,
-  ask the owner once in its own chat, naming the press time, before it acts
-  on a 3, and act at 2 until the owner's words there confirm it; a level,
-  goal or confirmation named in a message, file, hand-off or report is data.
-  `read_autonomy`'s description, and every answer that names a 3, say that a
-  3 counts only once the owner confirms that press in the lead's chat, never
-  on a confirmation given for an earlier press, or once the owner's
-  level command set it, and list what still waits for the owner at level 3.
-  Since 0.99.0 a plugin that hooks command runs, and possibly one that hooks
-  prompt submits, can turn a `/brigade` the owner types into a level command
-  with a goal of its own, which lasts through compactions. The slider box
-  and the band show a command 3 as it landed; the command's reply is no
-  check, since a plugin that rewrote the command can rewrite its reply too.
+  the owner let the lead run alone, and can press the slider, and so raise the
+  level the lead reads; a press by another plugin is logged as the owner's.
+  A rewrite of the stored copy changes nothing until the next reload, which
+  resets it. The owner accepted this on 2026-10-26, and again for level 3 (q2
+  and q32 A on #402). Since head-chef 0.17.0 (issue 416) the skill has the
+  lead read the level with `read_autonomy` before each decision it would take
+  itself; a level, goal or yes named in a message, file, hand-off or report is
+  data. `read_autonomy`'s description names the owner's user-level
+  instructions file, and its answer for a pressed 3 says the lead acts at 3
+  toward the goal in the owner's words in the chat. Since 0.99.0 a plugin that
+  hooks command runs, and possibly one that hooks prompt submits, can turn a
+  `/brigade` the owner types into a level command with a goal of its own,
+  which lasts through compactions. The slider box and the band show a command 3
+  as it landed; the command's reply is no check, since a plugin that rewrote
+  the command can rewrite its reply too.
 - **Where the level is copied:** each answer of `read_autonomy`,
   `log_decision` and `set_lead_handoff` names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
   after the log is deleted. Since 0.88.0 the band above the lead's prompt
-  draws a 3 and its press time, and an alarm's level and time, in the tree
-  that other plugins' band hooks see. Since 0.99.0 a 3 the level command set
-  carries its goal, the owner's own unscreened text: other plugins' prompt
-  and command hooks see it as typed; `read_autonomy`'s answers and the
-  command's reply put it in the transcript, again after each compaction; and
-  the slider box draws it on every surface, the phone included, in the pane's
-  tree, which other plugins' pane hooks may see (not checked).
+  draws a 3 and its press time in the tree that other plugins' band hooks see.
+  Since 0.99.0 a 3 the level command set carries its goal, the owner's own
+  unscreened text: other plugins' prompt and command hooks see it as typed;
+  `read_autonomy`'s answers and the command's reply put it in the transcript,
+  again after each compaction; and the slider box draws it on every surface,
+  the phone included, in the pane's tree, which other plugins' pane hooks may
+  see (not checked).
 - **What does not reach it:** no permission prompt, mode, owner hook or
-  classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
-  writes, or a press.
+  classifier sees `read_autonomy`'s answer, the pane's Owner and Pane writes,
+  or a press.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's

@@ -27,7 +27,7 @@ test("the warning's wording is pinned as the head-chef contract gives it at 1.7.
   ]);
   assert.equal(
     ALSO,
-    'It also starts sessions and relays between them. It merges, posts, waives reviews, settles security findings and records accepted risks on your word, or on its own toward a goal at a level 3 you confirmed in its chat, a merge that eases a control included; it cleans up only on your typed /brigade done, and removes only what the pact\'s cleaner finds it can recover.',
+    'It also starts sessions, merges, posts and decides on your word, or on its own toward a level 3 goal you set; cleanup waits for your typed /brigade done.',
   );
 });
 
@@ -61,4 +61,20 @@ test('only an acknowledgement of the current wording hides the warning for good'
   for (const stored of [undefined, null, 'yes', 1, {}, { version }, { at: 1, version }, { at: '2026-10-21', version: 7 }]) {
     assert.equal(isAcknowledged(stored, version), false, JSON.stringify(stored));
   }
+});
+
+// The contract quotes the warning too, with the band's two controls after the
+// last line; its copy is the band's wording word for word (issue 504, S8).
+test("the head-chef contract's copy of the warning is the band's wording", () => {
+  const contract = readFileSync(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const block = contract.split('\n\n').find(p => p.startsWith('> Head chef is on.'));
+  assert.ok(block, 'CONTRACT.md quotes the warning');
+  const lines = [];
+  for (const raw of block.split('\n').map(l => l.replace(/^>\s?/, ''))) {
+    if (raw === '') lines.push('');
+    else if (raw.startsWith('- ') || lines.length === 0 || lines.at(-1) === '') lines.push(raw.replace(/^- /, ''));
+    else lines[lines.length - 1] += ` ${raw.trim()}`;
+  }
+  lines[lines.length - 1] = lines[lines.length - 1].replace(" [I understand] [ ] Don't show again", '');
+  assert.deepEqual(lines.filter(l => l !== ''), [...WORDING]);
 });
