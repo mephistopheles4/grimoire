@@ -191,7 +191,7 @@ test('484 C2: the reply lists each opened card with its kind, repository, folder
     'Now send any message, so this session acts on them.',
     UNDO_LINE,
   ].join('\n'));
-  assert.deepEqual(CLEAN_LINES, ['Folders and branches are as they were when each session joined.', "Each worktree and branch goes only if the cleaner finds everything in it recoverable, which is the cleaner's own promise; anything else stays and is listed after."]);
+  assert.deepEqual(CLEAN_LINES, ['Folders and branches are as they were when each session joined.', "Whether a removal can be undone is the cleaner's own promise; anything it leaves stays and is listed after."]);
   assert.equal(UNDO_LINE, "The lead may act on this at its next turn, which a member's message can start. To take it back, type /brigade done none now.");
 
   // Hostile names: a title with a quote, a backslash and the reply's own words; a folder outside the rule; a repository name with a line break.
@@ -351,7 +351,7 @@ test('504 C7: the cleaner command is typed at the desktop prompt only, reads and
     'const home = await homeFolder($)',
     "if (arg === '') {",
     'const kept = await storedCleaner($)',
-    'return { text: kept === undefined ? CLEANER_REPLIES.unset : cleanerCurrent(shownPath(kept, home)) }',
+    'return { text: kept === undefined ? CLEANER_REPLIES.noneToShow : cleanerCurrent(shownPath(kept, home)) }',
     '}',
     "if (arg === 'none') {",
     'try {',
@@ -495,7 +495,7 @@ test("504 C8: no file S5 lists names the other package or its numbers; ADR 0015 
   ];
   for (const rel of listed) {
     const text = read(rel).replace(/\s+/g, ' ');
-    assert.doesNotMatch(text, /\bpact\b|the-pact|issue 446|\bR14\b|git \(2\.45/i, rel);
+    assert.doesNotMatch(text, /(?<![a-z])pact|olderGit|issue 446|\bR14\b|git \(?2\.45|0014-brigade-runs-the-pacts/i, rel);
   }
   assert.ok(fs.existsSync(new URL('docs/adr/0015-brigade-runs-the-configured-cleaner.md', root)));
   assert.match(read('docs/adr/0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md'), /Replaced by \[0015\]\(0015-brigade-runs-the-configured-cleaner\.md\)/);

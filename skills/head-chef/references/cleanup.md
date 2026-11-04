@@ -52,10 +52,11 @@ open.
 ## Undoing a wrong card
 
 If its worktree went, first recreate it at `.claude/worktrees/<name>` with
-`git worktree add`, from its remote branch or from the tip the cleaner
-printed. Then unarchive the Desktop session, or `claude attach` the stopped
-one. A stash made there is still in `git stash list`, and a lost commit stays
-findable with `git fsck --lost-found` until git prunes it.
+`git worktree add`, from its remote branch or, if the cleaner printed one,
+the tip it printed. Then unarchive the Desktop session, or `claude attach` the
+stopped one. If the cleaner honoured `--recoverable`, a stash made there is
+still in `git stash list`, and a lost commit stays findable with
+`git fsck --lost-found` until git prunes it.
 
 ## Removing a stopped session for good
 

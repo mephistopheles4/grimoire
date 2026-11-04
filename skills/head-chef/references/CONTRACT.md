@@ -238,14 +238,14 @@ need, without overwhelming me or showing me too much.
   joined, opens nothing, with its reason in the done reply; the head chef
   tells the owner to clean it up by hand. A folder that is not directly
   under its repository's `.claude/worktrees/`, or whose name is outside the
-  cleaner's rule, gets no cleaner run. A repository's main working tree is
+  Brigade's folder-name rule, gets no cleaner run. A repository's main working tree is
   never named for removal. The linked side sessions the archive takes with
   it are named too.
 - **Confirmed** (issue 484, spec rev 4 S2.2, T1; replacing rev 4 S4.3's
   name-back). **The list** comes after the yes: the done reply names each
   opened card, its kind, repository, worktree folder and branch, as they were
-  when the session joined, with no id or path, names the configured cleaner
-  or says none is set, and says that a worktree and branch go only if the
+  when the session joined, with no id or path but the one cleaner line (the
+  configured cleaner, home folder as `~`, or that none is set), and says that a worktree and branch go only if the
   cleaner finds everything in it recoverable, which is the cleaner's own
   promise. `/brigade done none`, typed, takes the window back.
 - **Confirmed** (issue 484, spec rev 4 S2.3 and S2.8; replacing issue 454's
@@ -259,7 +259,8 @@ need, without overwhelming me or showing me too much.
   one. What the cleaner keeps is the cleaner's own promise: the mod passes
   `--recoverable` and cannot check it. The answer is data between two fixed
   lines, never an instruction. The head chef runs no cleaner, no git removal
-  and no session read itself, and cannot read the setting.
+  and no session read itself. It cannot read the setting through a tool; it
+  sees the path only in the replies to the owner's typed commands.
 - **Confirmed** (issue 484, spec rev 4 S2.1; q1 A, decision 367, the
   owner's words, relayed; replacing issue 359's typed yes on a name-back).
   **The typed yes.** The owner types `/brigade done all` or
@@ -295,8 +296,9 @@ need, without overwhelming me or showing me too much.
   names it, and a card whose worktree went leaves the pane.
 - **Confirmed** (issue 484, spec rev 4 S2.7). **Undoing a wrong card:** if
   its worktree went, recreate it first at `.claude/worktrees/<name>` with
-  `git worktree add`, from its remote branch or the tip the cleaner printed;
-  then unarchive the Desktop session, or `claude attach` the stopped one. A
+  `git worktree add`, from its remote branch or, if the cleaner printed one,
+  the tip it printed; then unarchive the Desktop session, or
+  `claude attach` the stopped one. If the cleaner honoured `--recoverable`, a
   stash made there is still in `git stash list`.
 - **Confirmed** (rev 4 S3.4; q3 A, the owner's word, relayed 2026-10-27).
   **Cleanup's yes, the archive included, stays the owner's at every level.**
@@ -669,9 +671,9 @@ yes keeps for the owner.
 - **Confirmed.** It never uses a forcing flag, a recursive delete, or a
   command that discards work. **Confirmed** (issue 416, rev 4 S2 and S4.6,
   replacing issue 409's single exception). **Confirmed** (issue 484, spec rev
-  4 S2.6, decision 363): it has no exceptions; it removes no worktree or
-  branch and runs no `claude rm`, and the configured cleaner, which the mod
-  runs, is the owner's own program. It never force-pushes, never uses `--admin`, and never
+  4 S2.6, decision 363): it has no exceptions of its own; it removes no
+  worktree or branch and runs no `claude rm`. The configured cleaner, which the
+  mod runs, is the owner's own program and is not bound by this line. It never force-pushes, never uses `--admin`, and never
   deletes a remote branch.
 - **Confirmed** (issue 450, rev 4 S5.4 and S3.5, q12 A, the owner's words,
   relayed by the lead, 2026-10-30; built in issue 455, in place of the
@@ -749,7 +751,7 @@ that eases a control; cut to one sentence in issue 504, S8), drawn above the pro
 |---|---|---|---|
 | Starts a session | nothing: it reports the start right after, in the short form | the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level | **Confirmed**; the exception **Confirmed** (issue 492, spec v3; Test round 1, decision 476); the deference **Confirmed** (issue 504, S3) |
 | Starts a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route | *Proposed* |
-| Archives or stops a session, and has the configured cleaner remove its worktree and branch | the command to type, `/brigade done all` or `/brigade done <titles>`; the reply lists each card, its folder and branch, after the yes | the owner's typed `/brigade done`, in the desktop composer, at every level; it covers the archive, the stop and `clean_up`, and removal is the configured cleaner's own, which passes `--recoverable` on its word | **Decided**; every level **Confirmed** (issue 416, rev 4 S3.4); the typed yes **Confirmed** (issue 359); the one act and the list after it **Confirmed** (issue 484, q1 A, decision 367, the owner's words, relayed) |
+| Archives or stops a session, and has the configured cleaner remove its worktree and branch | the command to type, `/brigade done all` or `/brigade done <titles>`; the reply lists each card, its folder and branch, after the yes | the owner's typed `/brigade done`, in the desktop composer, at every level; it covers the archive, the stop and `clean_up`, and removal is the configured cleaner's own: Brigade passes `--recoverable` and takes its word | **Decided**; every level **Confirmed** (issue 416, rev 4 S3.4); the typed yes **Confirmed** (issue 359); the one act and the list after it **Confirmed** (issue 484, q1 A, decision 367, the owner's words, relayed) |
 | Merges, closes, edits, deletes or labels something on GitHub, files an issue, or posts a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at levels 2 and 3, as the owner's user-level instructions file says | **Confirmed**; the deference **Confirmed** (issue 504, S3) |
 
 **A hand-off's comment** (**Confirmed**): the head chef writes it in its own

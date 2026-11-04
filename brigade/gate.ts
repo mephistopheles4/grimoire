@@ -94,14 +94,14 @@ export function resolveTitles(
   })
 }
 
-/** The cleaner's folder-name rule: letters, digits, `.`, `_` and `-`, not
+/** Brigade's folder-name rule: letters, digits, `.`, `_` and `-`, not
  *  starting with `.` or `-`. */
 const FOLDER = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/
 
 /** The repository and folder the configured cleaner may be run for: the target's
  *  repository folder ends in `.git`, its parent `<main>` passes commandPath,
  *  and the target's folder sits directly under `<main>/.claude/worktrees`,
- *  by the roster's path rule, with a name inside the cleaner's rule. */
+ *  by the roster's path rule, with a name inside Brigade's folder-name rule. */
 export function cleanFolder(t: Pick<Target, 'cwd' | 'repo'>): { main: string; folder: string } | undefined {
   const repo = /^(.*)[\\/]\.git[\\/]*$/.exec(t.repo)
   if (repo === null || !commandPath(repo[1])) return undefined
@@ -123,9 +123,9 @@ export function quoted(s: string): string {
 
 export const CLEAN_LINES = [
   'Folders and branches are as they were when each session joined.',
-  "Each worktree and branch goes only if the cleaner finds everything in it recoverable, which is the cleaner's own promise; anything else stays and is listed after.",
+  "Whether a removal can be undone is the cleaner's own promise; anything it leaves stays and is listed after.",
 ] as const
-export const REPINNED_LINE = 'A window was already open: its cleaner is now the one named above, for all its open cards.'
+export const REPINNED_LINE = 'A window was already open: the cleaner above now replaces its earlier one for all its open cards.'
 export const UNDO_LINE = "The lead may act on this at its next turn, which a member's message can start. To take it back, type /brigade done none now."
 export const PANE_CLOSED_LINE = 'The Brigade pane is closed, so the stop and the cleanup will be refused: send /brigade to open it, then any message.'
 

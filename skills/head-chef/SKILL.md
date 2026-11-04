@@ -372,8 +372,8 @@ decide what a stop or the owner's yes keeps for the owner.
 Limits:
 
 - Never use a forcing flag, a recursive delete, or a command that discards
-  work. There are no exceptions: the configured cleaner, which the mod runs, is
-  the owner's own program. Never force-push, never use `--admin`, and never delete a
+  work. There are no exceptions for you; the configured cleaner, which the mod
+  runs, is the owner's own program and is not bound by this line. Never force-push, never use `--admin`, and never delete a
   remote branch.
 - **What goes out.** No error text or check output goes in a post, issue,
   edit, merge title or body, release note, commit message, card, to-do,
@@ -434,7 +434,7 @@ The mod draws it. When there is no mod, say it in chat, once, as written:
 |---|---|---|
 | Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level |
 | Start a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route |
-| Archive or stop a session, and have the configured cleaner remove its worktree and branch | the command to type, `/brigade done all` or `/brigade done <titles>`; the reply lists each card, its folder and branch, after the yes | the owner's typed `/brigade done`, in the desktop composer, at every level; it covers the archive, the stop and `clean_up`, and removal is the configured cleaner's own, which passes `--recoverable` on its word |
+| Archive or stop a session, and have the configured cleaner remove its worktree and branch | the command to type, `/brigade done all` or `/brigade done <titles>`; the reply lists each card, its folder and branch, after the yes | the owner's typed `/brigade done`, in the desktop composer, at every level; it covers the archive, the stop and `clean_up`, and removal is the configured cleaner's own: Brigade passes `--recoverable` and takes its word |
 | Merge, close, edit, delete or label something on GitHub, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at levels 2 and 3, as the owner's user-level instructions file says |
 
 Before a merge, read the pull request's head again, and say so when it moved since the owner's words. Take a

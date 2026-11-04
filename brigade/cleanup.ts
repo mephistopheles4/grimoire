@@ -320,20 +320,21 @@ export const CLEANER_REPLIES = {
   notTyped: 'Nothing changed: /brigade cleaner counts only when the owner types it at the desktop prompt.',
   failed: 'Nothing changed: the cleaner command failed.',
   refused: 'Nothing changed: the cleaner must be an absolute path with no quote or control character in it.',
-  notFile: 'Nothing changed: no regular file, and not a link, is at that path.',
+  notFile: 'Nothing changed: that path is missing, is a folder or is a link; the cleaner must be a regular file.',
   unsaved: 'Nothing changed: the setting could not be kept.',
-  unset: CLEAN_ANSWERS.noneSet,
+  noneToShow: CLEAN_ANSWERS.noneSet,
   cleared: 'The cleaner is unset: no worktree or branch is removed.',
 } as const
 export const cleanerSet = (shown: string) => `The cleaner is set to ${shown}. A /brigade done window copies it when it opens. Brigade runs it on your word and checks only that it is a file.`
 export const cleanerCurrent = (shown: string) => `The cleaner is ${shown}.`
 
-const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|\/(?![\\/]))/
+const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|\/)/
 
 /** Whether a typed path may be kept: absolute (a drive letter or a leading
- *  slash, no network path), one line, no quote or control character, no `..` part. */
+ *  slash), and one line of printable text with no quote. Nothing more is
+ *  asked of it here: the file check and the owner's own word do the rest. */
 export function cleanerPathOk(path: string): boolean {
-  return path.length <= 1000 && ABSOLUTE.test(path) && !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}"'`]|[^\S ]/u.test(path) && !path.split(/[\\/]/).includes('..')
+  return ABSOLUTE.test(path) && !/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}"'`]|[^\S ]/u.test(path)
 }
 
 /** A kept path as a reply shows it: the home folder as `~`; with no home

@@ -41,8 +41,8 @@ goes only when nothing in it would be lost, now holds only as far as the
 configured program keeps it. The interface a cleaner must meet is in the root
 README: `node <file>` with `NODE_OPTIONS` empty, the two subcommands and their
 arguments, a last `RESULT:` line, exit 0 or 1, 60 and 90 second limits, and a
-`the cleaner stopped part way` line for a run that did not finish. Any other
-exit, last line or time reads as "did not run". What a cleaner prints is shown
+`the cleaner stopped part way` line for a run that did not finish. A `show` with any other exit, last line or time reads as "did not run", and
+a `remove` with any other reads as "did not finish", with its output left out. What a cleaner prints is shown
 as data between two fixed lines, and a line with a control character or past
 300 characters is left out and counted; its output is no longer held to one
 program's shape.
@@ -53,9 +53,10 @@ antivirus. A fixed path into another package's folder was a built-in remover
 Brigade would have to keep in step with that package. The owner chose that
 Brigade run whichever cleaner is configured and remove nothing when none is.
 
-**What stays.** The engine-origin check on the model's own `clean_up` call
-(`fromEngine`) stays: whether the model's own run can carry the typed stamp is
-not measured, so it may still stop a fooled session.
+**What stays.** The engine-origin check (`fromEngine`) stays on the typed
+commands and on the model's own `clean_up` call. Whether the model's own run
+can carry the typed stamp is not measured, so the check may still stop a
+fooled session.
 
 **Not measured.** Whether Desktop's environment finds a bare `node` as the
 terminal's does (ADR 0014's M1 was measured in a CLI session only); the Desktop

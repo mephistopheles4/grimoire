@@ -9226,11 +9226,12 @@ test('504 C7: with no cleaner set, the window opens, both replies say so, and no
 test('504 C7: a relative path, a quoted path, a link, a missing file, a folder and a send that is not the desktop prompt are each refused, and the setting stays', async ($, on) => {
   const link = `${ROOT}${SEP}tools${SEP}link.mjs`
   const { nodes } = await cleanerWorld(on, $, w => w.put(link, { type: 'link', kind: 'file-symlink', target: CLEANER_FILE }))
+  await setCleaner($, CLEANER_FILE)
   const refused = 'Nothing changed: the cleaner must be an absolute path with no quote or control character in it.'
-  for (const arg of ['cleaner.mjs', './cleaner.mjs', '~/cleaner.mjs', `${CLEANER_FILE}"`, `"${CLEANER_FILE}"`, `${CLEANER_FILE}'x`, `${ROOT}${SEP}tools${SEP}..${SEP}tools${SEP}other.mjs`, `${ROOT}${SEP}tools${SEP}a\tb.mjs`]) {
+  for (const arg of ['cleaner.mjs', './cleaner.mjs', '~/cleaner.mjs', `${CLEANER_FILE}"`, `"${CLEANER_FILE}"`, `${CLEANER_FILE}'x`, `${ROOT}${SEP}tools${SEP}a\tb.mjs`]) {
     expect((await setCleaner($, arg)).text).toBe(refused)
   }
-  const notFile = 'Nothing changed: no regular file, and not a link, is at that path.'
+  const notFile = 'Nothing changed: that path is missing, is a folder or is a link; the cleaner must be a regular file.'
   expect((await setCleaner($, link)).text).toBe(notFile)
   expect((await setCleaner($, `${ROOT}${SEP}tools${SEP}missing.mjs`)).text).toBe(notFile)
   expect((await setCleaner($, `${ROOT}${SEP}tools`)).text).toBe(notFile)
@@ -9241,8 +9242,9 @@ test('504 C7: a relative path, a quoted path, a link, a missing file, a folder a
     expect((await typedBrigade($, 'cleaner none', kind)).text).toBe(notTyped)
     expect((await typedBrigade($, 'cleaner', kind)).text).toBe(notTyped)
   }
-  expect((await typedBrigade($, 'cleaner')).text).toBe(NONE_SET)
-  expect((await doneBuild($)).text.split('\n')).toContain(NONE_SET)
+  // None of it changed the setting that stood before.
+  expect((await typedBrigade($, 'cleaner')).text).toBe('The cleaner is my cleaner.mjs.')
+  expect((await doneBuild($)).text.split('\n')).toContain(`Cleaner for this window: ${CLEANER_FILE}`)
   expect(nodes).toEqual([])
 })
 
@@ -9292,7 +9294,7 @@ test('504 C7: /brigade done copies the path, names it, and clean_up runs that co
   // A second done in the open window repins for every open entry, and its reply says so.
   const second = await doneBuild($)
   expect(second.text.split('\n')).toContain(`Cleaner for this window: ${OTHER_CLEANER}`)
-  expect(second.text.split('\n')).toContain('A window was already open: its cleaner is now the one named above, for all its open cards.')
+  expect(second.text.split('\n')).toContain('A window was already open: the cleaner above now replaces its earlier one for all its open cards.')
   nodes.length = 0
   await cleanRun($)
   expect(nodes[0].argv[1]).toBe(OTHER_CLEANER)
@@ -9306,6 +9308,18 @@ test('504 C7: /brigade done copies the path, names it, and clean_up runs that co
   nodes.length = 0
   expect((await cleanRun($)).text).toBe(NONE_SET)
   expect(nodes).toEqual([])
+})
+
+test("504 C7: the done reply's cleaner line draws the home folder as ~, and the file name alone when no home folder reads", async ($, on) => {
+  const home = `${CLEAN_HOME}${SEP}tools${SEP}c d.mjs`
+  const { w } = await cleanerWorld(on, $, w => {
+    w.dirs(`${CLEAN_HOME}${SEP}tools`)
+    w.put(home, { type: 'file', data: { text: '' } })
+  })
+  await setCleaner($, home)
+  expect((await doneBuild($)).text.split('\n')).toContain('Cleaner for this window: c d.mjs')
+  w.env = { ...WINDOWS, HOME: CLEAN_HOME }
+  expect((await doneBuild($)).text.split('\n')).toContain(`Cleaner for this window: ~${SEP}tools${SEP}c d.mjs`)
 })
 
 test('504 C7: a pinned file that is gone, a link or a folder at run time fails its check, and nothing runs', async ($, on) => {

@@ -2827,7 +2827,7 @@ async function cleanerCommand($: EngineInterface, origin: unknown, dispatch: unk
     const home = await homeFolder($)
     if (arg === '') {
       const kept = await storedCleaner($)
-      return { text: kept === undefined ? CLEANER_REPLIES.unset : cleanerCurrent(shownPath(kept, home)) }
+      return { text: kept === undefined ? CLEANER_REPLIES.noneToShow : cleanerCurrent(shownPath(kept, home)) }
     }
     if (arg === 'none') {
       try {
@@ -2878,7 +2878,7 @@ async function stopBackground($: EngineInterface, e: Record<string, unknown>, or
 // The clean step: the model's own call on the main loop, for every card whose
 // `clean` entry is open. The entries stay open for the window's 15 minutes,
 // so a status file that is late to go needs no new typed command. Each run
-// can remove only recoverable items in the window's own folders.
+// is the configured cleaner's own, in the window's own folders.
 async function cleanUp($: EngineInterface, e: Record<string, unknown>, origin: unknown) {
   if (e.agentId !== undefined) return refuseClean("subagent: only the lead session's own turns clean up")
   if (!fromEngine(origin)) return refuseClean("caller: only the model's own call cleans up, never another plugin's")

@@ -352,6 +352,7 @@ test('a cleaner is held to its RESULT line and a printable bound, not to one pro
   const free = cleanerRunner(byCommand({ stdout: `${shape}\n` }, { stdout: `${REMOVED_1}\n` }));
   assert.equal(await runCleaner(CLEANER, [at('build-1')], free.run), [OPENER, '```text', shape, REMOVED_1, '```', CLOSER].join('\n'));
   // A line with a control character, a tab, an escape, a separator or a length past the bound is left out and counted.
+  assert.equal(LINE_MAX, 300, 'the bound the answer and the README name');
   const tooLong = 'x'.repeat(LINE_MAX + 1);
   const atBound = 'y'.repeat(LINE_MAX);
   const bad = ['has\u001b[31m escape', 'has\ttab', 'has\u2028separator', 'has\u202ebidi', 'has\u00a0nbsp', tooLong];
@@ -404,9 +405,9 @@ test('504 C7: the cleaner command is recognised by its word alone, and the path 
   assert.equal(cleanerArg('cleaner /with  two  spaces/c.mjs'), '/with  two  spaces/c.mjs', 'spaces inside are kept as typed');
 });
 
-test('504 C7: a path is kept only when absolute, one line, with no quote, control character or .. part', () => {
-  for (const ok of ['/home/u/c.mjs', 'C:\\Tools\\c.mjs', 'c:/tools/a b/c.mjs', '/a/b c/d.mjs']) assert.equal(cleanerPathOk(ok), true, ok);
-  for (const bad of ['', 'c.mjs', './c.mjs', '../c.mjs', 'tools/c.mjs', '~/c.mjs', '\\\\server\\share\\c.mjs', '//server/share/c.mjs', '/a/"b".mjs', "/a/'b'.mjs", '/a/`b`.mjs', '/a/../b.mjs', '/a/b\nc.mjs', '/a/b\tc.mjs', '/a/b\u0000c.mjs', '/a/b\u2028c.mjs', `/${'a'.repeat(1001)}`]) {
+test('504 C7: a path is kept only when absolute, one line, with no quote or control character', () => {
+  for (const ok of ['/home/u/c.mjs', 'C:\\Tools\\c.mjs', 'c:/tools/a b/c.mjs', '/a/b c/d.mjs', '//server/share/c.mjs', '/a/../b.mjs']) assert.equal(cleanerPathOk(ok), true, ok);
+  for (const bad of ['', 'c.mjs', './c.mjs', '../c.mjs', 'tools/c.mjs', '~/c.mjs', '/a/"b".mjs', "/a/'b'.mjs", '/a/`b`.mjs', '/a/b\nc.mjs', '/a/b\tc.mjs', '/a/b\u0000c.mjs', '/a/b\u2028c.mjs']) {
     assert.equal(cleanerPathOk(bad), false, JSON.stringify(bad));
   }
 });
@@ -419,7 +420,7 @@ test('504 C7: a reply shows the home folder as ~, and the file name alone when n
   assert.equal(shownPath('/home/user2/c.mjs', '/home/user'), '/home/user2/c.mjs', 'a longer name is not under the home folder');
   assert.equal(shownPath('/home/u/tools/c.mjs', undefined), 'c.mjs');
   assert.equal(shownPath('C:\\Users\\Ann\\tools\\c.mjs', ' '), 'c.mjs');
-  assert.deepEqual({ ...CLEANER_REPLIES }.unset, CLEAN_ANSWERS.noneSet, 'one sentence for no cleaner, in the command and in clean_up');
+  assert.deepEqual({ ...CLEANER_REPLIES }.noneToShow, CLEAN_ANSWERS.noneSet, 'one sentence for no cleaner, in the command and in clean_up');
 });
 
 // --- a real cleaner, written from the root README's interface alone (504 C7) -----
