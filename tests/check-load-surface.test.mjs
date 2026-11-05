@@ -145,21 +145,16 @@ test('a package manifest or lockfile in another case fails, as the exact name do
   modFile(dir, 'Bun.lock', '\n');
   const r = assertFails(dir, /Package\.json: a dependency manifest or lockfile/);
   assert.match(r.stderr, /Bun\.lock: a dependency manifest or lockfile/);
-  // The exemption is the exact name package.json. Package.json holding only
-  // athanor still fails, because an install that folds case would read it as
-  // the manifest.
+  // No spelling is exempt: Package.json holding only athanor's key fails too.
   const only = tree();
   modFile(only, 'Package.json', '{"athanor":{}}\n');
   assertFails(only, /Package\.json: a dependency manifest or lockfile/);
 });
-test('a root athanor.json fails, in any case, because athanor reads it past the hold on the image build folder', () => {
-  const dir = tree();
-  modFile(dir, 'athanor.json', '{}\n');
-  assertFails(dir, /athanor\.json: athanor reads this file as its configuration/);
+test('a root athanor.json in another case fails, because a folding checkout reads it past the hold on the image build folder', () => {
   // One spelling at a time: on a disk that folds case two would be one file.
   const other = tree();
   modFile(other, 'Athanor.JSON', '{}\n');
-  assertFails(other, /Athanor\.JSON: athanor reads this file as its configuration/);
+  assertFails(other, /Athanor\.JSON: spelled like the root athanor\.json/);
 });
 test('a marketplace entry whose name or source holds a home path fails with the account name masked', () => {
   // The CI log is public and outlives a rewritten commit, so rule 4 prints

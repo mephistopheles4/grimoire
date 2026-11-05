@@ -562,8 +562,8 @@ version can disagree with CI.
 - **No dependencies.** The renderers import Node built-ins only, and the tests
   run on `node --test`. There is no dependency tree to poison, and nothing in
   the repository's own code to install. `scripts/check.mjs` fails on a
-  lockfile and on any `package.json` except a root one holding only an
-  `athanor` key, whose image build folder is held to `tests/container/`. The
+  lockfile and on any `package.json`. The root `athanor.json`, whose image
+  build folder is held to `tests/container/`, is athanor's configuration. The
   one package CI fetches is Claude Code, for
   the plugin validator and the mod's tests, and only on the runner; athanor's
   image fetches the same pinned package when it is built, for `validate`.

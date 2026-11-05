@@ -6,23 +6,23 @@
 // 1. Every artifact in the tree validates against the renderer its registry
 //    row names, and every skill that ships artifacts has a row.
 // 2. No file a skill or the mod ships carries a fixed path, nor does the root
-//    package.json or a file under tests/container/. Both land in a
+//    athanor.json or a file under tests/container/. Both land in a
 //    different directory under every install route, so a path naming one is
 //    a defect.
 //    2b. For every rule, not only 2: every file git tracks is one the walk
 //    read, so no rule here skips a file that ships.
 //    2c. A skill's frontmatter holds only the allow-listed keys, and no file
-//    under skills/, nor the root package.json, nor a file under
+//    under skills/, nor the root athanor.json, nor a file under
 //    tests/container/, nor .claude/settings.json or scripts/agent-check-guard.mjs,
 //    holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
-// 6. Nothing in the tree takes a dependency: no manifest but one, no lockfile,
-//    no root binding.gyp, and no import of a bare specifier. The one manifest
-//    it accepts is a root package.json holding only an `athanor` key, whose
-//    image build folder is held to tests/container/. The
+// 6. Nothing in the tree takes a dependency: no manifest, no lockfile,
+//    no root binding.gyp, and no import of a bare specifier. A root
+//    athanor.json is athanor's configuration, not a manifest, and its image
+//    build folder is held to tests/container/. The
 //    mod's module may import the engine's own `claude-code`, which the engine
 //    supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
@@ -203,7 +203,7 @@ const FIXED = [
 // account name is masked before the line is cut; see scripts/lib/printable.mjs.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
 // Two places are read beyond what ships under skills/ and the mod: the root
-// package.json and the folder tests/container/. A whole-repository install
+// athanor.json and the folder tests/container/. A whole-repository install
 // carries them to every installer, and the athanor "commands" are where a
 // pasted local path would land. Rule 5 does not take them: isShipped stays as
 // it was, so a change to them asks for no version bump. Rule 2c reads the same
@@ -214,7 +214,7 @@ const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
 // differs only in case would skip these scans while athanor still found it.
 const foldsTo = (name, wanted) => name === wanted || caseTwin(name, wanted);
 const isContainerConfig = src => {
-  if (src === 'package.json') return true;
+  if (src === 'athanor.json') return true;
   const [first, second, ...below] = src.split('/');
   return below.length > 0 && foldsTo(first, 'tests') && foldsTo(second, 'container');
 };
@@ -697,14 +697,13 @@ const MANIFESTS = new Set([
 // manifest and a lockfile, and an install that folds case finds Package.json.
 const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
 //
-// One exemption, because athanor reads its configuration from this file (or from
-// a root athanor.json, which is refused below): a
-// file named exactly `package.json`, in that case, at the root, whose top level
-// is an object holding the key `athanor` and no other, with an object as its
-// value. The limit is one key because npm and the skills CLI act on the others
-// (`dependencies`, `scripts`, `bin`, `type`, `skills`). What is inside `athanor`
-// is athanor's to validate, and it exits 125 on a key it does not know, with
-// one exception: the folder the image build receives. The build has network
+// No exemption: a root package.json is refused as any other manifest is.
+// athanor reads its configuration from a root athanor.json, which is not a
+// manifest, and the hold on the image build below reads that file. A file named
+// exactly `athanor.json`, in that case, at the root, whose top level is an
+// object, is the configuration. What is inside is athanor's to validate, and it
+// exits 125 on a key it does not know, with one exception: the folder the image
+// build receives. The build has network
 // access and takes the tracked files under the folder the `context` key names,
 // as they are in the working tree, uncommitted edits included, and a branch
 // sets the key. So the two keys that choose that folder must be present and
@@ -720,29 +719,22 @@ const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseT
 // branch nobody has read it holds what merges and not that run.
 const BUILD_FOLDER = { dockerfile: 'tests/container/Dockerfile', context: 'tests/container' };
 const isObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
-// Why a root package.json is not the accepted one and what to do about it, or
-// null when it is accepted. The accepted file is athanor's configuration, so
-// "delete it" is the wrong fix for it: each problem names its own.
-function rootManifestProblem(f) {
+// Why a root athanor.json is not the accepted one and what to do about it, or
+// null when it is accepted. "Delete it" is the wrong fix for the configuration,
+// so each problem names its own.
+function athanorConfigProblem(f) {
   let parsed;
   try {
     parsed = JSON.parse(readFileSync(f, 'utf8'));
   } catch {
     // No parser text: Node's message quotes a window of the file, and a window
     // that starts after a home root has no root for the mask to find.
-    return { problem: 'does not parse as JSON', fix: 'make it valid JSON holding only the "athanor" key' };
+    return { problem: 'does not parse as JSON', fix: 'make it valid JSON, an object' };
   }
-  const only = 'holding only an "athanor" key whose value is an object';
-  if (!isObject(parsed)) return { problem: 'is not a JSON object', fix: `make it an object ${only}` };
-  const others = Object.keys(parsed).filter(k => k !== 'athanor');
-  if (others.length) {
-    return { problem: `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`, fix: 'keep only the "athanor" key (or delete the file if athanor is not wanted)' };
-  }
-  if (!('athanor' in parsed)) return { problem: 'holds no "athanor" key', fix: `put the athanor settings in an "athanor" key ${only}` };
-  if (!isObject(parsed.athanor)) return { problem: 'has an "athanor" value that is not an object', fix: `make the "athanor" value an object` };
+  if (!isObject(parsed)) return { problem: 'is not a JSON object', fix: 'make it an object' };
   const wrong = [
-    ...Object.keys(BUILD_FOLDER).filter(k => !Object.hasOwn(parsed.athanor, k) || parsed.athanor[k] !== BUILD_FOLDER[k]),
-    ...(Object.hasOwn(parsed.athanor, 'inputs') ? ['inputs'] : []),
+    ...Object.keys(BUILD_FOLDER).filter(k => !Object.hasOwn(parsed, k) || parsed[k] !== BUILD_FOLDER[k]),
+    ...(Object.hasOwn(parsed, 'inputs') ? ['inputs'] : []),
   ];
   if (wrong.length) {
     return {
@@ -753,28 +745,27 @@ function rootManifestProblem(f) {
   return null;
 }
 for (const f of files.filter(f => isManifest(basename(f)))) {
-  const isRoot = relRaw(f) === 'package.json';
-  const rootProblem = isRoot ? rootManifestProblem(f) : null;
-  if (isRoot && rootProblem === null) continue;
-  const fix = isRoot ? ` — ${rootProblem.fix}. The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object that keeps the build to tests/container/, and this one ${rootProblem.problem}.` : ' — delete it.';
   fail(
-    `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+    `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. athanor's configuration lives in the root athanor.json, not in a package.json. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
 }
 
-// athanor reads its configuration from a root athanor.json as well as from the
-// package.json key (athanor 0.1.1 onward, #30), and the rule above holds only
-// the key. A branch that moved its configuration to athanor.json would escape
-// the hold on the image build's folder (issue 362), and the build has network
-// access. So the file is refused, in any case, as a manifest is. Issue 518.
-for (const f of files.filter(f => foldsTo(relRaw(f), 'athanor.json'))) {
-  fail(`${rel(f)}: athanor reads this file as its configuration, and the hold on the image build's folder (${BUILD_FOLDER.context}/) is read from the root package.json only. Delete it and keep the "athanor" key in package.json.`);
+// The root athanor.json is held to the image build's folder (issue 362). Its
+// spelling in another case is refused: a checkout that folds case reads it as
+// athanor.json, and Linux CI would not hold it.
+for (const f of files.filter(f => relRaw(f) !== 'athanor.json' && foldsTo(relRaw(f), 'athanor.json'))) {
+  fail(`${rel(f)}: spelled like the root athanor.json and differing from it only in case — a checkout that folds case would read it as athanor's configuration, past the hold on the image build's folder. Rename or delete it.`);
+}
+const athanorConfig = files.find(f => relRaw(f) === 'athanor.json');
+if (athanorConfig) {
+  const problem = athanorConfigProblem(athanorConfig);
+  if (problem) fail(`${rel(athanorConfig)}: athanor's configuration ${problem.problem} — ${problem.fix}.`);
 }
 
 // A symbolic link at the build folder, above it, or inside it. athanor follows
 // links before it uses the configured paths, so a link at tests/container, or a
 // Dockerfile that is a link, moves the build to wherever it points while the
-// strings in the root package.json still read as the pinned values. The walk
+// strings in the root athanor.json still read as the pinned values. The walk
 // lists a link as a file and never enters it, which is why it is found here.
 const isBuildFolderPath = p => {
   const [first, second, ...below] = p.split('/');
@@ -782,7 +773,7 @@ const isBuildFolderPath = p => {
 };
 for (const f of files.filter(f => isBuildFolderPath(relRaw(f)))) {
   const [first, second] = relRaw(f).split('/');
-  if (relRaw(f) !== 'package.json' && (first !== 'tests' || (second !== undefined && second !== 'container'))) {
+  if (relRaw(f) !== 'athanor.json' && (first !== 'tests' || (second !== undefined && second !== 'container'))) {
     fail(`${rel(f)} is spelled like ${BUILD_FOLDER.context}/ and differs from it only in case — a checkout that folds case would find the pinned folder through it, and Linux CI would not. Rename it.`);
   }
   if (lstatSync(f).isSymbolicLink()) {
@@ -792,11 +783,10 @@ for (const f of files.filter(f => isBuildFolderPath(relRaw(f)))) {
 
 // The pinned Dockerfile has to be there and be a plain file, or the removed
 // folder is replaced by a link under another spelling and nothing notices.
-const rootManifest = files.find(f => relRaw(f) === 'package.json');
-if (rootManifest && rootManifestProblem(rootManifest) === null) {
+if (athanorConfig && athanorConfigProblem(athanorConfig) === null) {
   const dockerfile = files.find(f => relRaw(f) === BUILD_FOLDER.dockerfile);
   if (!dockerfile || lstatSync(dockerfile).isSymbolicLink()) {
-    fail(`${BUILD_FOLDER.dockerfile} is missing or is not a plain file, and the athanor key in the root package.json names it as the image build's Dockerfile.`);
+    fail(`${BUILD_FOLDER.dockerfile} is missing or is not a plain file, and the root athanor.json names it as the image build's Dockerfile.`);
   }
 }
 
@@ -1486,12 +1476,10 @@ if (process.env.GRIMOIRE_IN_TEST) {
   } else if (tests) {
     console.log(`\nrunning ${tests.length} test file(s)`);
     try {
-      // The root package.json holds no "type" key, because the one-key rule
-      // refuses it, so Node warns once for each brigade module the tests
-      // import: it detects them as ES modules and says so. The warning is
-      // about the root file's shape and tells a reader nothing they can act on.
-      // The same flag is in the "fast" command of that file. The engine itself
-      // was checked and prints no such warning when it loads the mod.
+      // Node warns once for each brigade module the tests import when the
+      // nearest package.json has no "type" key. The repository has no root
+      // package.json, so the flag is a guard for a checkout nested under one.
+      // The same flag is in the "fast" command of athanor.json.
       execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--test', ...tests], {
         cwd: root,
         env: { ...process.env, GRIMOIRE_IN_TEST: '1' },
