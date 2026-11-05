@@ -19,10 +19,10 @@
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
-// 6. Nothing in the tree takes a dependency: no manifest but one, no lockfile,
-//    no root binding.gyp, and no import of a bare specifier. The one manifest
-//    no manifest at all: a root athanor.json is athanor's configuration, not a
-//    manifest, and its image build folder is held to tests/container/. The
+// 6. Nothing in the tree takes a dependency: no manifest, no lockfile,
+//    no root binding.gyp, and no import of a bare specifier. A root
+//    athanor.json is athanor's configuration, not a manifest, and its image
+//    build folder is held to tests/container/. The
 //    mod's module may import the engine's own `claude-code`, which the engine
 //    supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
@@ -1476,11 +1476,10 @@ if (process.env.GRIMOIRE_IN_TEST) {
   } else if (tests) {
     console.log(`\nrunning ${tests.length} test file(s)`);
     try {
-      // There is no root package.json, because the check refuses one, so Node warns once for each brigade module the tests
-      // import: it detects them as ES modules and says so. The warning is
-      // about the missing manifest and tells a reader nothing they can act on.
-      // The same flag is in the "fast" command of athanor.json. The engine itself
-      // was checked and prints no such warning when it loads the mod.
+      // Node warns once for each brigade module the tests import when the
+      // nearest package.json has no "type" key. The repository has no root
+      // package.json, so the flag is a guard for a checkout nested under one.
+      // The same flag is in the "fast" command of athanor.json.
       execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--test', ...tests], {
         cwd: root,
         env: { ...process.env, GRIMOIRE_IN_TEST: '1' },

@@ -74,7 +74,7 @@ test('a root athanor.json that is not an object, or does not parse, fails withou
   for (const body of bodies) {
     const dir = tree();
     writeFileSync(join(dir, 'athanor.json'), body);
-    const r = assertFails(dir, /athanor\.json: athanor's configuration /);
+    const r = assertFails(dir, /athanor\.json: athanor's configuration (is not a JSON object|does not parse as JSON)/);
     // A parse error can quote the file, and the file is not this check's text.
     assert.doesNotMatch(r.stderr, /zq-acct/, `body ${JSON.stringify(body)}`);
   }

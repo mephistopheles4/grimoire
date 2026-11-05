@@ -69,8 +69,9 @@ temporary folders. Where `athanor` is not on your PATH, or produces no result, r
 `node scripts/check.mjs` on the host instead.
 
 athanor's configuration lives in the root `athanor.json`, saved as UTF-8 with
-no byte-order mark. The repository has no root `package.json`. It names the Dockerfile in `tests/container/`,
-which is the whole build context, and four commands:
+no byte-order mark. The repository has no root `package.json`. `athanor.json`
+names the Dockerfile in `tests/container/`, which is the whole build context,
+and four commands:
 
 ```bash
 athanor run check
