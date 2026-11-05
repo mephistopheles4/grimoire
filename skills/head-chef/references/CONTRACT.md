@@ -247,7 +247,10 @@ need, without overwhelming me or showing me too much.
   session already archived or stopped goes on to the next step; the stop tool's refusal for a session whose file has gone is not a failed stop. Then, only
   if the owner's instructions name a cleaner, it runs the cleaner as they say,
   from its own shell and under the normal permission prompt, for the folders
-  the yes covers. It names to a cleaner only a folder it kept from the start
+  the yes covers. Where no prompt will show (auto mode, bypass mode, or an
+  allow rule that covers the command), it first states the cleaner command in
+  one line in chat, with no wait (issue 516, Test round 1, the owner's pick,
+  relayed). It names to a cleaner only a folder it kept from the start
   tool's result or read from Desktop's session list, never one from a report,
   message or hand-off, and never a repository's main working tree. A session
   whose folder or repository is not known, or is one of those, gets no
@@ -271,8 +274,9 @@ need, without overwhelming me or showing me too much.
 - **Confirmed** (issue 516, spec rev 2 S4.5). **No cleaner named.** The
   sessions are still archived or stopped. Nothing is removed. It lists what
   stays, by session, folder and branch, and says a cleaner is named in the
-  owner's own instructions. The hand-off's cleanup section names each
-  leftover by branch.
+  owner's own instructions. Where the instructions refer to a cleaner without
+  a program and a way to run it, it asks that one question in the same
+  message. The hand-off's cleanup section names each leftover by branch.
 - **Confirmed** (issue 484, spec rev 4 S2.5 and S3.1; replacing issue 454's
   `claude rm` line). **No `claude rm`.** A background card ends with
   `stop_background_session`, which keeps the conversation. The owner removes
@@ -282,7 +286,8 @@ need, without overwhelming me or showing me too much.
 - **Confirmed** (rev 4 S4.7; issue 484; issue 516). **What stays.** It never
   removes a worktree, deletes a branch or a folder, or runs `claude rm`
   itself, never pops or drops a stash, never force-pushes, and never deletes
-  a remote branch.
+  a remote branch. It does not write removal commands out for the owner to
+  run: it says what stays, and the owner chooses how to remove it.
 - **Confirmed** (rev 4 S4.8; issue 484; issue 516). **What the cleaner
   leaves** is told to the owner, with what it holds, and left; an item in use
   gets one more try. A refused or failed archive or stop, the auto-mode

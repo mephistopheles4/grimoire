@@ -49,7 +49,7 @@ the default mode, the classifier alone in auto mode, nothing under bypass mode
 or an allow rule); it runs from a shell line the model writes, with none of the
 mod's earlier limits or name rule; and the mod's filter on its output is gone,
 so everything it prints, error text included, reaches the lead's transcript,
-the model provider and Remote Control devices.
+the model provider and Remote Control devices. The owner chose, in Test round 1, to state the cleaner command in one line before each run in a mode with no prompt, to build no filter on the output, and not to name a chat-named cleaner back before it runs.
 
 **The loss bound moves.** Until 0.117.0 the mod ran the cleaner in a fixed
 mode and passed it the folders. Now the head chef runs it, and what it keeps
