@@ -19,17 +19,26 @@ const cards = [
   { title: 'renamed', bgId: 'bbbb0001' },
   { title: 'gone', bgId: 'cccc0001' },
   { title: 'dup-rows', bgId: 'dddd0001' },
+  { title: 'both-ids', bgId: 'eeee0001', desktopId: 'local_22222222-2222-3333-4444-555555555555' },
+  { title: 'folded  title', bgId: 'ffff0001' },
 ];
 const rows = [
   { name: 'bg-1', status: 'idle', jobId: JOB },
   { name: 'something else', status: 'idle', jobId: 'bbbb0001' },
   { name: 'dup-rows', status: 'idle', jobId: 'dddd0001' },
   { name: 'dup-rows', status: 'idle', jobId: 'dddd0001' },
+  { name: 'both-ids', status: 'idle', jobId: 'eeee0001' },
+  { name: 'folded title', status: 'idle', jobId: 'ffff0001' },
 ];
 const whole = { rows, complete: true, fileGone: false };
 
 test('C2: stopTarget accepts exactly one background card whose one session file has the same name', () => {
   assert.deepEqual(stopTarget('bg-1', cards, whole), { jobId: JOB });
+});
+
+test('C2: titles and names are compared as the roster draws them, not raw', () => {
+  assert.deepEqual(stopTarget('folded title', cards, whole), { jobId: 'ffff0001' });
+  assert.deepEqual(stopTarget('  folded   title ', cards, whole), { jobId: 'ffff0001' });
 });
 
 test('C2: stopTarget refuses in fixed words that name no id or path', () => {
@@ -43,6 +52,7 @@ test('C2: stopTarget refuses in fixed words that name no id or path', () => {
   assert.match(why('nobody'), /no card/);
   assert.match(why('twin'), /more than one card/);
   assert.match(why('build-1'), /not a background session/);
+  assert.match(why('both-ids'), /not a background session/);
   assert.match(why('gone'), /no session file/);
   assert.match(why('dup-rows'), /two session files/);
   assert.match(why('renamed'), /not the card title/);
@@ -59,8 +69,7 @@ test('C2: stopAnswer is fixed words, and only an exit of 0 is a stop', () => {
   const stopped = stopAnswer({ exitCode: 0, stdout: 'C:\\Users\\someone\\x', stderr: 'TOKEN=abc' });
   assert.equal(stopped, 'Stopped: claude stop ran and exited 0. Its worktree and branch stay.');
   for (const ran of [undefined, { exitCode: 1 }, { exitCode: '0' }, 'spawn failed: TOKEN=abc', null]) {
-    assert.match(stopAnswer(ran), /^Not stopped: /);
-    assert.ok(!stopAnswer(ran).includes('TOKEN'));
+    assert.equal(stopAnswer(ran), 'Not stopped: claude stop did not run, or did not exit 0. Tell the owner, who can stop it by hand.');
   }
   assert.doesNotMatch(stopped, /clean_up|\/brigade done/);
 });
@@ -136,7 +145,8 @@ test('C2: brigade/ holds no removal command text', () => {
   assert.ok(files.length > 5);
   for (const f of files) {
     const text = fs.readFileSync(new URL(f.replace(/\\/g, '/'), dir), 'utf8');
-    for (const bad of ['worktree remove', 'branch -d', 'branch -D', "'-D'", '--force', 'claude rm', "'rm'", 'read_cleanup']) assert.ok(!text.includes(bad), `${f}: ${bad}`);
+    for (const bad of ['worktree remove', 'branch -d', 'branch -D', "'-D'", '--force', 'claude rm', "'rm'", 'read_cleanup', 'brigade done', 'brigade cleaner']) assert.ok(!text.includes(bad), `${f}: ${bad}`);
+    assert.doesNotMatch(text, /'worktree',\s*'remove'|'branch',\s*'-[dD]'/, `${f}: a removal as an argument list`);
   }
 });
 
@@ -167,5 +177,21 @@ test('C8: ADR 0016 exists and replaces 0015; 0014 and 0015 say they are replaced
   assert.ok(fs.existsSync(new URL('docs/adr/0016-cleanup-is-the-owners-yes-in-chat.md', root)));
   assert.match(read('docs/adr/0015-brigade-runs-the-configured-cleaner.md'), /Replaced by \[0016\]\(0016-cleanup-is-the-owners-yes-in-chat\.md\)/);
   assert.match(read('docs/adr/0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md'), /Replaced by \[0015\]\(0015-brigade-runs-the-configured-cleaner\.md\)/);
+  assert.match(read('docs/adr/0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md'), /\[0016\]\(0016-cleanup-is-the-owners-yes-in-chat\.md\)/);
+  assert.match(read('docs/adr/0016-cleanup-is-the-owners-yes-in-chat.md'), /\*\*The loss bound moves\.\*\*/);
   assert.match(read('docs/adr/0012-the-cleanup-gate-keeps-its-window-in-module-memory.md'), /gone since 0\.118\.0/);
+});
+
+test('C4, C7: the skill, its references and the guides tell no one to use the removed commands or tool', () => {
+  const root = new URL('../', import.meta.url);
+  const read = rel => fs.readFileSync(new URL(rel, root), 'utf8');
+  const skills = fs.readdirSync(new URL('skills/head-chef/', root), { recursive: true }).map(f => f.replace(/\\/g, '/'))
+    .filter(f => f.endsWith('.md') && !f.endsWith('contract.changelog.md') && !f.endsWith('CONTRACT.md'));
+  assert.ok(skills.length >= 6);
+  const banned = ['/brigade done', '/brigade cleaner', 'clean_up', 'typed yes', 'typed command', 'read_cleanup', '--recoverable'];
+  for (const f of skills) for (const b of banned) assert.ok(!read(`skills/head-chef/${f}`).includes(b), `${f}: ${b}`);
+  for (const rel of ['README.md', 'CONTRIBUTING.md']) for (const b of ['clean_up', 'read_cleanup']) assert.ok(!read(rel).includes(b), `${rel}: ${b}`);
+  // The README keeps the two commands only in the dated line that says they are gone.
+  const readme = read('README.md');
+  for (const line of readme.split('\n').filter(l => /\/brigade (?:done|cleaner)/.test(l))) assert.match(line, /Since 0\.118\.0|0\.117\.0|older than 0\.118\.0/, line.slice(0, 80));
 });

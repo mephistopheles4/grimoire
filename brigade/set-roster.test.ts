@@ -8894,15 +8894,19 @@ test('516 C1: /brigade done and /brigade cleaner answer as any other args do: th
   expect(seen).toEqual([])
 })
 
-test("516 C2: clean_up is not offered, and Desktop's archive tool is not intercepted", async ($, on) => {
+test("516 C2: clean_up is not offered, and Desktop's archive tool is answered by the engine, not the mod", async ($, on) => {
   const w = world(on)
   await start($)
   await brigade($)
   expect(w.registered).not.toContain('clean_up')
   expect(w.registered.filter(n => n === 'stop_background_session')).toEqual(['stop_background_session'])
-  const r = await $.tool.call({ tool: ARCHIVE_TOOL_NAME, session_id: DESKTOP, reason: 'done' }).catch(() => ({}))
-  expect(String(r.deny ?? '')).not.toContain('Archive refused')
-  expect(String(r.deny ?? '')).not.toContain('/brigade done')
+  // No hook of the mod stands on this tool, so the engine's own answer comes back as it is: it names the tool and no window.
+  const r = await $.tool.call({ tool: ARCHIVE_TOOL_NAME, session_id: DESKTOP, reason: 'done' })
+  const text = String(r.deny ?? r.result ?? r.text)
+  expect(text).toContain('Permission to use mcp__ccd_session_mgmt__archive_session has been denied')
+  expect(text).not.toContain('Archive refused')
+  expect(text).not.toContain('window')
+  expect(text).not.toContain('/brigade done')
 })
 
 const STOP_JOB = 'ab12cd34'
@@ -8950,7 +8954,7 @@ test("516 C2: the stop tool refuses a subagent's call, the rules, any other inpu
   w.verdict = { decision: 'deny', reason: 'SECRET managed policy' }
   const ruled = await stopTool($)
   expect(ruled.ok).toBe(false)
-  expect(ruled.text).not.toContain('SECRET')
+  expect(ruled.text).toBe("stop_background_session refused: the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool. Nothing was stopped.")
   w.verdict = { decision: 'allow' }
   expect((await stopTool($, { title: 'gamma', extra: 1 })).text).toBe('stop_background_session refused: shape: send `title`, one card title. Nothing was stopped.')
   w.open = false
@@ -8958,8 +8962,22 @@ test("516 C2: the stop tool refuses a subagent's call, the rules, any other inpu
   expect(stops).toEqual([])
 })
 
-test('516 C2: a stop works after a resume, since nothing is kept: the next call reads the files again', async ($, on) => {
+test('516 C2: with no config folder to place the session files, the stop refuses in fixed words and runs nothing', async ($, on) => {
+  const w = world(on)
+  const stops: string[][] = []
+  w.procHook = (e: any) => {
+    if (e.argv[0] === 'claude') stops.push([...e.argv])
+    return undefined
+  }
+  // No session start, so no transcript path names the config folder.
+  await brigade($)
+  expect((await stopTool($)).text).toBe('stop_background_session refused: session: the session files cannot be placed. Nothing was stopped.')
+  expect(stops).toEqual([])
+})
+
+test('516 C2: a stop works after a reload and a resume, since nothing is kept: the next call reads the files again', async ($, on) => {
   const { stops } = await stopWorld(on, $)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
   await $.classic.SessionStart({ source: 'resume', session_id: SID, transcript_path: TRANSCRIPT })
   await brigade($)
   expect((await stopTool($)).text).toMatch(/^Stopped: /)
@@ -8979,6 +8997,10 @@ test('516 C3: a cleaner path left in the store by 0.117.0 is never read, written
     return {} as any
   })
   const { stops } = await stopWorld(on, $)
+  // A full session start reads the store (the warning's key): the control that the wrapped store sees reads at all.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(keys.length).toBeGreaterThan(0)
+  expect(keys).toContain('permission-warning-ack')
   expect((await typedBrigade($, '')).text).toBe(OPENED)
   expect((await stopTool($)).text).toMatch(/^Stopped: /)
   expect(stops.length).toBe(1)

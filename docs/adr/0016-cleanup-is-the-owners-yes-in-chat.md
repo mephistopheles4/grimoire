@@ -43,7 +43,13 @@ Desktop's archive tool, and only the skill's rules and Desktop's own classifier
 stand in the way; an archive removes nothing and can be undone. The owner's
 scope line on issue 504 (a machine already infected is not this skill's to
 defend) and the owner's choice here (less friction, over a typed gate) accept
-this. The threat model's entry E82 records it.
+this. The threat model's entry E82 records it, and it records what else went
+with the gate: a cleaner now meets the permission mode in force (a prompt in
+the default mode, the classifier alone in auto mode, nothing under bypass mode
+or an allow rule); it runs from a shell line the model writes, with none of the
+mod's earlier limits or name rule; and the mod's filter on its output is gone,
+so everything it prints, error text included, reaches the lead's transcript,
+the model provider and Remote Control devices.
 
 **The loss bound moves.** Until 0.117.0 the mod ran the cleaner in a fixed
 mode and passed it the folders. Now the head chef runs it, and what it keeps
@@ -67,4 +73,7 @@ classifier refuses the archive on a chat yes, the issue goes back to Design.
 
 **Rollback.** Reverting this change restores the commands, the window and the
 tool, and finds a kept store value again. No kept file changes format. The
-empty hooks folders already on a machine stay, unread.
+empty hooks folders already on a machine stay, unread. A stored `cleaner-path`
+value stays in the plugin's store, unencrypted and readable by other plugins,
+and nothing in 0.118.0 clears it. After a revert, check the cleaner path the
+first `/brigade done` shows before giving the yes.

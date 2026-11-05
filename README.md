@@ -447,7 +447,7 @@ files you ask for:
   stay after the files go.
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
-  each cleanup a level-3 lead names back, by repository and branch only.
+  each cleanup a level-3 lead names back, by repository and session title only.
   Since 0.118.0 (issue 516) cleanup is your yes in chat, and the mod keeps no
   window, binding or cleaner of its own
   ([ADR 0016](docs/adr/0016-cleanup-is-the-owners-yes-in-chat.md)). At levels
@@ -465,7 +465,7 @@ files you ask for:
   program and how to run it in your user-level instructions. What it keeps
   depends on how your instructions have it run, and whether a removal can be
   undone is the cleaner's own promise; Brigade no longer passes or checks
-  anything. A cleaner path you set with 0.117.0's command is no longer read.
+  anything. A cleaner path you set with 0.117.0's command is no longer read; it stays in the plugin's store, where other plugins can read it, until you remove the plugin's data.
   The cleaner's answer, folder and file names included, lands in the lead's
   conversation and transcript. A lead started, or a skill copied, before this
   update may still tell you to type a command: it now only opens the pane, so
