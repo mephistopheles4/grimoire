@@ -21,8 +21,9 @@ Read this before each start. Start each session only when the owner's words in t
    hand-off is the same start, with the effort's context on the issue. Send
    later updates to the session as messages, by its name.
 5. **Keep its Desktop id** from the start tool's result, in this chat only,
-   for its card and the archive. The card carries it, so the Brigade mod
-   records the session's folder, repository and branch for cleanup.
+   for its card and the archive. Keep its folder and branch too, as the
+   start tool's result shows them, in this chat only, for the list before
+   cleanup.
 6. **Report the start in chat,** in the form of the example in `SKILL.md`'s "What a good
    report looks like": the session, its issue, how it runs, what the owner
    must do, and the 5-hour and weekly usage, read with Desktop's usage tool.

@@ -27,7 +27,7 @@ test("the warning's wording is pinned as the head-chef contract gives it at 1.7.
   ]);
   assert.equal(
     ALSO,
-    'It also starts sessions, merges, posts and decides on your word, or on its own toward a level 3 goal you set; cleanup waits for your typed /brigade done.',
+    'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own toward a level 3 goal you set, as your user-level instructions allow.',
   );
 });
 

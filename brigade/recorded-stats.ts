@@ -8,7 +8,7 @@
 // Do not edit by hand; run the script with --write.
 
 export const RECORDED = {
-  engine: "2.1.314",
+  engine: "2.1.318",
   platform: "win32",
   stats: {
     folder: {

@@ -36,8 +36,7 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
 since 0.74.0 (#380) it also hooks the `Skill` tool's call, the typed `/head-chef` and `/grimoire:head-chef` commands, and each turn's start, and each of those passes on with no engine call unless a head-chef load is under way or a load left the pane waiting: where the security default skips `skill.prompt`, a model's head-chef load opens no pane and leaves one fixed note asking for `/brigade`, and a typed one that Claude Code itself answered opens the pane only after one read of the session's local skill list confirms the copy is grimoire's or the owner's; the notes are fixed rows added to the conversation, each starting "Brigade (plugin note):";
 since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
-since 0.69.0 it also reads one key, `permission-warning-ack`, and since
-0.117.0 a second, `cleaner-path`, from the plugin's own store and offers a second tool, `show_permission_warning`, below;
+since 0.69.0 it also reads one key, `permission-warning-ack`, from the plugin's own store and offers a second tool, `show_permission_warning`, below (0.117.0 added a second key, `cleaner-path`; since 0.118.0 nothing reads, writes or deletes it, so a value left there stays, unencrypted and readable by other plugins);
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
@@ -68,9 +67,9 @@ skips `skill.prompt`, to read the skill list; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
 On an Open in app press it reads three environment variables, `OS`,
 `SystemRoot` and `windir`, only to tell whether each is set or `OS` is
-`Windows_NT`; it never stores, shows or sends them. Since 0.117.0 the
-cleaner command's replies also read `HOME`, else `USERPROFILE`, only to draw
-the home folder as `~`.
+`Windows_NT`; it never stores, shows or sends them. (0.117.0 also read
+`HOME` or `USERPROFILE` for the cleaner command's replies; since 0.118.0 it
+does not.)
 It makes no network request of its own, apart from the `gh` call below; its
 one tool call, below, goes to whatever connected server answers to the name
 `ccd_window`. Besides each session's own usage summary, and since 0.81.0 the decision log and the owner's marks and since 0.83.0 the lead hand-off, all below, it writes one file, the lead session's roster,
@@ -399,8 +398,7 @@ as far as the owner's user-level instructions file allows (since head-chef
 1.11.0, issue 504, the skill keeps no list of its own, and what that file
 keeps for the owner waits as a to-do); it logs each act before it. A press
 counts at once, with no confirmation in the lead's chat; the lead asks for a
-goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's typed yes at every
-level, and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
+goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's yes in chat at levels 1 and 2 (at level 3 the owner's user-level instructions file decides it), and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
@@ -498,21 +496,25 @@ has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
 worktrees: head-chef.** The agent starts and archives Desktop sessions with
-Claude Desktop's session tools. Since head-chef 1.8.0 (plugin 0.110.0,
-issue 484) cleanup is one typed act: the owner's typed `/brigade done` is the
-only yes, at every level, and its reply lists each opened card's kind,
-repository, folder and branch, as bound when the card joined. The head chef
-then archives each Desktop session, stops each background session with
-`claude stop`, and calls the Brigade mod's `clean_up`, which runs the cleaner
-you configured with `/brigade cleaner` (typed at the desktop, never from the
-phone), with `--recoverable`, for exactly the window's folders. With none
-configured, nothing is removed. Nothing in Brigade forces a removal, passes
-`-D`, runs `claude rm` or asks GitHub; whether a removal can be undone is the
-configured cleaner's own promise, which Brigade cannot check. The head chef
-removes nothing itself. What the cleaner prints lands in the lead's transcript: Brigade shows
-any printable line of up to 300 characters, so what it holds is the
-configured cleaner's own to keep to names and hashes. The path of the cleaner
-itself shows in the replies to the typed commands, home folder as `~`. The
+Claude Desktop's session tools. Since head-chef 1.13.0 (plugin 0.118.0, issue
+516) cleanup is the owner's yes in chat, from the desktop or the phone, and
+the Brigade mod keeps no window, binding or cleaner of its own. At levels 1
+and 2, a message that names each session by its title and says to clean it up
+is the yes; anything vaguer gets a list first, with each session's title and
+kind, folder and branch, and the cleaner the owner's instructions name. At
+level 3 the owner's user-level instructions file decides. The head chef then
+archives each Desktop session, and stops each background session with the
+mod's `stop_background_session`, which reads the session files at each call
+and stops only the session whose job id and name match the card. It runs a
+cleaner only if the owner's instructions state the program and how to run it,
+from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named,
+nothing is removed. Nothing in Brigade forces a removal, passes `-D`, runs
+`claude rm`, runs a cleaner or asks GitHub; whether a removal can be undone,
+and what a cleaner keeps, is the cleaner's own promise, which depends on how
+the owner's instructions have it run and which neither Brigade nor the skill
+can check. The head chef removes nothing itself. What the cleaner prints lands
+in the lead's transcript, all of it, error text included, since Brigade no longer filters it, and from there it reaches the model provider and Remote Control devices, as does the list of each session's folder and branch. Any session can call Desktop's archive tool, which
+Brigade no longer intercepts; an archive removes nothing and can be undone. The
 head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that
 route. Until head-chef 1.10.0 (issue 503) a

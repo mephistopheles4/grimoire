@@ -34,9 +34,9 @@ Read this when Desktop refused a start and the owner's words in the lead's chat 
    ```
 
 2. **Keep its id,** the second field of the first line `claude --bg` prints,
-   in this chat only: its card and cleanup use it. The card carries it, so
-   the Brigade mod records the session's folder, repository and branch for
-   cleanup. When it prints no id, it did not start: tell the owner in one
+   in this chat only: its card and cleanup use it. Keep the folder and branch
+   too, as `claude --bg` shows them, or "not known", in this chat only, for
+   the list before cleanup. When it prints no id, it did not start: tell the owner in one
    line, and write no card.
 3. **Report the start** as for any session, saying "a background session
    with Remote Control" in place of "a Desktop session", and that it opens

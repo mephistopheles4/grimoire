@@ -1,5 +1,7 @@
 # Brigade runs the cleaner the owner configured
 
+*Replaced by [0016](0016-cleanup-is-the-owners-yes-in-chat.md): since 0.118.0 cleanup is the owner's yes in chat, and Brigade runs no cleaner.*
+
 Accepted, as built in 0.117.0 (issue 504, part C). It replaces
 [ADR 0014](0014-brigade-runs-the-pacts-cleaner-in-the-typed-window.md), which
 ran a cleaner at a fixed path inside another package's folder. Nothing else
