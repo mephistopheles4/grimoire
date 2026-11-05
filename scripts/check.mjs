@@ -761,6 +761,15 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
   );
 }
 
+// athanor reads its configuration from a root athanor.json as well as from the
+// package.json key (athanor 0.1.1 onward, #30), and the rule above holds only
+// the key. A branch that moved its configuration to athanor.json would escape
+// the hold on the image build's folder (issue 362), and the build has network
+// access. So the file is refused, in any case, as a manifest is. Issue 518.
+for (const f of files.filter(f => foldsTo(relRaw(f), 'athanor.json'))) {
+  fail(`${rel(f)}: athanor reads this file as its configuration, and the hold on the image build's folder (${BUILD_FOLDER.context}/) is read from the root package.json only. Delete it and keep the "athanor" key in package.json.`);
+}
+
 // A symbolic link at the build folder, above it, or inside it. athanor follows
 // links before it uses the configured paths, so a link at tests/container, or a
 // Dockerfile that is a link, moves the build to wherever it points while the

@@ -354,7 +354,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P6. Data flows the base described, or left open.**
 
 - The `claude://` opener's inherited environment, which can hold keys and tokens (C7, with C8). Its two narrower guards were deferred to issue 235.
-- Tracked files with uncommitted edits sent to a container engine that may not be local (C7, with C9). It stands until athanor refuses a non-local engine.
+- Tracked files with uncommitted edits, and the history from the merge base with `origin/main` onward (files deleted since included, because `check` names that base), sent to a container engine on a machine that sets athanor's `allowRemoteDocker` (C7, with C9). athanor refuses a non-local engine unless the machine sets that, so the risk stands only where it is set.
 - D1a and D3b. Questions, decisions, relays, decision gists and failed-check names in transcripts that Remote Control shows on every device, unencrypted at rest unless the disk is (C7). The permission warning is its guard.
 - D1b. The pane's report store keeps a one-line question in plugin state that other plugins can read (C4).
 - D1c. Decision gists and failed-check names in the head chef's transcript and the pane's store (C7).

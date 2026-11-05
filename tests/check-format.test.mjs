@@ -189,8 +189,12 @@ test('the athanor configuration forces the add that keeps rule 2b live, and the 
   // Without the forced add, a tracked file that .gitignore matches is left out
   // of the container's index, and rule 2b could never fire there.
   const config = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).athanor;
-  assert.deepEqual(config.commands.check.slice(0, 2), ['sh', '-c']);
-  assert.match(config.commands.check[2], /^git add -A -f && node scripts\/check\.mjs$/);
+  // The check carries origin/main as its base, so the container run can answer
+  // the version-bump and allowance rules (issue 518). Dropping the key brings
+  // back the "cannot resolve origin/main" skip.
+  assert.equal(config.commands.check.base, 'origin/main');
+  assert.deepEqual(config.commands.check.argv.slice(0, 2), ['sh', '-c']);
+  assert.match(config.commands.check.argv[2],/^git add -A -f && node scripts\/check\.mjs$/);
   const dockerfile = readFileSync(join(root, config.dockerfile), 'utf8');
   assert.match(dockerfile, /^FROM node:24[^\s@]*@sha256:[0-9a-f]{64}$/m);
 });
