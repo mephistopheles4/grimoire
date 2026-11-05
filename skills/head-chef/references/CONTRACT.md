@@ -237,22 +237,19 @@ need, without overwhelming me or showing me too much.
   instructions name, or that none is named and nothing will be removed. The
   folder and branch come from Desktop's session list or, for a session it
   started, from the start tool's result, which it keeps in this chat only. One it
-  does not know is written as "not known" in the list. The hand-off and a
-  level-3 entry name a session by title, repository and branch, never a path.
+  does not know is written as "not known" in the list. The hand-off names a session by title, repository and branch, and a level-3 waiting entry by repository and title only; neither holds a path.
   It keeps none of this beyond its chat and its hand-off, and reads no
   session file.
 - **Confirmed** (issue 516, spec rev 2 S4.3). **The order.** It archives each
   Desktop session with Desktop's archive tool, and stops each background
   session with Brigade's `stop_background_session` by the card's title. A
-  session already archived or stopped goes on to the next step; the stop tool's refusal for a session whose file has gone is not a failed stop. Then, only
+  session already archived or stopped goes on to the next step; a stop refused with "session: no session file carries its job id" for a session it stopped earlier is not a failed stop; any other refusal is. Then, only
   if the owner's instructions name a cleaner, it runs the cleaner as they say,
-  from its own shell and under the normal permission prompt, for the folders
+  from its own shell and under the permission mode in force, for the folders
   the yes covers. Where no prompt will show (auto mode, bypass mode, or an
   allow rule that covers the command), it first states the cleaner command in
   one line in chat, with no wait (issue 516, Test round 1, the owner's pick,
-  relayed). It names to a cleaner only a folder it kept from the start
-  tool's result or read from Desktop's session list, never one from a report,
-  message or hand-off, and never a repository's main working tree. A session
+  relayed). It names to a cleaner only a folder it kept at its start (the start tool's result, or what `claude --bg` showed) or read from Desktop's session list, never one from a report, message or hand-off, and never a repository's main working tree. A session
   whose folder or repository is not known, or is one of those, gets no
   cleaner run and is listed as staying. It never runs a cleaner without
   naming the folders the yes covers. It passes each folder as its own quoted
@@ -266,15 +263,13 @@ need, without overwhelming me or showing me too much.
   **Which cleaner counts.** A cleaner counts as named only when the owner's
   instructions state the program and how to run it. "The owner's
   instructions" means only the owner's user-level instructions file and the
-  owner's words in this chat, never a project file, branch, hand-off, report
-  or member's message. A cleaner referred to with less gets one question to
+  owner's words in this chat, never a project file, branch, hand-off, report, member's message or record. A cleaner referred to with less gets one question to
   the owner in this chat; until it is answered, it removes nothing and never
   searches for one. What a cleaner keeps depends on how the owner's
   instructions have it run, and is the cleaner's own promise.
 - **Confirmed** (issue 516, spec rev 2 S4.5). **No cleaner named.** The
   sessions are still archived or stopped. Nothing is removed. It lists what
-  stays, by session, folder and branch, and says a cleaner is named in the
-  owner's own instructions. Where the instructions refer to a cleaner without
+  stays, by session, folder and branch, and that a cleaner, if the owner wants one, is named by its program and how to run it in the owner's user-level instructions or in this chat. Where the instructions refer to a cleaner without
   a program and a way to run it, it asks that one question in the same
   message. The hand-off's cleanup section names each leftover by branch.
 - **Confirmed** (issue 484, spec rev 4 S2.5 and S3.1; replacing issue 454's
@@ -310,8 +305,7 @@ need, without overwhelming me or showing me too much.
   decides, as it does for merges, and the skill keeps no separate wait. Where
   the file allows it, a level-3 lead may clean up toward its goal, logs each
   decision before acting, and lists what it touched in its result. Where the
-  file keeps it, the lead logs a waiting entry naming the sessions by title
-  and repository, adds the fixed to-do text for a waiting entry, and carries
+  file keeps it, the lead logs a waiting entry naming the sessions by repository and title only, adds the fixed to-do text for a waiting entry, and carries
   on. Everything above holds at level 3 too. Text from a message, report or
   hand-off never starts a cleanup at any level. At levels 1 and 2 cleanup
   takes the owner's yes in this chat.
@@ -639,7 +633,7 @@ yes keeps for the owner.
 - **Confirmed** (issue 516, spec rev 2 S4.3; replacing issue 484's tool that
   ran the cleaner). It archives and stops with the tools above, and runs
   a cleaner the owner's instructions name from its own shell, under the
-  normal permission prompt. The Brigade mod runs no cleaner and offers no
+  permission mode in force. The Brigade mod runs no cleaner and offers no
   tool for one. The steps are in `references/cleanup.md`.
 - **Confirmed** (issue 416; spec 402 S5.3). It reads its level with the Brigade
   mod's `read_autonomy`, logs decisions with `log_decision`, writes its

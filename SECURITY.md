@@ -507,7 +507,7 @@ archives each Desktop session, and stops each background session with the
 mod's `stop_background_session`, which reads the session files at each call
 and stops only the session whose job id and name match the card. It runs a
 cleaner only if the owner's instructions state the program and how to run it,
-from its own shell and under the normal permission prompt. With none named,
+from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named,
 nothing is removed. Nothing in Brigade forces a removal, passes `-D`, runs
 `claude rm`, runs a cleaner or asks GitHub; whether a removal can be undone,
 and what a cleaner keeps, is the cleaner's own promise, which depends on how

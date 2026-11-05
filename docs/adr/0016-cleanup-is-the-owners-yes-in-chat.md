@@ -24,7 +24,7 @@ decides, as it does for merges, and the skill keeps no separate wait. The head
 chef archives each Desktop session with Desktop's archive tool, and stops each
 background session with `stop_background_session`. It runs a cleaner only if
 the owner's instructions state the program and how to run it, from its own
-shell and under the normal permission prompt. With none named, it removes
+shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named, it removes
 nothing and says what stays. A session whose folder it does not know gets no
 cleaner run.
 

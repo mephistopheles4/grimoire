@@ -96,8 +96,9 @@ or type `/brigade` to open it.
   branch, and the cleaner your instructions name. It waits for your yes. It
   archives each Desktop session, or stops a background one with the mod's
   `stop_background_session`. It runs a cleaner only if your own instructions
-  state the program and how to run it, from its own shell and under your
-  normal permission prompt; with none named it removes nothing and says what
+  state the program and how to run it, from its own shell and under the
+  permission mode in force (a prompt in the default mode; in auto or bypass
+  mode, or under an allow rule, it states the command in chat first); with none named it removes nothing and says what
   stays. Whether a removal can be undone, and what it keeps, is that
   cleaner's own promise. The lead removes no worktree or branch itself and
   never runs `claude rm`; to remove a stopped session for good, you run

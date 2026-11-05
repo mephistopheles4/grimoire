@@ -447,7 +447,7 @@ files you ask for:
   stay after the files go.
   Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
   naming work by repository and issue, and the log holds a waiting entry for
-  each cleanup a level-3 lead names back, by repository and session title only.
+  each cleanup a level-3 lead leaves waiting under your user-level instructions file, by repository and session title only.
   Since 0.118.0 (issue 516) cleanup is your yes in chat, and the mod keeps no
   window, binding or cleaner of its own
   ([ADR 0016](docs/adr/0016-cleanup-is-the-owners-yes-in-chat.md)). At levels
@@ -460,7 +460,7 @@ files you ask for:
   mod's `stop_background_session`, which reads the session files at each call
   and stops only the session whose job id and name match the card. It runs a
   cleaner only if your own instructions state its program and how to run it,
-  from its own shell and under your normal permission prompt; with none named
+  from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first); with none named
   it removes nothing and says what stays. **Naming a cleaner:** write its
   program and how to run it in your user-level instructions. What it keeps
   depends on how your instructions have it run, and whether a removal can be
