@@ -68,8 +68,9 @@ sessions can check without breaking each other through files, ports or
 temporary folders. Where `athanor` is not on your PATH, or produces no result, run
 `node scripts/check.mjs` on the host instead.
 
-The root `package.json` holds only the `athanor` key, because athanor reads its
-configuration from nowhere else. It names the Dockerfile in `tests/container/`,
+The root `package.json` holds only the `athanor` key. athanor also reads a root
+`athanor.json`, which the check refuses, so the `package.json` key is the one
+place its configuration lives here. It names the Dockerfile in `tests/container/`,
 which is the whole build context, and four commands:
 
 ```bash
@@ -111,8 +112,8 @@ such a package without asking when no one is at a terminal.
   container pass does not cover them.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
   limit, Docker or its configuration. An older athanor refuses every command
-  here with "must be an array of strings", exit 125, because `check` is an
-  object now: install the commit above, and use the host check until you have. Run `node scripts/check.mjs` on the host,
+  here, with "must be an array of strings" or with an unknown key
+  `commands.check.base`, exit 125, because `check` is an object now: install the commit above, and use the host check until you have. Run `node scripts/check.mjs` on the host,
   with `--host-fallback=<reason>` if you are an agent (see "The agent guard").
   A sha512 mismatch in the image build also exits 125; it is not a Docker
   fault, so stop and tell the owner.
@@ -120,14 +121,17 @@ such a package without asking when no one is at a terminal.
   you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
   on the host, including the one after an athanor run with no result, is outside it.
 - A run sends your tracked files, with uncommitted edits, and the history from
-  the merge base with `origin/main` onward, files deleted since included, to
+  the merge base with `origin/main` onward (commit messages and author names
+  and emails too, and files deleted since), to
   the Docker engine athanor is set to use, which can be a remote one reached over SSH or TLS.
   Use the local engine: check that `DOCKER_HOST` is unset and that
   `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
   address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
   athanor keeps temporary copies of the index and the run's objects in its state
-  folder, `~/.athanor` or `$ATHANOR_HOME`, which is safe to delete.
+  folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
+  history, until the run has streamed it (up to a day after a run killed hard).
+  The folder is safe to delete.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
   Debian's package archive, which is not pinned. It receives the tracked files

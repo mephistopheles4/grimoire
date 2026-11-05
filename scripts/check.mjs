@@ -697,7 +697,8 @@ const MANIFESTS = new Set([
 // manifest and a lockfile, and an install that folds case finds Package.json.
 const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
 //
-// One exemption, because athanor reads its configuration from nowhere else: a
+// One exemption, because athanor reads its configuration from this file (or from
+// a root athanor.json, which is refused below): a
 // file named exactly `package.json`, in that case, at the root, whose top level
 // is an object holding the key `athanor` and no other, with an object as its
 // value. The limit is one key because npm and the skills CLI act on the others
