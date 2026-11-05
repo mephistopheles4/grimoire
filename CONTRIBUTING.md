@@ -20,7 +20,7 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill or the mod ships, nor the root `package.json` or `tests/container/`,
+file a skill or the mod ships, nor the root `athanor.json` or `tests/container/`,
 has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
 file or in those two places (and in `.claude/settings.json` and
@@ -68,9 +68,8 @@ sessions can check without breaking each other through files, ports or
 temporary folders. Where `athanor` is not on your PATH, or produces no result, run
 `node scripts/check.mjs` on the host instead.
 
-The root `package.json` holds only the `athanor` key. athanor also reads a root
-`athanor.json`, which the check refuses, so the `package.json` key is the one
-place its configuration lives here. It names the Dockerfile in `tests/container/`,
+athanor's configuration lives in the root `athanor.json`, saved as UTF-8 with
+no byte-order mark. The repository has no root `package.json`. It names the Dockerfile in `tests/container/`,
 which is the whole build context, and four commands:
 
 ```bash
@@ -135,11 +134,11 @@ such a package without asking when no one is at a terminal.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
   Debian's package archive, which is not pinned. It receives the tracked files
-  under the folder that the `athanor` key's `context` names, as they are in your
+  under the folder that `athanor.json`'s `context` names, as they are in your
   working tree with your uncommitted edits, and never an ignored or untracked
   file: `--untracked` widens the run's snapshot and not the build. The check holds that folder to `tests/container/`, but it runs after the
   image is built, so on a branch you did not write your own read is the guard:
-  read the diff to `tests/container/` and to the `athanor` key, and look for a
+  read the diff to `tests/container/` and to `athanor.json`, and look for a
   symbolic link, before you run athanor on it. Read any branch before you run
   its check at all, on the host or in a container: a host run executes the
   branch's code with your environment, your files and your network, and a
@@ -329,11 +328,11 @@ needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
 `node scripts/check.mjs` enforces this. It fails on a lockfile, in any case,
-and on any `package.json` except one: the root `package.json` that holds only
-an `athanor` key whose value is an object (see "Run the check in a container"
-above). Any other key fails and is named. So does an `athanor` key that sets
+and on any `package.json`, the root one included. The configuration athanor
+reads is the root `athanor.json` (see "Run the check in a container" above),
+and the check fails when that file sets
 `dockerfile` or `context` to anything but `tests/container/Dockerfile` and
-`tests/container`, leaves either out, or sets `inputs`, or a root `athanor.json` exists, because the image build
+`tests/container`, leaves either out, or sets `inputs`, because the image build
 has network access and receives the tracked files under that folder, with your
 uncommitted edits. A symbolic link at `tests`, `tests/container` or in it fails
 too, because athanor follows links, and so does that folder spelled in another
@@ -378,7 +377,7 @@ has taken. The rule catches a bare fence and nothing else.
 as a plugin, copied by hand, or vendored into a project, and each lands in a
 different directory. Reference the skill base directory the harness supplies.
 `scripts/check.mjs` fails on `~/.claude/` or a home path appearing in any file
-under `skills/`, `brigade/` or `hooks/`, or in the root `package.json` or
+under `skills/`, `brigade/` or `hooks/`, or in the root `athanor.json` or
 under `tests/container/` — the prose, the library, the
 reference pages, the renderer and the schema. A home path is a Linux, Windows
 or Mac home in any of the shapes a terminal or an editor writes it:
@@ -406,7 +405,7 @@ frontmatter's keys at the left margin, and fence it with lines of exactly
 `---`: an indented first key and a fence with anything after it both fail.
 
 **No hidden characters in a skill file.** The check fails on any file under
-`skills/`, or the root `package.json`, or under `tests/container/`, or
+`skills/`, or the root `athanor.json`, or under `tests/container/`, or
 `.claude/settings.json` or `scripts/agent-check-guard.mjs` (in any case), that holds
 a control character other than tab, line feed and
 carriage return, a carriage return not followed by a line feed, DEL, U+2028,
