@@ -697,7 +697,8 @@ const MANIFESTS = new Set([
 // manifest and a lockfile, and an install that folds case finds Package.json.
 const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
 //
-// One exemption, because athanor reads its configuration from nowhere else: a
+// One exemption, because athanor reads its configuration from this file (or from
+// a root athanor.json, which is refused below): a
 // file named exactly `package.json`, in that case, at the root, whose top level
 // is an object holding the key `athanor` and no other, with an object as its
 // value. The limit is one key because npm and the skills CLI act on the others
@@ -759,6 +760,15 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
   fail(
     `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
+}
+
+// athanor reads its configuration from a root athanor.json as well as from the
+// package.json key (athanor 0.1.1 onward, #30), and the rule above holds only
+// the key. A branch that moved its configuration to athanor.json would escape
+// the hold on the image build's folder (issue 362), and the build has network
+// access. So the file is refused, in any case, as a manifest is. Issue 518.
+for (const f of files.filter(f => foldsTo(relRaw(f), 'athanor.json'))) {
+  fail(`${rel(f)}: athanor reads this file as its configuration, and the hold on the image build's folder (${BUILD_FOLDER.context}/) is read from the root package.json only. Delete it and keep the "athanor" key in package.json.`);
 }
 
 // A symbolic link at the build folder, above it, or inside it. athanor follows

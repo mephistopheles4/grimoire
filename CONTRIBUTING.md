@@ -68,8 +68,9 @@ sessions can check without breaking each other through files, ports or
 temporary folders. Where `athanor` is not on your PATH, or produces no result, run
 `node scripts/check.mjs` on the host instead.
 
-The root `package.json` holds only the `athanor` key, because athanor reads its
-configuration from nowhere else. It names the Dockerfile in `tests/container/`,
+The root `package.json` holds only the `athanor` key. athanor also reads a root
+`athanor.json`, which the check refuses, so the `package.json` key is the one
+place its configuration lives here. It names the Dockerfile in `tests/container/`,
 which is the whole build context, and four commands:
 
 ```bash
@@ -91,7 +92,7 @@ that build a junction are not declared, and the run prints each one's title as
 skipped: junctions exist only on Windows.
 
 To install athanor, clone its source repository outside this repository's tree
-and check out commit `0fd9ad4`, the commit this configuration was tested with:
+and check out commit `42ce945`, the commit this configuration was tested with:
 run `npm ci`, then `npm run prepack`, then `npm install -g .`. athanor is not
 published, and this repository never depends on it. If `athanor` is not on your
 PATH, run `node scripts/check.mjs`. Never run athanor through `npx` or install
@@ -102,26 +103,35 @@ such a package without asking when no one is at a terminal.
   athanor runs the tracked files as they are in the working tree and leaves
   untracked ones out. `--untracked` adds untracked files that `.gitignore` does
   not exclude.
-- A container run cannot cover the version-bump check or the SkillSpector
-  allowance change notice, which need `origin/main`, nor the plugin validator,
-  SkillSpector or zizmor, which stay in CI. A container pass does not cover
-  them.
+- The `check` command names `origin/main` as its base, so the container run
+  also covers the version-bump check and the SkillSpector allowance change
+  notice, which compare with it. athanor never fetches, so run `git fetch origin`
+  first, or the comparison is against a base as old as your last fetch. A
+  shallow or partial clone, or a repo with no `origin/main`, exits 125. The
+  plugin validator, SkillSpector and zizmor are not covered: they stay in CI. A
+  container pass does not cover them.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
-  limit, Docker or its configuration. Run `node scripts/check.mjs` on the host,
+  limit, Docker or its configuration. An older athanor refuses every command
+  here, with "must be an array of strings" or with an unknown key
+  `commands.check.base`, exit 125, because `check` is an object now: install the commit above, and use the host check until you have. Run `node scripts/check.mjs` on the host,
   with `--host-fallback=<reason>` if you are an agent (see "The agent guard").
   A sha512 mismatch in the image build also exits 125; it is not a Docker
   fault, so stop and tell the owner.
 - The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
   you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
   on the host, including the one after an athanor run with no result, is outside it.
-- A run sends your tracked files, with uncommitted edits, to the Docker engine
-  athanor is set to use, which can be a remote one reached over SSH or TLS.
+- A run sends your tracked files, with uncommitted edits, and the history from
+  the merge base with `origin/main` onward (commit messages and author names
+  and emails too, and files deleted since), to
+  the Docker engine athanor is set to use, which can be a remote one reached over SSH or TLS.
   Use the local engine: check that `DOCKER_HOST` is unset and that
   `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
   address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
   athanor keeps temporary copies of the index and the run's objects in its state
-  folder, `~/.athanor` or `$ATHANOR_HOME`, which is safe to delete.
+  folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
+  history, until the run has streamed it (up to a day after a run killed hard).
+  The folder is safe to delete.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
   Debian's package archive, which is not pinned. It receives the tracked files
@@ -147,8 +157,7 @@ and tells the agent to run `athanor run check`. The host check stays the
 fallback for when athanor is missing or its run exits 124, 125 or 137, but
 not for a sha512 mismatch, which also exits 125: stop and tell the owner. When
 athanor is missing the hook lets the plain host check through, and there is
-nothing to name. When a run exits 124, 125 or 137, or an agent needs the
-version-bump or allowance checks that a container run cannot cover, it adds
+nothing to name. When a run exits 124, 125 or 137, it adds
 `--host-fallback=<reason>` to the same command, with the reason and the exit
 code in it in its own words (no path, token or pasted error text), and names
 that in its report. `node scripts/check.mjs` prints the reason as one note and
@@ -324,7 +333,7 @@ and on any `package.json` except one: the root `package.json` that holds only
 an `athanor` key whose value is an object (see "Run the check in a container"
 above). Any other key fails and is named. So does an `athanor` key that sets
 `dockerfile` or `context` to anything but `tests/container/Dockerfile` and
-`tests/container`, leaves either out, or sets `inputs`, because the image build
+`tests/container`, leaves either out, or sets `inputs`, or a root `athanor.json` exists, because the image build
 has network access and receives the tracked files under that folder, with your
 uncommitted edits. A symbolic link at `tests`, `tests/container` or in it fails
 too, because athanor follows links, and so does that folder spelled in another
