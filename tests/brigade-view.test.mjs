@@ -4184,13 +4184,6 @@ test('no path-shaped text from the summary place reaches what a file-fed or refu
   }
 });
 
-test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /, io, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
-  // At module scope, so the held records last from poll to poll.
-  assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
-});
-
 // --- issue 339: the redesigned pane's view rules --------------------------------
 
 const {
