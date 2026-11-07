@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.13.0
+Version: 1.13.1
 Kind: skill
 Level: Thorough
 
