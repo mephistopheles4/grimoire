@@ -3484,16 +3484,19 @@ export const register: Register = on => {
       return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
     // The PR's page, for a number gh answered (it drops a fork's). Where
-    // images draw a Link holds no image, so an arrow beside the pill, named
-    // in a tooltip; the terminal's link is the number, in the state's colour.
+    // images draw a Link holds no image, so an arrow beside the pill, with no
+    // tooltip (Desktop shows none); the terminal's link is the number, in the
+    // state's colour.
     const linkedNumber = (n: string, state: string, href: string) => (
       <Text color={pillColor(state)}>
         <Link href={href}>{`#${n}`}</Link>
       </Text>
     )
-    const linkArrow = (key: string, n: string, href: string, repo?: string) => (
+    const linkArrow = (href: string) => (
       <Box flexShrink={0}>
-        {tip(key, <Text><Link href={href}>↗</Link></Text>, `Open pull request ${repo ?? ''}#${n}`)}
+        <Text>
+          <Link href={href}>↗</Link>
+        </Text>
       </Box>
     )
     const hint = (key: string) => (
@@ -3634,9 +3637,10 @@ export const register: Register = on => {
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
-      // For a card that names a repository, that repository: in the pill's
-      // tooltip and the arrow's on Desktop, and drawn beside the pill where
-      // there is no pointer. gh's spelling once it answered, else the card's.
+      // For a card that names a repository, that repository, drawn beside the
+      // pill where there is no pointer (Desktop's hover titles never show, so
+      // the Pull requests tab names it there). gh's spelling once it answered,
+      // else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // The actions: on Desktop hidden until the pointer is on the row, in the
       // terminal always shown. A card that waits on the owner has no Dismiss.
@@ -3707,11 +3711,11 @@ export const register: Register = on => {
                 {number !== undefined && (
                   <Box flexShrink={0}>
                     {answer === undefined ? (
-                      namedRepo === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(undefined, c.prState)), namedRepo)
+                      pill(number, pillState(undefined, c.prState))
                     ) : href !== undefined && Image === undefined ? (
                       linkedNumber(number, pillState(answer.state, c.prState), href)
                     ) : (
-                      tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)
+                      pill(number, pillState(answer.state, c.prState))
                     )}
                   </Box>
                 )}
@@ -3720,7 +3724,7 @@ export const register: Register = on => {
                     <Text dimColor>{namedRepo}</Text>
                   </Box>
                 )}
-                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(`prlink-${i}`, number, href, namedRepo)}
+                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(href)}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -3950,7 +3954,7 @@ export const register: Register = on => {
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexDirection="row" columnGap={1} alignItems="center">
           <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
-          {rowHref(r) !== undefined && Image !== undefined && linkArrow(`prrowlink-${r.i}`, r.number, rowHref(r) ?? '')}
+          {rowHref(r) !== undefined && Image !== undefined && linkArrow(rowHref(r) ?? '')}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="semibold" wrap="truncate-end">
               {r.title}
