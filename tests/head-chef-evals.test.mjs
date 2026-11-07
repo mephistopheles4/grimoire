@@ -336,7 +336,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.13.1'), 'the contract is not at 1.13.1');
+  assert.ok(CONTRACT.includes('Version: 1.14.0'), 'the contract is not at 1.14.0');
 });
 
 test('C17: the level eval cases exist, each grading its own rule', () => {
