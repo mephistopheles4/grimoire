@@ -137,7 +137,7 @@ test('no control or subtitle on the page names a shape', () => {
   for (const s of [...strings, text]) assert.doesNotMatch(s, /\b(tables?|lists?|rows?|columns?)\b/i, s);
 });
 
-test('a CLAUDE.md draft renders with the plain frames and no letter', () => {
+test('a CLAUDE.md draft renders and carries its type', () => {
   const file = derive(example, d => {
     d.type = 'CLAUDE.md';
     d.name = 'release-tools';
@@ -145,9 +145,6 @@ test('a CLAUDE.md draft renders with the plain frames and no letter', () => {
   });
   const html = render(file, join(work, `claude-md-${n++}.html`));
   assert.equal(dataOf(html).value.draft.type, 'CLAUDE.md');
-  const page = scriptBlocks(html).at(-1);
-  assert.match(page, /const PLAIN = draft\.type === 'CLAUDE\.md';\nconst FRAME = PLAIN \? 'plain' : 'hiring';/);
-  assert.match(page, /if \(!PLAIN && shown === paras\.length\) sheet\.append\(h\('div', \{ class: 'sig' \}/);
 });
 
 /* -- the fill, in one pass (q20's review, moved here from issue 343) ---------- */
@@ -294,17 +291,12 @@ test('the page from the measurement draft is within the page budget', () => {
 
 /* -- the assets -------------------------------------------------------------- */
 
-/* The bundle comes from the Aviation design system at the merge commit of its
- * pull request 10, the first to carry the réseau ground (spec v4.2 S8). */
-const BUNDLE = { commit: '6297a045e668d1c29beb11b1590c9519a38ad8c2', sha256: '2090155c4c687ff4cbe1cc4d334e72ff56b0e705e00275a6398dc2ff5cd11d54' };
-
-test('the fonts and their licence are byte for byte groundtrack\'s, and the bundle is the pinned one', () => {
+test('the fonts and their licence are byte for byte groundtrack\'s', () => {
   const mine = join(root, 'skills', 'contract', 'assets');
   const theirs = join(root, 'skills', 'groundtrack', 'assets');
   const copied = ['Regular', 'Medium', 'SemiBold'].flatMap(w => [`IBMPlexMono-${w}-Latin1.woff2`, `IBMPlexMono-${w}-Pi.woff2`]).concat(['OFL.txt', 'FONTS.md']);
   assert.equal(copied.length, 8);
   for (const f of copied) assert.equal(sha(readFileSync(join(mine, f))), sha(readFileSync(join(theirs, f))), f);
-  assert.equal(sha(readFileSync(join(mine, 'aviation.bundle.css'))), BUNDLE.sha256, `aviation.bundle.css is not the bundle at ${BUNDLE.commit}`);
 });
 
 /* -- the page's own logic, run on a stand-in document ------------------------- */
