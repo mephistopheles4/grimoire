@@ -3954,10 +3954,10 @@ for (const surface of SURFACES) {
     const links = all.filter(n => n.type === 'Link')
     expect(links.map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
     // On Desktop the image pill stays, the link is a small arrow beside it,
-    // named in a tooltip; the terminal's link is the number itself.
+    // with no tooltip; the terminal's link is the number itself.
     if (surface === 'desktop') {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
-      expect((await textOf(m)).includes('Open pull request #341')).toBe(true)
+      expect((await textOf(m)).includes('Open pull request')).toBe(false)
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
     } else {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
@@ -3992,7 +3992,7 @@ for (const surface of SURFACES) {
     expect(links.map(l => l.props.href).sort()).toEqual(['https://github.com/o/r/pull/341', 'https://github.com/o/r/pull/343'])
     if (surface === 'desktop') {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
-      expect((await textOf(m)).includes('Open pull request #341')).toBe(true)
+      expect((await textOf(m)).includes('Open pull request')).toBe(false)
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
     } else {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
@@ -7773,12 +7773,12 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const m = await mountOn($, surface)
     const links = (await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()
     expect(links).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // Every surface names the repository beside the pill: inline where there
-    // is no pointer, in the tooltips on Desktop, the arrow's included.
+    // Without a pointer the repository sits inline beside the pill; on Desktop
+    // no hover title carries it (none shows there), the Pull requests tab does.
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
-    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(true)
-    if (surface === 'desktop') expect(sessions.includes('Open pull request other/proj#7')).toBe(true)
+    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(surface !== 'desktop')
+    expect(sessions.includes('Open pull request')).toBe(false)
     // The base card's pill names no repository on the Sessions view (its link's URL aside).
     if (surface !== 'desktop') expect(sessions.split('https://github.com/o/r/').join('').includes('o/r')).toBe(false)
     await m.press({ key: 'view-prs' })
@@ -7804,10 +7804,11 @@ for (const [label, answer] of [
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
     expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
-    // The pill still names the repository the card names, with no link.
-    expect((await textOf(m)).includes('other/proj')).toBe(true)
+    // Desktop shows no hover title, so the Sessions view carries no repository text.
+    expect((await textOf(m)).includes('other/proj')).toBe(false)
     await m.press({ key: 'view-prs' })
-    // The row names it too, and links only from an answer.
+    // The row names it, and links only from an answer.
+    expect((await textOf(m)).includes('beta · other/proj')).toBe(true)
     expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
     const text = await textOf(m)
     expect(text.includes('Base seven')).toBe(false)
