@@ -206,8 +206,9 @@ need, without overwhelming me or showing me too much.
     waits on, with three options: ask the member to look into its run, stop
     the run, or keep waiting. It does not ask again a member it asked at its
     last check and that has not answered: it flags it. A flagged member is
-    not checked, and does not count as waiting, until it reports again or
-    the owner says keep waiting, which sets its next check 15 minutes on.
+    not checked, is not asked as a quiet session either, and does not count
+    as waiting, until it reports again or the owner says keep waiting, which
+    sets its next check 15 minutes on.
   - The line and the message carry no path, session id, command line or text
     from the run's output.
 - **Confirmed** (issue 450, rev 4 S3.1, unstated F6). **Plan and close, as

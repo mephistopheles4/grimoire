@@ -102,9 +102,10 @@ cleanup keeps, the report, the pane and the idle notice.
     the owner in one line, naming the member and what it waits on, with three
     options: ask the member to look into its run, stop the run, or keep
     waiting. Don't ask again a member you asked at its last check and that
-    has not answered: flag it. A flagged member is not checked, and does not
-    count as waiting, until it reports again or the owner says keep waiting,
-    which sets its next check 15 minutes on.
+    has not answered: flag it. A flagged member is not checked, is not asked
+    as a quiet session either, and does not count as waiting, until it
+    reports again or the owner says keep waiting, which sets its next check
+    15 minutes on.
   - Your line and your message carry no path, session id, command line or
     text from the run's output.
 - The notice needs Claude Code 2.1.236 or later, the main conversation and
