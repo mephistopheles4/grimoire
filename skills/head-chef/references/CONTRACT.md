@@ -199,13 +199,15 @@ need, without overwhelming me or showing me too much.
     Otherwise it asks the member once: "Is what you wait on still moving?
     Check it yourself, and answer moving, or no progress." The member decides
     what moving means for its own wait. It sets that member's next check 15
-    minutes on.
-  - On "moving", nothing goes to the owner. On "no progress", or no answer by
-    the next wake, it tells the owner in one line, naming the member and what
-    it waits on, with three options: ask the member to look into its run,
-    stop the run, or keep waiting. It checks that member no more until it
-    reports again, or until the owner says keep waiting, which sets its next
-    check 15 minutes on.
+    minutes on. The answer is not a report.
+  - On "moving", nothing goes to the owner, and it sets that member's next
+    check 15 minutes after the answer. On "no progress", or no answer by the
+    next wake, it tells the owner in one line, naming the member and what it
+    waits on, with three options: ask the member to look into its run, stop
+    the run, or keep waiting. It does not ask again a member it asked at its
+    last check and that has not answered: it flags it. A flagged member is
+    not checked, and does not count as waiting, until it reports again or
+    the owner says keep waiting, which sets its next check 15 minutes on.
   - The line and the message carry no path, session id, command line or text
     from the run's output.
 - **Confirmed** (issue 450, rev 4 S3.1, unstated F6). **Plan and close, as
