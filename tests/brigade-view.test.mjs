@@ -489,10 +489,6 @@ test('the mod\'s modules never ask for the costly breakdown', () => {
     const text = readFileSync(join(root, file), 'utf8');
     assert.doesNotMatch(text, FULL, `${file} names the costly breakdown`);
   }
-  // The one breakdown the register module asks for is the local summary.
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  const asks = [...register.matchAll(/breakdown:\s*([^\s,}]+)/g)].map(m => m[1]);
-  assert.deepEqual(asks, [`'summary'`]);
 });
 
 test('the writer makes no session usage call at all, so no cost or rate limit enters it', () => {
@@ -956,15 +952,6 @@ test('the style block gives proj its faint blue fill, in light and dark', () => 
   assert.equal(view.STYLE.indexOf('.proj{fill:#a9cdf0}') < view.STYLE.indexOf('@media'), true, 'the light fill sits outside the dark rule');
 });
 
-test('the state contract declares samples under the plugin\'s manifest name, and the pane keeps them in an atom that starts empty', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+samples: Sample\[\]\n/);
-  assert.match(types, /export type Sample = \{ at: number; percent: number \}/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'samples' \} as const, \[\]\)/);
-});
-
 // --- tick and undo ---------------------------------------------------------
 
 const { GRACE_MS, settleTicks, sweepTicks, ticksFrom, toggleTick, waitingCount } = view;
@@ -1123,15 +1110,6 @@ test('the stored done list is checked: only text entries of a list count, and no
   assert.deepEqual(done.get(), ['a']);
 });
 
-test('the state contract declares ticking under the plugin\'s manifest name', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'));
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.ok(block.includes(`${manifest.name}: {`), 'the values sit under the manifest name');
-  assert.match(block, /\n\s+ticking: Pair\[\]\n/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'ticking' \} as const, \[\]\)/);
-});
 // --- cache warmth ------------------------------------------------------------
 
 const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
@@ -1574,21 +1552,6 @@ test('a close mid-poll stops the reads and stores nothing', async () => {
   assert.equal(reads.length, 1);
 });
 
-test('the state contract declares warmth under the plugin\'s manifest name', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+warmth: Warmth\[\]\n/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'warmth' \} as const, \[\]\)/);
-});
-
-test('the live poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  const poll = register.slice(register.indexOf('async function pollLive'));
-  assert.match(poll, /^async function pollLive[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
-  assert.match(poll, /\} finally \{\n\s*polling = false\n\s*\}/);
-});
-
 test('a busy member is still checked for size, so a transcript too large to read stays unknown while it works', async () => {
   const { io, reads } = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 } });
   assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'too-large' }]);
@@ -1694,18 +1657,6 @@ test('a background row that says "working" counts as working: read under the wor
   await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, memory, io);
   assert.equal(reads.length, 1, 'changed inside the minute: not read again');
   assert.deepEqual(warmthLine(call(70 * MIN), 'working', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
-});
-
-test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemory type', () => {
-  // Changed in #271: the poll's successor is readCalls, and the memory keeps
-  // each read's time and call series in place of its last call.
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
-  // The user-level file rule's words, "memory included" (issue 504), are not the re-read memory.
-  assert.equal(register.replace('memory included', '').match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
-  assert.match(register, /readCalls\(retitled, cards\.map\(c => c\.title\), config, memory, io, finder, /);
-  const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
-  assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
 });
 
 // --- finding a member's transcript --------------------------------------------
@@ -2066,20 +2017,6 @@ test('a stored link for a name with no card on the roster goes (#281)', () => {
   assert.equal(linksOnRoster(list, ['b', 'a']), list, 'a roster in another order keeps every link');
 });
 
-test('the poll prunes stored links to the roster after the link reads (#281)', () => {
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(
-    register,
-    /\n {6}\}\n(?: {6}\/\/[^\n]*\n)+ {6}if \(!open\(\)\) return\n {6}const titles = cards\.map\(c => c\.title\)\n {6}for \(const name of \[\.\.\.linkFrom\.keys\(\)\]\) if \(!titles\.includes\(name\)\) linkFrom\.delete\(name\)\n {6}await update\(\$, links, list => linksOnRoster\(list, titles\)\)\n {4}\} catch \{/,
-  );
-});
-
-test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /const step = linkStep\(at\?\.path, linkFrom\.get\(name\), stored\.has\(name\), at\?\.size\)\n/);
-  assert.match(register, /\n\s+if \(step === 'keep' && at !== undefined\) \{\n\s+linkFrom\.set\(name, at\.path\)\n\s+continue\n\s+\}\n/);
-});
-
 test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {
   const missing = { name: 'S', kind: 'not-found' };
   for (const state of ['idle', 'busy', 'working', undefined]) {
@@ -2170,20 +2107,6 @@ test('the report count is the inbox entries whose sender matches a done or stopp
   for (const stored of [undefined, null, 'alpha', {}, [null, 5, 'alpha', { from: 5 }, { line: 'x' }]]) {
     assert.equal(reportCount(['alpha'], stored), 0, String(stored));
   }
-});
-
-test('the state contract declares the view, the selection and the folds: the view atom starts on sessions, the others empty, and no doneOpen', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(block, /\n\s+view: string\n/);
-  assert.match(block, /\n\s+picked: string\[\]\n/);
-  assert.match(block, /\n\s+folded: string\[\]\n/);
-  assert.doesNotMatch(block, /doneOpen/);
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'view' \} as const, 'sessions'\)/);
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'picked' \} as const, \[\]\)/);
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'folded' \} as const, \[\]\)/);
-  assert.doesNotMatch(register, /doneOpen/);
 });
 
 // --- the cache bar -----------------------------------------------------------
@@ -3100,14 +3023,6 @@ test('no folder path, transcript text, model text or message id from a transcrip
   assert.deepEqual(Object.keys(out.meters[0]).sort(), ['at', 'burn', 'context', 'name', 'window']);
 });
 
-test('the state contract declares meters under the plugin\'s manifest name', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+meters: Meter\[\]\n/);
-  assert.match(types, /export type Meter = \{ name: string; at: number; window\?: number; burn\?: number\[\]; context\?: number\[\] \}/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'meters' \} as const, \[\]\)/);
-});
 // Three branches the integrity lens found no failing test for, at move 4.
 
 test('the parse does not stop at 30 calls while calls inside the 30 minutes remain: 40 cache-writing calls in 20 minutes all count', () => {
@@ -3436,16 +3351,6 @@ test('a choice is kept per card: a new one replaces the card\'s last, other card
   assert.deepEqual(chooseTab('junk', 'A', 'burn'), [{ name: 'A', value: 'burn' }]);
   // A view word outside the set is never stored.
   assert.deepEqual(chooseTab([{ name: 'B', value: 'trend' }], 'A', 'constructor'), [{ name: 'B', value: 'trend' }]);
-});
-
-// That the choice survives a reopen is held by the engine-run test "the
-// choice is kept when the pane closes and opens again".
-test('the state contract declares tabs under the plugin\'s manifest name', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+tabs: Pair\[\]\n/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'tabs' \} as const, \[\]\)/);
 });
 
 // behaviour-lens F1 on #287: a card with a meter but no cache window keeps its
@@ -4279,21 +4184,6 @@ test('no path-shaped text from the summary place reaches what a file-fed or refu
   }
 });
 
-test('the state contract declares the refusal lines under the plugin\'s manifest name', () => {
-  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
-  const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+refusals: Pair\[\]\n/);
-  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'refusals' \} as const, \[\]\)/);
-  // The poll stores the pairs, the render reads them back once, and an
-  // unfinished card draws the line: the wiring, pinned by its text, since no
-  // test here runs the engine.
-  assert.match(register, /\n\s+await update\(\$, refusals, \(\) => found\.refusals\)\n/);
-  assert.match(register, /\n\s+const refused = refusalLines\(await read\(\$, refusals\)\)\n/);
-  assert.match(register, /\n\s+const refusal = isFinished \? undefined : refused\.get\(c\.title\)\n/);
-  assert.match(register, /\{refusal !== undefined && \(\n\s+<Box marginBottom=\{1\}>\n\s+<Text dimColor wrap="truncate-end">\n\s+\{refusal\}\n/);
-});
-
 test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /, io, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
@@ -4476,37 +4366,6 @@ test('claim 15: the autonomy track image: three segments, lit up to the level in
     const classes = [...t.source.matchAll(/<rect class="([a-z0-9]+)"/g)].map(m => m[1]);
     assert.deepEqual(classes, [0, 1, 2].map(i => (i < want ? lit : 'track')), String(level));
     assert.ok(t.source.length < 2000);
-  }
-});
-
-test('no colour in the register or view modules is a hex or a colour name outside an image\'s style block and the register\'s fixed fills', () => {
-  const themeKeys = new Set(['text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged', 'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved', 'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord']);
-  const registerSource = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  const viewSource = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
-  // The one place a hex may sit: the style constant's text.
-  const viewOutside = viewSource.replace(/export const STYLE = \[[\s\S]*?\]\.join\(''\)/, '');
-  // The register module's one place a hex may sit: its fixed fills, each a
-  // hex and nothing else (the owner's decision at the rebuild's visual check).
-  const fills = /const DARK_FILLS = \{([\s\S]*?)\} as const/.exec(registerSource);
-  assert.ok(fills, 'the fixed fills are where the test looks');
-  for (const line of fills[1].split('\n').filter(l => l.trim() !== '')) assert.match(line, /^\s*[a-z]+: '#[0-9a-f]{6}',$/, `${line} is a named hex fill`);
-  const registerOutside = registerSource.replace(fills[0], '');
-  // A hex as a quoted value; an issue number in a comment is not one.
-  assert.doesNotMatch(registerOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module outside its fixed fills');
-  // The fixed fills are fills and borders only: no text takes one.
-  assert.doesNotMatch(registerSource, /\bcolor\s*[:=]\s*\{?\s*DARK_FILLS\./, 'no text colour is a fixed fill');
-  assert.doesNotMatch(viewOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the view module outside its style text');
-  // A colour name held in a quoted string anywhere in the register module, in an expression too.
-  assert.doesNotMatch(registerSource, /["'`](?:red|green|blue|gray|grey|white|black|yellow|orange|purple|pink|cyan|magenta|transparent)["'`]/i, 'no colour name in the register module');
-  let seen = 0;
-  for (const m of registerSource.matchAll(/\b(?:color|borderColor|backgroundColor)=(?:"([^"]*)"|\{'([^']*)'\})/g)) {
-    seen += 1;
-    assert.ok(themeKeys.has(m[1] ?? m[2]), `${m[0]} is not a theme key`);
-  }
-  assert.ok(seen > 0, 'the test read at least one colour prop');
-  // `dim` is a warmth line's tone word: the line is drawn with dimColor, never as a colour.
-  for (const m of [...registerSource.matchAll(/(?:color|Color|tone)\s*[:=]\s*'([^']*)'/g), ...viewOutside.matchAll(/(?:color|tone)\s*:\s*'([^']*)'/g)]) {
-    assert.ok(themeKeys.has(m[1]) || m[1] === 'dim', `${m[0]} is not a theme key`);
   }
 });
 

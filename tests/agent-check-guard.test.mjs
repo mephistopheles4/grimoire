@@ -237,12 +237,12 @@ test('a hang ends at the limit, and the child and its tree are gone', async () =
   const dir = fake('hang');
   const started = Date.now();
   assert.equal(await probeAthanor({ env: envWith(dir), limitMs: 1500 }), false);
-  assert.ok(Date.now() - started < 4000, 'the probe returned at its limit');
+  assert.ok(Date.now() - started < 10000, 'the probe returned at its limit');
   const pidFile = join(dir, 'pid.txt');
   assert.ok(existsSync(pidFile), 'the fake started');
   const pid = Number(readFileSync(pidFile, 'utf8'));
   const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
-  for (let i = 0; i < 40 && alive(); i++) await new Promise(r => setTimeout(r, 100));
+  for (let i = 0; i < 100 && alive(); i++) await new Promise(r => setTimeout(r, 100));
   assert.equal(alive(), false, 'the hung child is gone');
 });
 

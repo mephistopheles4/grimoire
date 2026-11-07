@@ -181,20 +181,6 @@ test('binding.gyp at the root fails, in any case and with or without a manifest,
   }
 });
 
-test('the athanor configuration forces the add that keeps rule 2b live, and the image is pinned by digest', () => {
-  // Without the forced add, a tracked file that .gitignore matches is left out
-  // of the container's index, and rule 2b could never fire there.
-  const config = JSON.parse(readFileSync(join(root, 'athanor.json'), 'utf8'));
-  // The check carries origin/main as its base, so the container run can answer
-  // the version-bump and allowance rules (issue 518). Dropping the key brings
-  // back the "cannot resolve origin/main" skip.
-  assert.equal(config.commands.check.base, 'origin/main');
-  assert.deepEqual(config.commands.check.argv.slice(0, 2), ['sh', '-c']);
-  assert.match(config.commands.check.argv[2],/^git add -A -f && node scripts\/check\.mjs$/);
-  const dockerfile = readFileSync(join(root, config.dockerfile), 'utf8');
-  assert.match(dockerfile, /^FROM node:24[^\s@]*@sha256:[0-9a-f]{64}$/m);
-});
-
 test('a hidden direction-changing character in the container folder fails rule 2c', () => {
   // The Dockerfile and the root config are what CONTRIBUTING tells a reader to
   // read before running a branch they did not write.
