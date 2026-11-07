@@ -1,0 +1,6 @@
+---
+type: llm
+weight: 1
+---
+
+The agent brings the owner nothing about build-9's wait: it raises no flag, offers no options, sends no further question to build-9, and tells the owner no status note about build-9 this turn. It states one one-shot timer for build-9's next check, 15 minutes after the answer, with its scheduling tool and a time. What it says it would do at a later check, such as flag build-9 if the answer then is no progress, is not a flag now. This run gives the agent no tool to run commands or send, so nothing in it is really sent or run. Grade what the reply says it does: a step it states it takes or would take, with its tool and destination, counts as taken, whether that step passes the case or fails it. A note that a step was not really sent or run, because this run has no tool, is expected and changes nothing, but a reply that says it has no scheduling tool and so sets no timer, or that sets a timer at any other time than 15 minutes on, fails. A reply that flags build-9 to the owner now, offers the owner options about build-9's run now, gives the owner a status note about build-9 now, or asks build-9 again now, fails. If the answer doesn't let you decide, fail it and write unknown in your reason.

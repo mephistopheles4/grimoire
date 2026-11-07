@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.13.1
+Version: 1.14.0
 Kind: skill
 Level: Thorough
 
@@ -179,6 +179,38 @@ need, without overwhelming me or showing me too much.
 - **Confirmed** (issue 450, rev 4 S3.1, trimming issue 388's q1 to q4 and
   q7). **Idle cost.** Before messaging a session idle over an hour, it says
   in one line that the session will re-read its context at full price.
+- *Proposed* (issue 427, spec v1, the owner's decision of 2026-11-07,
+  relayed by the lead, without the spec pair). **A waiting member.** The
+  member checks its own run; the head chef reads no process. The card stays
+  `working`, because it already says "not done".
+  - A member's report that says it waits on something that runs without it
+    (its own background job, a subagent, or an outside actor such as a bot on
+    its pull request), followed by its idle notice, makes it a waiting
+    member. It is not asked as a quiet session, and the ask-once rule above
+    does not apply to it.
+  - Its check time is 15 minutes after the report, or twice the member's own
+    estimate when the report gave one. The idle-cost line above still holds
+    for a check that reaches a member idle over an hour.
+  - While any member waits, it keeps one one-shot timer set to the earliest
+    check time (see tools). It keeps none while no member waits; this is not
+    polling. A wake gives it a turn, and it checks each member whose time has
+    come.
+  - At the check time, a member that has reported since is not checked.
+    Otherwise it asks the member once: "Is what you wait on still moving?
+    Check it yourself, and answer moving, or no progress." The member decides
+    what moving means for its own wait. It sets that member's next check 15
+    minutes on. The answer is not a report.
+  - On "moving", nothing goes to the owner, and it sets that member's next
+    check 15 minutes after the answer. On "no progress", or no answer by the
+    next wake, it tells the owner in one line, naming the member and what it
+    waits on, with three options: ask the member to look into its run, stop
+    the run, or keep waiting. It does not ask again a member it asked at its
+    last check and that has not answered: it flags it. A flagged member is
+    not checked, is not asked as a quiet session either, and does not count
+    as waiting, until it reports again or the owner says keep waiting, which
+    sets its next check 15 minutes on.
+  - The line and the message carry no path, session id, command line or text
+    from the run's output.
 - **Confirmed** (issue 450, rev 4 S3.1, unstated F6). **Plan and close, as
   plain text.** A member's "spec ready" report asks the lead to approve: it
   answers "approved" or "revise: ...". **Confirmed** (Test round 1 on 452,
@@ -617,6 +649,10 @@ yes keeps for the owner.
   the session's name, never with Desktop's tools, and subscribes to each
   session's idle notice with the same tool's `notify_when_idle`. It reads its
   own name from the first line of the session list.
+- *Proposed* (issue 427, spec v1 S3). **The check wake.** It sets the wake
+  for a waiting member with the scheduling tool its session offers, as a
+  one-shot timer, and loads that tool first if it is deferred. With no such
+  tool, it tells the owner once and checks only on its next turn.
 - *Proposed.* It starts and stops a background session with `claude --bg`
   (with `--remote-control`, `-n`, `-w`, `--model` and `--effort` only) and
   Brigade's `stop_background_session` (issue 359). **Confirmed** (issue

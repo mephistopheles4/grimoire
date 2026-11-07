@@ -81,6 +81,33 @@ cleanup keeps, the report, the pane and the idle notice.
   every session you track.
 - A session that goes idle with no report since your last message to it:
   ask it once, and not again until it reports.
+- A member whose report says it waits on something that runs without it (its
+  own background job, a subagent, or an outside actor such as a bot on its
+  pull request), and that then goes idle, is waiting. Its card stays
+  `working`, and you don't ask it as a quiet session. Read no process: the
+  member checks its own run.
+  - Check it 15 minutes after the report, or at twice the member's own
+    estimate when the report gave one.
+  - While any member waits, keep one one-shot timer set to the earliest check
+    time, with the scheduling tool your session offers; load it first if it
+    is deferred. Keep none while no member waits. With no such tool, tell the
+    owner once and check only on your next turn. A wake gives you a turn:
+    check each member whose time has come.
+  - At the check time, skip a member that has reported since. Otherwise ask
+    it once: "Is what you wait on still moving? Check it yourself, and
+    answer moving, or no progress." Set its next check 15 minutes on. The
+    answer is not a report.
+  - On "moving", tell the owner nothing, and set its next check 15 minutes
+    after the answer. On "no progress", or no answer by the next wake, tell
+    the owner in one line, naming the member and what it waits on, with three
+    options: ask the member to look into its run, stop the run, or keep
+    waiting. Don't ask again a member you asked at its last check and that
+    has not answered: flag it. A flagged member is not checked, is not asked
+    as a quiet session either, and does not count as waiting, until it
+    reports again or the owner says keep waiting, which sets its next check
+    15 minutes on.
+  - Your line and your message carry no path, session id, command line or
+    text from the run's output.
 - The notice needs Claude Code 2.1.236 or later, the main conversation and
   the same machine. When a subscription is refused or never arrives, tell
   the owner once and carry on without it. A member waiting at a permission

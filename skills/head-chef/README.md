@@ -76,7 +76,9 @@ or type `/brigade` to open it.
   one line.
 - **Hears when a session stops** (since 1.0.0). After each start and each
   report it asks for the session's idle notice, so it never polls. A session
-  that goes idle with no report since the lead's last message is asked once.
+  that goes idle with no report since the lead's last message is asked once,
+  unless it reported that it waits on something that runs without it; the lead then checks
+  that wait on a timer (since 1.14.0).
   Before it messages a session idle for over an hour, it tells you in one line
   that the session will re-read its whole context at full price. A session
   waiting at a permission prompt may not go idle, so the lead may not notice
