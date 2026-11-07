@@ -31,21 +31,6 @@ test("the warning's wording is pinned as the head-chef contract gives it at 1.7.
   );
 });
 
-// The skill says the warning in chat when the mod cannot draw it, so its copy
-// must be the band's, word for word: a quoted block of "> " lines, each "- "
-// line a risk, wrapped lines joined with one space.
-test("the head-chef skill's chat copy of the warning is the band's wording", () => {
-  const skill = readFileSync(new URL('../skills/head-chef/SKILL.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  const block = skill.split('\n## The permission warning\n')[1]?.split('\n\n').find(p => p.startsWith('> '));
-  assert.ok(block, 'SKILL.md quotes the warning under "## The permission warning"');
-  const lines = [];
-  for (const raw of block.split('\n').map(l => l.replace(/^>\s?/, ''))) {
-    if (raw === '') lines.push('');
-    else if (raw.startsWith('- ') || lines.length === 0 || lines.at(-1) === '') lines.push(raw.replace(/^- /, ''));
-    else lines[lines.length - 1] += ` ${raw.trim()}`;
-  }
-  assert.deepEqual(lines.filter(l => l !== ''), [...WORDING]);
-});
 
 test('the version is stable for one wording and moves when any line changes', () => {
   assert.equal(versionOf(WORDING), versionOf([...WORDING]));
@@ -63,18 +48,26 @@ test('only an acknowledgement of the current wording hides the warning for good'
   }
 });
 
-// The contract quotes the warning too, with the band's two controls after the
-// last line; its copy is the band's wording word for word (issue 504, S8).
-test("the head-chef contract's copy of the warning is the band's wording", () => {
-  const contract = readFileSync(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  const block = contract.split('\n\n').find(p => p.startsWith('> Head chef is on.'));
-  assert.ok(block, 'CONTRACT.md quotes the warning');
-  const lines = [];
-  for (const raw of block.split('\n').map(l => l.replace(/^>\s?/, ''))) {
-    if (raw === '') lines.push('');
-    else if (raw.startsWith('- ') || lines.length === 0 || lines.at(-1) === '') lines.push(raw.replace(/^- /, ''));
-    else lines[lines.length - 1] += ` ${raw.trim()}`;
-  }
-  lines[lines.length - 1] = lines[lines.length - 1].replace(" [I understand] [ ] Don't show again", '');
-  assert.deepEqual(lines.filter(l => l !== ''), [...WORDING]);
+// The skill says the warning in chat when the mod cannot draw it, and the
+// contract quotes it with the band's two controls after the last line. Both
+// copies must be the band's wording: a quoted block of "> " lines, each "- "
+// line a risk, wrapped lines joined with one space.
+test("the skill's and the contract's copies of the warning are the band's wording", () => {
+  const read = rel => readFileSync(new URL(rel, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const quoted = block => {
+    const lines = [];
+    for (const raw of block.split('\n').map(l => l.replace(/^>\s?/, ''))) {
+      if (raw === '') lines.push('');
+      else if (raw.startsWith('- ') || lines.length === 0 || lines.at(-1) === '') lines.push(raw.replace(/^- /, ''));
+      else lines[lines.length - 1] += ` ${raw.trim()}`;
+    }
+    lines[lines.length - 1] = lines[lines.length - 1].replace(" [I understand] [ ] Don't show again", '');
+    return lines.filter(l => l !== '');
+  };
+  const skill = read('../skills/head-chef/SKILL.md').split('\n## The permission warning\n')[1]?.split('\n\n').find(p => p.startsWith('> '));
+  const contract = read('../skills/head-chef/references/CONTRACT.md').split('\n\n').find(p => p.startsWith('> Head chef is on.'));
+  assert.ok(skill, 'SKILL.md quotes the warning under "## The permission warning"');
+  assert.ok(contract, 'CONTRACT.md quotes the warning');
+  assert.deepEqual(quoted(skill), [...WORDING]);
+  assert.deepEqual(quoted(contract), [...WORDING]);
 });
