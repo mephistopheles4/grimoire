@@ -882,9 +882,10 @@ const EFFORT_MARKS: ReadonlyMap<string, string> = new Map([
  *  for the tooltip. */
 export function compactSettings(settings: unknown): { text: string; full: string } {
   const line = typeof settings === 'string' ? settings : ''
-  const parts = line.split(',').map(p => oneLine(p, 40))
-  const model = [...(parts[0] ?? '')][0]?.toUpperCase() ?? ''
-  const effort = EFFORT_MARKS.get((parts[1] ?? '').toLowerCase()) ?? ''
+  const words = oneLine(line, 80).split(/[\s,]+/).filter(w => w !== '')
+  const model = [...(words[0] ?? '')][0]?.toUpperCase() ?? ''
+  const effortWord = words.slice(1).find(w => EFFORT_MARKS.has(w.toLowerCase()))
+  const effort = effortWord === undefined ? '' : (EFFORT_MARKS.get(effortWord.toLowerCase()) ?? '')
   const text = [model, effort].filter(x => x !== '').join('·')
   return { text: text === '' ? '?' : text, full: oneLine(line, 80) || 'No settings on the card.' }
 }
@@ -1802,7 +1803,7 @@ export function contextMeterSvg(c: Pick<ContextMeter, 'fraction' | 'cls' | 'alt'
 export const SPARK_COLUMNS = 30
 // The sparkline image's height, and the least height of a column: an empty
 // one draws the flat baseline, and one above 0 never draws as short.
-const SPARK_HEIGHT = 20
+const SPARK_HEIGHT = 40
 const BASELINE = 1
 const LEAST = 2
 // The part of its slot a column fills, leaving a gap on its right.

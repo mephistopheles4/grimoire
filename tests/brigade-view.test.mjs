@@ -4343,6 +4343,10 @@ test('the compact settings: the model\'s first letter and one character for the 
   assert.equal(compactSettings('Opus, max').text, 'O·∞');
   assert.equal(compactSettings('Opus').text, 'O');
   assert.equal(compactSettings('Opus, constructor').text, 'O');
+  // Issue 545, row 6: a card's real shapes, with the effort in any word and no comma needed.
+  assert.equal(compactSettings('Sonnet medium').text, 'S·M');
+  assert.equal(compactSettings('Sonnet 5.5, medium effort').text, 'S·M');
+  assert.equal(compactSettings('Opus 4.7 xhigh').text, 'O·X');
   assert.equal(compactSettings('').text, '?');
   assert.equal(compactSettings(5).text, '?');
   assert.equal(compactSettings(undefined).full, 'No settings on the card.');

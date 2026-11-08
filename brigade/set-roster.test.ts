@@ -3026,6 +3026,25 @@ const labelOf = async (m: any, key: string) => {
   return b.props.variant === 'primary' && spoken(b) === ICONS[key.split('-').at(-1) ?? ''] ? `${spoken(b)} ●` : spoken(b)
 }
 
+// The owner's layout: with view buttons the Desktop card's PR pill sits at the right of their row,
+// level with them; without view buttons it sits under the settings label.
+test("desktop: the PR pill sits in the view buttons' row when the card has them, and under the settings label when it has none", async ($, on) => {
+  const roster = { cards: [card('need-tabs', { status: 'needs-you', pr: '341' }), card('done-full', { status: 'done', pr: '342' })], todos: [] }
+  await tabbed(on, $, roster)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'grp-finished' })
+  const all = await nodes(m)
+  const holds = (b: any, name: string): boolean => JSON.stringify(b).includes(name)
+  const tabsRow = all.find(b => b.type === 'Box' && b.props.flexDirection === 'row' && holds(b, 'tab-0-needtabs-cache'))
+  expect(tabsRow).toBeDefined()
+  expect(holds(tabsRow, '341')).toBe(true)
+  const right = all.find(b => b.type === 'Box' && b.props.alignItems === 'flex-end' && holds(b, 'set-0-needtabs'))
+  expect(right).toBeDefined()
+  expect(holds(right, '341')).toBe(false)
+  const doneRight = all.find(b => b.type === 'Box' && b.props.alignItems === 'flex-end' && holds(b, 'set-1-donefull'))
+  expect(holds(doneRight, '342')).toBe(true)
+})
+
 for (const surface of SURFACES) {
   test(`${surface}: tabs show only with two or more views, the default selected and marked ●, plain passed only as plain`, async ($, on) => {
     const w = await tabbed(on, $)
@@ -4294,19 +4313,19 @@ test('545 row 4: the outside layer is one clipping Box over a 500-wide column of
   const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0 && n.props.bottom === 0)
   expect(layer?.props.overflow).toBe('hidden')
   expect(layer?.children[0]?.props.width).toBe(500)
-  // Each row's press layer is 600 clear spaces on one line.
-  const row = all.find(n => n.type === 'Text' && n.text === ' '.repeat(600))
+  // Each row's press layer is 200 clear spaces on one line.
+  const row = all.find(n => n.type === 'Text' && n.text === ' '.repeat(200))
   expect(row?.props.color).toBe('#00000000')
 })
 
-test('545 row 2: the pill press layer is the prototype clear 600-space Button past the pill, in a clipping Box', async ($, on) => {
+test('545 row 2: the pill press layer is the prototype clear 200-space Button past the pill, in a clipping Box', async ($, on) => {
   await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj' })], w => {
     w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
   })
   const all = await nodes(await mountOn($, 'desktop'))
   const btn = all.find(n => n.type === 'Button' && n.props.key === 'pill-0-alpha')
   expect(btn).toBeDefined()
-  expect(spoken(btn)).toBe(' '.repeat(600))
+  expect(spoken(btn)).toBe(' '.repeat(200))
   const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.right === -100 && n.children.some((c: any) => c?.props?.key === 'pill-0-alpha'))
   expect(layer).toBeDefined()
 })
@@ -4349,7 +4368,7 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
-test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the settings mark, then the pill, then the repository', async ($, on) => {
+test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the right column under the `⋯` holds the settings mark, then the pill, and no repository', async ($, on) => {
   await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], w => {
     w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
   })
@@ -4358,12 +4377,12 @@ test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, ag
   const at = (x: string) => text.indexOf(x)
   expect(at('alpha')).toBeLessThan(at('⋯'))
   expect(at('⋯')).toBeLessThan(at('O·H'))
-  // #513 S7 and S8: the settings mark (compact at rest), then the pill (a press layer, since gh answered), then the repository.
+  // The owner's layout: under the `⋯`, the settings mark (compact at rest), then the pill (a press layer, since gh answered); no repository.
   const keys = (await nodes(m)).map(n => String(n.props.key))
   const pillAt = keys.indexOf('pill-0-alpha')
   expect(pillAt).toBeGreaterThan(-1)
   expect(keys.indexOf('set-0-alpha')).toBeLessThan(pillAt)
-  expect(at('O·H')).toBeLessThan(at('other/proj'))
+  expect(text.includes('other/proj')).toBe(false)
   expect(text.includes('opus, high')).toBe(false)
   // No Open, Dismiss or Split is drawn at rest.
   expect(text.includes('Dismiss')).toBe(false)
@@ -8180,10 +8199,9 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const m = await mountOn($, surface)
     const links = openable(await nodes(m), surface)
     expect(links).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // The repository sits inline beside the pill off Desktop; the Desktop card drops it (issue 545, row 9).
+    // The repository sits inline beside the pill off Desktop; the Desktop card drops it (the owner's layout).
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
-    // Issue 545, row 9: the Desktop card drops the repository; the terminal keeps it.
     expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(surface !== 'desktop')
     expect(sessions.includes('Open pull request')).toBe(false)
     // The base card's pill names no repository on the Sessions view (its link's URL aside).
@@ -8211,7 +8229,7 @@ for (const [label, answer] of [
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
     expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
-    // The Desktop card no longer draws its repository (issue 545, row 9); the Pull requests row below does.
+    // The Desktop card does not draw its repository (the owner's layout); the Pull requests row below does.
     expect((await textOf(m)).includes('other/proj')).toBe(false)
     await m.press({ key: 'view-prs' })
     // The row names it, and links only from an answer.

@@ -292,6 +292,9 @@ const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefi
 }
 // The approved #513 prototype's menu look: a clear ink for the press layers, one soft hover for
 // a menu item, and the menu's faint round border on the user-message background.
+// The clear spaces a press layer holds: the pane draws at most about 100000 characters of text, and
+// the prototype's 600 per layer put a pane of a few dozen cards past that.
+const PRESS_CELLS = 200
 const CLEAR_INK = '#00000000'
 const MENU_HOVER = '#8080801a'
 const MENU_LOOK = { borderStyle: 'round', borderColor: '#8080802e', backgroundColor: 'userMessageBackground' } as const
@@ -3621,7 +3624,7 @@ export const register: Register = on => {
           {pill(n, state)}
           <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
             <Button key={key} plain onPress={noop}>
-              <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
+              <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
             </Button>
           </Box>
         </Box>
@@ -3842,7 +3845,7 @@ export const register: Register = on => {
           <Text size="footnote">{label}</Text>
           <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
             <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
-              <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
+              <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
             </Button>
           </Box>
         </Box>
@@ -3976,40 +3979,39 @@ export const register: Register = on => {
                 )}
                 {pointer && menuButton}
               </Box>
-              {pointer && (
-                <Box flexDirection="row" columnGap={1} alignItems="center">
-                  <Box position="relative" flexShrink={1} minWidth={0}>
-                    <Button key={keyFor('set', i, c.title)} plain dimColor onPress={noop}>
-                      <Text mono>{settingsLine}</Text>
-                    </Button>
-                    {setOpen && popText(settingsPopover(c.settings))}
-                  </Box>
-                  {pillBlock}
-                  {namedRepo !== undefined && number !== undefined && (
-                    <Box flexShrink={1} minWidth={0}>
-                      <Text dimColor wrap="truncate-end">
-                        {namedRepo}
-                      </Text>
-                    </Box>
-                  )}
-                </Box>
-              )}
               {!pointer && (
                 <Text dimColor wrap="truncate-end">
                   {short.full}
                 </Text>
               )}
-              {/* The card's work line, which carries the reason a session needs the owner (issue 545, row 11). */}
-              {pointer && typeof c.work === 'string' && c.work !== '' && (
-                <Text dimColor wrap="truncate-end">
-                  {oneLine(c.work, 200)}
-                </Text>
-              )}
-              {report !== undefined && (
-                <Text dimColor size="footnote" wrap="truncate-end">
-                  {report.at} → {report.line}
-                </Text>
-              )}
+              {/* Desktop's second block (#513 S7, the owner's layout): the work line and the report at
+                  the left; at the right, under the `⋯`, the settings label and under it the PR pill. */}
+              <Box flexDirection="row" columnGap={1}>
+                <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+                  {/* The card's work line, which carries the reason a session needs the owner (issue 545, row 11). */}
+                  {pointer && typeof c.work === 'string' && c.work !== '' && (
+                    <Text dimColor wrap="truncate-end">
+                      {oneLine(c.work, 200)}
+                    </Text>
+                  )}
+                  {report !== undefined && (
+                    <Text dimColor size="footnote" wrap="truncate-end">
+                      {report.at} → {report.line}
+                    </Text>
+                  )}
+                </Box>
+                {pointer && (
+                  <Box flexDirection="column" alignItems="flex-end" flexShrink={0}>
+                    <Box position="relative">
+                      <Button key={keyFor('set', i, c.title)} plain dimColor onPress={noop}>
+                        <Text mono>{settingsLine}</Text>
+                      </Button>
+                      {setOpen && popText(settingsPopover(c.settings))}
+                    </Box>
+                    {views.length < 2 && pillBlock}
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
           <Box flexDirection="column" marginTop={1}>
@@ -4034,6 +4036,9 @@ export const register: Register = on => {
                     VIEW_LABELS.get(v) ?? '',
                   ),
                 )}
+                {/* On Desktop the PR pill sits at the right of this row, level with the view buttons. */}
+                {pointer && <Box flexGrow={1} flexShrink={1} minWidth={0} />}
+                {pointer && pillBlock}
               </Box>
             )}
             {/* The burn rate, the context outlook or the old trend, or the burn view's reason
@@ -4720,7 +4725,7 @@ export const register: Register = on => {
               {Array.from({ length: outsideRows }, (_, k) => (
                 <Box key={`outside-box-${k}`}>
                   <Button key={`outside-${k}`} plain hover={{ backgroundColor: CLEAR_INK }} onPress={noop}>
-                    <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
+                    <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
                   </Button>
                 </Box>
               ))}
