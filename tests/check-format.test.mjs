@@ -222,13 +222,14 @@ test('a package-manager settings file fails at the root and in a folder, with it
   const dir = tree();
   dropSettingsIgnores(dir);
   writeFileSync(join(dir, '.npmrc'), 'registry=https://example.invalid/\n');
-  writeFileSync(join(dir, 'skills', 'eagle-eye', '.yarnrc.yml'), 'npmRegistryServer: "https://example.invalid/"\n');
+  // Token only, no registry line: the rule refuses by name, not by content.
+  writeFileSync(join(dir, 'skills', 'eagle-eye', '.yarnrc.yml'), 'npmAuthToken: placeholder\n');
   const r = assertFails(dir, /- \.npmrc: a package-manager settings file — remove it, or keep it outside the checkout/);
   assert.match(r.stderr, /skills\/eagle-eye\/\.yarnrc\.yml: a package-manager settings file/);
   assert.doesNotMatch(r.stderr, /\.npmrc: a dependency manifest or lockfile/);
 });
 
-test('a contributor\'s own untracked settings files are ignored, so the check and --untracked never take them (#366)', () => {
+test('a contributor\'s own untracked settings files are ignored, so the check never reads them (#366)', () => {
   const dir = tree();
   writeFileSync(join(dir, '.npmrc'), '//registry.example.invalid/:_authToken=placeholder\n');
   writeFileSync(join(dir, 'skills', 'eagle-eye', '.yarnrc.yml'), 'npmAuthToken: placeholder\n');
