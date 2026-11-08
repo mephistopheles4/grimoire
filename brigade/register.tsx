@@ -3008,8 +3008,9 @@ async function nameHeld($: EngineInterface, folder: string, name: string, platfo
       if (packed.found.size > 5_000_000) branchExists = true
       else {
         const text = String(await $.fs.read(`${folder}${sep}.git${sep}packed-refs`).catch(() => ''))
-        const escaped = worktreeBranch(name).replace(/[.]/g, '\\.')
-        branchExists = text === '' || new RegExp(`^[0-9a-f]+ refs/heads/${escaped}$`, 'im').test(text)
+        // Each line is "<sha> <ref>": compared as text, with no pattern built from the name.
+        const ref = `refs/heads/${worktreeBranch(name)}`.toLowerCase()
+        branchExists = text === '' || text.split(/\r?\n/).some(l => /^[0-9a-f]+ /i.test(l) && l.slice(l.indexOf(' ') + 1).toLowerCase() === ref)
       }
     }
   }

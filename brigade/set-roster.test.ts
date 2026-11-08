@@ -9692,8 +9692,10 @@ test('543 C5: a name a card, a live session, an earlier attempt, a worktree fold
   w.dirs(`${REPO_DIR}${SEP}.git${SEP}refs${SEP}heads`)
   w.put(`${REPO_DIR}${SEP}.git${SEP}refs${SEP}heads${SEP}worktree-loose`, { type: 'file', data: { text: 'abc\n' } })
   expect((await startTool($, { name: 'loose' })).text).toBe(refusedStart(NAME_REASONS.branch))
-  w.put(`${REPO_DIR}${SEP}.git${SEP}packed-refs`, { type: 'file', data: { text: '# pack-refs\n0123456789abcdef0123456789abcdef01234567 refs/heads/worktree-packed\n' } })
+  w.put(`${REPO_DIR}${SEP}.git${SEP}packed-refs`, { type: 'file', data: { text: '# pack-refs\n0123456789abcdef0123456789abcdef01234567 refs/heads/worktree-packed\n1123456789abcdef0123456789abcdef01234567 refs/heads/worktree-Mixed\n' } })
   expect((await startTool($, { name: 'packed' })).text).toBe(refusedStart(NAME_REASONS.branch))
+  // A line spelled in another case holds the name too, as a case-folding file system would.
+  expect((await startTool($, { name: 'mixed' })).text).toBe(refusedStart(NAME_REASONS.branch))
   expect((await startTool($, { name: 'PACKED' })).text).toBe(refusedStart(NAME_REASONS.branch))
   expect(claudes()).toBe(0)
   expect((await startTool($, { name: 'fresh' })).ok).toBe(true)
