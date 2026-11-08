@@ -226,10 +226,11 @@ or an engine message. A deny rule for `mcp__grimoire__log_decision` removes it.
 Its writes take turns in one queue, a log keeps at most 500 entries and 256
 KiB, and past a cap it drops only entries the owner marked read and did not
 flag, oldest first; with nothing to drop it refuses and the file is
-unchanged. To tell which entries are read it lists the `brigade/marks/`
-folder and reads the marks files there, this session's own in full and the others newest
-first, up to 8 MiB in total (since 0.89.0; a file over its cap takes nothing
-from the bound; the rest count as unread, which fails safe). When the owner presses "✓ Read,
+unchanged. To tell which entries are read it reads this session's own marks
+file, by its own path and with no listing (since 0.121.0, issue 509; from 0.89.0 to
+0.120.0 it also listed the `brigade/marks/` folder and read the others newest
+first, up to 8 MiB in total, a file over its cap taking nothing from the bound
+and the rest counting as unread, which failed safe). When the owner presses "✓ Read,
 next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spec
 448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
 answer writes both marks in one write), or Dismiss on its
@@ -290,8 +291,7 @@ ended sessions". All of that is gone. It re-reads a file only when its size or
 time changed, skips a file dated more than two minutes ahead, reads no other
 hand-off from a folder whose listing passes 5,000 entries, and draws this
 log's writer by the engine's session name for its session id, or "an ended
-session". `log_decision`'s drop scan still reads the marks files of other
-sessions, as above. Nothing it reads enters plugin state
+session". `log_decision`'s drop scan reads this session's marks file alone, as above. Nothing it reads enters plugin state
 but the search text, which other plugins can read until the next open clears
 it, and a redraw counter. The project digest comes from the mod's own unkeyed
 SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's

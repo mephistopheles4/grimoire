@@ -110,7 +110,7 @@ import {
   withLeadFlags,
   writerName,
 } from './decisions.ts'
-import type { DecisionEntry, DecisionLog, EntryInput, Handoff, HandoffSections, Level, MarksFile, ReadHandoff, ReadLog, Row } from './decisions.ts'
+import type { DecisionEntry, DecisionLog, EntryInput, Handoff, HandoffSections, Level, MarkState, MarksFile, ReadHandoff, ReadLog, Row } from './decisions.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -548,9 +548,9 @@ async function movesOf($: EngineInterface): Promise<Moves> {
 //
 // While the pane is open, and only then (ADR 0008), the roster timer's tick
 // reads this session's own decision log, marks file and hand-off, and the 20
-// newest other logs, marks files and hand-offs by modification time, from
-// brigade/decisions, brigade/marks and brigade/handoff in the plugin's data
-// folder. Every file is placed by the
+// newest other hand-offs by modification time (since issue 509 no other
+// decision log or marks file), from brigade/decisions, brigade/marks and
+// brigade/handoff in the plugin's data folder. Every file is placed by the
 // roster's path rule before it is read, its size checked against its kind's
 // cap before the read and its length after, and its text held to its kind's
 // strict check (decisions.ts); a file that fails, or is dated more than two
@@ -659,7 +659,7 @@ async function ownKind($: EngineInterface, at: Where, kind: Kind) {
 // A kind's folder, as the path rule placed this session's own file: its own
 // file by its own stat, and every other file the listing names, newest first.
 // `refused` when the rule refuses the folder; `tooMany` past 5,000 entries.
-// Hand-offs and the marks scan read through this; the tab's decision log and
+// Hand-offs read through this; the decision log and
 // marks read do not.
 async function listKind($: EngineInterface, at: Where, kind: Kind) {
   const o = await ownKind($, at, kind)
@@ -730,8 +730,7 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
       }
     }
     for (const k of [...held.keys()]) {
-      // Other marks files are the drop scan's to keep and drop (`readMarks`).
-      if (!kept.has(k) && !(k.startsWith('marks ') && k !== `marks ${at.id}`)) {
+      if (!kept.has(k)) {
         held.delete(k)
         changed = true
       }
@@ -747,72 +746,29 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
   }
 }
 
-// The most marks-file bytes one drop scan reads: 32 files at their cap.
-const MAX_SCAN_BYTES = 8 * 1024 * 1024
-
-// The marks files in the folder, up to MAX_SCAN_BYTES, through the same cache, for log_decision's
-// drop rule: an entry with no readable read mark counts as unread.
+// This session's own marks file, for log_decision's drop rule, and for the pane's own
+// append to a full log: an entry with no readable read mark counts as unread. Since
+// issue 509 no other session's marks file is listed or read: no other pane marks this
+// session's entries, so a mark there would only be one the tab cannot show.
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
-  return (await readMarks($, at, now, false)) ?? new Map()
+  return readMarks($, at, now)
 }
 
-// The marks merged from every marks file in the folder. `strict` gives none
-// at all when the listing is refused, a read throws or a file fails its
-// check, so a caller can tell marks it could not read from no marks; the
-// lenient read, the drop scan's, gives none when this session's own file
-// cannot be read.
-async function readMarks($: EngineInterface, at: Where, now: number, strict: boolean) {
+// The marks of this session's own marks file, read by its own path and merged. None at
+// all when the folder is refused or the file is missing, dated more than two minutes
+// ahead, over the marks cap or fails its check, so a flag only it holds never loses to
+// an older read mark (PR 498) and its entries stay unread, which fails safe.
+async function readMarks($: EngineInterface, at: Where, now: number) {
   try {
-    const l = await listKind($, at, 'marks')
-    // Past 5,000 entries the listing gives no other file, but this session's
-    // own marks file is still read by its own path, as the pane reads it.
-    if (l.refused) return strict ? undefined : new Map()
-    // A marks file the scan read stays cached while it is listed, so a second
-    // full-log call reads none of the unchanged ones again; one that left the
-    // listing goes (the tab's own read keeps only this session's file).
-    const listed = new Set([...(l.own !== undefined ? [l.own] : []), ...l.others].map(f => `marks ${f.sid}`))
-    for (const k of [...held.keys()]) if (k.startsWith('marks ') && !listed.has(k)) held.delete(k)
-    const files: MarksFile[] = []
-    let scanned = 0
-    let cutAt: number | undefined
-    for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
-      // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
-      // The strict read counts this session's own file skipped for its date as
-      // unreadable, so it cannot hide the owner's read mark (#436). The drop
-      // scan takes no mark at all when the own file is skipped, so a flag only
-      // it holds never loses to an older read mark elsewhere (PR 498).
-      if (f.mtimeMs > now + AHEAD_MS) {
-        if (f === l.own) return strict ? undefined : new Map()
-        continue
-      }
-      // A file over the marks cap fails its check and is read by no one, so it
-      // takes nothing from the bound.
-      if (f.size > MAX_MARKS_BYTES) {
-        if (strict || f === l.own) return strict ? undefined : new Map()
-        continue
-      }
-      // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes:
-      // this session's own file in full first, then the others newest first.
-      // Past the bound the rest count as unread, which fails safe.
-      scanned += f.size
-      if (f !== l.own && scanned > MAX_SCAN_BYTES) {
-        if (strict) return undefined
-        cutAt = f.mtimeMs
-        break
-      }
-      const got = await heldFile($, at, 'marks', f)
-      if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
-      else if (strict || f === l.own) return strict ? undefined : new Map()
-    }
-    // A mark in a file left unread is no newer than that file's time, so only
-    // marks dated after it (and the clock allowance) can be the newest of their
-    // entry. An older one might be covered by a flag in a file left unread, so
-    // it counts for nothing and its entry stays unread.
-    const cut = cutAt
-    if (cut !== undefined) return mergeMarks(files.map(f => ({ ...f, marks: f.marks.filter(m => m.at > cut + AHEAD_MS) })), now)
-    return mergeMarks(files, now)
+    const o = await ownKind($, at, 'marks')
+    if (o.refused) return new Map<string, MarkState>()
+    const f = o.own
+    if (f === undefined || f.mtimeMs > now + AHEAD_MS || f.size > MAX_MARKS_BYTES) return new Map<string, MarkState>()
+    const got = await heldFile($, at, 'marks', f)
+    if (got.value === undefined || got.value.kind !== 'marks') return new Map<string, MarkState>()
+    return mergeMarks([got.value], now)
   } catch {
-    return strict ? undefined : new Map()
+    return new Map<string, MarkState>()
   }
 }
 

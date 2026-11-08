@@ -27,13 +27,17 @@ resuming that session in its own chat.
 file and lists no other session's. The liveness rule that told whether another
 log's session had ended (30 minutes, the session files, the pane's open time)
 goes with the lines and the fold it served. Mark all as read takes every card
-of this session's log, with no cap beyond the log's own 500 entries.
+of this session's log, with no cap beyond the log's own 500 entries. The drop
+rule of `log_decision`, which also runs when the pane appends its own entry to
+a full log, reads this session's marks file alone and lists no marks folder:
+no other pane marks this session's entries, so a mark in another session's
+file only misled it (the lead's decision 120, on the owner's direction that the
+pane holds only the current lead's log).
 
 **What stays.** The Lead hand-off card may still draw another session's
 hand-off, framed as not this session's writing (the owner's answer to Q10 on
 issue 509): a hand-off is not a decision log, and it is how a new lead takes
-work over. `log_decision`'s drop scan, which also runs when the pane appends its own entry
-to a full log, still reads the other marks files. The
+work over. The
 Sessions tab and its use of the session files are unchanged.
 
 **What replaces the carried cards.** An earlier lead's open decision can travel

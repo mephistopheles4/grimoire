@@ -201,8 +201,8 @@ current lead is the session whose id the pane reads as its own, so whatever
 keeps that id keeps its log in view; a new session id starts a new lead with
 an empty tab. Earlier sessions' logs stay on disk, untouched, and you see one
 again only by resuming that session in its own chat. The tab reads this
-session's own decision log and marks file and no other session's (a full log's
-drop rule still reads the other marks files). A question meant for you in an
+session's own decision log and marks file and no other session's, and so does
+a full log's drop rule. A question meant for you in an
 earlier lead's log reaches you through the hand-off, if that lead wrote it
 there. "✓ Mark all as read", at the right of To review's heading,
 marks everything under To review read in one write: every card of this
