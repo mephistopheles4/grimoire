@@ -9617,3 +9617,88 @@ test('C17: on the terminal, a card with only a url makes no tool list and no cal
   expect(w.lists).toBe(0)
   expect(w.mcpCalls).toEqual([])
 })
+
+// --- the roster reminder (issue 532) ---------------------------------------------
+//
+// A lead turn that sent a message or logged a decision, and did not call
+// set_roster after it, ends with one fixed plugin note. The engine's
+// SendMessage input is `to`, `message`, `summary` and `notify_when_idle`; a
+// send with an empty or missing `message` is an idle subscription.
+
+const REMINDED = 'Brigade (plugin note): The roster may be behind'
+const reminders = (w: World) => w.notes.filter(n => n.startsWith(REMINDED))
+const sendTo = ($: any, input: Record<string, unknown>) => $.tool.call({ tool: 'SendMessage', to: 'session-a', ...input })
+const reminderWorld = (on: On) => {
+  const w = world(on)
+  on('tool.call', { tool: 'SendMessage' }, () => ({ text: 'sent' }) as any)
+  return w
+}
+
+test('532: a decision logged and sent, with no set_roster after it, ends with the reminder', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(true)
+  await sendTo($, { message: 'go on', summary: 'go' })
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
+})
+
+test('532: a set_roster after the last send or decision gets no reminder', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  await decide($)
+  await sendTo($, { message: 'go on', summary: 'go' })
+  expect((await call($, GOOD)).ok).toBe(true)
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+})
+
+test('532: an idle-subscription send alone gets no reminder, and a turn with no send gets none', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  await sendTo($, { notify_when_idle: true })
+  await sendTo($, { message: '', notify_when_idle: true })
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+})
+
+test('532: a logged decision alone, with no send, ends with the reminder; a refused one does not', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  expect((await decide($, {})).ok).toBe(false)
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+  expect((await decide($)).ok).toBe(true)
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
+})
+
+test("532: a subagent's send and turn end never count, and its turn end leaves the lead's debt", async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  await turnEnd($, { agentId: 'a1' })
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+  await sendTo($, { message: 'go on' })
+  await turnEnd($, { agentId: 'a1' })
+  expect(reminders(w)).toEqual([])
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
+})
+
+test('532: the reminder is said once, and a refused set_roster does not clear the debt', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  expect((await call($, { cards: 'nope', todos: [] })).ok).toBe(false)
+  await turnEnd($)
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
+})
