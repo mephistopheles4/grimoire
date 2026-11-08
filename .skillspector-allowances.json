@@ -73,6 +73,16 @@
     },
     {
       "skill": "head-chef",
+      "path": "references/CONTRACT.md",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "9ef827a230e2250c7ca60678483b1e8bb95473f41ecf79451182343dc24c98d4",
+      "reason": "The skill's contract, which its SKILL.md is generated from. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Since head-chef 1.20.0 (issue 540) the file holds the background start as a command line with a quoted heredoc, and the parser gives up inside it; the file's other text did not change in kind. Read on 2026-11-08 for issue 540: every line that names `claude rm`, `claude stop` or a worktree removal was read by hand; each forbids the act, or describes the owner running it, and none gives an agent a destructive command to run. A second give-up inside this file is invisible to the gate, so the hash below pins the whole file: any edit puts this entry in the same diff, and review reads it again."
+    },
+    {
+      "skill": "head-chef",
       "path": "references/contract.changelog.md",
       "reason_code": "obfuscated_instruction_text",
       "analyzers": [
@@ -157,6 +167,12 @@
       "from": "SKILL.md",
       "target": "audit.mjs",
       "count": 2
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "references/CONTRACT.md",
+      "count": 1
     },
     {
       "skill": "head-chef",
