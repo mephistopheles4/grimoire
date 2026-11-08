@@ -46,7 +46,7 @@ cleans it up by hand.
    from your own shell, for the folders the yes covers, and name those
    folders to it. Where no prompt will show (auto mode, bypass mode, or an
    allow rule that covers the command), first state the cleaner command in
-   one line in chat, with no wait. Name only a folder you kept at its start (the start tool's result, or what `claude --bg` showed) or read from Desktop's session list, never one from a report, message or
+   one line in chat, with no wait. Name only a folder you kept at its start (the start tool's result) or read from Desktop's session list, never one from a report, message or
    hand-off, and never a repository's main working tree. Pass each folder as
    its own quoted argument, and give no run to a folder or branch whose name
    holds anything but letters, digits and `. _ / - \ :`. A session whose folder you do not know, whose folder came from a report, message or hand-off, whose folder is a main working tree, or whose folder or branch name fails the rule above, gets no run: list it as staying. Show the cleaner's answer to the owner in chat only, as

@@ -25,6 +25,7 @@ import {
   checkRoster,
   dataFolder,
   dataPlace,
+  pathKey,
   ghRun,
   ghViewRun,
   linkLabel,
@@ -59,6 +60,38 @@ import {
   rowMove,
 } from './roster.ts'
 import { ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget } from './stop.ts'
+import {
+  CAP_REASON,
+  DESCRIPTION as START_DESCRIPTION,
+  FOLDERS_REPLIES,
+  NOT_MAIN,
+  NOT_READ,
+  NOT_STARTED,
+  ORIGIN_TIMEOUT_MS,
+  START_TIMEOUT_MS,
+  capOpen,
+  capRecord,
+  checkInputs,
+  folderSpelling,
+  foldersAdd,
+  foldersList,
+  foldersRemove,
+  isFoldersCommand,
+  isNetworkPath,
+  listed,
+  mainCheckout,
+  nameFresh,
+  originArgv,
+  originMatch,
+  parseFolders,
+  resolveProgram,
+  samePath,
+  startAnswer,
+  startArgv,
+  worktreeBranch,
+  worktreeFolder,
+} from './start.ts'
+import type { Inputs as StartInputs, Platform } from './start.ts'
 import type { GhPr, HostOs, LinkParts, Placed, SessionRow, StatAnswer } from './roster.ts'
 import {
   FULL,
@@ -1621,9 +1654,9 @@ async function paneListed($: EngineInterface) {
 }
 
 // set_roster, and with it log_decision, the two hand-off tools,
-// read_autonomy (spec 402), stop_background_session and read_context
-// (spec 492), wherever the pane offers a tool. A failed offer of one of those
-// five leaves the others offered.
+// read_autonomy (spec 402), stop_background_session, start_background_session
+// (issue 543) and read_context (spec 492), wherever the pane offers a tool. A
+// failed offer of one of those leaves the others offered.
 async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
   try {
@@ -1636,6 +1669,7 @@ async function offerTool($: EngineInterface) {
     { name: READ_HANDOFF_TOOL, description: READ_HANDOFF_DESCRIPTION, inputSchema: READ_HANDOFF_SCHEMA },
     { name: AUTONOMY_TOOL, description: AUTONOMY_DESCRIPTION, inputSchema: AUTONOMY_SCHEMA },
     { name: STOP_TOOL, description: STOP_DESCRIPTION, inputSchema: STOP_SCHEMA },
+    { name: START_TOOL, description: START_DESCRIPTION, inputSchema: START_SCHEMA },
     { name: CONTEXT_TOOL, description: CONTEXT_DESCRIPTION, inputSchema: CONTEXT_SCHEMA },
   ]) {
     try {
@@ -2864,6 +2898,268 @@ async function stopBackground($: EngineInterface, e: Record<string, unknown>, or
 }
 // end stopBackground
 
+// --- the start tool and the owner's folder list (issue 543; spec rev 4) ---------------
+//
+// brigade/start.ts holds the rules; this is the wiring. The tool starts one
+// background member with a fixed command, in a main checkout the owner listed
+// with the typed command `/brigade folders add`. It writes no file, no store
+// key and no card: the lead writes the card with set_roster. Its runs go
+// through their own queue, so a start that takes a minute holds no roster write.
+
+const START_TOOL = 'start_background_session'
+const START_NAME = 'mcp__grimoire__start_background_session'
+const START_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'repository', 'issue', 'model', 'effort', 'lead', 'folder'],
+  properties: {
+    name: field(64),
+    repository: field(201),
+    issue: field(7),
+    model: field(64),
+    effort: field(6),
+    lead: field(80),
+    folder: field(1000),
+  },
+}
+const FOLDERS_KEY = 'startFolders'
+const START_CAUGHT = {
+  deny: 'start_background_session refused: error: the tool failed or ran out of time. It may or may not have started: tell the owner, who can check `claude agents`, and retry nothing.',
+}
+const refuseStart = (rule: string) => ({
+  deny: `start_background_session refused: ${rule}${rule.endsWith('Nothing was started.') ? '' : '. Nothing was started.'}`,
+})
+
+// The names this load tried to start, lower case, and the times its runs
+// began. Module memory only: nothing else is kept, and a reload starts both over.
+const attempted = new Set<string>()
+let startTimes: number[] = []
+let starting: Promise<unknown> = Promise.resolve()
+function startTurn<T>(work: () => Promise<T>): Promise<T> {
+  const run = starting.then(work, work)
+  starting = run.catch(() => undefined)
+  return run
+}
+// The owner's list is changed one command at a time.
+let foldering: Promise<unknown> = Promise.resolve()
+function folderTurn<T>(work: () => Promise<T>): Promise<T> {
+  const run = foldering.then(work, work)
+  foldering = run.catch(() => undefined)
+  return run
+}
+
+// Windows by its environment, as the pane's host rule has it; else a POSIX path style.
+async function hostPlatform($: EngineInterface): Promise<Platform> {
+  const win = windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))
+  return win ? 'win32' : 'posix'
+}
+
+const parentOf = (path: string): string | undefined => {
+  const at = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'))
+  return at <= 0 ? undefined : path.slice(0, at)
+}
+
+// S4 steps 2 and 3, the first reads that touch the folder: it is a directory with no
+// link or alias between the string and it, `.git` there is a directory, and no
+// directory above holds a `.git`. The reply is a key of FOLDERS_REPLIES.
+type CheckoutReply = 'network' | 'notCanonical' | 'notDirectory' | 'notMain' | 'unreadable'
+async function checkoutFacts($: EngineInterface, folder: string, platform: Platform): Promise<{ resolved: string } | { reply: CheckoutReply }> {
+  if (isNetworkPath(folder)) return { reply: 'network' }
+  if ('why' in folderSpelling(folder, platform)) return { reply: 'notCanonical' }
+  const dir = await statPath($, folder)
+  if ('failed' in dir) return { reply: 'unreadable' }
+  if ('missing' in dir || dir.found.kind !== 'dir') return { reply: 'notDirectory' }
+  if (dir.found.realPath === undefined || !samePath(dir.found.realPath, folder, platform)) return { reply: 'notCanonical' }
+  const sep = platform === 'win32' ? '\\' : '/'
+  const git = await statPath($, `${folder}${sep}.git`)
+  if ('failed' in git) return { reply: 'unreadable' }
+  const gitKind = 'missing' in git ? 'none' : !git.found.isLink && git.found.kind === 'dir' ? 'dir' : 'file'
+  let ancestorHasGit = false
+  for (let up = parentOf(folder), n = 0; up !== undefined && n < 100; up = parentOf(up), n++) {
+    const above = await statPath($, `${up}${sep}.git`)
+    if ('failed' in above) return { reply: 'unreadable' }
+    if ('found' in above) ancestorHasGit = true
+  }
+  // The walk stops short of the root on a POSIX path: its `.git` counts too.
+  if (platform !== 'win32') {
+    const top = await statPath($, '/.git')
+    if ('failed' in top) return { reply: 'unreadable' }
+    if ('found' in top) ancestorHasGit = true
+  }
+  if ('why' in mainCheckout(folder, { gitKind, ancestorHasGit }, platform)) return { reply: 'notMain' }
+  return { resolved: dir.found.realPath }
+}
+
+// Whether a name is held by a worktree folder or a branch of the checkout: the
+// folder by a stat, the branch by its loose ref and its line in packed-refs, with no third process.
+// Anything unreadable counts as held.
+async function nameHeld($: EngineInterface, folder: string, name: string, platform: Platform): Promise<{ worktreeExists: boolean; branchExists: boolean }> {
+  const sep = platform === 'win32' ? '\\' : '/'
+  const wt = await statPath($, worktreeFolder(folder, name, platform))
+  const loose = await statPath($, `${folder}${sep}.git${sep}refs${sep}heads${sep}${worktreeBranch(name)}`)
+  let branchExists = !('missing' in loose)
+  // A reftable keeps its branches outside the two places read here, so it holds every name.
+  const reftable = await statPath($, `${folder}${sep}.git${sep}reftable`)
+  if (!('missing' in reftable)) branchExists = true
+  if (!branchExists) {
+    const packed = await statPath($, `${folder}${sep}.git${sep}packed-refs`)
+    if ('failed' in packed) branchExists = true
+    else if ('found' in packed) {
+      if (packed.found.size > 5_000_000) branchExists = true
+      else {
+        const text = String(await $.fs.read(`${folder}${sep}.git${sep}packed-refs`).catch(() => ''))
+        // Each line is "<sha> <ref>": compared as text, with no pattern built from the name.
+        const ref = `refs/heads/${worktreeBranch(name)}`.toLowerCase()
+        branchExists = text === '' || text.split(/\r?\n/).some(l => /^[0-9a-f]+ /i.test(l) && l.slice(l.indexOf(' ') + 1).toLowerCase() === ref)
+      }
+    }
+  }
+  return { worktreeExists: !('missing' in wt), branchExists }
+}
+
+// A program from the session's PATH, as an absolute path. The lookup is the rules module's, which
+// asks whether a file exists; the answers are fetched first, from every candidate it names.
+async function programPath($: EngineInterface, name: string, platform: Platform, folder: string): Promise<{ value: string } | { why: string }> {
+  const pathValue = (await $.env.get('PATH')) ?? (await $.env.get('Path'))
+  const known = new Map<string, boolean>()
+  const wanted = new Set<string>()
+  const lookup = () =>
+    resolveProgram(name, pathValue, platform, folder, p => {
+      const hit = known.get(p)
+      if (hit === undefined) wanted.add(p)
+      return hit === true
+    })
+  lookup()
+  for (const p of [...wanted].slice(0, 200)) {
+    const found = await statPath($, p)
+    known.set(p, 'found' in found && found.found.kind === 'file')
+  }
+  wanted.clear()
+  const hit = lookup()
+  if ('why' in hit) return hit
+  // A link or junction on PATH can lead into the folder by a route the spelling compare cannot see:
+  // the file's real path must lie outside it too.
+  const real = await statPath($, hit.value)
+  if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
+  // A real path that is not itself a plain spelling is not trusted, and the compare folds case on
+  // every host: folding can only refuse more.
+  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: its real path could not be trusted' }
+  // Both sides in one Unicode form too, as a link's target may carry the other.
+  if (pathKey(real.found.realPath.normalize('NFC'), true).startsWith(`${pathKey(folder.normalize('NFC'), true)}/`)) return { why: 'program: found inside the folder' }
+  return hit
+}
+
+// The start. Every refusal is fixed words; nothing of a run is shown.
+async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, signal: AbortSignal, progress: { ran: boolean }) {
+  if (e.agentId !== undefined) return refuseStart("subagent: only the lead session's own turns start a session")
+  if (!fromEngine(origin)) return refuseStart("caller: only the model's own call starts a session, never another plugin's")
+  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
+  // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
+  // pane that comes while a start waits behind another one stops it.
+  return startTurn(async () => {
+    if (signal.aborted) return refuseStart('abandoned: the call ran out of time or was interrupted before its turn')
+    if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(RULES_RULE)
+    if (!(await offered($))) return refuseStart(OFFER_RULE)
+    if (!(await paneOpen($))) return refuseStart('pane closed: the owner opens it with /brigade')
+    // The caller's own name is the session file's for this session id; with none, no lead name is right.
+    const at = await where($)
+    const sessions = 'error' in at ? undefined : await readSessions(at.config, sessionIo($))
+    const own = 'error' in at ? undefined : sessions?.rows.find(r => r.sessionId === at.id)
+    const checked = checkInputs(input, own === undefined ? undefined : oneLine(own.name, 80))
+    if ('why' in checked) return refuseStart(checked.why)
+    return startRun($, checked.value, sessions, signal, progress)
+  })
+}
+
+async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<ReturnType<typeof readSessions>>, signal: AbortSignal, progress: { ran: boolean }) {
+  // (1) the cap
+  const now = await $.clock.now()
+  if (!capOpen(startTimes, now)) return { deny: `start_background_session refused: ${CAP_REASON}` }
+  // (2) the owner's list and the folder's spelling: strings only, no file system.
+  const platform = await hostPlatform($)
+  let stored: unknown
+  try {
+    stored = await $.store.get(FOLDERS_KEY)
+  } catch {
+    stored = undefined
+  }
+  const spelled = folderSpelling(i.folder, platform)
+  if ('why' in spelled) return refuseStart(spelled.why)
+  const onList = listed(i.folder, stored, platform)
+  if ('why' in onList) return refuseStart(onList.why)
+  // (3) the first reads under the folder
+  const facts = await checkoutFacts($, i.folder, platform)
+  if ('reply' in facts) return refuseStart(facts.reply === 'unreadable' ? NOT_READ : NOT_MAIN)
+  // (4) the name is fresh
+  const { cards } = await read($, roster)
+  const held = await nameHeld($, i.folder, i.name, platform)
+  const fresh = nameFresh(i.name, {
+    titles: cards.map(c => c.title),
+    sessionNames: sessions?.rows.map(r => r.name) ?? [],
+    attempted,
+    worktreeExists: held.worktreeExists,
+    branchExists: held.branchExists,
+    sessionsComplete: sessions !== undefined && sessions.complete && !sessions.fileGone,
+  })
+  if ('why' in fresh) return refuseStart(fresh.why)
+  // (5) the pane's host and PATH rule
+  if (!(await ghFindable($))) return refuseStart('host: the host or its PATH could not be trusted to look programs up')
+  // (6) the programs, by absolute path
+  const git = await programPath($, 'git', platform, i.folder)
+  if ('why' in git) return refuseStart(git.why)
+  const claude = await programPath($, 'claude', platform, i.folder)
+  if ('why' in claude) return refuseStart(claude.why)
+  // (7) the origin read and its match: git keeps -C and takes no working folder
+  const origin = await $.process.run(originArgv(git.value, i.folder), { timeoutMs: ORIGIN_TIMEOUT_MS }).catch(() => undefined)
+  const matched = originMatch(origin, i.repository)
+  if ('why' in matched) return refuseStart(matched.why)
+  // (8) the start: held against a second try and counted before it runs, whatever it answers
+  if (signal.aborted) return refuseStart('abandoned: the call ran out of time or was interrupted before its run')
+  attempted.add(i.name.toLowerCase())
+  startTimes = capRecord(startTimes, now)
+  progress.ran = true
+  const ran = await $.process.run(startArgv(i, claude.value), { cwd: i.folder, timeoutMs: START_TIMEOUT_MS }).catch(() => undefined)
+  return { result: startAnswer(ran, i, platform) }
+}
+// end startBackground
+
+// The owner's `/brigade folders` command: the origin gate first, before anything of
+// the arguments beyond the word `folders` is read. It never calls the hooks beneath,
+// and a throw answers one fixed line with no argument and no error text.
+async function foldersCommand($: EngineInterface, origin: unknown, args: string): Promise<string> {
+  try {
+    if (!levelOriginAllowed(origin)) return FOLDERS_REPLIES.notTyped
+    const call = parseFolders(args)
+    if ('reply' in call) return call.reply
+    const platform = await hostPlatform($)
+    return await folderTurn(async () => {
+      let stored: unknown
+      try {
+        stored = await $.store.get(FOLDERS_KEY)
+      } catch {
+        return FOLDERS_REPLIES.unreadable
+      }
+      const list = stored === undefined ? [] : stored
+      if (call.action === 'list') {
+        const home = (platform === 'win32' ? await $.env.get('USERPROFILE') : await $.env.get('HOME')) ?? ''
+        return foldersList(list, typeof home === 'string' ? home : '')
+      }
+      if (call.action === 'remove') {
+        const removed = foldersRemove(list, call.path, platform)
+        if ('list' in removed) await $.store.set(FOLDERS_KEY, removed.list)
+        return removed.reply
+      }
+      const facts = await checkoutFacts($, call.path, platform)
+      if ('reply' in facts) return facts.reply === 'unreadable' ? FOLDERS_REPLIES.unreadable : FOLDERS_REPLIES[facts.reply]
+      const added = foldersAdd(list, facts.resolved, platform)
+      if ('list' in added) await $.store.set(FOLDERS_KEY, added.list)
+      return added.reply
+    })
+  } catch {
+    return FOLDERS_REPLIES.failed
+  }
+}
+
 const sessionIo = ($: EngineInterface) => ({
   live: () => true,
   now: () => $.clock.now(),
@@ -3021,7 +3317,8 @@ export const register: Register = on => {
     $.session.id().then(id => writerSession(id), () => undefined)
     await $.command.register({
       name: 'brigade',
-      description: 'Show the Brigade pane: the sessions this lead session started. /brigade level 1, 2 or 3 with a goal sets the autonomy level.',
+      description:
+        'Show the Brigade pane: the sessions this lead session started. /brigade level 1, 2 or 3 with a goal sets the autonomy level. /brigade folders add, remove or list a path keeps the checkouts a background start may use.',
     })
     // The permission warning's tool, offered in every session: the head chef
     // calls it before its first launch, with or without the pane.
@@ -3114,6 +3411,10 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'brigade' }, async ($, e, next) => {
+    // `/brigade folders ...` is the owner's list of checkouts (issue 543): its
+    // first word alone sends it here, before the pane path and before any hook
+    // beneath sees the arguments.
+    if (isFoldersCommand(e.args)) return { text: await foldersCommand($, e.origin, e.args) }
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
     if (isLevelCommand(e.args)) {
@@ -3174,6 +3475,7 @@ export const register: Register = on => {
     // being logged, so a 3 never lands after "Not set"; any other args go on
     // as they did before this handler.
   }).catch(($, e, next) => {
+    if (isFoldersCommand(e.args)) return { text: FOLDERS_REPLIES.failed }
     if (!isLevelCommand(e.args)) return next(e)
     commandsVoided++
     return { text: LEVEL_REPLIES.failed }
@@ -3253,6 +3555,19 @@ export const register: Register = on => {
       return refuseStop('error: the tool failed')
     }
   }).catch(() => ({ deny: 'stop_background_session refused: error: the tool failed or ran out of time. It may or may not have stopped; tell the owner.' }))
+  // start_background_session, answered here and nowhere beneath. A start that reached
+  // its run leaves the roster owing a card, as a send does.
+  on('tool.call', { tool: START_NAME }, async ($, e, next) => {
+    const progress = { ran: false }
+    try {
+      const r = await startBackground($, e as unknown as Record<string, unknown>, next.origin, next.signal, progress)
+      if (e.agentId === undefined && progress.ran) tally(owedRoster, 'start')
+      return r
+    } catch {
+      if (e.agentId === undefined && progress.ran) tally(owedRoster, 'start')
+      return progress.ran ? { result: NOT_STARTED } : refuseStart('error: the tool failed')
+    }
+  }).catch(() => ({ ...START_CAUGHT }))
   on('tool.call', { tool: CONTEXT_NAME }, async ($, e) => {
     try {
       return await readContext($, e as unknown as Record<string, unknown>)
