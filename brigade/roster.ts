@@ -82,41 +82,68 @@ export const PR_NUMBER = /^[0-9]{1,7}$/
  *  pattern, and the run builder checks it again. */
 export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/
 
-/** A to-do's link (issue 560): an issue or a pull request on github.com, the
- *  whole string and nothing else. The owner is `REPO`'s owner set, the name is
- *  `REPO`'s name set (so the Desktop run, which holds the repository to `REPO`,
- *  never refuses an accepted link), and the number is 1 to 7 digits with no
- *  leading zero. The pattern allows `..` in the name; `parseLink` refuses it
- *  after the pattern (the tool's schema, built from `LINK.source`, does not). No scheme but https, no other host, no
- *  userinfo, port, query or fragment. */
-export const LINK = /^https:\/\/github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9_][A-Za-z0-9._-]{0,99})\/(issues|pull)\/([1-9][0-9]{0,6})$/
+/** A to-do's link (issues 560 and 567): an issue or a pull request on github.com,
+ *  or a comment on one, as the whole string and nothing else. The owner is
+ *  `REPO`'s owner set, the name is `REPO`'s name set (so the Desktop run, which
+ *  holds the repository to `REPO`, never refuses an accepted link), and the
+ *  number is 1 to 7 digits with no leading zero. Behind an issue or a pull
+ *  request comes at most one fragment: `#issuecomment-C` on either; on a pull
+ *  request also `#pullrequestreview-C` or `#discussion_rC`. `C` is 1 to 12
+ *  digits with no leading zero. The pattern allows `..` in the name; `parseLink`
+ *  refuses it after the pattern (the tool's schema, built from
+ *  `TODO_LINK.source`, does not). No scheme but https, no other host, no
+ *  userinfo, port or query, and no other fragment. The groups are the owner, the
+ *  name, then the issue form (3 to 6) and the pull form (7 to 12). */
+export const TODO_LINK = /^https:\/\/github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9_][A-Za-z0-9._-]{0,99})\/(?:(issues)\/([1-9][0-9]{0,6})(?:#(issuecomment)-([1-9][0-9]{0,11}))?|(pull)\/([1-9][0-9]{0,6})(?:#(issuecomment|pullrequestreview)-([1-9][0-9]{0,11})|#(discussion_r)([1-9][0-9]{0,11}))?)$/
 
-/** The longest link the pattern allows is 174 characters; the field's cap is a little above it. */
-export const MAX_LINK = 200
+/** The longest link the pattern allows is 203 characters (a pull request review
+ *  with a 39-character owner, a 100-character name, a 7-digit number and a
+ *  12-digit id); the field's cap is a little above it. */
+export const MAX_LINK = 210
 
-/** What a link parses to: the repository, the kind of page and its number. */
-export type LinkParts = { repo: string; kind: 'issue' | 'pr'; number: string }
+/** What a link's fragment points at: a comment, a review, or a review comment. */
+export type LinkAnchor = { kind: 'comment' | 'review' | 'reviewcomment'; id: string }
+
+/** What a link parses to: the repository, the kind of page, its number, and the
+ *  anchor when the link has a fragment. */
+export type LinkParts = { repo: string; kind: 'issue' | 'pr'; number: string; anchor?: LinkAnchor }
+
+const ANCHOR_KIND: Record<string, LinkAnchor['kind']> = { issuecomment: 'comment', pullrequestreview: 'review', discussion_r: 'reviewcomment' }
+const ANCHOR_WORD: Record<LinkAnchor['kind'], string> = { comment: 'issuecomment-', review: 'pullrequestreview-', reviewcomment: 'discussion_r' }
 
 /** A link's parts, or undefined for anything the pattern does not hold whole. */
 export function parseLink(v: unknown): LinkParts | undefined {
   if (typeof v !== 'string' || [...v].length > MAX_LINK) return undefined
-  const m = LINK.exec(v)
+  const m = TODO_LINK.exec(v)
   if (m === null) return undefined
-  const [, owner, name, page, number] = m
+  const [, owner, name] = m
+  const pr = m[7] !== undefined
+  const number = pr ? m[8] : m[4]
+  const word = pr ? (m[9] ?? m[11]) : m[5]
+  const id = pr ? (m[10] ?? m[12]) : m[6]
   if (owner === undefined || name === undefined || number === undefined || name.includes('..')) return undefined
-  return { repo: `${owner}/${name}`, kind: page === 'pull' ? 'pr' : 'issue', number }
+  const parts: LinkParts = { repo: `${owner}/${name}`, kind: pr ? 'pr' : 'issue', number }
+  if (word !== undefined && id !== undefined) {
+    const kind = ANCHOR_KIND[word]
+    if (kind === undefined) return undefined
+    parts.anchor = { kind, id }
+  }
+  return parts
 }
 
 /** The address a link parses to, rebuilt from its parts behind the constant
- *  prefix: the stored string is never what is drawn or passed on. */
+ *  prefix, the anchor included: the stored string is never what is drawn or passed on. */
 export function linkUrl(p: LinkParts): string {
-  return `https://github.com/${p.repo}/${p.kind === 'pr' ? 'pull' : 'issues'}/${p.number}`
+  const base = `https://github.com/${p.repo}/${p.kind === 'pr' ? 'pull' : 'issues'}/${p.number}`
+  return p.anchor === undefined ? base : `${base}#${ANCHOR_WORD[p.anchor.kind]}${p.anchor.id}`
 }
 
-/** A link's label, from its parts alone: the number, then the repository, so
- *  the repository is named wherever the label is drawn. */
+/** A link's label, from its parts alone: the number, what the link points at
+ *  when it has an anchor, then the repository, so the repository is named
+ *  wherever the label is drawn. It names no author and holds no id. */
 export function linkLabel(p: LinkParts): string {
-  return `${p.kind === 'pr' ? 'PR ' : '#'}${p.number} ${p.repo}`
+  const what = p.anchor === undefined ? '' : p.anchor.kind === 'comment' ? 'comment ' : p.anchor.kind === 'review' ? 'review ' : 'review comment '
+  return `${p.kind === 'pr' ? 'PR ' : '#'}${p.number} ${what}${p.repo}`
 }
 
 /** Whether a value is a whole number from 0 to 2^53 - 1. */
@@ -191,7 +218,7 @@ function todo(i: number, v: unknown): Checked<Todo> {
   if (session.value !== undefined) out.session = session.value
   // Fixed words: the value is never echoed.
   if (f.value.link !== undefined) {
-    if (parseLink(f.value.link) === undefined) return { error: `${where} link is not a github.com issue or pull request link` }
+    if (parseLink(f.value.link) === undefined) return { error: `${where} link is not a github.com issue, pull request or comment link` }
     out.link = f.value.link as string
   }
   return { value: out }

@@ -5,7 +5,6 @@ import type { Card, Meter, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
   AHEAD_MS,
-  LINK,
   MAX_LINK,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
@@ -19,6 +18,7 @@ import {
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
+  TODO_LINK,
   HOST_PROBES,
   answerFor,
   appLink,
@@ -1629,7 +1629,7 @@ const SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'text'],
-        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: LINK.source } },
+        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: TODO_LINK.source } },
       },
     },
   },
