@@ -3543,7 +3543,7 @@ export const register: Register = on => {
     const named = namedAnswers()
     const prs = prRows(cards, hidden, ghAnswers, now, moves, named, waitHidden)
     const unavailable = unavailableLine(ghDown, [...ghNamed.values()].filter(b => b.down).length)
-    const prCount = prs.open.length + prs.merged.length + prs.closed.length
+    const prCount = prs.open.length + prs.draft.length + prs.merged.length + prs.closed.length
 
     // A pointer over a scope lights every element drawn with it. Desktop only:
     // the terminal has no pointer. At rest a round border in the pane's own
@@ -4654,6 +4654,7 @@ export const register: Register = on => {
             {(
               [
                 ['pr-open', prs.open],
+                ['pr-draft', prs.draft],
                 ['pr-merged', prs.merged],
                 ['pr-closed', prs.closed],
               ] as const

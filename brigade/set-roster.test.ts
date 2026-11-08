@@ -3694,7 +3694,7 @@ test('with classic.SessionStart skipped, a rejected session id read is ignored a
 // and the look on each surface. The `gh` call is answered by the fake in
 // `world`, so no test reaches the network.
 
-const GH_ARGV = ['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,additions,deletions,updatedAt,url,isCrossRepository']
+const GH_ARGV = ['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,isDraft,additions,deletions,updatedAt,url,isCrossRepository']
 const ghPr = (n: number, over: Record<string, unknown> = {}) => ({
   number: n,
   title: `Title ${n}`,

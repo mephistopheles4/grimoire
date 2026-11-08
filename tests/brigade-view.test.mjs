@@ -81,7 +81,7 @@ function attributes(source) {
 // threat-model row 15 says. The class `proj` is admitted for the usage
 // image's projection (#275). The `tint-` and `ink-` classes are admitted for
 // the PR pill (#339).
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-merged', 'tint-closed', 'ink-open', 'ink-merged', 'ink-closed']);
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-draft', 'tint-merged', 'tint-closed', 'ink-open', 'ink-draft', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -4236,6 +4236,7 @@ test('the pill\'s look comes from a Map keyed by state, so a prototype key draws
   assert.equal(pillColor('open'), 'success');
   assert.equal(pillColor('merged'), 'merged');
   assert.equal(pillColor('closed'), 'error');
+  assert.equal(pillColor('draft'), 'inactive');
   for (const s of ['constructor', '__proto__', 'toString', 'OPEN', '', 5, null, undefined, {}]) assert.equal(pillColor(s), undefined, String(s));
 });
 
@@ -4256,7 +4257,7 @@ test('the chosen view reads through the fixed set: anything but prs or decisions
 
 test('the folded groups keep only names from the fixed set, at most 50, from the first 200 entries', () => {
   // Spec 402 adds the Decisions tab's Flagged to revisit and History, both folded by default (S5.4).
-  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']);
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-draft', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']);
   assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
   assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
   assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);
@@ -4294,6 +4295,7 @@ test('each group has a quiet hint', () => {
   assert.equal(GROUP_HINTS.get('working'), 'No session is working.');
   assert.equal(GROUP_HINTS.get('finished'), 'Sessions the owner closed.');
   assert.equal(GROUP_HINTS.get('pr-open'), 'No open pull requests.');
+  assert.equal(GROUP_HINTS.get('pr-draft'), 'No draft pull requests.');
   assert.equal(GROUP_HINTS.get('pr-merged'), 'Nothing merged yet.');
   assert.equal(GROUP_HINTS.get('pr-closed'), 'No closed pull requests.');
 });
@@ -4313,18 +4315,27 @@ test('the PR rows: a card\'s PR in the group of gh\'s state, else the card\'s, e
   assert.equal(rows.open[0].detail.repo, undefined);
 });
 
+test('issue 545: a draft pull request is its own group, from the gh answer or the card prState, not the open one', () => {
+  const cards = [prCard('a', 'working', '10'), prCard('b', 'working', '11', 'draft'), prCard('c', 'working', '12', 'open')];
+  const rows = prRows(cards, new Set(), new Map([[12, ghAnswer(12, { state: 'draft' })]]), NOW);
+  assert.deepEqual(rows.open.map(r => r.number), ['10']);
+  assert.deepEqual(rows.draft.map(r => r.number), ['11', '12']);
+  assert.equal(rows.draft[1].state, 'draft');
+  assert.equal(pillState('draft', 'open'), 'draft');
+});
+
 test('the PR rows list one row per card, skip dismissed cards but not needs-you ones, and fall back safely on hostile stored values', () => {
   const cards = [prCard('a', 'working', '7'), prCard('b', 'working', '7'), prCard('c', 'done', '8'), prCard('d', 'needs-you', '9'), prCard('e', 'working', 'abc'), prCard('f', 'working', '1', 'constructor'), prCard('g', 'paused', '2'), null, 5];
   const rows = prRows(cards, new Set(['c', 'd']), new Map(), NOW);
   assert.deepEqual(rows.open.map(r => r.title), ['a', 'b', 'd', 'f']);
   assert.deepEqual(rows.merged, []);
   assert.deepEqual(rows.closed, []);
-  assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], merged: [], closed: [] });
+  assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], draft: [], merged: [], closed: [] });
 });
 
 test('the hairline and PR pill images: their classes, a light and a dark rule each in the style block, and the allowlist holds', () => {
   // The pill: a rounded tint, the state's mark and the number, 18 high.
-  for (const [state, mark] of [['open', '⇄'], ['merged', '⎇'], ['closed', '⊘']]) {
+  for (const [state, mark] of [['open', '⇄'], ['draft', '◌'], ['merged', '⎇'], ['closed', '⊘']]) {
     const p = view.pillSvg('341', state);
     assertAllowlisted(p.source);
     assert.equal(p.height, 18);
@@ -4340,7 +4351,7 @@ test('the hairline and PR pill images: their classes, a light and a dark rule ea
   }
   // A longer number makes a wider pill; a state or number of the wrong shape makes none.
   assert.ok(view.pillSvg('1234567', 'open').width > view.pillSvg('7', 'open').width);
-  for (const [n, state] of [['341', 'constructor'], ['341', 'draft'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
+  for (const [n, state] of [['341', 'constructor'], ['341', 'drafts'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
   const h = hairlineSvg();
   assertAllowlisted(h.source);
   assert.match(h.source, /<rect class="rule" /);

@@ -306,10 +306,10 @@ export const STYLE = [
   // The hairline between cards.
   '.rule{fill:#e0ded6}',
   // A PR pill, as Desktop draws its own: a tint of the state and its ink.
-  '.tint-open{fill:#dff3e4}.tint-merged{fill:#ece6fb}.tint-closed{fill:#fbe3e1}',
-  '.ink-open,.ink-merged,.ink-closed{font-size:11px;font-weight:500}.ink-open{fill:#2f7d3f}.ink-merged{fill:#6f4fc9}.ink-closed{fill:#c6413a}',
+  '.tint-open{fill:#dff3e4}.tint-draft{fill:#e8e6dc}.tint-merged{fill:#ece6fb}.tint-closed{fill:#fbe3e1}',
+  '.ink-open,.ink-draft,.ink-merged,.ink-closed{font-size:11px;font-weight:500}.ink-open{fill:#2f7d3f}.ink-draft{fill:#6b6a64}.ink-merged{fill:#6f4fc9}.ink-closed{fill:#c6413a}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-draft{fill:#3a3935}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-draft{fill:#9c9a92}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -789,7 +789,7 @@ function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, wait
  *  view's three, the Pull requests view's three and the Decisions tab's
  *  Flagged to revisit, History and Lead hand-off. The tab's To review takes
  *  a name and a hint here, and never folds. */
-export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']
+export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-draft', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']
 
 /** A group's name on its section bar. */
 export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
@@ -797,6 +797,7 @@ export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
   ['working', 'Working'],
   ['finished', 'Done · stopped'],
   ['pr-open', 'Open'],
+  ['pr-draft', 'Draft'],
   ['pr-merged', 'Merged'],
   ['pr-closed', 'Closed'],
   ['d-review', 'To review'],
@@ -811,6 +812,7 @@ export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
   ['working', 'No session is working.'],
   ['finished', 'Sessions the owner closed.'],
   ['pr-open', 'No open pull requests.'],
+  ['pr-draft', 'No draft pull requests.'],
   ['pr-merged', 'Nothing merged yet.'],
   ['pr-closed', 'No closed pull requests.'],
   ['d-review', 'All caught up. New decisions land here.'],
@@ -903,6 +905,7 @@ export function settingsPopover(settings: unknown): string {
 /** The PR pill's theme key by state, never looked up in a plain object. */
 export const PILLS: ReadonlyMap<string, string> = new Map([
   ['open', 'success'],
+  ['draft', 'inactive'],
   ['merged', 'merged'],
   ['closed', 'error'],
 ])
@@ -967,8 +970,8 @@ export function unavailableLine(base: boolean, named: number): string | undefine
  *  a row has the PR's title, counts, repository and age; without one, the
  *  card's title alone, and the repository the card names, if any, with no
  *  link: a row links only from an answer. */
-export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>, waitHidden?: ReadonlySet<unknown>): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
-  const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
+export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>, waitHidden?: ReadonlySet<unknown>): { open: PrRow[]; draft: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
+  const out = { open: [] as PrRow[], draft: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     const number = prNumber(c)
@@ -989,7 +992,8 @@ export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: Re
     const row: PrRow = { c, i, number, state, title: answer?.title ?? cardTitle, detail }
     const href = answer === undefined ? undefined : prUrl(answer.repo, number)
     if (href !== undefined) row.href = href
-    if (state === 'merged') out.merged.push(row)
+    if (state === 'draft') out.draft.push(row)
+    else if (state === 'merged') out.merged.push(row)
     else if (state === 'closed') out.closed.push(row)
     else out.open.push(row)
   })
@@ -1015,6 +1019,7 @@ export function levelTrackSvg(level: number): BarImage {
 // A PR pill's class suffix and mark by state, read only through this Map.
 const PILL_LOOKS: ReadonlyMap<string, { cls: string; mark: string }> = new Map([
   ['open', { cls: 'open', mark: '⇄' }],
+  ['draft', { cls: 'draft', mark: '◌' }],
   ['merged', { cls: 'merged', mark: '⎇' }],
   ['closed', { cls: 'closed', mark: '⊘' }],
 ])
