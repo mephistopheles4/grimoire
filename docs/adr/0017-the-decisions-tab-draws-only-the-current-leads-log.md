@@ -63,6 +63,9 @@ want to see other sessions in there"): an ended session's unanswered waiting
 entry no longer reaches To review, and neither does any entry in a member's
 log. Since ADR 0011 (issue 444) the tab carried a member's claims about the
 owner's words so that none went unseen; that is what this rule gives up. A
-member's act on the owner's words now reaches the owner only through the lead:
-the member reports it, the lead logs its own decision on that report in this
-session's log, and the tab draws that entry like any other.
+member's act on the owner's words now reaches the owner only through the lead,
+and only when the member reports it. The lead tells the owner at once when the
+report names a decision the lead never sent. A decision the lead takes on the
+report is logged in this session's log as the lead's own, with the member's
+account quoted as the member's and never as Relayed, and the tab draws that
+entry like any other. A member that acts and does not report leaves no card.
