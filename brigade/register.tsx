@@ -1063,7 +1063,9 @@ async function dismissFlagged($: EngineInterface) {
 // fixed `gh pr list` a minute for the cards that name no repository, and the
 // same argument list for the repositories the cards name, taking turns (issue 408), with that
 // checked owner/name as GH_REPO in the run's environment, so no roster text,
-// number or title reaches the command line. The answers, and the numbers known
+// number or title reaches the poll's command line. A pill press runs the other
+// list, `gh pr view <number> --web` (issue 513, S2), whose number is the one
+// checked value on its command line. The answers, and the numbers known
 // to be merged, stay in the module for the session and never enter plugin
 // state; a reload starts them over. `gh`'s error text is never read, shown or stored.
 

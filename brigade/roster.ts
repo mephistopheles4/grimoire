@@ -256,9 +256,11 @@ const MAX_GH_TITLE = 1000
 const MAX_COUNT = 100000000
 const MAX_PR = 9999999
 
-/** The one argument list the pane runs. No roster text reaches it: a run for
+/** The argument list the pane's poll runs. No roster text reaches it: a run for
  *  a card's repository passes the checked owner/name as GH_REPO in the run's
- *  environment, never on the command line (`ghRun`). */
+ *  environment, never on the command line (`ghRun`). The pill press runs a
+ *  second list, `gh pr view <number> --web` (`ghViewRun`), whose one variable
+ *  argument is a card's checked pull request number. */
 export const GH_ARGV: readonly string[] = [
   'gh',
   'pr',

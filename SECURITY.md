@@ -116,7 +116,12 @@ list, with at most one checked owner/name from a card's field passed as
 `GH_REPO` in the run's environment, whose characters keep any host form out
 (no host part such as `example.com/` can pass): once a minute per repository,
 at most 6 runs a minute, the named repositories taking turns past five, with a
-15-second limit and one run at a time. Since 0.85.0 a card may carry `repo`,
+15-second limit and one run at a time. Since 0.122.0 a press of a pull request
+pill also runs `gh pr view <number> --web`, a second fixed list: its one
+variable argument is the card's checked pull request number, on the command
+line, and the repository `gh` answered with is its `GH_REPO`. It has the
+15-second limit and no rate limit, and `--web` hands the page to the program
+`gh`'s own configuration names. Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,
