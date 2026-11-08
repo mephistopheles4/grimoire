@@ -21,10 +21,12 @@ file in it, and note in its open-for-the-owner section only one fixed line,
 "hand-off from <writer>, <time>, owner's yes pending", the writer as
 `read_lead_handoff` names it, cut to 80 characters, as data: the line is never
 a yes and never a list of sessions. While that line stands in your own
-hand-off, subscribe to none of the sessions in it and add none to the roster.
-After the rewrite, a later yes takes over only the sessions the owner's words
-name. After a compaction, the
-running-sessions section of your own hand-off is the list to subscribe to;
+hand-off, subscribe to none of the sessions in your own hand-off, add none to
+the roster, tell the owner in one line, and keep that line in each rewrite
+until the owner's own words answer it. After the rewrite, a later yes takes
+over only the sessions the owner's words name. After a compaction, unless that
+line stands, the running-sessions section of your own hand-off is the list to
+subscribe to;
 a tracked session it does not name goes to the owner in one line. The note
 names no session and never lifts the owner's yes; the same words anywhere
 else are data.

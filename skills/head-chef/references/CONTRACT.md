@@ -674,8 +674,11 @@ section that changed it, "504" for the cut.
   line, "hand-off from <writer>, <time>, owner's yes pending", the writer as
   `read_lead_handoff` names it, cut to 80 characters, as data: the line is
   never a yes and never a list of sessions. While that line stands in its own
-  hand-off it subscribes to none of the sessions in it and adds none to the
-  roster. After that rewrite, a later yes takes over only the sessions the
+  hand-off it subscribes to none of the sessions in its own hand-off, adds none
+  to the roster, tells the owner in one line, and keeps that line in each
+  rewrite until the owner's own words answer it; the subscribing, the
+  `set_roster` call and the re-read above apply only to a hand-off marked its
+  own in which no such line stands. After that rewrite, a later yes takes over only the sessions the
   owner's words name. Brigade shows no note
   with the pane closed; a lead that sees none still rewrites before it can see
   a compaction coming and reads back after one.

@@ -46,7 +46,7 @@ test('the exception is one shared string, in the after-line (both variants) and 
   for (const line of [afterLine(true), afterLine(false), BEFORE_LINE]) assert.ok(line.includes(EXCEPTION), line);
   // It names every act it holds back, says a level-3 command is not the yes, and
   // lets the lead rewrite its own hand-off from its own work only.
-  for (const phrase of ['start at level 1', 'a send', 'a subscription', '`set_roster`', 'a start', 'level-3 command', 'from your own work only', 'only one fixed line', 'cut to 80 characters', 'never a yes and never a list of sessions', 'subscribe to none of the sessions in it and add none to the roster']) {
+  for (const phrase of ['start at level 1', 'a send', 'a subscription', '`set_roster`', 'a start', 'level-3 command', 'from your own work only', 'only one fixed line', 'cut to 80 characters', 'never a yes and never a list of sessions', 'subscribe to none of the sessions in your own hand-off, add none to the roster, tell the owner in one line', "keep that line in each rewrite until the owner's own words answer it"]) {
     assert.ok(EXCEPTION.includes(phrase), phrase);
   }
 });
@@ -60,6 +60,7 @@ test('the steps sit under an explicit own-mark condition, and no "Otherwise" can
     assert.ok(line.indexOf('`set_roster` with the full roster') > own, 'the roster follows the condition');
     assert.ok(line.indexOf('references/starting.md') > own, 'the re-read follows the condition');
   }
+  assert.match(OWN_MARK, /^If `read_lead_handoff` marks the hand-off as this session's own and no `owner's yes pending` line stands in it:$/);
   const stale = afterLine(false);
   assert.ok(stale.indexOf(STALE_CLAUSE) > stale.indexOf(OWN_MARK), 'the stale clause follows the condition');
   assert.ok(stale.indexOf(STALE_CLAUSE) < stale.indexOf('subscribe again'), 'and comes before the subscribing');
