@@ -422,11 +422,11 @@ the command with the owner's stamp, or a hook can change the stamp, is not yet
 measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
 confirmation (E35a in the threat model). **Since head-chef 1.23.0 (issue 541,
-proposed, for the owner to class)** the lead also widens or narrows a command
+proposed; it waits on the owner's confirmed merge, which classes it)** the lead also widens or narrows a command
 goal on the owner's own typed turn in its chat, with no new command, where the
 owner's user-level instructions file counts the owner's chat words as a
-standing goal; a button it wrote, a file, a log entry, a member's message or
-another plugin's text never does, and after a compaction a logged widening
+standing goal; a button it wrote, a file, a log entry, a member's message, hook-added context or
+another plugin's turn or text never does, and after a compaction a logged widening
 makes it act at 2 and ask. The mod does not see or stamp that turn, so the
 stamp above does not bind it, and the lead's reading of its chat is the
 control (the host agent as the last guard, C1). A 3 it sets carries its goal, which is
