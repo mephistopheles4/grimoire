@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.26.0
+Version: 1.28.0
 Kind: skill
 Level: Thorough
 
@@ -687,8 +687,9 @@ section that changed it, "504" for the cut.
   the head the member's last review covered, with
   `gh pr merge --match-head-commit`; a head that moved waits for a new
   round. At level 3, a merge toward the goal is as the Level 3 rule above
-  says (*Proposed*, issue 549). It writes the merge title and body itself,
-  under "What goes out".
+  says (*Proposed*, issue 549). It writes the merge body itself,
+  under "What goes out"; the subject is GitHub's default (*Proposed*,
+  issue 476).
 - **Confirmed** (rev 4 S3.3; 504, S3). **Waiting entries.** A waiting entry
   holds only the step that waits on it, until the owner answers; every other
   act of that effort goes ahead.
@@ -1023,7 +1024,8 @@ yes keeps for the owner.
   its class of path, never its steps. Write the
   free text of any act on GitHub to a new file named
   `head-chef-post-<random>.md` in the system's temporary folder, outside any
-  repository, post from it, and delete it after, whatever the result. A
+  repository, post from it, and delete it after, whatever the result.
+  *Proposed* (issue 476): A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`. A
   command the owner runs by hand holds only fixed text and values of
   letters, digits and `. _ - /`, none starting with `-` or holding `..`;
   give no command otherwise, and say why.

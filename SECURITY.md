@@ -413,7 +413,7 @@ counts at once, with no confirmation in the lead's chat; the lead asks for a
 goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's yes in chat at levels 1 and 2 (at level 3 the owner's user-level instructions file decides it), and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
-**Since 0.138.0 (issue 543) the owner can type `/brigade folders add <path>`,
+**Since 0.140.0 (issue 543) the owner can type `/brigade folders add <path>`,
 `remove <path>` or `list`** at the prompt or from the phone, to keep the list of
 main checkouts the start tool may start a session in. The mod acts on it only on
 the same stamps as the level command below, so a run stamped otherwise, a
@@ -550,7 +550,7 @@ can check. The head chef removes nothing itself. What the cleaner prints lands
 in the lead's transcript, all of it, error text included, since Brigade no longer filters it, and from there it reaches the model provider and Remote Control devices, as does the list of each session's folder and branch. Any session can call Desktop's archive tool, which
 Brigade no longer intercepts; an archive removes nothing and can be undone. Since head-chef 1.20.0 (issue 540) the head chef
 starts every session as a background session with Remote Control, and since
-head-chef 1.26.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
+head-chef 1.28.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
 in a main checkout you listed with `/brigade folders add`, takes no permission
 mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
