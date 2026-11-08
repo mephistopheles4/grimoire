@@ -184,8 +184,7 @@ first; each row opens into the same card, with "⚑ Unflag", and its pick box
 feeds the same selection island as the Sessions view, whose Dismiss unflags
 the picked rows and marks them read. Since 0.93.0 the lead can flag a
 decision it is unsure of, with a one-line reason: the decision goes straight
-to Flagged to revisit, in the pane of the lead that flagged it; another lead's
-pane only counts it. It never goes to To review, so Mark all as read never takes
+to Flagged to revisit, in the pane of the lead that flagged it. It never goes to To review, so Mark all as read never takes
 it, and its card shows "Flagged by the lead" with the reason. Only you unflag it,
 and the flag holds nothing up: the lead still acts on its pick. A session
 still on an older version cannot read a log that holds a flag until it
@@ -195,49 +194,31 @@ Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
 
-Since 0.89.0 the tab shows this lead's decisions only. From other sessions'
-logs it carries four kinds of decision, each marked "From another session":
-a waiting entry, any relayed entry, and an alarm, all until you read
-them, and any decision you flagged until you unflag it. A new lead
-therefore never hides a question meant for you. A plain Lead entry of another
-session is only counted. Earlier sessions' logs stay on
-disk, unshown, and you can delete them by hand; the pane still reads the 20
-newest, and the dim line at the foot counts the unread entries of other logs
-that the tab no longer draws. "✓ Mark all as read", at the right of To review's
-heading, marks everything under To review read in one write, since 0.98.0
-of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line. Since 0.120.0 (issue 509) it also takes this
-lead's own waiting entries that no Relayed entry answers, which 0.109.0 had left
-under To review, and it ignores the search: it takes everything under To review,
-whatever is typed. The label does not carry a count. A press takes up to 500
-entries, and while other logs are carried a second press takes the rest. A press marks nothing if the set
-changed since the pane last drew it, or if your
-marks file is so full that the write would push out marks of entries you
-read. A question marked read keeps its link, so an answer logged later still
-pairs with it.
-
-Since 0.90.0 a session that has ended stops filling To review with its claims.
-A session counts as running while one of the engine's session files names it,
-or while its log has an entry from the last 30 minutes; it counts as ended
-once a complete read of the session files since you opened the pane names it
-nowhere and its newest entry is older than that. When the pane cannot tell,
-everything draws as before. For each ended session with unread Relayed
-entries, or unread questions such an entry answers, To review shows one dim
-line instead of their cards: "From an ended session", the time of its newest
-such entry, up to three of the work names its entries give, how many are
-and how many are unread; from 0.90.0 to 0.94.0 it also had its own "✓ Mark
-these N read", which Mark all as read replaces since 0.98.0. Its other questions and alarms
-keep their cards. History gains a fold, "From ended sessions", that holds
-those entries, read or not, newest first, with "Unread" on the ones you have
-not read; it draws from every working folder's logs among the 20 newest.
+Since 0.121.0 (issue 509) the tab draws only this session's own decision
+log, and nothing from any other log: no carried card, no line for an ended
+session, no fold, no flagged row and no count of another log's entries. The
+current lead is the session whose id the pane reads as its own, so whatever
+keeps that id keeps its log in view; a new session id starts a new lead with
+an empty tab. Earlier sessions' logs stay on disk, untouched, and you see one
+again only by resuming that session in its own chat. The pane reads this
+session's own decision log and marks file and no other session's. A question
+meant for you in an earlier lead's log comes across only through the hand-off,
+after your yes. "✓ Mark all as read", at the right of To review's heading,
+marks everything under To review read in one write: every card of this
+session's log, Lead, Relayed, waiting entries and alarms, including its own
+waiting entries that no Relayed entry answers. It ignores the search: it takes everything
+under To review, whatever is typed. The label does not carry a count. A press
+takes up to 500 entries, which a lead's appends keep this log's unread
+entries within, so one press empties To review. A press marks nothing if the set
+changed since the pane last drew it, or if your marks file is so full that the
+write would push out marks of entries you read. A question marked read keeps
+its link, so an answer logged later still pairs with it.
 
 Since 0.91.0 a question in this lead's own log and the Relayed entry that
 answers it, both unread, show on one card in To review: the question, then
 every field of the answer as its own card drew it. One "✓ Read, next" marks
 both read in one write, Flag flags both and Skip moves both. To review's count
-and "n of N" count the card once; the tab's totals still count entries. A
-question and its answer carried from another session's log still show as two
-cards.
+and "n of N" count the card once; the tab's totals still count entries.
 
 A mark from any bulk press records the press, not a
 reading of each entry, and the marks one press writes share one press time.

@@ -455,7 +455,10 @@ export function addMarks(
  *  (`marked`): that is, whether the caps pushed out a mark that was still its
  *  entry's newest counted state, so the entry would read as it did before
  *  that mark. Mark all as read writes nothing when this holds (spec 447,
- *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
+ *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads.
+ *  Since issue 509 only this session's log is read, which holds 500 entries at
+ *  most, so the pane's own press cannot reach the 2,000-mark cap this way; the
+ *  guard stays. */
 export function dropsLiveMark(
   before: MarksFile | undefined,
   after: MarksFile,
@@ -591,121 +594,39 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
   return { rows, total: all.length, more: rows.length < all.length }
 }
 
-// --- whether another log's session has ended (spec 447 S3) ---------------------
+// --- the logs the tab draws (issue 509, ADR 0017) -------------------------------------
 //
-// Worked out again at each draw from the live poll's last session read, the
-// pane's open time, the engine clock and the entry times in the logs read,
-// and never stored. Unknown draws every log as 0.89.0 drew it.
+// The Decisions tab draws this session's decision log and nothing from any
+// other log: no carried card, no ended session's line, no fold, no count of
+// another log's entries. Other logs stay on disk, untouched, in their own pane.
 
-/** How long a log's newest entry keeps its session running (spec 447 S3.8). */
-export const RECENT_MS = 30 * 60 * 1000
-export type Liveness = 'running' | 'ended' | 'unknown'
-/** The live poll's last read of the session files: the session ids its rows
- *  hold, whether it was complete, whether a file went after the listing, and
- *  when it began on the engine clock. */
-export type SessionsSeen = { ids: readonly string[]; complete: boolean; fileGone: boolean; startedAt: number }
-/** What the ended rule reads: the last session read since the pane opened,
- *  or none when it returned nothing; the pane's open time; the engine clock. */
-export type LiveInput = { seen: SessionsSeen | undefined; openedAt: number | undefined; now: number }
-
-/** Whether the pane can tell a session has ended: a complete read with no
- *  file gone after its listing, begun since the pane's current open, and a
- *  clock and an open time that are whole numbers. */
-export function canTell(l: LiveInput): boolean {
-  const s = l.seen
-  return s !== undefined && s.complete && !s.fileGone && isWhole(l.now) && isWhole(l.openedAt) && isWhole(s.startedAt) && s.startedAt >= l.openedAt
-}
-
-/** Each log's state, by its session id. This session's own log is running. A
- *  log is running while a file in the last read holds its session id, or
- *  while its newest entry, as read, is dated within 30 minutes of the clock;
- *  ended when the pane can tell and neither holds; else unknown. */
-export function sessionStates(logs: readonly ReadLog[], sid: string, l: LiveInput): Map<string, Liveness> {
-  const tell = canTell(l)
-  const out = new Map<string, Liveness>()
-  for (const log of logs) {
-    const newest = log.log.entries.reduce<number | undefined>((n, e) => (n === undefined || e.at > n ? e.at : n), undefined)
-    const recent = isWhole(l.now) && newest !== undefined && newest >= l.now - RECENT_MS
-    const filed = l.seen?.ids.includes(log.sid) === true
-    out.set(log.sid, log.sid === sid || filed || recent ? 'running' : tell && newest !== undefined ? 'ended' : 'unknown')
-  }
-  return out
-}
-
-/** The writer drawn for an ended session's entries: its name went with its session file. */
-export const ENDED_WRITER = 'an ended session'
-
-// The entries an ended session's line takes, read or not: every Relayed entry,
-// and every waiting entry that a Relayed entry in the same log answers.
-function endedEntries(log: DecisionLog): DecisionEntry[] {
-  const answered = new Set(log.entries.filter(e => e.source === 'relayed' && e.answers !== '').map(e => e.answers))
-  return log.entries.filter(e => e.source === 'relayed' || (e.source === 'lead' && e.waiting && answered.has(e.id)))
-}
-
-/** The logs as each view of the tab draws them (spec 444 S3, with the change
- *  of Test round 1), for the pane's session id `sid`. This session's log is
- *  drawn whole in To review and Flagged, and alone in History. From every
- *  other log, To review draws, with no mark on the entry: a waiting entry,
- *  answered or not, until the owner reads it; every Relayed entry, whether or
- *  not it answers one; and an alarm entry in its fixed shape. Flagged draws any entry whose
- *  latest mark is flagged, which `flaggedRows` picks by state.
- *  Since spec 447, from a log `live` reads as ended, To review draws neither
- *  its Relayed entries nor the waiting entries they answer: `ended` holds
- *  those, read or not, for the block's lines and History's fold, with the
- *  writer "an ended session". `canTell` says whether any log could be ended.
- *  `unshown` counts the unread entries of other logs that To review does not
- *  draw and no line counts: a number only. An Owner or Pane entry counts as
- *  read by its source. */
-export function drawnLogs(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>, live: ReadonlyMap<string, Liveness> = new Map(), tell = false) {
-  const review: ReadLog[] = []
-  const history: ReadLog[] = []
-  const ended: ReadLog[] = []
-  let unshown = 0
-  for (const l of logs) {
-    if (l.sid === sid) {
-      review.push(l)
-      history.push(l)
-      continue
-    }
-    const unread = (e: DecisionEntry) => !isRead(states.get(markKey(l.sid, e.id, e.at)))
-    const gone = tell && live.get(l.sid) === 'ended' ? endedEntries(l.log) : []
-    const entries = l.log.entries.filter(e => {
-      if (!unread(e) || gone.includes(e)) return false
-      return (
-        (e.source === 'lead' && e.waiting) ||
-        e.source === 'relayed' ||
-        (e.source === 'alarm' && inFixedShape(e))
-      )
-    })
-    for (const e of l.log.entries) {
-      if (e.source === 'owner' || e.source === 'pane' || isRead(states.get(markKey(l.sid, e.id, e.at))) || entries.includes(e) || gone.includes(e)) continue
-      unshown++
-    }
-    review.push({ ...l, log: { ...l.log, entries } })
-    if (gone.length > 0) ended.push({ ...l, writer: ENDED_WRITER, log: { ...l.log, entries: gone } })
-  }
-  return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
+/** The logs as each view of the tab draws them, for the pane's session id
+ *  `sid`: this session's own log alone, whole in To review, Flagged to
+ *  revisit and History alike. Whatever else is handed in is left out, so no
+ *  other log reaches a draw or a press even if one was read. */
+export function drawnLogs(logs: readonly ReadLog[], sid: string): ReadLog[] {
+  return logs.filter(l => l.sid === sid)
 }
 
 /** The entries Mark all as read takes (issue 466, issue 509): everything under
- *  To review, its cards and every ended session's line, of every kind and log,
- *  whatever the search is, taken whole up to 500 entries, so its key stays in
- *  range and, while other logs are carried, a second press takes the rest.
- *  `n` counts what leaves To review and `total` all that is under it, as To
- *  review's heading counts it: each card once, a pair as one, and each ended
- *  line as one (issue 496). `hash` is the first 16 hex digits of SHA-256 over
- *  the set's mark keys, sorted and joined by line breaks: a staleness check on
- *  the press, not a secret. */
-export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLine[]) {
+ *  To review, every card of this session's own log, whatever the search is,
+ *  taken whole up to 500 entries so its key stays in range. A lead's appends
+ *  keep the log's unread Lead and Relayed entries within that, so one press
+ *  empties To review; past it the heading draws again and a second press takes
+ *  the rest. `n` counts what leaves To review and `total` all that is under
+ *  it, as To review's heading counts it: each card once, a pair as one.
+ *  `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
+ *  sorted and joined by line breaks: a staleness check on the press, not a
+ *  secret. */
+export function markAllSet(cards: readonly ReviewCard[]) {
   const fromCards = cards.map(c => (c.answer === undefined ? [c.row] : [c.row, c.answer]))
-  const fromLines = lines.map(l => [...l.rows])
-  const total = fromCards.length + fromLines.length
+  const total = fromCards.length
   let size = 0
   let n = 0
   const take = (units: Row[][]) => {
     const out: Row[] = []
     for (const u of units) {
-      // A unit over the cap on its own, a line past 500 entries, is taken in part.
+      // A unit over the cap on its own is taken in part.
       const part = size === 0 ? u.slice(0, MAX_ENTRIES) : u
       if (size + part.length > MAX_ENTRIES) break
       out.push(...part)
@@ -714,7 +635,7 @@ export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLi
     }
     return out
   }
-  const rows = [...take(fromCards).sort(oldestFirst), ...take(fromLines)]
+  const rows = take(fromCards).sort(oldestFirst)
   if (rows.length === 0) return { rows, n: 0, total, hash: '' }
   return { rows, n, total, hash: setHash(rows) }
 }
@@ -729,44 +650,6 @@ export function parseMarkAllKey(key: string): { n: number; hash: string } | unde
   const m = MARK_ALL_KEY.exec(key)
   const n = Number(m?.[1])
   return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
-}
-
-/** The most `work` values an ended session's line draws, and each one's length. */
-const LINE_WORKS = 3
-const LINE_WORK_CHARS = 40
-
-/** One ended session's line in To review (spec 447 S4.2): its unread entries
- *  that match the search, newest first, their count, the newest
- *  one's time, and the distinct `work` values, newest first, at most 3 of
- *  them, each cleaned as a roster line is and cut to 40 characters, with how
- *  many more there are. It names no session. */
-export type EndedLine = { rows: Row[]; n: number; at: number; works: string[]; more: number }
-
-/** To review's block: one line for each ended log in `ended` with an unread
- *  entry that matches the search, the line with the newest such entry first.
- *  Mark all as read takes every line's rows. */
-export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
-  const lines: (EndedLine & { sid: string })[] = []
-  for (const l of ended) {
-    const rows = rowsOf([l])
-      .filter(r => !isRead(states.get(rowKey(r))) && matchesSearch(r.entry, r.writer, words))
-      .sort((a, b) => oldestFirst(b, a))
-    const first = rows[0]
-    if (first === undefined) continue
-    // Cleaned and cut first, so two values that draw alike count once.
-    const works = [...new Set(rows.map(r => oneLine(r.entry.work, LINE_WORK_CHARS)))]
-    lines.push({
-      sid: l.sid,
-      rows,
-      n: rows.length,
-      at: first.entry.at,
-      works: works.slice(0, LINE_WORKS),
-      more: Math.max(works.length - LINE_WORKS, 0),
-    })
-  }
-  return lines
-    .sort((a, b) => b.at - a.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0))
-    .map(({ sid: _, ...line }) => line)
 }
 
 /** The source as the tab draws it. An Owner entry draws plain "Owner" only

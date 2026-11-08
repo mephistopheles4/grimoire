@@ -246,12 +246,15 @@ drop in a fixed order that keeps a live flag for last and never brings back a
 cleared one. "Mark all as read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
 set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
-review, whatever the search shows (since 0.120.0, issue 509), of every kind and from every log the tab draws:
-Lead, Relayed, waiting entries and alarms, and every ended session's line,
-and the pane's own session's waiting entries that no Relayed entry answers, which
-0.109.0 to 0.119.0 (issue 486) left under To review; before 0.98.0, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
-owner read, when the caps would push out a mark that is still an entry's
-newest state. A mark leaves the log untouched, so a waiting entry marked read
+review, whatever the search shows (since 0.120.0, issue 509): every card,
+Lead, Relayed, waiting entries and alarms, including the pane's own session's
+waiting entries that no Relayed entry answers, which 0.109.0 to 0.119.0
+(issue 486) left under To review; before 0.98.0, it took only the pane's own
+session's plain Lead entries. Since 0.121.0 (issue 509) that is the pane's own
+session's log alone: before, it also took cards and ended sessions' lines
+carried from other logs. It writes nothing, and says the marks file is full of
+entries the owner read, when the caps would push out a mark that is still an
+entry's newest state. A mark leaves the log untouched, so a waiting entry marked read
 keeps its link and a later answer still pairs with it. The hash is the mod's
 unkeyed SHA-256 of the set's mark keys and protects nothing secret. A mark for
 an entry in a log the pane no longer reads can still drop. "Mark these N
@@ -269,29 +272,26 @@ an answer that arrived after the draw. "✓ Mark N relayed read" (0.91.0 to
 marks one bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
-it lists both folders on the roster's 5-second poll, reads this session's own
-log and marks file and the 20 newest others of each by modification time,
-re-reads a file only when its size or time changed, skips a file dated more
-than two minutes ahead, reads no other file from a folder whose listing passes
-5,000 entries, and draws each log's writer by the engine's session name for
-its session id, or "an ended session". Since 0.90.0 (spec 447) it also tells,
-at each draw, whether another log's session runs. Running: a session file in
-the live poll's last read names the log's session id, or the log's newest
-entry is dated within 30 minutes of the engine clock. Ended: that read was
-complete, no file went after its listing, it began since the pane opened, and
-neither holds. Unknown: anything else, and then every log draws as in 0.89.0.
-The state is worked out again at each draw, kept in the module, never written
-to a file or plugin state, and cleared when the pane closes. From an ended
-session's log To review draws neither its unread Relayed entries nor the
-waiting entries they answer as cards, but one dim line for each such session:
-fixed words, the newest such entry's time, at most three of the writer's
-`work` values in their own elements after a fixed label, the count and the
-press, and no name. History's fold "From ended sessions" draws those entries,
-read or not, which no view drew from another log before, from every working
-folder's logs among the 20 newest; its open state, pages and opened rows stay
-in the module. A claim stays readable there after a press only while its log
-is among the 20 newest read, the pane reads its session as ended, and its own
-log has not dropped it as a read entry. Nothing it reads enters plugin state
+it reads this session's own decision log and marks file by their own paths
+and lists only the hand-off folder on the roster's 5-second poll, reading
+the 20 newest other hand-offs for the Lead hand-off card. Since 0.121.0 (issue
+509) it lists no other session's decision log or marks file for the tab and
+reads none, and the Decisions tab draws only this session's own log: no card,
+row, flagged row or count from another log, and no line or fold for an ended
+session. The current lead is the session whose id the pane reads as its own;
+whatever keeps that id keeps its log in view, and a new id starts an empty
+tab. Before 0.121.0 (0.89.0 to 0.120.0) it also read the 20 newest other
+logs and marks files and carried a waiting entry, a Relayed entry, an alarm
+and a flagged entry of another log into the tab, and from 0.90.0 (spec 447)
+told, from the engine's session files and the logs' entry times, whether
+another log's session had ended, kept in the module and never written, and
+drew an ended session's claims as one dim line and in History's fold "From
+ended sessions". All of that is gone. It re-reads a file only when its size or
+time changed, skips a file dated more than two minutes ahead, reads no other
+hand-off from a folder whose listing passes 5,000 entries, and draws this
+log's writer by the engine's session name for its session id, or "an ended
+session". `log_decision`'s drop scan still reads the marks files of other
+sessions, as above. Nothing it reads enters plugin state
 but the search text, which other plugins can read until the next open clears
 it, and a redraw counter. The project digest comes from the mod's own unkeyed
 SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's
@@ -327,7 +327,8 @@ own hash; it protects nothing secret. What follows from it:
   to its cap, after which the tool refuses until the owner reads. The pane
   draws a Relayed entry and an answer only as the writer's claim. Any session,
   in any working folder, that loads head-chef without the owner typing it can
-  log the same, and its entries reach every lead's To review as cards or counts;
+  log the same, and until 0.121.0 its entries reached every lead's To review as
+  cards or counts; since then only the hand-off carries them to another lead;
   the owner accepted this on 2026-10-26 (q10 A on #402's ticket 411), and
   reworded this sentence on 2026-10-30 in chat ("Reword them").
 
