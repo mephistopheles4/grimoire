@@ -138,6 +138,29 @@ test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
   );
 });
 
+// Issue 438: the start rule reads the same in the yes table, "Starting a session" and
+// starting.md, and the lead's own-pick posts carry one fixed first line, in both files.
+test('the start rule agrees with the yes table, and "What goes out" holds the own-pick line (issue 438)', () => {
+  const skill = flat(read('skills/head-chef/SKILL.md'));
+  const contract = flat(read('skills/head-chef/references/CONTRACT.md'));
+  const starting = flat(read('skills/head-chef/references/starting.md'));
+  const row = "the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level";
+  assert.ok(contract.includes(row), 'the contract\'s yes table holds the start row');
+  assert.ok(skill.includes(row), 'SKILL.md\'s yes table holds the start row');
+  const opening = t => t.split(' A start needs ')[1]?.split('. ')[0] ?? '';
+  assert.ok(opening(skill).includes(row), 'SKILL.md, "Starting a session", opens with the yes-table row');
+  assert.ok(opening(starting).includes(row), 'starting.md opens with the yes-table row');
+  const label = "`Posted by the head chef on its own pick, not the owner's words.`";
+  const rule = t => t.split('**What goes out.**')[1]?.split(/ - (\*\*|Never)/)[0] ?? '';
+  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md', contract]]) {
+    const body = rule(text);
+    assert.ok(body.includes(label), `${name}: the fixed line, in What goes out`);
+    assert.ok(body.includes('a squash merge body'), `${name}: a squash body is a post`);
+    assert.ok(body.includes('never count as naming the act'), `${name}: the test for an own pick`);
+    assert.ok(body.includes("A merge's subject is GitHub's default, so the squash body carries the line."), `${name}: the merge title rule`);
+  }
+});
+
 // Issue 476: `gh pr merge` and `gh issue create` read only a body from a file,
 // so "What goes out" names the route a title takes, in both files.
 test('"What goes out" names the title route, in the contract and the SKILL.md (issue 476)', () => {
