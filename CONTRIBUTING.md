@@ -278,8 +278,10 @@ imports it to check the start tool's input rules and fixed words. A card's
 quick action module, `brigade/quick.ts`, is the eighth (issue 223):
 `tests/brigade-quick.test.mjs` imports it to check which action a card gets and
 the line it fills, the title rule, the key's digest and what a press checks again,
-and reads `brigade/register.tsx`'s `pressQuick` for what it must not hold: a
-submit, a log, a store write, or any read of the fill's answer but `isFilled`.
+and reads `brigade/register.tsx`'s `pressQuick` for what it must not hold (a
+submit, a log, a store write, a tool or process call, or any read of the fill's answer but `isFilled`)
+and for its wiring: the surface gate as the press's first statement, with the event's
+surface at the call site.
 The turn-level cases run in
 `brigade/set-roster.test.ts`. Keep all
 eight to erasable syntax (no enums, namespaces or parameter properties), so

@@ -1,6 +1,7 @@
 // A card's quick action (issue 223), tested at its own seam: brigade/quick.ts
-// holds the table with no engine import. The press, the prompt box and the
-// toasts run in brigade/set-roster.test.ts, driven through the engine.
+// holds the rules with no engine import. This file also checks pressQuick's text.
+// The engine-driven press, the prompt box and the toasts run in
+// brigade/set-roster.test.ts.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +37,7 @@ test('claim 3: a done or stopped card with no PR gets Clean up, and its line ask
   }
 });
 
-test('claim 3: a done or stopped card whose PR gh answered merged or closed gets Clean up, with or without a repo field', () => {
+test('claim 3: a done or stopped card whose PR gh answered merged or closed gets Clean up, and so does a done card with a repo field', () => {
   for (const state of ['merged', 'closed']) {
     for (const status of ['done', 'stopped']) {
       assert.equal(quickAction(card('alpha', { status, pr: '18' }), answers([gh(18, { state })]), new Map())?.action, 'cleanup', `${status} ${state}`);
@@ -70,7 +71,7 @@ test('claim 5: a title outside the rule gets no button, on any row', () => {
   assert.equal(quickAction(card('a'.repeat(80), { status: 'done' }), NONE, new Map())?.action, 'cleanup');
 });
 
-test('claim 5: a gh repository that fails REPO, or is not the pinned one, gets no Merge', () => {
+test('claim 5: a gh repository that fails REPO or the dot rule, or is not the pinned one, gets no Merge', () => {
   const c = card('alpha', { status: 'done', pr: '18' });
   for (const repo of ['no-slash', 'o/..', 'o/.', '-o/r', 'o/r r', 'o/r\nx']) {
     assert.equal(quickAction(c, answers([gh(18, { repo })], { pinned: repo }), new Map()), undefined, repo);
@@ -79,7 +80,7 @@ test('claim 5: a gh repository that fails REPO, or is not the pinned one, gets n
   assert.equal(quickAction(c, answers([gh(18)], { pinned: undefined }), new Map()), undefined);
 });
 
-test('claim 11: only the desktop surface draws or fills a quick action', () => {
+test('claim 11: quickSurface is true for desktop alone', () => {
   assert.equal(quickSurface('desktop'), true);
   for (const surface of ['terminal', 'mobile', 'vscode', '', undefined, null, 'Desktop', 7]) assert.equal(quickSurface(surface), false, String(surface));
 });
@@ -106,7 +107,7 @@ test('claim 7: quickPress returns undefined when the place, slug, action or dige
   assert.equal(press({ answers: answers([gh(18, { state: 'merged' })]) }), undefined);
 });
 
-test('claim 7: a rename from ab-c to abc keeps the slug and still changes the press, Merge included', () => {
+test('claim 7: a rename from ab-c to abc keeps the slug, and the digest still refuses the press, even for Merge, whose line holds no title', () => {
   assert.equal(slug('ab-c'), slug('abc'));
   const a = answers([gh(18)]);
   const d = quickDigest('merge', 'ab-c', 'Merge PR #18 in o/r.');
@@ -116,7 +117,7 @@ test('claim 7: a rename from ab-c to abc keeps the slug and still changes the pr
 
 // The engine's stand-in fixes the text a `prompt.fill` answers with, so no engine test can hand the
 // press a secret there. The press's own text is the check: it reads nothing off the answer but
-// `isFilled`, and it submits, logs, stores and calls nothing else.
+// `isFilled`, and it submits, logs, stores and calls no tool or process.
 const register = fs.readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
 const press = (() => {
   const from = register.indexOf('async function pressQuick(');

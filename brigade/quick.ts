@@ -28,8 +28,8 @@ export const FILL_FAILED = (line: string) => `Brigade could not fill the prompt 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /** Where a quick action draws and fills: Desktop alone. The draw and the press
- *  both ask. The engine only presses a button its surface drew, so the press asks
- *  again to keep the Desktop-only rule for any press that reports another surface.
+ *  both ask. The engine only presses a button its surface drew; the press asks
+ *  again anyway, to keep the Desktop-only rule for any press that reports another surface.
  *  It is not a control against another plugin, which picks the surface it reports
  *  (candidate O1). */
 export const quickSurface = (surface: unknown): boolean => surface === 'desktop'
@@ -39,7 +39,7 @@ export const quickSurface = (surface: unknown): boolean => surface === 'desktop'
 const safeRepo = (repo: unknown): repo is string =>
   typeof repo === 'string' && REPO.test(repo) && !['.', '..'].includes(repo.split('/')[1] ?? '')
 
-/** The action a card shows, or undefined: the first row that matches wins.
+/** The action a card shows, or undefined: the first rule that matches wins: Ask, then Merge, then Clean up.
  *  The draw and the press both call this one function. */
 export function quickAction(c: unknown, answers: QuickAnswers, moves?: Moves): QuickAction | undefined {
   if (!isRecord(c) || typeof c.title !== 'string' || !TITLE.test(c.title)) return undefined

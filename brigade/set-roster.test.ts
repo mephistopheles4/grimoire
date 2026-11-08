@@ -10759,7 +10759,7 @@ test('#223 claim 13: a press on an empty box fills once, appended, with a space 
 })
 
 for (const [name, box] of [['a draft', { draft: SECRET }], ['a one-character draft after a space', { draft: ' x' }], ['a read that fails', { readFails: true }]] as [string, Box][]) {
-  test(`#223 claim 6: ${name} fills nothing, leaves the box as it was and shows the draft toast`, async ($, on) => {
+  test(`#223 claim 6: ${name} fills nothing, submits nothing and shows the draft toast`, async ($, on) => {
     const { w, seen } = await quickPane(on, $, box)
     const { m } = await quickMount($, 'desktop')
     await m.press({ key: QUICK_KEYS[0] })
