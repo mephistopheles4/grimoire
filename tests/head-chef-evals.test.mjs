@@ -143,7 +143,15 @@ test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
 test('"What goes out" names the title route, in the contract and the SKILL.md (issue 476)', () => {
   const sentence = "A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`.";
   const skill = flat(read('skills/head-chef/SKILL.md'));
-  assert.ok(skill.includes(sentence), 'SKILL.md');
-  assert.ok(flat(read('skills/head-chef/references/CONTRACT.md')).includes(sentence), 'CONTRACT.md');
-  assert.ok(!skill.includes('Write the merge title and body yourself'), 'SKILL.md still has the lead write the merge title');
+  const contract = flat(read('skills/head-chef/references/CONTRACT.md'));
+  // The "What goes out" bullet runs to the next top-level "- **" or "- Never" bullet.
+  const rule = t => t.split('**What goes out.**')[1]?.split(/ - (\*\*|Never)/)[0] ?? '';
+  assert.ok(rule(skill).includes(sentence), 'SKILL.md, in What goes out');
+  assert.ok(rule(contract).includes(`*Proposed* (issue 476): ${sentence}`), 'CONTRACT.md, in What goes out, marked Proposed');
+  // The merging clause: the lead writes only the body; the subject is GitHub's default.
+  const merging = t => t.split('**Merging.**')[1]?.split(/ - \*\*|\*\*Waiting entries/)[0] ?? '';
+  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md', contract]]) {
+    assert.ok(merging(text).includes("the subject is GitHub's default"), `${name}: the merging clause names the default subject`);
+    assert.ok(!/merge (title|subject)/.test(merging(text)), `${name}: the merging clause still has the lead write a merge title`);
+  }
 });
