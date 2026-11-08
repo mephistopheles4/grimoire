@@ -153,6 +153,17 @@ effort show as the settings line the lead wrote, at the right of the pull reques
 popover with the same words, and a `⋯` on each row holds Open, Split and
 Dismiss, each only where it applies; in the terminal Open and Dismiss are always shown. A pull request
 pill opens the pull request in your browser.
+Since 0.141.0, on Desktop only, a row that fits one of three actions shows a
+button left of the `⋯`: **Ask** on a row that waits on you, **Merge** on a done
+row with no `repo` whose pull request `gh` says is open, and **Clean up** on a
+done or stopped row with no pull request or one `gh` says is merged or closed.
+A button puts one line in your prompt box and sends nothing: you read it and
+press Enter, so the yes is still yours. Ask fills `What does <title> need from
+me?`, Merge fills `Merge PR #<n> in <owner>/<name>.`, and Clean up fills `Show me
+what cleaning up <title> would remove.`, which asks for the list first. A title
+with a space gets no button, and a button does nothing while the box holds a
+draft (it says so). If the box cannot be filled, a toast shows the line to type.
+The terminal, the phone and VS Code draw no button; ask the lead in chat there.
 Tick several rows and a bar at the foot dismisses them together. A session that
 waits on you can be dismissed for that one wait; it comes back when the
 session waits again. Reopening the pane brings
@@ -425,7 +436,10 @@ files you ask for:
   pull requests its rows carry (and `gh pr view <number> --web`, or `gh issue view <number> --web`, when you press a
   pull request pill or a to-do's link), and once a minute for each other repository a
   row names, at most 6 runs a minute, the repositories taking turns past five,
-  which uses your GitHub sign-in. It reads Claude Code's own session files and
+  which uses your GitHub sign-in. Since 0.141.0 a quick-action button on
+  Desktop reads your prompt box once, only to see whether it is blank, and then
+  fills it with one checked line; it keeps neither the draft nor the engine's
+  answer, and never submits. It reads Claude Code's own session files and
   the transcripts of the sessions the lead started. It writes a roster file and
   a usage summary file in the plugin's data folder; the summary file is written
   in every session, pane open or not. The roster file, unencrypted, holds each
