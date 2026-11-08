@@ -137,3 +137,13 @@ test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
     ),
   );
 });
+
+// Issue 476: `gh pr merge` and `gh issue create` read only a body from a file,
+// so "What goes out" names the route a title takes, in both files.
+test('"What goes out" names the title route, in the contract and the SKILL.md (issue 476)', () => {
+  const sentence = "A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`.";
+  const skill = flat(read('skills/head-chef/SKILL.md'));
+  assert.ok(skill.includes(sentence), 'SKILL.md');
+  assert.ok(flat(read('skills/head-chef/references/CONTRACT.md')).includes(sentence), 'CONTRACT.md');
+  assert.ok(!skill.includes('Write the merge title and body yourself'), 'SKILL.md still has the lead write the merge title');
+});

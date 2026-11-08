@@ -294,7 +294,7 @@ yes.
   instructions file, above, governs.
 - **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above. A decision you would put to the owner as one line asking them to accept your recommendations you do not put to them, in any wording ("confirm, or tell me otherwise" and "reply yes, or tell me X" are the same ask): take your picks, log each as Lead before you act, and tell the owner what you took, as a statement and not a question. The lead's own business is the log; starting sessions follows the owner's file, above. Read that file whole: where its rule for work toward a goal the owner set lets you decide, even what it otherwise keeps, a merge toward the goal needs no fresh confirm: merge only the head that the member's last review, or your own review, covered, with CI passed on that head, using `gh pr merge <n> --squash --match-head-commit <full sha>`, logged first. Close a pull request that another one replaces, logged first, with `gh pr close <n>`; it needs no review or CI. Every other merge or close waits for the owner's words, and so does a merge that changes the threat model's scope or accepted risks. Where the file keeps merges even toward a goal, the merge waits. A goal is either kind the skill has, set with a press or with the command. Log each decision with its level before acting, and show no blocking card.
 
-**Merging.** Merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. At level 3, a merge toward the goal is as 3 Turbo says. Write the merge title and body yourself, under "What goes out".
+**Merging.** Merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. At level 3, a merge toward the goal is as 3 Turbo says. Write the merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Waiting entries.** A waiting entry holds only the step that waits on it,
 until the owner answers; every other act of that effort goes ahead.
@@ -566,7 +566,8 @@ Limits:
   path, never its steps. Write the free text of any
   act on GitHub to a new file named `head-chef-post-<random>.md` in the
   system's temporary folder, outside any repository, post from it, and
-  delete it after, whatever the result. A command the owner runs by hand
+  delete it after, whatever the result. A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`.
+  A command the owner runs by hand
   holds only fixed text and values of letters, digits and `. _ - /`, none
   starting with `-` or holding `..`; give no command otherwise, and say
   why.
