@@ -133,7 +133,9 @@ such a package without asking when no one is at a terminal.
   `.gitignore` before you run it with `--untracked`.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
-  history, until the run has streamed it (up to a day after a run killed hard).
+  history, until the run ends. A run killed hard leaves them until an athanor
+  run or prune started a day or more later clears them; with no later run, they
+  stay.
   The folder is safe to delete.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
