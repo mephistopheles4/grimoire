@@ -76,15 +76,16 @@ the file itself.
   (the 300 below is only the check's limit), one ask or one owner step, naming
   the act or the place ("Answer in build-312's chat"), never the question or
   the decision text. Put no facts, picks, commands or reasons in it; they stay
-  in your chat message or on the issue. A waiting entry's fixed text is the
-  one exception. The pane draws a to-do on one line and cuts what does not fit.
+  in your chat message or on the issue. A waiting entry's fixed text (below) is
+  the one exception. The pane draws a to-do on one line and cuts what does not fit.
 - A to-do's `session` is a card's title: give it when the step is in that
   member's chat, and the row gets an Open button when the pane can open that
   session. A to-do's `link` is an issue or pull request on github.com, written
   whole as `https://github.com/owner/name/issues/N` or
   `https://github.com/owner/name/pull/N`: give it when the answer or step is
-  on one. The owner and the name follow the `repo` rule below, the number is 1
-  to 7 digits with no leading zero, and nothing else is allowed: no other
+  on one. The owner and the name follow the `repo` rule below, with no `..` in the
+  name, the number is 1 to 7 digits with no leading zero, and nothing else is
+  allowed: no other
   host, no query, no fragment, no trailing slash. A link that does not fit is
   refused as a shape. The pane never opens a link until the owner presses it,
   and shows the repository beside the number.
@@ -101,10 +102,11 @@ the file itself.
 
 ## If the pane is rolled back
 
-A roster that holds a to-do `link` is refused by a pane from before this field.
-If the owner tells you the pane refused the roster file for a `link`, ask them
-to delete that session's roster file by hand, then write a fresh roster
-without links. This happens only when a session spans a downgrade of the
+A pane from before the to-do `link` field refuses a roster that holds one.
+If `set_roster` refuses a `link`, or the owner says the pane refused the roster
+file for one, send the roster again without links, and ask the owner to delete
+that session's roster file by hand: you write no file yourself, and the mod
+keeps that one. This happens only when a session spans a downgrade of the
 plugin.
 
 ## When to call it

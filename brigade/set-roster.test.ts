@@ -4713,7 +4713,7 @@ for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
-  test(`#560 C5 ${surface}: a roster planted in plugin state, past the file check, with a hostile link draws no link and a press opens nothing`, async ($, on) => {
+  test(`#560 C5 ${surface}: a roster planted in plugin state, past the file check, with a hostile link draws no link button and no Link, so there is nothing to press`, async ($, on) => {
     const HOSTILE = { cards: [], todos: [{ id: 't1', text: 'Look', link: 'https://github.com.evil.example/o/r/pull/18' }, { id: 't2', text: 'Look', link: 7 }] }
     await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
     const m = await mountOn($, surface)

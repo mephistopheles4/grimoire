@@ -421,14 +421,14 @@ files you ask for:
   usage log only after you say yes. contract's page keeps your answers in the
   browser's storage until you press Reset.
 - **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
-  pull requests its rows carry (and `gh pr view <number> --web` when you press a
-  pull request pill), and once a minute for each other repository a
+  pull requests its rows carry (and `gh pr view <number> --web`, or `gh issue view <number> --web`, when you press a
+  pull request pill or a to-do's link), and once a minute for each other repository a
   row names, at most 6 runs a minute, the repositories taking turns past five,
   which uses your GitHub sign-in. It reads Claude Code's own session files and
   the transcripts of the sessions the lead started. It writes a roster file and
   a usage summary file in the plugin's data folder; the summary file is written
   in every session, pane open or not. The roster file, unencrypted, holds each
-  row's other repository by owner/name, private ones included.
+  row's other repository by owner/name and each to-do's link, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
   Dismiss and, since 0.89.0, Mark all as read presses, and from 0.90.0 to 0.94.0 Mark these N read and from 0.91.0 to 0.94.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the

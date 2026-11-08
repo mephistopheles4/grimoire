@@ -1550,7 +1550,7 @@ async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open) or `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, nothing else). Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, nothing else), or both. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -3452,8 +3452,10 @@ export const register: Register = on => {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
       if (verb === 'visit') {
-        // The link is parsed again from the roster as it is now, and the press
-        // goes only if the address matches the one the button was drawn for.
+        // visitPress (view.ts) is the tested seam: it checks the place and the id's
+        // slug again, parses the link from the roster as it is now, and goes only
+        // if the address matches the one the button was drawn for. The check above
+        // is the one this branch shares with the tick and Open presses.
         const parts = visitPress(current.todos, i, slugged, word)
         if (parts !== undefined) await openTodoLink($, item.id, parts)
         return { element: e.element }

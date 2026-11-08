@@ -928,7 +928,8 @@ export const prUrl = (repo: string, n: string): string | undefined =>
 /** The key part that binds a to-do's link button to the address it was drawn
  *  for (issue 560): the first 16 hex digits of SHA-256 over the rebuilt address.
  *  It has no hyphen, so it survives the key's split, and it is not folded to
- *  letters and digits as an id's slug is, so no two addresses share it. */
+ *  letters and digits as an id's slug is, so two addresses that fold to the same
+ *  slug still differ. */
 export const linkDigest = (url: string): string => sha256Hex(url).slice(0, 16)
 
 /** A link button's press: the to-do's link parsed again from the roster as it

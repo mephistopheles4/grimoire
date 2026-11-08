@@ -978,8 +978,9 @@ reversing "Nothing else is recorded" as ADR 0010 records): its decisions, in
 its decision log through `log_decision`, and its hand-off through
 `set_lead_handoff`, under "What goes out".
 
-**A to-do it writes** (**Decided**, issue 560, spec rev 3 S1.1 and S4.2; the
-go is the lead's decision 334 at level 3): one line of at most 80 characters,
+**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2; the
+go is the lead's decision 334 at level 3, not the owner's words, and the owner
+confirms at merge): one line of at most 80 characters,
 one ask or one owner step each. It names the act or the place ("Answer in
 build-312's chat"), never the question or the decision text, and carries no
 facts, picks, commands or reasons. A waiting entry's fixed text is exempt. A

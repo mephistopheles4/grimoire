@@ -85,8 +85,9 @@ export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_][A-Za-z0-9._-]{
 /** A to-do's link (issue 560): an issue or a pull request on github.com, the
  *  whole string and nothing else. The owner is `REPO`'s owner set, the name is
  *  `REPO`'s name set (so the Desktop run, which holds the repository to `REPO`,
- *  never refuses an accepted link) with no `..` in it, and the number is 1 to 7
- *  digits with no leading zero. No scheme but https, no other host, no
+ *  never refuses an accepted link), and the number is 1 to 7 digits with no
+ *  leading zero. The pattern allows `..` in the name; `parseLink` refuses it
+ *  after the pattern (the tool's schema, built from `LINK.source`, does not). No scheme but https, no other host, no
  *  userinfo, port, query or fragment. */
 export const LINK = /^https:\/\/github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9_][A-Za-z0-9._-]{0,99})\/(issues|pull)\/([1-9][0-9]{0,6})$/
 
@@ -301,7 +302,8 @@ const MAX_PR = 9999999
  *  a card's repository passes the checked owner/name as GH_REPO in the run's
  *  environment, never on the command line (`ghRun`). The pill press runs a
  *  second list, `gh pr view <number> --web` (`ghViewRun`), whose one variable
- *  argument is a card's checked pull request number. */
+ *  argument is a card's checked pull request number; a to-do link press (issue
+ *  560) builds the same list with an issue or pull request kind. */
 export const GH_ARGV: readonly string[] = [
   'gh',
   'pr',
@@ -325,10 +327,10 @@ export function ghRun(repo?: unknown): GhRun | undefined {
   return { argv: GH_ARGV, init: { timeoutMs: 15000, env: { GH_REPO: repo } } }
 }
 
-/** A pill press (issue 513, S2): the second fixed list, `gh pr view <number>
- *  --web`, with the answer's repository always set as GH_REPO, behind a
- *  constant github.com host, and the same
- *  15-second limit. The number is on the command line and has passed
+/** A pill press (issue 513, S2) or a to-do link press (issue 560): the second
+ *  fixed list, `gh <pr|issue> view <number> --web`, with the repository always
+ *  set as GH_REPO, behind a constant github.com host, and the same 15-second
+ *  limit. The repository is the pill's `gh` answer or the to-do link's parse. The number is on the command line and has passed
  *  `PR_NUMBER` here; the repository has passed `REPO`. Either failing builds
  *  no run. */
 export function ghViewRun(number: unknown, repo: unknown, kind: unknown = 'pr'): GhRun | undefined {
