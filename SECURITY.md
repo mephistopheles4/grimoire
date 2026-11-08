@@ -421,7 +421,15 @@ anything else sets nothing. Whether another plugin, or the model itself, can run
 the command with the owner's stamp, or a hook can change the stamp, is not yet
 measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
-confirmation (E35a in the threat model). A 3 it sets carries its goal, which is
+confirmation (E35a in the threat model). **Since head-chef 1.23.0 (issue 541,
+proposed, for the owner to class)** the lead also widens or narrows a command
+goal on the owner's own typed turn in its chat, with no new command, where the
+owner's user-level instructions file counts the owner's chat words as a
+standing goal; a button it wrote, a file, a log entry, a member's message or
+another plugin's text never does, and after a compaction a logged widening
+makes it act at 2 and ask. The mod does not see or stamp that turn, so the
+stamp above does not bind it, and the lead's reading of its chat is the
+control (the host agent as the last guard, C1). A 3 it sets carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, a
