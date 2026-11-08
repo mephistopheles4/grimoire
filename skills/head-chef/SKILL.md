@@ -488,8 +488,8 @@ model already covers that.
 The mod draws it. When there is no mod, say it in chat, once, as written:
 
 > Head chef is on. Two things to know:
-> - Any device signed in to your account can drive the sessions it starts
->   while Remote Control is on.
+> - Every background session it starts is on Remote Control, so any device
+>   signed in to your account can read and drive it.
 > - Those sessions trust any message that claims to come from it, and any
 >   comment on their issue made as you.
 >

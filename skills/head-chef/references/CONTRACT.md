@@ -821,8 +821,8 @@ that eases a control; cut to one sentence in issue 504, S8; reworded in issue
 516, S3.6, the owner's picks, relayed), drawn above the prompt:
 
 > Head chef is on. Two things to know:
-> - Any device signed in to your account can drive the sessions it starts
->   while Remote Control is on.
+> - Every background session it starts is on Remote Control, so any device
+>   signed in to your account can read and drive it.
 > - Those sessions trust any message that claims to come from it, and any
 >   comment on their issue made as you.
 >
