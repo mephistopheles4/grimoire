@@ -9703,7 +9703,7 @@ test('543 C5/C13: two concurrent calls with one name start one, and set_roster a
 })
 
 test('543 C9: a start that exits non-zero, prints no id, is cut short or rejects answers Not started, once, with nothing from the run', async ($, on) => {
-  const { w, out, runs } = await startWorld(on, $)
+  const { out, runs } = await startWorld(on, $)
   const claudes = () => runs().filter(a => a[0] === exe('claude')).length
   const cases: [unknown, string][] = [
     [{ exitCode: 1, stdout: '', stderr: 'Workspace not trusted. Run claude in C:\\secret\\place', isStdoutTruncated: false, isStderrTruncated: false }, 'one'],
@@ -9713,20 +9713,27 @@ test('543 C9: a start that exits non-zero, prints no id, is cut short or rejects
   ]
   for (const [ran, name] of cases) {
     out.start = () => ran
-    // Past the cap's window, so each case reaches its run.
-    await w.clock.advance(10 * 60 * 1000 + 1)
     const r = await startTool($, { name })
     expect(r.text).toBe(NOT_STARTED)
     expect(r.text).not.toContain('secret')
     expect(claudes()).toBe(cases.findIndex(c => c[1] === name) + 1)
+    // A name whose run failed stays held: a retry refuses and runs nothing. (The fourth attempt
+    // would meet the cap first, which is checked before the name.)
+    if (name !== 'four') {
+      expect((await startTool($, { name })).text).toBe(refusedStart(NAME_REASONS.attempted))
+      expect(claudes()).toBe(cases.findIndex(c => c[1] === name) + 1)
+    }
   }
+})
+
+test('543 C9: a start whose run rejects answers Not started, with nothing from the error', async ($, on) => {
+  const { out, runs } = await startWorld(on, $)
   out.start = () => {
     throw new Error('spawn failed: SECRET_TOKEN=abc123')
   }
-  await w.clock.advance(10 * 60 * 1000 + 1)
   const failed = await startTool($, { name: 'five' })
   expect(failed.text).toBe(NOT_STARTED)
-  expect(claudes()).toBe(5)
+  expect(runs().filter(a => a[0] === exe('claude')).length).toBe(1)
 })
 
 test('543 C16: the fifth start inside ten minutes refuses; a failed start counts; a refused call does not; the window moves on', async ($, on) => {
