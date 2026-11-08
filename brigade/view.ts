@@ -300,6 +300,8 @@ export const STYLE = [
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
   '.ok{fill:#2c84db}.warn{fill:#c27c0e}.hot{fill:#c6413a}',
+  // An idle session: a paler amber than warn's in each theme, so the two segments read as two.
+  '.idle{fill:#e8c98a}',
   // The usage projection: a faint form of ok's blue.
   '.proj{fill:#a9cdf0}',
   '.done{fill:#3f8f4f}.stopped{fill:#9c9a92}',
@@ -310,7 +312,7 @@ export const STYLE = [
   '.tint-open{fill:#dff3e4}.tint-draft{fill:#e8e6dc}.tint-merged{fill:#ece6fb}.tint-closed{fill:#fbe3e1}',
   '.ink-open,.ink-draft,.ink-merged,.ink-closed{font-size:11px;font-weight:500}.ink-open{fill:#2f7d3f}.ink-draft{fill:#6b6a64}.ink-merged{fill:#6f4fc9}.ink-closed{fill:#c6413a}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-draft{fill:#3a3935}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-draft{fill:#9c9a92}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.idle{fill:#8f6a24}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-draft{fill:#3a3935}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-draft{fill:#9c9a92}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -714,13 +716,29 @@ export type StatusLook = {
   group: 'needsYou' | 'working' | 'finished'
 }
 
-/** The four statuses, in display order: needs you, working, done, stopped. */
+/** The four stored statuses: needs you, working, done, stopped. The strip's
+ *  display order is `LOOK_ORDER`. */
 export const STATUS: ReadonlyMap<string, StatusLook> = new Map([
   ['needs-you', { glyph: '●', word: 'needs you', color: 'warning', cls: 'warn', group: 'needsYou' }],
   ['working', { glyph: '◐', word: 'working', color: 'suggestion', cls: 'ok', group: 'working' }],
   ['done', { glyph: '✓', word: 'done', color: 'success', cls: 'done', group: 'finished' }],
   ['stopped', { glyph: '–', word: 'stopped', color: 'inactive', cls: 'stopped', group: 'finished' }],
 ] as const)
+
+/** The look of a working card whose session is idle. Pane-only: it is not in
+ *  `STATUS`, so a stored status of `idle` has no look and counts nowhere; it
+ *  is reached only through the idle move (see `movedLook`). */
+export const IDLE_LOOK: StatusLook = { glyph: '○', word: 'idle', color: 'warning', cls: 'idle', group: 'working' }
+
+/** The looks in the strip's and legend's display order: needs you, working,
+ *  idle, done, stopped. */
+export const LOOK_ORDER: readonly StatusLook[] = [
+  STATUS.get('needs-you') as StatusLook,
+  STATUS.get('working') as StatusLook,
+  IDLE_LOOK,
+  STATUS.get('done') as StatusLook,
+  STATUS.get('stopped') as StatusLook,
+]
 
 /** A stored status's look, or undefined for anything but the four words. */
 export const statusOf = (status: unknown): StatusLook | undefined =>
@@ -757,12 +775,13 @@ export function movesFrom(list: readonly Live[]): Moves {
 
 /** The look a card's move gives it, or undefined: a move applies only while
  *  the card's own status is `working`, so a status the head chef wrote since
- *  the poll holds. A move to `waiting` draws as needs-you, one to
- *  `finished` as stopped. */
+ *  the poll holds. A move to `waiting` draws as needs-you, one to `idle` as
+ *  `IDLE_LOOK`. */
 export function movedLook(c: unknown, moves: Moves | undefined): StatusLook | undefined {
   if (moves === undefined || !isRecord(c) || c.status !== 'working' || typeof c.title !== 'string') return undefined
   const move = moves.get(c.title)
-  return move === 'waiting' ? STATUS.get('needs-you') : undefined
+  if (move === 'waiting') return STATUS.get('needs-you')
+  return move === 'idle' ? IDLE_LOOK : undefined
 }
 
 /** A stored card's look when the pane shows it: a record with one of the four
@@ -1118,10 +1137,10 @@ const TODO_HEIGHT = 12
 // A count as the drawing takes it: a finite number above 0, floored, else 0.
 const whole = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
 
-/** One status's count among the shown cards. */
+/** One look's count among the shown cards. */
 export type StatusCount = { look: StatusLook; count: number }
 
-/** The shown cards' count per status, in the Map's order, with no entry for a
+/** The shown cards' count per look, in `LOOK_ORDER`, with no entry for a
  *  status with no cards. Shown is as `groupCards` has it: a record, not
  *  dismissed, and one of the four statuses, by the rule groupCards uses, so
  *  the strip, its legend, the heading and the groups count the same cards. */
@@ -1133,7 +1152,7 @@ export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>, moves
       if (look !== undefined) counts.set(look, (counts.get(look) ?? 0) + 1)
     }
   }
-  return [...STATUS.values()].flatMap(look => {
+  return LOOK_ORDER.flatMap(look => {
     const count = counts.get(look) ?? 0
     return count > 0 ? [{ look, count }] : []
   })
@@ -1493,7 +1512,7 @@ const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread' | 'not-fou
 const WINDOWS = new Set([SHORT_MS, HOUR_MS])
 
 /** One live entry: a roster card's title, its session's live word, the
- *  session's own name and the group the poll moved the card to. */
+ *  session's own name and what the poll did to the card (see `Move`). */
 export type Live = { name: string; value: string; shown?: string; move?: Move }
 
 /** The stored live entries, checked again: a name, value or shown name that
@@ -1510,7 +1529,7 @@ export function liveFrom(stored: unknown): Live[] {
     if (typeof e.value !== 'string' || e.value.length > MAX_LIVE) continue
     const live: Live = { name: e.name, value: e.value }
     if (typeof e.shown === 'string' && e.shown !== '' && e.shown.length <= MAX_NAME) live.shown = e.shown
-    if (e.move === 'waiting') live.move = e.move
+    if (e.move === 'waiting' || e.move === 'idle') live.move = e.move
     out.push(live)
   }
   return out
