@@ -46,8 +46,9 @@ installed and signed in. The background start needs Claude Code 2.1.319.
 
 Before the first background start, type `/brigade folders add <path>` at the
 prompt (or send it from your phone) once for each main checkout you want
-sessions started in. Only you can add a folder; a command typed in the
-terminal is refused.
+sessions started in. Only the typed command adds a folder, and a command typed in the
+terminal is refused; another plugin can still change the list (see
+`SECURITY.md`).
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
