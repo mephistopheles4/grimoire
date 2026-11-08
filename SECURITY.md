@@ -121,7 +121,8 @@ pill also runs `gh pr view <number> --web`, a second fixed list: its one
 variable argument is the card's checked pull request number, on the command
 line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
-`gh`'s own configuration names. Since 0.85.0 a card may carry `repo`,
+`GH_BROWSER`, `BROWSER` or `gh`'s own configuration names, which inherits the
+session's environment (candidate P6). Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,

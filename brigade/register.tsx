@@ -3033,14 +3033,20 @@ export const register: Register = on => {
       // submits nothing, with `lastLevelWake` as it was.
       const voided = commandsVoided
       const reply = await levelCommand($, e.origin, e.args)
-      if (!reply.wake || commandsVoided !== voided) return { text: reply.text }
+      if (!reply.wake) return { text: reply.text }
+      if (commandsVoided !== voided) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
       try {
         const now = await $.clock.now()
         // An overrun can land during the clock read: check again before the stamp.
-        if (commandsVoided !== voided) return { text: reply.text }
+        if (commandsVoided !== voided) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
         if (lastLevelWake !== undefined && now - lastLevelWake < WAKE_GAP_MS) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
+        const earlier = lastLevelWake
         lastLevelWake = now
-        $.clock.after(WAKE_DELAY_MS, () => void (commandsVoided === voided ? $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined) : undefined))
+        $.clock.after(WAKE_DELAY_MS, () => {
+          if (commandsVoided === voided) return void $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined)
+          // A void inside the delay sends nothing, so it also gives the gap back.
+          if (lastLevelWake === now) lastLevelWake = earlier
+        })
       } catch {
         // No turn this time: the reply stands as it is.
       }
