@@ -1044,7 +1044,7 @@ yes keeps for the owner.
   command the owner runs by hand holds only fixed text and values of
   letters, digits and `. _ - /`, none starting with `-` or holding `..`;
   give no command otherwise, and say why.
-- *Proposed* (issue 438, spec rev 2 S3; the lead's decisions 423, 430 and 439,
+  *Proposed* (issue 438, spec rev 2 S3; the lead's decisions 423, 430 and 439,
   its own picks under level 3, not the owner's words). **Own-pick posts say
   so.** Each post the lead writes on its own pick at level 2 or 3 opens with
   this fixed first line: `Posted by the head chef on its own pick, not the owner's words.`
