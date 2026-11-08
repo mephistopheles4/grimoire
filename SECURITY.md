@@ -351,8 +351,8 @@ writing", as it marks every other session's. Both tools skip the permission
 prompt, refuse as `log_decision` does, and touch only the `brigade/handoff/`
 folder the path rule places; a deny rule for `mcp__grimoire__set_lead_handoff`
 or `mcp__grimoire__read_lead_handoff` removes it. While the pane is open it
-reads this session's hand-off and the 20 newest others under the same reads
-as the logs, and draws the one `read_lead_handoff` would give, folded at the
+reads this session's hand-off and the 20 newest others under the same checks
+as the logs had, and draws the one `read_lead_handoff` would give, folded at the
 foot of the Decisions tab. What follows from it:
 - **What the file reveals:** the lead's working state as it wrote it: how to
   resume, the rules in force, the running sessions by name, the cleanup

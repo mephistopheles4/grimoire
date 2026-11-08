@@ -5444,7 +5444,7 @@ test('claim 6: Read, next marks the shown entry read in this session\'s marks fi
   expect(writesTo(w, OWN_MARKS)).toBe(marks)
 })
 
-// --- spec 444: one lead's log, carried entries and Mark all as read ---------------------------------
+// --- spec 444: one lead's log and Mark all as read ---------------------------------
 
 const markAllKeys = async () => (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key)).filter(k => k.startsWith('dmarkall-'))
 // Issue 509: the label is the same whatever the count; the key's N counts the cards a press clears, a pair as one.
@@ -5553,7 +5553,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       seed(w, OWN_MARKS, marksText([flagMark(PEER, '7', 160)]))
     })
     const readsBefore = readsOf(w, PEER_LOG) + readsOf(w, PEER_MARKS)
-    for (const gone of [/^Peer /, /^From another session$/, /^an ended session$/, /other sessions' logs not shown/, /older log\(s\) not read/, /From ended sessions/]) {
+    for (const gone of [/^Peer /, /^From another session$/, /^an ended session$/, /other sessions?\b/i, /older log/i, /not shown|not read/i, /ended session/i]) {
       expect(await shows(gone)).toBe(false)
     }
     expect(await shows(/^1 of 1$/)).toBe(true)
@@ -5565,9 +5565,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await mounted.find({ key: 'dfopen-0-7-160' })).toBeUndefined()
     await press($, 'grp-d-history')
     expect(await shows(/^Peer /)).toBe(false)
-    expect(await shows(/^Own plain\?$/)).toBe(true)
+    expect(await mounted.find({ key: 'dopen-0-1-200' })).toBeDefined()
     await press($, (await markAllKeys())[0] as string)
-    expect(ownMarks(w).filter((m: any) => m.log === SID).map((m: any) => m.id)).toEqual(['1'])
+    // The press wrote this session's read mark and nothing else: the seeded peer flag stays as it was.
+    expect(ownMarks(w).map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()).toEqual(['own 1 read', 'peer 7 flagged'])
     await w.clock.advance(5000)
     // Byte for byte, and never read by the tab's reads (C6).
     expect(w.text(PEER_LOG)).toBe(peerLog)
@@ -5639,12 +5640,6 @@ test('spec 444 claim 4, issue 509 (C5): after a /clear the earlier log is not dr
   expect(await shows(/other sessions' logs not shown/)).toBe(false)
   expect(await markAllKeys()).toEqual([])
   expect(await shows(/^All caught up/)).toBe(true)
-})
-
-test('spec 444 claim 14: this session\'s own card never says it is from another session', async ($, on) => {
-  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 100, { question: 'Own waits?', waiting: true, pick: '' })])))
-  expect(await shows(/^Own waits\?$/)).toBe(true)
-  expect(await shows(/From another session/)).toBe(false)
 })
 
 test('spec 444 claim 8: a key whose set kept its size but changed its entries marks nothing', async ($, on) => {
@@ -5809,10 +5804,9 @@ test('spec 444: when the drop scan is cut, a read mark newer than the cut still 
   expect(parsed(w, LOG).entries[0].id).toBe('2')
 })
 
-test('spec 444 claim 3: a History row opens from the drawn set, not from an unrelated newer entry of another log', async ($, on) => {
+test('spec 444 claim 3: a History row opens from the drawn set', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200, { question: 'Mine?' })]))
-    seed(w, PEER_LOG, logText([kept(1, 500, { question: 'Peer newer?' })]))
   })
   await press($, 'grp-d-history')
   const cards = async () => (await mounted.findAll({ type: 'Text', text: /^Mine\?$/ })).length
@@ -5856,26 +5850,19 @@ test('claim 5: a marks file that fails its check is never overwritten; the press
   expect(await shows(/^1 of 1$/)).toBe(true)
 })
 
-test('claim 7: read marks survive a module reload and a new session', async ($, on) => {
+test('claim 7: read marks survive a module reload', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200)])))
   await press($, 'dnext-1-200')
   expect(await shows(/^All caught up/)).toBe(true)
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
   await w.clock.advance(5000)
   expect(await shows(/^All caught up/)).toBe(true)
-  // A new session: its own marks file is new, and the old one is read as another's.
-  const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
-  w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
-  await w.clock.advance(5000)
-  expect(await shows(/^All caught up/)).toBe(true)
-  expect(await shows(/^1 of 1$/)).toBe(false)
 })
 
 test('claim 7: a mark dated over two minutes ahead, or for another at, leaves the entry unread', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200), kept(2, 300)]))
-    seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 10_000_000_000 }, { log: SID, id: '2', entryAt: 299, state: 'read', at: 5 }]))
+    seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 10_000_000_000_000 }, { log: SID, id: '2', entryAt: 299, state: 'read', at: 5 }]))
   })
   expect(await shows(/^1 of 2$/)).toBe(true)
 })
@@ -6050,7 +6037,6 @@ test('claim 4: a marks file the pane skips as dated ahead marks nothing read for
     seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
     seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 10_000_000_000_000)
   })
-  expect(await shows(/^1 of 500$/)).toBe(true)
   const before = w.text(LOG)
   const r = await decide($)
   expect(r.text).toMatch(/the decision log is full/)
@@ -6225,6 +6211,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await press($, 'dbardismiss')
     expect(writesTo(w, OWN_MARKS)).toBe(writes + 1)
     expect(states()).toEqual({ 1: 'unflagged', 2: 'unflagged', 3: 'flagged' })
+    expect(ownMarks(w).filter((m: any) => m.id === '1').at(-1)).toEqual(flagMark(SID, '1', 200, 'unflagged', w.clock.now()))
     expect(await mounted.find({ key: 'dbardismiss' })).toBeUndefined()
     expect(await mounted.find({ key: 'dfopen-0-3-400' })).toBeDefined()
     expect(await mounted.find({ key: 'dfopen-1-2-300' })).toBeUndefined()
@@ -6237,6 +6224,22 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(writesTo(w, OWN_MARKS)).toBe(writes + 1)
   })
 }
+
+test('claim 9: a Dismiss leaves out a pick that was unflagged before the press', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200), kept(2, 300)]))
+    seed(w, OWN_MARKS, marksText([flagMark(SID, '1', 200), flagMark(SID, '2', 300)]))
+  })
+  await press($, 'grp-d-flagged')
+  await press($, 'dfpick-0-1-200')
+  await press($, 'dfpick-1-2-300')
+  // Another press of the owner's unflags the second row after it was picked.
+  seed(w, OWN_MARKS, marksText([flagMark(SID, '1', 200), flagMark(SID, '2', 300, 'unflagged', 100)]), 9)
+  await w.clock.advance(5000)
+  await press($, 'dbardismiss')
+  expect(ownMarks(w).filter((m: any) => m.id === '1').at(-1)).toEqual(flagMark(SID, '1', 200, 'unflagged', w.clock.now()))
+  expect(ownMarks(w).filter((m: any) => m.id === '2')).toEqual([flagMark(SID, '2', 300, 'unflagged', 100)])
+})
 
 test('claim 9: the search filters Flagged too', async ($, on) => {
   await flagPane(on, $, 'desktop', w => {

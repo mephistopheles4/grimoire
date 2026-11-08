@@ -32,11 +32,13 @@ of this session's log, with no cap beyond the log's own 500 entries.
 **What stays.** The Lead hand-off card may still draw another session's
 hand-off, framed as not this session's writing (the owner's answer to Q10 on
 issue 509): a hand-off is not a decision log, and it is how a new lead takes
-work over. `log_decision`'s drop scan still reads the other marks files. The
+work over. `log_decision`'s drop scan, which also runs when the pane appends its own entry
+to a full log, still reads the other marks files. The
 Sessions tab and its use of the session files are unchanged.
 
-**What replaces the carried cards.** An earlier lead's open decision travels
-through the hand-off, after the owner's yes in chat (ticket T3).
+**What replaces the carried cards.** An earlier lead's open decision can travel
+through the hand-off, after the owner's yes in chat; the rule that makes it do
+so is ticket T3, not built here.
 
 **The pin.** Drawing anything from another session's decision log needs the
 owner's own words. A lead's pick, at any level, does not count. A test seeds

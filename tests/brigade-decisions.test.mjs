@@ -381,7 +381,7 @@ const logs = () => {
   ];
 };
 
-test('claim 6: To review is the oldest unread entry across the logs read, with n of N; Owner and Pane never show there', () => {
+test('claim 6: reviewQueue puts the oldest unread entry of the logs it is given first, with n of N; Owner and Pane never show there', () => {
   const ls = logs();
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '9', at: NOW - 100, source: 'owner' }, { ...ls[0].log.entries[0], id: '10', at: NOW - 99, source: 'pane' });
   const q = reviewQueue(ls, new Map(), new Set(), []);
@@ -694,7 +694,7 @@ test('claim 12: the hand-off chosen is this session\'s own, else the newest by s
   assert.equal(chooseHandoff(own, others, null, NOW), own);
 });
 
-// --- spec 444: one lead's log, carried entries, Mark all as read, the marks cap order ------------
+// --- spec 444: one lead's log, Mark all as read, the marks cap order ------------
 
 const mk = (sid, id, at, state, when) => ({ log: sid, id, entryAt: at, state, at: when });
 // This session's log (3 plain leads) and another's: two waiting entries (one answered), the answer, a plain lead, a relayed, an alarm and an Owner entry.

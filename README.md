@@ -200,10 +200,11 @@ session, no fold, no flagged row and no count of another log's entries. The
 current lead is the session whose id the pane reads as its own, so whatever
 keeps that id keeps its log in view; a new session id starts a new lead with
 an empty tab. Earlier sessions' logs stay on disk, untouched, and you see one
-again only by resuming that session in its own chat. The pane reads this
-session's own decision log and marks file and no other session's. A question
-meant for you in an earlier lead's log comes across only through the hand-off,
-after your yes. "✓ Mark all as read", at the right of To review's heading,
+again only by resuming that session in its own chat. The tab reads this
+session's own decision log and marks file and no other session's (a full log's
+drop rule still reads the other marks files). A question meant for you in an
+earlier lead's log reaches you through the hand-off, if that lead wrote it
+there. "✓ Mark all as read", at the right of To review's heading,
 marks everything under To review read in one write: every card of this
 session's log, Lead, Relayed, waiting entries and alarms, including its own
 waiting entries that no Relayed entry answers. It ignores the search: it takes everything
@@ -466,8 +467,9 @@ files you ask for:
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
-  while the pane is open it reads this session's files and the 20 newest
-  other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
+  while the pane is open it reads this session's decision log and marks file
+  and, for the Lead hand-off card, this session's hand-off and the 20 newest
+  others' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
 - **Nine calls skip the permission prompt:** the `set_roster` tool, which
