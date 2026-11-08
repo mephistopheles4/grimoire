@@ -24,7 +24,7 @@ and the lead, so the member no longer gets the rule that it takes a new lead
 name only from the owner's words. A message under the lead's name that names a
 new lead can redirect its reports, which candidate P8 covers.
 
-Amended in head-chef 1.18.0 (issue 540): a background member with Remote Control lists twice under its
+Amended in head-chef 1.20.0 (issue 540): a background member with Remote Control lists twice under its
 name, the session on this machine and its Remote Control row. When exactly two
 rows share the name, one on this machine and one a Remote Control row, the lead
 sends to, and subscribes to the idle notice of, the row on this machine by its

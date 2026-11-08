@@ -62,7 +62,7 @@ or type `/brigade` to open it.
   terminal.
 - **Starts a Desktop session only on your words.** Say "as a Desktop
   session", and the head chef uses Desktop's start tool and setters, as it did
-  before head-chef 1.18.0. When that start is refused, or `claude --bg` is
+  before head-chef 1.20.0. When that start is refused, or `claude --bg` is
   refused, the head chef says so in one line and offers the other route. It
   retries neither on its own. Over Remote Control from the phone, both routes
   are blocked while the lead runs in auto mode: the start waits until you are

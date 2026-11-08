@@ -85,9 +85,8 @@ A start whose route the owner's words did not name is a background session with 
    from the listing in this turn, as that section says.
 
 When the session shows as offline for Remote Control, it still runs: keep its
-id and its card, and tell the owner to open it from `claude agents`. When you
-read `claude agents`, use only the session's own row, and quote only the
-value you need.
+id and its card, and tell the owner to open it from `claude agents`. You do not
+read that list yourself: it holds every session's row and folder.
 
 ## When a start is refused
 

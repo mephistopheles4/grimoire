@@ -81,7 +81,7 @@ function attributes(source) {
 // threat-model row 15 says. The class `proj` is admitted for the usage
 // image's projection (#275). The `tint-` and `ink-` classes are admitted for
 // the PR pill (#339).
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-merged', 'tint-closed', 'ink-open', 'ink-merged', 'ink-closed']);
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-draft', 'tint-merged', 'tint-closed', 'ink-open', 'ink-draft', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -3162,6 +3162,126 @@ test('the context trend: the last calls\' context scaled to the window, each dro
   assert.equal(contextTrend(meterOf({ context: [5000, 412000] })).text, '412k now · 0 compactions');
 });
 
+// Issue 545, row 8: the context view is a bar against the window with a tick where
+// auto-compaction fires, an estimate of the turns left, the large turns as dots, and
+// the sawtooth only once the session has compacted.
+const { contextOutlook, contextOutlookSvg, compactWindowFrom } = view;
+
+test('545 row 8: the outlook is a bar of context over the window, its tick at window less 33k, and the words say both', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] }));
+  assert.equal(o.fraction, 0.305);
+  assert.equal(o.tick, 0.967);
+  assert.equal(o.text, '305k of 1M · compacts at ~967k');
+  assert.equal(o.alt, 'Context 305k of 1M, compacts at about 967k');
+  const small = contextOutlook(meterOf({ window: 200000, context: [100000, 110000] }));
+  assert.equal(small.tick, 0.835);
+  assert.equal(small.text, '110k of 200k · compacts at ~167k');
+  // Past the window the bar is full.
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [100000, 300000] })).fraction, 1);
+});
+
+test('545 row 8: the owner\'s autoCompactWindow, when set and below the window, is the tick, and the words drop the tilde', () => {
+  const m = meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] });
+  const o = contextOutlook(m, 400000);
+  assert.equal(o.tick, 0.4);
+  assert.equal(o.text, '305k of 1M · compacts at 400k');
+  assert.equal(o.alt, 'Context 305k of 1M, compacts at 400k');
+  assert.equal(o.turns, 'about 19 turns to compaction');
+  // Not below the window, not a whole number or not a number: the estimate stands.
+  for (const bad of [1000000, 2000000, 0, -1, 1.5, Number.NaN, '400000', null, undefined, 10]) assert.equal(contextOutlook(m, bad).tick, 0.967, String(bad));
+});
+
+test('545 row 8: autoCompactWindow is read from the settings text as a whole number from 50,000, else none', () => {
+  assert.equal(compactWindowFrom('{"autoCompactWindow":400000}'), 400000);
+  assert.equal(compactWindowFrom('{"model":"opus","autoCompactWindow":50000,"permissions":{"deny":["x"]}}'), 50000);
+  assert.equal(compactWindowFrom('{"autoCompactWindow":4e5}'), 400000);
+  for (const bad of ['{"autoCompactWindow":49999}', '{"autoCompactWindow":"400000"}', '{"autoCompactWindow":1.5}', '{"autoCompactWindow":null}', '{}', '[]', 'null', 'not json', '', '{"autoCompactWindow":30000001}', '{"__proto__":{"autoCompactWindow":400000}}', 5, undefined]) {
+    assert.equal(compactWindowFrom(bad), undefined, String(bad));
+  }
+  assert.equal(compactWindowFrom(`{"a":"${'x'.repeat(1100000)}","autoCompactWindow":400000}`), undefined, 'over 1 MiB');
+});
+
+test('545 row 8: the turns left come from the average growth per turn since the last compaction, rounded up', () => {
+  // 5k a turn from 305k to the line at 967k: 662k / 5k = 132.4, so 133.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] })).turns, 'about 133 turns to compaction');
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [150000, 157000, 164000] })).turns, 'about 1 turn to compaction');
+  // At or past the line.
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [160000, 170000] })).turns, 'at the compaction line');
+  // A flat or shrinking stretch gives no estimate.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [300000, 300000] })).turns, undefined);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [300000, 290000] })).turns, undefined);
+  // The growth is read only after the last compaction: a drop from 800k to 50k, then +10k a turn.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [700000, 800000, 50000, 60000, 70000] })).turns, 'about 90 turns to compaction');
+});
+
+test('545 row 8: a turn that adds more than 20k is a dot with how much it added, after the last compaction only', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000, 142000, 170000] }));
+  assert.deepEqual(o.dots, [{ at: 0.14, added: 35000 }, { at: 0.17, added: 28000 }]);
+  assert.equal(o.dotsText, 'large turns: +35k, +28k');
+  // Exactly 20k is not large.
+  assert.deepEqual(contextOutlook(meterOf({ window: 1000000, context: [100000, 120000] })).dots, []);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000, 120000] })).dotsText, undefined);
+  // A turn before the last compaction is not drawn on the bar.
+  assert.deepEqual(contextOutlook(meterOf({ window: 1000000, context: [100000, 400000, 20000, 25000] })).dots, []);
+  // At most the newest five.
+  const many = contextOutlook(meterOf({ window: 1000000, context: Array.from({ length: 10 }, (_, i) => 30000 * (i + 1)) }));
+  assert.equal(many.dots.length, 5);
+  assert.equal(many.dots[4].at, 0.3);
+});
+
+test('545 row 8: the sawtooth shows only once the session has compacted', () => {
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000, 200000, 300000] })).sawtooth, undefined);
+  const saw = contextOutlook(meterOf({ window: 1000000, context: [800000, 100000, 120000] })).sawtooth;
+  assert.deepEqual(saw.marks, [false, true, false]);
+  assert.equal(saw.compactions, 1);
+});
+
+test('545 row 8: the tick never sits under half the window, and the bar warns at 70% and fires at 90% of the way to it', () => {
+  // A 40k window: window less 33k would be 7k; the floor is 20k.
+  assert.equal(contextOutlook(meterOf({ window: 40000, context: [1000, 2000] })).tick, 0.5);
+  const at = used => contextOutlook(meterOf({ window: 1000000, context: [used - 1000, used] }));
+  assert.equal(at(600000).cls, 'done');
+  assert.equal(at(0.7 * 967000 + 1).cls, 'warn');
+  assert.equal(at(0.9 * 967000 + 1).cls, 'hot');
+});
+
+test('545 row 8: a large turn is said in words as well as drawn', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000] }));
+  assert.equal(o.dotsText, 'large turns: +35k');
+  assert.equal(contextOutlookSvg(o).source.match(/<circle /g).length, 1);
+});
+
+test('545 row 8: the settings reader takes a file of at most 1 MiB and nothing else', async () => {
+  const { readCompactWindow } = view;
+  const io = (stat, text = '{"autoCompactWindow":400000}') => ({ stat: async () => stat, read: async () => text });
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file', size: 30 })), 400000);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'dir', size: 30 })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file', size: 1024 * 1024 + 1 })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file' })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io(undefined)), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', { stat: async () => { throw new Error('x'); }, read: async () => '' }), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', { stat: async () => ({ kind: 'file', size: 3 }), read: async () => { throw new Error('x'); } }), undefined);
+});
+
+test('545 row 8: no window, one call or no meter gives no outlook, and a hostile value never throws', () => {
+  const { window, ...noWindow } = meterOf();
+  assert.equal(contextOutlook({ ...noWindow, context: [100000, 200000] }), undefined);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000] })), undefined);
+  assert.equal(contextOutlook(undefined), undefined);
+  for (const v of [Number.NaN, -5, 1e99, 'x', null]) assert.doesNotThrow(() => contextOutlook(meterOf({ window: 1000000, context: [100000, v] })));
+});
+
+test('545 row 8: the outlook image keeps to the allowlist: a track, a fill, a tick, one circle per dot, fixed alt, no NaN', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000, 142000, 170000] }));
+  const svg = contextOutlookSvg(o);
+  assertAllowlisted(svg.source);
+  assert.equal(svg.source.match(/<circle /g).length, 2);
+  assert.match(svg.source, /<rect class="muted" x="96\.7%"/);
+  assert.match(svg.source, /<rect class="done" x="0" y="[0-9.]+" width="17%"/);
+  assert.equal(svg.alt, o.alt);
+  assertAllowlisted(contextOutlookSvg({ fraction: Number.NaN, tick: 5, dots: [{ at: -1, added: 1 }, 'x'], cls: 'evil', alt: 'x' }).source);
+});
+
 test('the context trend scales to the largest value with no window, and clamps a value past the window to full', () => {
   const { window, ...noWindow } = meterOf();
   assert.deepEqual(contextTrend({ ...noWindow, context: [100000, 400000, 200000] }).columns, [0.25, 1, 0.5]);
@@ -4223,6 +4343,10 @@ test('the compact settings: the model\'s first letter and one character for the 
   assert.equal(compactSettings('Opus, max').text, 'O·∞');
   assert.equal(compactSettings('Opus').text, 'O');
   assert.equal(compactSettings('Opus, constructor').text, 'O');
+  // Issue 545, row 6: a card's real shapes, with the effort in any word and no comma needed.
+  assert.equal(compactSettings('Sonnet medium').text, 'S·M');
+  assert.equal(compactSettings('Sonnet 5.5, medium effort').text, 'S·M');
+  assert.equal(compactSettings('Opus 4.7 xhigh').text, 'O·X');
   assert.equal(compactSettings('').text, '?');
   assert.equal(compactSettings(5).text, '?');
   assert.equal(compactSettings(undefined).full, 'No settings on the card.');
@@ -4236,6 +4360,7 @@ test('the pill\'s look comes from a Map keyed by state, so a prototype key draws
   assert.equal(pillColor('open'), 'success');
   assert.equal(pillColor('merged'), 'merged');
   assert.equal(pillColor('closed'), 'error');
+  assert.equal(pillColor('draft'), 'inactive');
   for (const s of ['constructor', '__proto__', 'toString', 'OPEN', '', 5, null, undefined, {}]) assert.equal(pillColor(s), undefined, String(s));
 });
 
@@ -4256,7 +4381,7 @@ test('the chosen view reads through the fixed set: anything but prs or decisions
 
 test('the folded groups keep only names from the fixed set, at most 50, from the first 200 entries', () => {
   // Spec 402 adds the Decisions tab's Flagged to revisit and History, both folded by default (S5.4).
-  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']);
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-draft', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']);
   assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
   assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
   assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);
@@ -4294,6 +4419,7 @@ test('each group has a quiet hint', () => {
   assert.equal(GROUP_HINTS.get('working'), 'No session is working.');
   assert.equal(GROUP_HINTS.get('finished'), 'Sessions the owner closed.');
   assert.equal(GROUP_HINTS.get('pr-open'), 'No open pull requests.');
+  assert.equal(GROUP_HINTS.get('pr-draft'), 'No draft pull requests.');
   assert.equal(GROUP_HINTS.get('pr-merged'), 'Nothing merged yet.');
   assert.equal(GROUP_HINTS.get('pr-closed'), 'No closed pull requests.');
 });
@@ -4313,18 +4439,26 @@ test('the PR rows: a card\'s PR in the group of gh\'s state, else the card\'s, e
   assert.equal(rows.open[0].detail.repo, undefined);
 });
 
+test('issue 545: a draft pull request is its own group, from the gh answer or the card prState, not the open one', () => {
+  const cards = [prCard('a', 'working', '10'), prCard('b', 'working', '11', 'draft'), prCard('c', 'working', '12', 'open')];
+  const rows = prRows(cards, new Set(), new Map([[12, ghAnswer(12, { state: 'draft' })]]), NOW);
+  assert.deepEqual(rows.open.map(r => r.number), ['10']);
+  assert.deepEqual(rows.draft.map(r => r.number), ['11', '12']);
+  assert.equal(rows.draft[1].state, 'draft');
+});
+
 test('the PR rows list one row per card, skip dismissed cards but not needs-you ones, and fall back safely on hostile stored values', () => {
   const cards = [prCard('a', 'working', '7'), prCard('b', 'working', '7'), prCard('c', 'done', '8'), prCard('d', 'needs-you', '9'), prCard('e', 'working', 'abc'), prCard('f', 'working', '1', 'constructor'), prCard('g', 'paused', '2'), null, 5];
   const rows = prRows(cards, new Set(['c', 'd']), new Map(), NOW);
   assert.deepEqual(rows.open.map(r => r.title), ['a', 'b', 'd', 'f']);
   assert.deepEqual(rows.merged, []);
   assert.deepEqual(rows.closed, []);
-  assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], merged: [], closed: [] });
+  assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], draft: [], merged: [], closed: [] });
 });
 
 test('the hairline and PR pill images: their classes, a light and a dark rule each in the style block, and the allowlist holds', () => {
   // The pill: a rounded tint, the state's mark and the number, 18 high.
-  for (const [state, mark] of [['open', '⇄'], ['merged', '⎇'], ['closed', '⊘']]) {
+  for (const [state, mark] of [['open', '⇄'], ['draft', '◌'], ['merged', '⎇'], ['closed', '⊘']]) {
     const p = view.pillSvg('341', state);
     assertAllowlisted(p.source);
     assert.equal(p.height, 18);
@@ -4340,7 +4474,7 @@ test('the hairline and PR pill images: their classes, a light and a dark rule ea
   }
   // A longer number makes a wider pill; a state or number of the wrong shape makes none.
   assert.ok(view.pillSvg('1234567', 'open').width > view.pillSvg('7', 'open').width);
-  for (const [n, state] of [['341', 'constructor'], ['341', 'draft'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
+  for (const [n, state] of [['341', 'constructor'], ['341', 'drafts'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
   const h = hairlineSvg();
   assertAllowlisted(h.source);
   assert.match(h.source, /<rect class="rule" /);
