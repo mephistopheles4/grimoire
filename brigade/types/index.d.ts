@@ -29,7 +29,7 @@ export type Card = {
 export type PrState = 'open' | 'draft' | 'merged' | 'closed'
 
 /** Something waiting on the owner that no card already shows. */
-export type Todo = { id: string; text: string; session?: string }
+export type Todo = { id: string; text: string; session?: string; link?: string }
 
 /** A lead session's roster file, after its shape check. */
 export type Roster = { cards: Card[]; todos: Todo[] }

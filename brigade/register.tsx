@@ -5,6 +5,8 @@ import type { Card, Meter, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
   AHEAD_MS,
+  LINK,
+  MAX_LINK,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
   REPO,
@@ -25,6 +27,8 @@ import {
   dataPlace,
   ghRun,
   ghViewRun,
+  linkLabel,
+  linkUrl,
   listsOpenTool,
   liveWord,
   listedAsOurs,
@@ -34,6 +38,7 @@ import {
   typedLoadRan,
   oneLine,
   openerArgv,
+  parseLink,
   parsePrList,
   placeDecisions,
   placeHandoff,
@@ -54,7 +59,7 @@ import {
   rowMove,
 } from './roster.ts'
 import { ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget } from './stop.ts'
-import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
+import type { GhPr, HostOs, LinkParts, Placed, SessionRow, StatAnswer } from './roster.ts'
 import {
   FULL,
   HANDOFF_SECTIONS,
@@ -165,6 +170,8 @@ import {
   pillSvg,
   pillState,
   prAnswer,
+  linkDigest,
+  linkPress,
   prUrl,
   prNumber,
   prRows,
@@ -1506,6 +1513,29 @@ async function openPill($: EngineInterface, c: Card) {
   }
 }
 
+// A to-do's link press on Desktop (issue 560): the pill's route, `gh issue view
+// <number> --web` or `gh pr view <number> --web`, built by `ghViewRun` from the
+// link's parse, with the repository behind a constant github.com host, after
+// the same PATH check. One press per to-do at a time (the pill has no such
+// guard; this one is keyed on the to-do's id). Failure is a refused or failed
+// start, a non-zero exit or a timeout, and shows the one fixed toast.
+const LINK_FAILED = 'Could not open the page'
+const visiting = new Set<string>()
+async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
+  if (visiting.has(id)) return
+  visiting.add(id)
+  try {
+    const run = ghViewRun(parts.number, parts.repo, parts.kind)
+    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    const ran = await $.process.run([...run.argv], run.init)
+    if (ran.exitCode !== 0) throw new Error('failed')
+  } catch {
+    $.ui.toast(LINK_FAILED)
+  } finally {
+    visiting.delete(id)
+  }
+}
+
 // --- set_roster ---------------------------------------------------------------
 //
 // The tool the head chef keeps the roster with. A file write of its own into
@@ -1520,7 +1550,7 @@ async function openPill($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open) or `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, nothing else). Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -1556,7 +1586,7 @@ const SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'text'],
-        properties: { id: field(40), text: field(MAX_TEXT), session: field(80) },
+        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: LINK.source } },
       },
     },
   },
@@ -3418,9 +3448,16 @@ export const register: Register = on => {
       return { element: e.element }
     }
 
-    if (verb === 'todo' || verb === 'go') {
+    if (verb === 'todo' || verb === 'go' || verb === 'visit') {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
+      if (verb === 'visit') {
+        // The link is parsed again from the roster as it is now, and the press
+        // goes only if the address matches the one the button was drawn for.
+        const parts = linkPress(item.link, word)
+        if (parts !== undefined) await openTodoLink($, item.id, parts)
+        return { element: e.element }
+      }
       if (verb === 'todo') {
         // A tick, or a second press inside the grace period that undoes it.
         const now = await $.clock.now()
@@ -4195,6 +4232,12 @@ export const register: Register = on => {
     // session the pane can open, Open.
     const todoRow = ({ t, i }: { t: (typeof todos)[number]; i: number }) => {
       const isTicked = crossed.has(t.id)
+      // A to-do's link (issue 560), parsed again at each draw from the roster as read: what is
+      // drawn and keyed is the address rebuilt from the parse, never the stored string, and a
+      // string the pattern refuses draws nothing. The label names the repository and does not
+      // shrink; the text above it gives way first.
+      const linkParts = parseLink(t.link)
+      const linkHref = linkParts === undefined ? undefined : linkUrl(linkParts)
       return (
         <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
           {/* Dim at rest (a blank on the terminal, a ○ on a desktop), a tick
@@ -4215,10 +4258,20 @@ export const register: Register = on => {
               </Button>
             )}
           </Box>
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
+            <Text wrap="truncate-end" strikethrough={isTicked} dimColor={isTicked}>
               {oneLine(t.text, MAX_TEXT)}
             </Text>
+            {linkParts !== undefined && linkHref !== undefined &&
+              (pointer ? (
+                <Button key={`${keyFor('visit', i, t.id)}-${linkDigest(linkHref)}`} plain onPress={noop}>
+                  <Text wrap="wrap">{linkLabel(linkParts)}</Text>
+                </Button>
+              ) : (
+                <Text wrap="wrap">
+                  <Link href={linkHref}>{linkLabel(linkParts)}</Link>
+                </Text>
+              ))}
           </Box>
           {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
             <Box flexShrink={0}>

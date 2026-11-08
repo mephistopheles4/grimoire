@@ -1,5 +1,6 @@
-import { AHEAD_MS, PR_NUMBER, PR_STATES, REPO, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
-import type { GhPr, Move, SessionRow, StatAnswer } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, REPO, SESSION_ID, foldsCase, linkUrl, oneLine, parseLink, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
+import type { GhPr, LinkParts, Move, SessionRow, StatAnswer } from './roster.ts'
+import { sha256Hex } from './decisions.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -923,6 +924,20 @@ export const pillState = (gh: string | undefined, card: unknown): string => gh ?
  *  so no card text reaches the URL. Anything else: no link. */
 export const prUrl = (repo: string, n: string): string | undefined =>
   /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(repo) && !['.', '..'].includes(repo.split('/')[1] ?? '') && /^[1-9][0-9]{0,6}$/.test(n) ? `https://github.com/${repo}/pull/${n}` : undefined
+
+/** The key part that binds a to-do's link button to the address it was drawn
+ *  for (issue 560): the first 16 hex digits of SHA-256 over the rebuilt address.
+ *  It has no hyphen, so it survives the key's split, and it is not folded to
+ *  letters and digits as an id's slug is, so no two addresses share it. */
+export const linkDigest = (url: string): string => sha256Hex(url).slice(0, 16)
+
+/** A link button's press: the to-do's link parsed again from the roster as it
+ *  is now, and kept only if the button's digest is the one of that address.
+ *  A link changed since the draw, to anything, gives undefined. */
+export function linkPress(link: unknown, word: unknown): LinkParts | undefined {
+  const parts = parseLink(link)
+  return parts !== undefined && word === linkDigest(linkUrl(parts)) ? parts : undefined
+}
 
 /** A pull request row: the card it comes from, its place in the roster, its
  *  number, the state it is grouped by, its title and the dim line's parts. */

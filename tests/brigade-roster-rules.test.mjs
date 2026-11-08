@@ -1011,3 +1011,87 @@ test('issue 504: a roster file holding phase loads with the key dropped, and a t
   const fromTool = checkRoster(withPhase, true, 'tool');
   assert.deepEqual(fromTool, { error: 'phase is gone: send the cards without it' });
 });
+
+// --- issue 560: a to-do's link ---------------------------------------------------------
+
+const { parseLink, linkUrl, linkLabel } = roster;
+const GOOD_LINKS = [
+  'https://github.com/mephistopheles4/grimoire/issues/560',
+  'https://github.com/o/r/pull/18',
+  'https://github.com/a-b/c.d_e-f/issues/1',
+  'https://github.com/o/_x/pull/9999999',
+  'https://github.com/O/R/issues/7',
+  `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/issues/1`,
+];
+// Refused: another scheme or host, a prefix trick, userinfo, a port, a query, a fragment, a path
+// that is not issues or pull, a name that is `..`-shaped or starts with `.` or `-`, a number with
+// a leading zero, a trailing slash, white space, a hidden or non-ASCII character, an uppercase
+// scheme or host, a claude.ai address, a string over 200 characters and a value that is not text.
+const BAD_LINKS = [
+  'http://github.com/o/r/issues/1', 'javascript:alert(1)', 'file:///etc/passwd', 'HTTPS://github.com/o/r/issues/1',
+  'https://GITHUB.com/o/r/issues/1', 'https://github.com.evil.example/o/r/issues/1',
+  'https://evil.example/https://github.com/o/r/issues/1', 'https://github.com@evil.example/o/r/issues/1',
+  'https://user@github.com/o/r/issues/1', 'https://github.com:443/o/r/issues/1', 'https://github.com/o/r/issues/1?x=1',
+  'https://github.com/o/r/issues/1#issuecomment-5', 'https://github.com/o/r/issues/1#', 'https://github.com/o/r/issues/1/',
+  'https://github.com/o/r/issues/1/foo', 'https://github.com/o/r/commit/abc', 'https://github.com/o/r/discussions/1',
+  'https://github.com/o/r/issues/0', 'https://github.com/o/r/issues/007', 'https://github.com/o/r/issues/12345678',
+  'https://github.com/o/.github/issues/1', 'https://github.com/o/-x/issues/1', 'https://github.com/o/a..b/issues/1',
+  'https://github.com/o/../issues/1', 'https://github.com/o//issues/1', 'https://github.com//r/issues/1',
+  'https://github.com/-o/r/issues/1', 'https://github.com/o_x/r/issues/1', `https://github.com/${'a'.repeat(40)}/r/issues/1`,
+  `https://github.com/o/${'r'.repeat(101)}/issues/1`, ' https://github.com/o/r/issues/1', 'https://github.com/o/r/issues/1 ',
+  'https://github.com/o/r/issues/1\n', 'https://github.com/o /r/issues/1', 'https://github.com/o\u{200B}/r/issues/1',
+  'https://github.com/ö/r/issues/1', 'https://claude.ai/code/session_abc', 'https://github.com/o/r/issues/1'.padEnd(201, 'x'),
+  '', 7, null, undefined, ['https://github.com/o/r/issues/1'], { href: 'https://github.com/o/r/issues/1' },
+];
+
+test('#560 C3: a link is accepted only in the closed github.com issue or pull request shape', () => {
+  for (const link of GOOD_LINKS) assert.ok(parseLink(link), link);
+  for (const link of BAD_LINKS) assert.equal(parseLink(link), undefined, JSON.stringify(link));
+});
+
+test('#560 C3: every accepted link equals the address rebuilt from its parse, and the rebuild is on the constant prefix', () => {
+  for (const link of GOOD_LINKS) {
+    const p = parseLink(link);
+    assert.equal(linkUrl(p), link);
+    assert.ok(linkUrl(p).startsWith('https://github.com/'));
+  }
+});
+
+test("#560 C3: every accepted link builds a Desktop run (the link's name set is the run's)", () => {
+  for (const link of GOOD_LINKS) {
+    const p = parseLink(link);
+    const run = ghViewRun(p.number, p.repo, p.kind);
+    assert.ok(run, link);
+    assert.deepEqual(run.argv, ['gh', p.kind, 'view', p.number, '--web']);
+  }
+});
+
+test('#560 C6: the label names the repository and the number, from the parse alone', () => {
+  assert.equal(linkLabel(parseLink('https://github.com/mephistopheles4/grimoire/issues/560')), '#560 mephistopheles4/grimoire');
+  assert.equal(linkLabel(parseLink('https://github.com/o/r/pull/18')), 'PR 18 o/r');
+});
+
+test('#560 C4: an issue press builds gh issue view <number> --web with GH_REPO pinned behind github.com; the kind is one of two words', () => {
+  assert.deepEqual(ghViewRun('560', 'o/r', 'issue'), { argv: ['gh', 'issue', 'view', '560', '--web'], init: { timeoutMs: 15000, env: { GH_REPO: 'github.com/o/r' } } });
+  assert.deepEqual(ghViewRun('18', 'o/r', 'pr'), { argv: ['gh', 'pr', 'view', '18', '--web'], init: { timeoutMs: 15000, env: { GH_REPO: 'github.com/o/r' } } });
+  // The pill's call keeps its two arguments and its kind.
+  assert.deepEqual(ghViewRun('18', 'o/r'), ghViewRun('18', 'o/r', 'pr'));
+  for (const kind of ['', 'merge', 'pull', 'issues', '--web', 7, null]) assert.equal(ghViewRun('18', 'o/r', kind), undefined, JSON.stringify(kind));
+});
+
+test('#560 C3: a to-do may carry link from the file and from the tool; any other value is refused in fixed words that never echo it', () => {
+  const todo = over => JSON.stringify({ cards: [], todos: [{ id: 't1', text: 'Review PR 18', ...over }] });
+  for (const link of GOOD_LINKS) {
+    for (const source of ['file', 'tool']) {
+      assert.equal(checkRoster(todo({ link }), true, source).value?.todos[0].link, link, `${link} ${source}`);
+    }
+  }
+  assert.equal('link' in checkRoster(todo({})).value.todos[0], false);
+  // JSON has no undefined: a link left out is no link, which the line above holds.
+  for (const link of BAD_LINKS.filter(l => l !== undefined)) {
+    for (const source of ['file', 'tool']) {
+      const r = checkRoster(todo({ link }), true, source);
+      assert.equal(r.error, 'to-do 1 link is not a github.com issue or pull request link', `${JSON.stringify(link)} ${source}`);
+    }
+  }
+});

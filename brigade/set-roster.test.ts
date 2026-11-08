@@ -22,6 +22,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
+import { sha256Hex } from './decisions.ts'
 
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
@@ -4593,6 +4594,137 @@ test('desktop, C1: a failed PATH check runs nothing and shows the fixed toast', 
   await m.press({ key: 'pill-0-alpha' })
   expect(viewRuns(w)).toEqual([])
   expect(w.toasts).toEqual(['Could not open the pull request'])
+})
+
+// --- issue 560: a to-do's link ------------------------------------------------------------
+//
+// Desktop presses a Button and runs gh, as the pill does; the other surfaces draw the engine's
+// Link with the address rebuilt from the parse. A to-do's text is one line on every surface.
+
+const PR_LINK = 'https://github.com/o/r/pull/18'
+const ISSUE_LINK = 'https://github.com/mephistopheles4/grimoire/issues/560'
+const LINKED = {
+  cards: [],
+  todos: [
+    { id: 't1', text: 'Review PR 18', link: PR_LINK },
+    { id: 't2', text: 'Answer on the issue', link: ISSUE_LINK },
+    { id: 't3', text: 'Paste the key' },
+  ],
+}
+const visitKey = (i: number, id: string, link: string) => `visit-${i}-${id}-${sha256Hex(link).slice(0, 16)}`
+const visitKeys = (all: Drawn[]) => all.filter(n => n.type === 'Button' && typeof n.props.key === 'string' && n.props.key.startsWith('visit-')).map(n => n.props.key)
+const linkViews = (w: World) => w.ghCalls.filter(a => a[2] === 'view')
+
+test('#560 desktop: a to-do with a link draws a press button keyed by place, id and a digest of the rebuilt address, labelled with the repository; one without draws none', async ($, on) => {
+  await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  expect(visitKeys(all)).toEqual([visitKey(0, 't1', PR_LINK), visitKey(1, 't2', ISSUE_LINK)])
+  expect(all.some(n => n.type === 'Link')).toBe(false)
+  const text = await textOf(m)
+  expect(text).toContain('PR 18 o/r')
+  expect(text).toContain('#560 mephistopheles4/grimoire')
+})
+
+test('#560 desktop: pressing an issue link runs exactly gh issue view <number> --web with GH_REPO pinned behind github.com, and a pull request link runs gh pr view', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  await m.press({ key: visitKey(1, 't2', ISSUE_LINK) })
+  expect(linkViews(w)).toEqual([['gh', 'issue', 'view', '560', '--web']])
+  expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'github.com/mephistopheles4/grimoire' } })
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).at(-1)).toEqual(['gh', 'pr', 'view', '18', '--web'])
+  expect(w.toasts).toEqual([])
+})
+
+test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed PATH check runs nothing', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  w.procHook = (e: any) => (e.argv[2] === 'view' ? { deny: 'spawn failed: SECRET_TOKEN=abc123' } : undefined)
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(w.toasts).toEqual(['Could not open the page'])
+  w.procHook = (e: any) => (e.argv[2] === 'view' ? { exitCode: 1, stdout: 'SECRET_TOKEN=abc123', stderr: 'SECRET_TOKEN=abc123', isStdoutTruncated: false, isStderrTruncated: false } : undefined)
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(w.toasts).toEqual(['Could not open the page', 'Could not open the page'])
+  w.procHook = undefined
+  const before = linkViews(w).length
+  w.env = {}
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(before)
+  expect(w.toasts.at(-1)).toBe('Could not open the page')
+})
+
+test('#560 desktop: a second press on the same to-do while a run waits starts no second run; another to-do still runs', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  w.holdGh = true
+  const first = m.press({ key: visitKey(0, 't1', PR_LINK) })
+  await w.clock.settle()
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(1)
+  const other = m.press({ key: visitKey(1, 't2', ISSUE_LINK) })
+  await w.clock.settle()
+  expect(linkViews(w).length).toBe(2)
+  w.holdGh = false
+  w.releaseGh()
+  await first
+  await other
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(3)
+})
+
+// The harness draws a press only from the tree as last drawn, so a stale key cannot be sent here
+// (a changed link draws a new key). The press's own check, that the digest matches the link as
+// the roster holds it now, is tested at its seam: tests/brigade-view.test.mjs, linkPress.
+
+for (const surface of ['terminal', 'vscode', 'mobile'] as const) {
+  test(`#560 ${surface}: a to-do's link draws as the engine's Link on the rebuilt address, labelled with the repository, and no press button`, async ($, on) => {
+    await grouped(on, $, LINKED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(visitKeys(all)).toEqual([])
+    expect(all.filter(n => n.type === 'Link').map(l => l.props.href)).toEqual([PR_LINK, ISSUE_LINK])
+    const text = await textOf(m)
+    expect(text).toContain('PR 18 o/r')
+    expect(text).toContain('#560 mephistopheles4/grimoire')
+  })
+}
+
+for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+  test(`#560 C1 ${surface}: a to-do's text is drawn on one line, cut with an ellipsis`, async ($, on) => {
+    await grouped(on, $, LINKED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    for (const t of ['Review PR 18', 'Answer on the issue', 'Paste the key']) {
+      const node = all.find(n => n.type === 'Text' && n.text === t)
+      expect(node?.props.wrap, `${surface} ${t}`).toBe('truncate-end')
+    }
+  })
+}
+
+for (const surface of ['desktop', 'terminal'] as const) {
+  test(`#560 C5 ${surface}: a roster planted in plugin state, past the file check, with a hostile link draws no link and a press opens nothing`, async ($, on) => {
+    const HOSTILE = { cards: [], todos: [{ id: 't1', text: 'Look', link: 'https://github.com.evil.example/o/r/pull/18' }, { id: 't2', text: 'Look', link: 7 }] }
+    const w = await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(visitKeys(all)).toEqual([])
+    expect(all.some(n => n.type === 'Link')).toBe(false)
+    expect(await textOf(m)).not.toContain('evil')
+    expect(linkViews(w)).toEqual([])
+  })
+}
+
+test('#560 C7: a to-do without a link draws its tick, its text and its Open as before', async ($, on) => {
+  await grouped(on, $, { cards: [card('alpha', { desktopId: D1 })], todos: [{ id: 't3', text: 'Paste the key', session: 'alpha' }] })
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  expect(visitKeys(all)).toEqual([])
+  expect(all.filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)).toContain('todo-0-t3')
+  expect(all.filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)).toContain('go-0-t3')
 })
 
 // --- the views ------------------------------------------------------------------
