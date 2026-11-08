@@ -445,11 +445,16 @@ stamp above does not bind it, and the lead's reading of its chat is the
 control (the host agent as the last guard, C1). **Since head-chef 1.29.0 (issue 541,
 proposed; it waits on the owner's confirmed merge)** a level-3 lead, inside
 the goal and where the owner's user-level instructions file lets a standing
-goal decide even what it keeps, also accepts risks, adds or widens accepted
-risks and threat classes, and decides a guard's stop, each logged and a big one
-flagged; a repository's or member's rule that keeps those for the owner no
-longer holds them at 3. A change to a threat model's scope still waits. The
-control is the log and the flag, which the owner reviews after the fact. A 3 it sets carries its goal, which is
+goal decide even what it keeps, also accepts risks, records accepted risks,
+decides threat classes and a guard's stop, each logged and a big one flagged;
+a repository's or member's rule that keeps those risk calls for the owner no
+longer holds them at 3, and `read_autonomy` says the same. What C5, C6 and E85
+in the threat model keep waiting still waits: an install, a post carrying
+private work, a merge that changes the threat model's scope or accepted risks,
+and an edit to its scope, its naming line or E79's class. The control is the
+log and the flag, which the owner reviews after the fact; the log rests on
+the decision files, whose planting by another plugin is still an open
+candidate (E40b). A 3 it sets carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, a

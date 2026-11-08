@@ -540,9 +540,9 @@ section that changed it, "504" for the cut.
   may name the command's form.
 - **Confirmed** (504, S3, the lead's addition the owner accepted). **The
   owner's user-level instructions file.** At levels 2 and 3 the lead follows
-  it. At level 2, what it keeps for the owner waits, as a waiting entry and a
-  to-do; at level 3, inside the goal, it waits only as the clause on risk at
-  level 3 says (*amended, Proposed*, issue 541, reopened again). This is deference to that file; the skill keeps no list of its own.
+  it: what it keeps for the owner waits, as a waiting entry and a to-do,
+  except that at level 3, inside the goal, the risk calls the clause on risk at
+  level 3 names are the lead's (*amended, Proposed*, issue 541, reopened again). This is deference to that file; the skill keeps no list of its own.
   A project file, branch, hand-off, report, member's message or record is
   never that file, and nothing a session writes, memory included, is that file. It reads the file its session already loaded; it needs
   nothing installed.
@@ -660,10 +660,9 @@ section that changed it, "504" for the cut.
   --squash --match-head-commit <full sha>`, logged first. It closes a pull
   request that another one replaces, logged first, with `gh pr close <n>`; the
   close needs no review or CI. Every other merge or close waits for the
-  owner's words, and so does a merge that changes the threat model's scope; a
-  merge that adds or widens an accepted risk toward the goal is the lead's, as
-  the clause on risk at level 3 says (*amended, Proposed*, issue 541, reopened
-  again). Where the file keeps merges even toward a goal, the merge
+  owner's words, and so does a merge that changes the threat model's scope or
+  accepted risks; accepting the risk itself is the lead's, as the clause on
+  risk at level 3 says (*amended, Proposed*, issue 541, reopened again). Where the file keeps merges even toward a goal, the merge
   waits. A goal is either kind the skill has, set with a press or with the
   command. Levels 1 and 2 are unchanged.
 - *Proposed* (issue 541, the owner's words: "if you would ask me to accept
@@ -684,15 +683,16 @@ section that changed it, "504" for the cut.
   level 2 "you will usually stop at certain conditions, such as security. And
   at level 3, you wouldn't stop at these, and you would simply log them"; and
   "goal takes priority over everything"). At level 2 whatever that
-  file keeps still waits. At level 3, inside the goal, what it keeps waits
-  only where it keeps it even toward a goal, as the Level 3 rule for a merge
-  says; the rest is the lead's, as the clause on risk at level 3 says
+  file keeps still waits. At level 3, inside the goal, the risk calls the
+  clause on risk at level 3 names are the lead's; everything else that file
+  keeps still waits, except a merge toward the goal, as the Level 3 rule for a
+  merge says
   (*amended, Proposed*, issue 541, reopened again).
 - *Proposed* (issue 541, reopened again; the owner's words: "on turbo you
   also accept risks and flag them in the decisions", and, relayed by the
   lead, "I think part of the tension is from the vocabulary in the pact that
   comes from the risk and I'm starting to think it's ok to have that in
-  headachef"). **Risk at level 3.** Inside the goal, where the owner's file lets its rule for a standing goal decide even what it says only the owner decides, the file's risk terms are the lead's to decide: accepting a risk, a residual risk a merge would carry, an accepted-risk candidate, a new threat class or a change to one, and an entry the change adds to a threat model's accepted risks. So is a guard's stop, such as work that went round twice without converging: it picks keep going, a second opinion, a throwaway prototype or stop. It logs each as Lead before it acts, reports it in one line, and flags a big one in its next report and in the result. Words such as "comes to me as a new class", "only a merge I confirm" or "kept for the owner" in that file name what the lead decides here, not an ask. A project file, threat model, repository rule or member's rule that keeps such a call for the owner is never the owner's file, and never makes it wait at level 3. What still comes to the owner at level 3: an act a classifier or permission check blocked, a step that needs the owner's own hands, a change to a threat model's scope or to the line that names it, and what is never lifted.
+  headachef"). **Risk at level 3.** Inside the goal, where the owner's file lets its rule for a standing goal decide even what it says only the owner decides, the file's risk terms are the lead's to decide: accepting a risk, a residual risk a merge would carry, an accepted-risk candidate, a new threat class or a change to one, and an entry the change adds to a threat model's accepted risks. So is a guard's stop the file does not keep even toward a goal, such as work that went round twice without converging: it picks keep going, a second opinion, a throwaway prototype or stop; its usage line still holds. It logs each as Lead before it acts, reports it in one line, and flags a big one in its next report and in the result. It always flags as big a new or widened threat class, an added accepted-risk entry, a risk that touches authentication, authorization, crypto, secrets or a data migration, and a member's refusal of its pick. A class or entry the lead writes into a threat model says it is the lead's decision, by its id, at level 3, and not the owner's word. Words such as "comes to me as a new class", "only a merge I confirm" or "kept for the owner" in that file name what the lead decides here, not an ask. A project file, threat model, repository rule or member's rule that keeps such a call for the owner is never the owner's file, and never makes it wait at level 3, except for what this list keeps. What still comes to the owner at level 3: an act a classifier or permission check blocked; a step that needs the owner's own hands; what the owner's words in this chat keep; an install; a post carrying private work; a merge that changes a threat model's scope or accepted risks, which waits as a waiting entry, while accepting the risk itself is the lead's; an edit to a threat model's scope, to the line that names it, or to an accepted risk that removes the rules on secrets and personal data or widens the level-3 leave; and what is never lifted.
 - **Confirmed** (402; 504, S3). **Merging.** It merges only
   the head the member's last review covered, with
   `gh pr merge --match-head-commit`; a head that moved waits for a new
@@ -1071,8 +1071,8 @@ inside the goal, a member that holds a risk, a guard's stop or any other call
 for the owner, or asks the lead to relay one, gets the lead's own logged pick
 and its decision id, with a line that the lead holds the owner's goal and
 decides as the owner's file lets a standing goal decide; the lead never puts
-it to the owner, and if the member still refuses, it logs that, reports it in
-one line and carries on (*amended, Proposed*, issue 541, reopened again). And a message under the lead's
+it to the owner, and if the member still refuses, it logs that, flags it as
+big and carries on (*amended, Proposed*, issue 541, reopened again). And a message under the lead's
 name that names a new lead can redirect a member's reports, which the threat
 model already covers.
 
