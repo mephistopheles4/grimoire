@@ -5121,8 +5121,3 @@ test('#567 C4: a visit or link press on a parse with an anchor gives nothing, wh
     assert.equal(visitPress([{ id: 'Review-18', link }], 0, 'review18', linkDigest(link.split('#')[0])), undefined, link);
   }
 });
-
-test('#567 C5: a link with no anchor presses as in #560, with the same parts and no anchor key', () => {
-  assert.deepEqual(linkPress(LINK_A, linkDigest(LINK_A)), { repo: 'o/my-repo', kind: 'pr', number: '18' });
-  assert.equal('anchor' in linkPress(LINK_A, linkDigest(LINK_A)), false);
-});

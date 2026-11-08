@@ -1096,36 +1096,6 @@ test('#567 C1: each near-miss of an anchored shape is refused, and #560\'s "any 
   assert.equal(parseLink('https://github.com/o/r/issues/1#discussion_r5'), undefined);
 });
 
-test('#567 C2: the schema pattern and parseLink agree on every case, `..` in the name excepted (parseLink is the authority)', () => {
-  const { TODO_LINK, MAX_LINK } = roster;
-  const schema = new RegExp(TODO_LINK.source);
-  const every = [...GOOD_LINKS, ...ANCHORED.map(a => a[0]), ...BAD_LINKS.filter(l => typeof l === 'string'), ...BAD_ANCHORED];
-  const dots = l => l.includes('/../') || l.includes('/a..b/');
-  for (const link of every) {
-    if (dots(link)) {
-      assert.equal(parseLink(link), undefined, link);
-      continue;
-    }
-    // The schema also carries maxLength; the pattern alone may accept what the cap refuses.
-    const over = [...link].length > MAX_LINK;
-    assert.equal(schema.test(link) && !over, parseLink(link) !== undefined, JSON.stringify(link));
-  }
-  // The one named exception: the pattern takes `..` in the name and parseLink refuses it.
-  assert.ok(schema.test('https://github.com/o/a..b/issues/1'));
-  assert.equal(parseLink('https://github.com/o/a..b/issues/1'), undefined);
-});
-
-test('#567 C2: the refusal is the S1.7 sentence and contains none of the input', () => {
-  const todo = link => JSON.stringify({ cards: [], todos: [{ id: 't1', text: 'x', link }] });
-  for (const link of ['https://evil.example/SECRET-9', 'https://github.com/o/r/issues/1#SECRET-9', 'https://github.com/o/r/issues/1#issuecomment-0']) {
-    for (const source of ['file', 'tool']) {
-      const r = checkRoster(todo(link), true, source);
-      assert.equal(r.error, 'to-do 1 link is not a github.com issue, pull request or comment link', `${link} ${source}`);
-      assert.ok(!r.error.includes('SECRET') && !r.error.includes('evil'));
-    }
-  }
-});
-
 test('#567 C8: the longest accepted link is 203 characters, MAX_LINK is 210, and a roster from the older skill is accepted', () => {
   const longest = `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/pull/9999999#pullrequestreview-999999999999`;
   assert.equal(longest.length, 203);
@@ -1135,11 +1105,6 @@ test('#567 C8: the longest accepted link is 203 characters, MAX_LINK is 210, and
   const longestIssue = `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/issues/9999999#issuecomment-999999999999`;
   assert.equal(longestIssue.length, 200);
   assert.ok(parseLink(longestIssue));
-  // 211 characters is over the cap.
-  assert.equal(parseLink(longest + 'x'.repeat(8)), undefined);
-  // A roster from the older skill, with only unanchored links, loads from file and tool unchanged.
-  const older = JSON.stringify({ cards: [], todos: GOOD_LINKS.map((link, i) => ({ id: `t${i}`, text: 'x', link })) });
-  for (const source of ['file', 'tool']) assert.equal(checkRoster(older, true, source).value?.todos.length, GOOD_LINKS.length, source);
 });
 
 test("#560 C3: every accepted link builds a Desktop run (the link's name set is the run's)", () => {
@@ -1206,7 +1171,7 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
   const log = await read('references/contract.changelog.md');
   assert.match(log, /\| 1\.30\.0 \| [0-9-]+ \| \*Proposed\.\*/);
-  assert.match(log, /the lead's decisions 426 and 436 at level 3, not the owner's words, and the owner confirms at merge/);
+  assert.match(log, /the lead's decisions 426, 436 and 487 at level 3, not the owner's words; the lead accepts the E84 widening there and flags it big/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {

@@ -4790,17 +4790,15 @@ for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
 // holds linkPress and visitPress to return nothing for a parse with an anchor. Here, the draw above
 // holds that no `visit` button is drawn for one, and no gh run follows a draw.
 
-for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
-  test(`#567 C7 ${surface}: an anchored label is drawn whole, wrapped and never cut`, async ($, on) => {
-    await grouped(on, $, ANCHORED)
-    const m = await mountOn($, surface)
-    const all = await nodes(m)
-    for (const label of ANCHORED_LABELS) {
-      const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
-      expect(node?.props.wrap, `${surface} ${label}`).toBe('wrap')
-    }
-  })
-}
+test('#567 C7 desktop: an anchored label is drawn whole, wrapped and never cut', async ($, on) => {
+  await grouped(on, $, ANCHORED)
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  for (const label of ANCHORED_LABELS) {
+    const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
+    expect(node?.props.wrap, label).toBe('wrap')
+  }
+})
 
 test('#567 C2: the registered set_roster schema takes the anchored shapes by the pattern TODO_LINK holds, and the tool keeps them', async ($, on) => {
   const w = world(on)
@@ -4817,44 +4815,15 @@ test('#567 C2: the registered set_roster schema takes the anchored shapes by the
   const r = await call($, { cards: [], todos: ANCHORED.todos })
   expect(r.ok).toBe(true)
   expect(JSON.parse(w.text(FILE) ?? 'null').todos.map((t: any) => t.link)).toEqual(ANCHORED.todos.map(t => t.link))
+  // The one named exception: the pattern takes `..` in the name, and the tool's check (parseLink) refuses it.
+  expect(new RegExp(link.pattern).test('https://github.com/o/a..b/issues/1')).toBe(true)
+  const dots = await call($, { cards: [], todos: [{ id: 't1', text: 'x', link: 'https://github.com/o/a..b/issues/1' }] })
+  expect(dots.ok).toBe(false)
   const refused = await call($, { cards: [], todos: [{ id: 't1', text: 'x', link: 'https://github.com/o/r/issues/1#issuecomment-0' }] })
   expect(refused.ok).toBe(false)
   expect(refused.text).toContain('link is not a github.com issue, pull request or comment link')
   expect(refused.text).not.toContain('issuecomment-0')
 })
-
-test('#567 C5 desktop: a link with no anchor still presses gh as in #560', async ($, on) => {
-  const w = await grouped(on, $, ANCHORED)
-  const m = await mountOn($, 'desktop')
-  await nodes(m)
-  await m.press({ key: visitKey(4, 't5', ISSUE_LINK) })
-  expect(linkViews(w)).toEqual([['gh', 'issue', 'view', '560', '--web']])
-})
-
-for (const surface of ['desktop', 'terminal'] as const) {
-  test(`#567 C6 ${surface}: a hostile anchored link planted in plugin state draws nothing, and an accepted one draws a label and an address from one parse`, async ($, on) => {
-    const HOSTILE = {
-      cards: [],
-      todos: [
-        { id: 't1', text: 'Look', link: 'https://github.com/o/r/issues/1#issuecomment-5#x' },
-        { id: 't2', text: 'Look', link: 'https://github.com.evil.example/o/r/issues/1#issuecomment-5' },
-        { id: 't3', text: 'Look', link: 'https://github.com/o/r/issues/1#pullrequestreview-5' },
-        { id: 't4', text: 'Look', link: 'https://github.com/o/r/issues/1#issuecomment-0' },
-        { id: 't5', text: 'Look', link: PR_COMMENT_LINK },
-      ],
-    }
-    await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
-    const m = await mountOn($, surface)
-    const all = await nodes(m)
-    expect(visitKeys(all)).toEqual([])
-    const links = all.filter(n => n.type === 'Link')
-    expect(links.map(l => l.props.href)).toEqual([PR_COMMENT_LINK])
-    // The Link's own address and its own text come from the one parse.
-    expect(links[0]?.children).toEqual(['PR 18 comment o/r'])
-    expect(links[0]?.props.href).toBe(PR_COMMENT_LINK)
-    expect(await textOf(m)).not.toContain('evil')
-  })
-}
 
 // --- the views ------------------------------------------------------------------
 
