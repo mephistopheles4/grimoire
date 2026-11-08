@@ -92,7 +92,6 @@ import {
   paneEntry,
   projectDigest,
   markAllSet,
-  openWaiting,
   matchesSearch,
   parseMarkAllKey,
   parsePairKey,
@@ -612,7 +611,7 @@ let sessionRows: SessionRow[] = []
 // and whether the last mark could not be written. Each set holds mark keys,
 // which name a session id, so they stay in this module and never reach
 // plugin state or a button's key. The one value derived from them that does
-// reach a key is Mark all read's hash: the first 16 hex digits of a SHA-256
+// reach a key is Mark all as read's hash: the first 16 hex digits of a SHA-256
 // of the set's sorted mark keys, a staleness check that holds no session id.
 const skipped = new Set<string>()
 const openedRows = new Set<string>()
@@ -856,8 +855,8 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
   marksTurn(() => writeMarksNow($, rows, state))
 
 // The body of a marks write, with no turn of its own: a caller already in the
-// marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
-// With `bulk` (Mark all read) it writes nothing when the caps would push
+// marks queue's turn (Mark all as read) calls this, so the queue cannot wait on itself.
+// With `bulk` (Mark all as read) it writes nothing when the caps would push
 // out a mark that is still its entry's newest state.
 async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', bulk = false): Promise<boolean> {
   marksFull = false
@@ -952,26 +951,24 @@ async function pressReview($: EngineInterface, verb: string, id: string, entryAt
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
 
-// Mark all read's label (issue 496): the cards a press clears, a pair as one,
-// and, when some stay, out of how many are under To review.
-const markAllText = (s: { n: number; total: number }) => (s.n === s.total ? `✓ Mark all ${s.n} read` : `✓ Mark ${s.n} of ${s.total} read`)
+// Mark all as read's label (issue 509): the same whatever the count.
+const MARK_ALL_LABEL = '✓ Mark all as read'
 
-// A press on To review's Mark all read (issue 466): everything under To
-// review, its cards and its ended lines, but this session's own waiting
-// entries that no Relayed entry answers (issue 486). In the marks queue's turn, after every
-// earlier write has landed, the set is worked out again from the logs read, the
-// marks as just written, the session states and the search. It acts only when
-// the set's size and hash match the key, then writes once, in the same turn;
-// else it writes nothing and the tab draws again with the new count. It also
-// writes nothing, and says the mark was not saved, when the marks file's caps
-// would push out a mark that is still its entry's newest state (q7 A).
+// A press on To review's Mark all as read (issue 466, issue 509): everything
+// under To review, its cards and its ended lines, whatever the search is. In
+// the marks queue's turn, after every earlier write has landed, the set is
+// worked out again from the logs read, the marks as just written and the session
+// states. It acts only when the set's size and hash match the key, then writes
+// once, in the same turn; else it writes nothing and the tab draws again with
+// the new count. It also writes nothing, and says the mark was not saved, when
+// the marks file's caps would push out a mark that is still its entry's newest
+// state (q7 A).
 async function pressMarkAll($: EngineInterface, n: number, hash: string) {
   await marksTurn(async () => {
     const now = await $.clock.now()
     const v = tabView(now)
-    const words = searchWords(queryFrom(await read($, query)))
-    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, words)
-    const set = markAllSet(q.cards, endedLines(v.ended, v.states, words), openWaiting(v.review, tabRead.sid))
+    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, [])
+    const set = markAllSet(q.cards, endedLines(v.ended, v.states, []))
     if (set.n !== n || set.hash !== hash) return
     const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
@@ -3398,7 +3395,8 @@ export const register: Register = on => {
     const dFold = historyRows(dView.ended, words, endedPages)
     const dFlagged = flaggedRows(dView.flagged, dStates, words)
     const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
-    const dMarkAll = markAllSet(dQueue.cards, dLines, openWaiting(dView.review, tabRead.sid))
+    // The set ignores the search (issue 509).
+    const dMarkAll = markAllSet(words.length > 0 ? reviewCards(dView.review, tabRead.sid, dStates, skipped, []).cards : dQueue.cards, words.length > 0 ? endedLines(dView.ended, dStates, []) : dLines)
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
@@ -4344,7 +4342,7 @@ export const register: Register = on => {
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
-                  {markAllText(dMarkAll)}
+                  {MARK_ALL_LABEL}
                 </Button>
               </Box>
             )}
@@ -4358,7 +4356,7 @@ export const register: Register = on => {
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
-                  {markAllText(dMarkAll)}
+                  {MARK_ALL_LABEL}
                 </Button>
               </Box>
             )}

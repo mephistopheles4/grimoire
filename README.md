@@ -185,7 +185,7 @@ feeds the same selection island as the Sessions view, whose Dismiss unflags
 the picked rows and marks them read. Since 0.93.0 the lead can flag a
 decision it is unsure of, with a one-line reason: the decision goes straight
 to Flagged to revisit, in the pane of the lead that flagged it; another lead's
-pane only counts it. It never goes to To review, so Mark all read never takes
+pane only counts it. It never goes to To review, so Mark all as read never takes
 it, and its card shows "Flagged by the lead" with the reason. Only you unflag it,
 and the flag holds nothing up: the lead still acts on its pick. A session
 still on an older version cannot read a log that holds a flag until it
@@ -203,11 +203,15 @@ therefore never hides a question meant for you. A plain Lead entry of another
 session is only counted. Earlier sessions' logs stay on
 disk, unshown, and you can delete them by hand; the pane still reads the 20
 newest, and the dim line at the foot counts the unread entries of other logs
-that the tab no longer draws. "✓ Mark all N read", at the right of To review's
+that the tab no longer draws. "✓ Mark all as read", at the right of To review's
 heading, marks everything under To review read in one write, since 0.98.0
 of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line, but this lead's own waiting entries that no Relayed entry answers (since 0.109.0, issue 486). Since 0.113.0, N counts the cards it clears, a question and its answer as one and an ended session's line as one, as To review's count beside it does, and when some cards stay the button reads "✓ Mark N of M read". It also leaves out what your search hides,
-and a press marks nothing if the set changed since you looked, or if your
+and every ended session's line. Since 0.120.0 (issue 509) it also takes this
+lead's own waiting entries that no Relayed entry answers, which 0.109.0 had left
+under To review, and it ignores the search: it takes everything under To review,
+whatever is typed. The label does not carry a count. A press takes up to 500
+entries, and while other logs are carried a second press takes the rest. A press marks nothing if the set
+changed since the pane last drew it, or if your
 marks file is so full that the write would push out marks of entries you
 read. A question marked read keeps its link, so an answer logged later still
 pairs with it.
@@ -222,7 +226,7 @@ entries, or unread questions such an entry answers, To review shows one dim
 line instead of their cards: "From an ended session", the time of its newest
 such entry, up to three of the work names its entries give, how many are
 and how many are unread; from 0.90.0 to 0.94.0 it also had its own "✓ Mark
-these N read", which Mark all read replaces since 0.98.0. Its other questions and alarms
+these N read", which Mark all as read replaces since 0.98.0. Its other questions and alarms
 keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
@@ -435,7 +439,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read presses, and from 0.90.0 to 0.94.0 Mark these N read and from 0.91.0 to 0.94.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all as read presses, and from 0.90.0 to 0.94.0 Mark these N read and from 0.91.0 to 0.94.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and, until 0.116.0, each alarm, with its time (not an alarm that repeated
