@@ -662,7 +662,12 @@ question or the decision text, and put no facts, picks, commands or reasons in
 it. A waiting entry's fixed text is the one exception. Give a to-do `session`,
 a card's title, when the step is in that member's chat, and `link`, an issue
 or pull request on github.com as `https://github.com/owner/name/issues/N` or
-`.../pull/N` and nothing else, when the answer or step is on one.
+`.../pull/N`, or one comment or review on it, with `#issuecomment-C` added (on
+a pull request also `#pullrequestreview-C` or `#discussion_rC`), and nothing
+else, when the answer or step is on one. Give the comment link when the answer
+or the step is in one comment or review, and the issue or pull request link
+otherwise. Take a comment's address only from a comment you or a member posted
+on that issue or pull request, as read back from GitHub through `gh`.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

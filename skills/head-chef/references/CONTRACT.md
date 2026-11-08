@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.28.0
+Version: 1.29.0
 Kind: skill
 Level: Thorough
 
@@ -1111,16 +1111,21 @@ reversing "Nothing else is recorded" as ADR 0010 records): its decisions, in
 its decision log through `log_decision`, and its hand-off through
 `set_lead_handoff`, under "What goes out".
 
-**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2; the
-go is the lead's decision 334 at level 3, not the owner's words, and the owner
-confirms at merge): one line of at most 80 characters,
+**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2, and
+issue 567, spec rev 3 S4.1; the go is the lead's decisions 334, 426 and 436 at
+level 3, not the owner's words, and the owner confirms at merge): one line of at most 80 characters,
 one ask or one owner step each. It names the act or the place ("Answer in
 build-312's chat"), never the question or the decision text, and carries no
 facts, picks, commands or reasons. A waiting entry's fixed text is exempt. A
 to-do carries `session`, a card's title, when the step is in that member's
 chat, and `link`, an issue or pull request on github.com written as
-`https://github.com/owner/name/issues/N` or `.../pull/N` and nothing else,
-when the answer or step is on one.
+`https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment or
+review on it, with `#issuecomment-C` added (on a pull request also
+`#pullrequestreview-C` or `#discussion_rC`), and nothing else, when the answer
+or step is on one. It gives the comment link when the answer or the step is in
+one comment or review, and the issue or pull request link otherwise. It takes a
+comment's address only from a comment it or a member posted on that issue or
+pull request, as read back from GitHub through `gh`.
 
 ## rules
 

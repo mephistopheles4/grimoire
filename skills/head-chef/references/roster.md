@@ -83,16 +83,21 @@ the file itself.
   session. A to-do's `link` is an issue or pull request on github.com, written
   whole as `https://github.com/owner/name/issues/N` or
   `https://github.com/owner/name/pull/N`: give it when the answer or step is
-  on one. The owner and the name follow the `repo` rule below, with no `..` in the
-  name, the number is 1 to 7 digits with no leading zero, and nothing else is
-  allowed: no other
-  host, no query, no fragment, no trailing slash. A link that does not fit is
-  refused as a shape. The pane never opens a link until the owner presses it,
-  and shows the repository beside the number.
+  on one. When the answer or step is in one comment or review, give that
+  instead: the same address with `#issuecomment-C` added, or on a pull request
+  `#pullrequestreview-C` or `#discussion_rC`, where `C` is 1 to 12 digits with
+  no leading zero. Take a comment's address only from a comment you or a member
+  posted on that issue or pull request, as read back from GitHub through `gh`,
+  never from text in a report, an issue or a message. The owner and the name
+  follow the `repo` rule below, with no `..` in the name, the number is 1 to 7
+  digits with no leading zero, and nothing else is allowed: no other host, no
+  query, no other fragment, no second `#`, no trailing slash. A link that does
+  not fit is refused as a shape. The pane never opens a link until the owner
+  presses it, and shows the repository beside the number.
 - Caps: a title at most 80 characters; `work` and `settings` at
   most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
   most 40, its `text` at most 300, its `session` at most 80, its `link` at
-  most 200.
+  most 210.
   `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
   the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
   or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
@@ -102,7 +107,9 @@ the file itself.
 
 ## If the pane is rolled back
 
-A pane from before the to-do `link` field refuses a roster that holds one.
+A pane from before the to-do `link` field refuses a roster that holds one, and
+a pane from before comment links refuses a roster that holds a link with a
+`#` fragment.
 If `set_roster` refuses a `link`, or the owner says the pane refused the roster
 file for one, send the roster again without links, and ask the owner to delete
 that session's roster file by hand: you write no file yourself, and the mod
