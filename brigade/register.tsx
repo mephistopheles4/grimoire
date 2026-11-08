@@ -4155,28 +4155,55 @@ export const register: Register = on => {
     // mobile rows sit a small step apart with no hairline; the editor, where
     // that step is nothing, and the terminal part them as `rows` does.
     const rowHref = (r: PrRow) => r.href
-    const prRow = (r: PrRow) => (
-      <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
-        <Box flexDirection="row" columnGap={1} alignItems="center">
-          <Box flexShrink={0}>
-            {rowHref(r) !== undefined && pointer
-              ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state))
-              : rowHref(r) !== undefined && Image === undefined
-                ? linkedNumber(r.number, r.state, rowHref(r) ?? '')
-                : pill(r.number, r.state)}
-          </Box>
-          {rowHref(r) !== undefined && Image !== undefined && !pointer && linkArrow(rowHref(r) ?? '')}
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text weight="semibold" wrap="truncate-end">
-              {r.title}
-            </Text>
+    const prRow = (r: PrRow) =>
+      pointer ? (
+        // Desktop (issue 513, S10): the title on the first line; on the
+        // second the pill, the dim repository, card title and age, then the
+        // additions and deletions at the far right. A row `gh` did not answer
+        // for has no counts.
+        <Box flexDirection="column" paddingX="md" paddingY="sm" marginBottom="xs" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+          <Text weight="semibold" wrap="truncate-end">
+            {r.title}
+          </Text>
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state)) : pill(r.number, r.state)}</Box>
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text dimColor size="footnote" wrap="truncate-end">
+                {[r.detail.repo, r.detail.cardTitle, r.detail.age].filter(x => x !== undefined).join(' · ')}
+              </Text>
+            </Box>
+            {r.detail.added !== undefined && (
+              <Box flexShrink={0}>
+                <Text color="success" size="footnote">
+                  {r.detail.added}
+                </Text>
+              </Box>
+            )}
+            {r.detail.removed !== undefined && (
+              <Box flexShrink={0}>
+                <Text color="error" size="footnote">
+                  {r.detail.removed}
+                </Text>
+              </Box>
+            )}
           </Box>
         </Box>
-        <Text dimColor size="footnote" wrap="truncate-end">
-          {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
-        </Text>
-      </Box>
-    )
+      ) : (
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
+            {rowHref(r) !== undefined && Image !== undefined && linkArrow(rowHref(r) ?? '')}
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text weight="semibold" wrap="truncate-end">
+                {r.title}
+              </Text>
+            </Box>
+          </Box>
+          <Text dimColor size="footnote" wrap="truncate-end">
+            {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
+          </Text>
+        </Box>
+      )
 
     // --- the Decisions tab (spec 402, S5.4) ---
     //
@@ -4678,6 +4705,9 @@ export const register: Register = on => {
         tipText,
       )
 
+    // The level in force, by name with no number (issue 496): in the top row,
+    // or on Desktop alone at the pane's last line, centred under Usage (issue 513, S11).
+    const levelLabel = <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
     return (
       <Box position="relative" flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
         {/* While a popover is open, a transparent layer under it (issue 513,
@@ -4714,7 +4744,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {/* The level in force, on every tab, by name with no number (issue 496). */}
-          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
+          {!pointer && levelLabel}
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
           {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}
@@ -4883,6 +4913,11 @@ export const register: Register = on => {
             </Box>
           )}
         </Box>
+        {pointer && (
+          <Box flexDirection="row" justifyContent="center" marginTop={1}>
+            {levelLabel}
+          </Box>
+        )}
       </Box>
     )
   })

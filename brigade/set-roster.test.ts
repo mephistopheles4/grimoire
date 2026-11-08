@@ -4338,6 +4338,30 @@ test('desktop, C9: a waiting card planted in the dismissed state still shows', a
   expect((await textOf(m)).startsWith('3 sessions')).toBe(true)
 })
 
+test('desktop, C12: the autonomy label is the last element of the pane, centred, on every tab, and amber at level 3; other surfaces keep it in the top row', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
+    await m.press({ key: view })
+    const text = await textOf(m)
+    expect(text.trimEnd().endsWith('Autonomy · Manual')).toBe(true)
+    expect(text.indexOf('Usage')).toBeLessThan(text.lastIndexOf('Autonomy · Manual'))
+    const label = (await nodes(m)).find(n => n.type === 'Text' && n.text === 'Autonomy · Manual' && n.props.color === undefined)
+    expect(label).toBeDefined()
+  }
+  const all = await nodes(m)
+  const wrap = all.find(n => n.type === 'Box' && n.props.justifyContent === 'center' && spoken(n) === 'Autonomy · Manual')
+  expect(wrap).toBeDefined()
+})
+
+test('terminal, C12: the autonomy label stays in the top row', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'terminal')
+  const text = await textOf(m)
+  expect(text.trimEnd().endsWith('Autonomy · Manual')).toBe(false)
+  expect(text.indexOf('Autonomy · Manual')).toBeLessThan(text.indexOf('Usage'))
+})
+
 // --- issue 513: a pill press opens the pull request ------------------------------------
 
 // What a pill press can open: Desktop's press layers by key, any other surface's links by address (issue 513, S1).
@@ -4459,7 +4483,18 @@ for (const surface of SURFACES) {
     for (const bar of ['▾ Open 1', '▾ Merged 1', '▾ Closed 1']) expect(text.includes(bar)).toBe(true)
     // The PR's title, then the card's title, the counts, the repository and the age.
     expect(text.includes('Fix the pane')).toBe(true)
-    expect(text.includes('alpha · +20 −4 · o/r')).toBe(true)
+    // On Desktop (issue 513, S10) the dim line is the repository, the card's title and the age,
+    // and the counts sit apart at the far right, in their own colours.
+    if (surface === 'desktop') {
+      expect(text.includes('o/r · alpha')).toBe(true)
+      const all = await nodes(m)
+      expect(all.find(n => n.type === 'Text' && n.text === '+20')?.props.color).toBe('success')
+      expect(all.find(n => n.type === 'Text' && n.text === '−4')?.props.color).toBe('error')
+      // The row with no answer has no counts.
+      expect(all.filter(n => n.type === 'Text' && /^[+−]\d+$/.test(n.text ?? '')).map(n => n.text).sort()).toEqual(['+12', '+20', '−3', '−4'])
+    } else {
+      expect(text.includes('alpha · +20 −4 · o/r')).toBe(true)
+    }
     expect(text.includes('Merged thing')).toBe(true)
     // The card with no answer from gh shows its own title.
     expect(text.includes('delta')).toBe(true)
@@ -4469,14 +4504,15 @@ for (const surface of SURFACES) {
       expect(all.filter(n => n.type === 'Svg' && n.props.alt === 'divider').length).toBe(0)
       const prRows = all.filter(n => n.type === 'Box' && n.props.marginBottom === 'xs' && n.props.paddingY === 'sm')
       expect(prRows.length).toBe(3)
-      // The pill and the title on one line, the dim line under both; each row
-      // carries the round ring in the pane's grey that its hover fills.
+      // The title on the first line, the pill with the dim line and the counts on the second (issue 513, S10);
+      // each row carries the round ring in the pane's grey that its hover fills.
       for (const row of prRows) {
         expect(row.props.flexDirection).toBe('column')
         expect([row.props.borderStyle, row.props.borderColor]).toEqual(['round', '#1a1a19'])
         expect(row.children.length).toBe(2)
-        expect(row.children[0]?.props.flexDirection).toBe('row')
-        expect(row.children[1]?.type).toBe('Text')
+        expect(row.children[0]?.type).toBe('Text')
+        expect(row.children[0]?.props.weight).toBe('semibold')
+        expect(row.children[1]?.props.flexDirection).toBe('row')
       }
     }
     // Usage and the spacer stay.
@@ -8252,7 +8288,7 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     await m.press({ key: 'view-prs' })
     const text = await textOf(m)
     expect(text.includes('Other title')).toBe(true)
-    expect(text.includes('beta · +12 −3 · other/proj')).toBe(true)
+    expect(text.includes(surface === 'desktop' ? 'other/proj · beta' : 'beta · +12 −3 · other/proj')).toBe(true)
     expect(openable(await nodes(m), surface)).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
     expect(text.includes('PR details unavailable')).toBe(false)
     // The rows stay in the module: no title gh answered reaches plugin state.
@@ -8276,7 +8312,7 @@ for (const [label, answer] of [
     expect((await textOf(m)).includes('other/proj')).toBe(true)
     await m.press({ key: 'view-prs' })
     // The row names it, and links only from an answer.
-    expect((await textOf(m)).includes('beta · other/proj')).toBe(true)
+    expect((await textOf(m)).includes('other/proj · beta')).toBe(true)
     expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
     const text = await textOf(m)
     expect(text.includes('Base seven')).toBe(false)
