@@ -345,7 +345,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 **P5. The base's pending items.**
 
-- Item 1. Level 3 widened to the lead's picks on every decision the owner's user-level instructions file keeps (C5).
+- Item 1. Level 3 widened to the lead's picks on every decision the owner's user-level instructions file keeps (C5). Since E80 was removed (issue 509) no entry accepts it: C5 and C6 still describe the reach, and the owner decides whether it gets an entry or goes.
 - Item 2. The forced remove widened (C10). See P4. Closed by E81.
 - Item 3. The lead-repository check removed. For the read reach, C7 (accepted as E68). For the removals, C5.
 - Item 4. The branch-name entry widened to owner-run commands (C1).
