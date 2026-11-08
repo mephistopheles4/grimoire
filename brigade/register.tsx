@@ -24,6 +24,7 @@ import {
   dataFolder,
   dataPlace,
   ghRun,
+  ghViewRun,
   listsOpenTool,
   liveWord,
   listedAsOurs,
@@ -1458,6 +1459,26 @@ async function openInApp($: EngineInterface, c: Card) {
     $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${ran.exitCode})`)
   } finally {
     linking.delete(app)
+  }
+}
+
+// A pill press (issue 513, S2): `gh pr view <number> --web`, built by
+// `ghViewRun` from the card's number and the repository `gh` answered with,
+// after the same PATH check the poll takes. The card is found again by place
+// and title; one that moved, or has no answer, does nothing. Any failure shows
+// the one fixed toast, with none of `gh`'s text.
+const PILL_FAILED = 'Could not open the pull request'
+async function openPill($: EngineInterface, c: Card) {
+  const number = prNumber(c)
+  const answer = prAnswer(c, ghAnswers, namedAnswers())
+  if (number === undefined || answer === undefined) return
+  const run = ghViewRun(number, answer.repo)
+  try {
+    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    const ran = await $.process.run([...run.argv], run.init)
+    if (ran.exitCode !== 0) throw new Error('failed')
+  } catch {
+    $.ui.toast(PILL_FAILED)
   }
 }
 
@@ -3301,6 +3322,10 @@ export const register: Register = on => {
 
     const c = current.cards[i]
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
+    if (verb === 'pill') {
+      if (word === undefined) await openPill($, c)
+      return { element: e.element }
+    }
     if (verb === 'open') await openInApp($, c)
     // A card that waits on the owner has no Dismiss, and a press cannot add one.
     if (verb === 'dismiss' && c.status !== 'needs-you' && movedLook(c, await movesOf($))?.group !== 'needsYou') {
@@ -3489,6 +3514,20 @@ export const register: Register = on => {
       <Text color={pillColor(state)}>
         <Link href={href}>{`#${n}`}</Link>
       </Text>
+    )
+    // Desktop's pill press (issue 513, S1): a transparent layer over the
+    // pill, an absolute Box in a clipping Box holding a plain Button with a
+    // transparent Text of non-breaking spaces and no label. Drawn only for a
+    // pill `gh` answered for; the key carries the card's place and title.
+    const pillLayer = (key: string, pillEl: JSX.Element) => (
+      <Box position="relative" overflow="hidden">
+        {pillEl}
+        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+          <Button key={key} plain onPress={noop}>
+            <Text color="transparent">{' '.repeat(12)}</Text>
+          </Button>
+        </Box>
+      </Box>
     )
     const linkArrow = (href: string) => (
       <Box flexShrink={0}>
@@ -3710,6 +3749,8 @@ export const register: Register = on => {
                   <Box flexShrink={0}>
                     {answer === undefined ? (
                       pill(number, pillState(undefined, c.prState))
+                    ) : href !== undefined && pointer ? (
+                      pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
                     ) : href !== undefined && Image === undefined ? (
                       linkedNumber(number, pillState(answer.state, c.prState), href)
                     ) : (
@@ -3717,12 +3758,12 @@ export const register: Register = on => {
                     )}
                   </Box>
                 )}
-                {namedRepo !== undefined && number !== undefined && !pointer && (
+                {namedRepo !== undefined && number !== undefined && (
                   <Box flexShrink={0}>
                     <Text dimColor>{namedRepo}</Text>
                   </Box>
                 )}
-                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(href)}
+                {href !== undefined && Image !== undefined && !pointer && number !== undefined && linkArrow(href)}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -3951,8 +3992,14 @@ export const register: Register = on => {
     const prRow = (r: PrRow) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexDirection="row" columnGap={1} alignItems="center">
-          <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
-          {rowHref(r) !== undefined && Image !== undefined && linkArrow(rowHref(r) ?? '')}
+          <Box flexShrink={0}>
+            {rowHref(r) !== undefined && pointer
+              ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state))
+              : rowHref(r) !== undefined && Image === undefined
+                ? linkedNumber(r.number, r.state, rowHref(r) ?? '')
+                : pill(r.number, r.state)}
+          </Box>
+          {rowHref(r) !== undefined && Image !== undefined && !pointer && linkArrow(rowHref(r) ?? '')}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="semibold" wrap="truncate-end">
               {r.title}

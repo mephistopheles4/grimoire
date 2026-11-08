@@ -3952,11 +3952,12 @@ for (const surface of SURFACES) {
     await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
     const links = all.filter(n => n.type === 'Link')
-    expect(links.map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
-    // On Desktop the image pill stays, the link is a small arrow beside it,
-    // with no tooltip; the terminal's link is the number itself.
+    expect(links.map(l => l.props.href)).toEqual(surface === 'desktop' ? [] : ['https://github.com/o/r/pull/341'])
+    // On Desktop the image pill stays with a press layer and no arrow; the
+    // terminal's link is the number itself.
     if (surface === 'desktop') {
-      expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
+      // No arrow, no Link: a press layer on the pill replaces them (issue 513, S1 and S3).
+      expect(links).toEqual([])
       expect((await textOf(m)).includes('Open pull request')).toBe(false)
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
     } else {
@@ -3989,9 +3990,10 @@ for (const surface of SURFACES) {
     const all = await nodes(m)
     const links = all.filter(n => n.type === 'Link')
     // A merged row gh answered for links too; the fork's does not.
-    expect(links.map(l => l.props.href).sort()).toEqual(['https://github.com/o/r/pull/341', 'https://github.com/o/r/pull/343'])
+    expect(links.map(l => l.props.href).sort()).toEqual(surface === 'desktop' ? [] : ['https://github.com/o/r/pull/341', 'https://github.com/o/r/pull/343'])
     if (surface === 'desktop') {
-      expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
+      // No arrow, no Link: a press layer on the pill replaces them (issue 513, S1 and S3).
+      expect(links).toEqual([])
       expect((await textOf(m)).includes('Open pull request')).toBe(false)
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
     } else {
@@ -4001,6 +4003,104 @@ for (const surface of SURFACES) {
     }
   })
 }
+
+// --- issue 513: a pill press opens the pull request ------------------------------------
+
+// What a pill press can open: Desktop's press layers by key, any other surface's links by address (issue 513, S1).
+const openable = (all: Drawn[], surface: string) => (surface === 'desktop' ? pillKeys(all) : all.filter(n => n.type === 'Link').map(l => l.props.href).sort())
+const pillKeys = (all: Drawn[]) => all.filter(n => n.type === 'Button' && typeof n.props.key === 'string' && n.props.key.startsWith('pill-')).map(n => n.props.key)
+async function prPane(on: On, $: any, over: (w: World) => void = () => {}) {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    // 341 is answered; 342 is a fork's, so no answer; gamma has no pr.
+    w.ghOut = JSON.stringify([ghPr(341), ghPr(342, { state: 'MERGED', isCrossRepository: true })])
+    over(w)
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  return w
+}
+const viewRuns = (w: World) => w.ghCalls.filter(a => a[1] === 'pr' && a[2] === 'view')
+
+test('desktop, C1: a press layer sits on a pill gh answered for and nowhere else, on both tabs; C3: no arrow is drawn', async ($, on) => {
+  await prPane(on, $)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'grp-finished' })
+  expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
+  expect((await nodes(m)).some(n => n.type === 'Text' && n.text === '↗')).toBe(false)
+  await m.press({ key: 'view-prs' })
+  expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
+})
+
+for (const tab of ['sessions', 'prs']) {
+  test(`desktop, C1: pressing a pill on the ${tab} tab runs exactly gh pr view <number> --web, with GH_REPO the answer's repository`, async ($, on) => {
+    const w = await prPane(on, $)
+    const m = await mountOn($, 'desktop')
+    if (tab === 'prs') await m.press({ key: 'view-prs' })
+    await m.press({ key: 'pill-0-alpha' })
+    expect(viewRuns(w)).toEqual([['gh', 'pr', 'view', '341', '--web']])
+    expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'o/r' } })
+    expect(w.toasts).toEqual([])
+  })
+}
+
+test('desktop, C1: a card with no answer, a fork pull request and a card with no pr have no layer to press', async ($, on) => {
+  const w = await prPane(on, $)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'grp-finished' })
+  const keys = pillKeys(await nodes(m))
+  expect(keys.includes('pill-1-beta') || keys.includes('pill-2-gamma')).toBe(false)
+  expect(viewRuns(w)).toEqual([])
+})
+
+test('desktop, C1: a card that names a repository opens in that repository, even when the base answer names another', async ($, on) => {
+  const w = await prPane(on, $, w => {
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: [card('alpha', { status: 'working', pr: '7', repo: 'other/proj' })], todos: [] }) } })
+    w.ghOutBy['other/proj'] = JSON.stringify([ghPr(7, { url: 'https://github.com/other/proj/pull/7' })])
+  })
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.redraw(PANE_PROPS)
+  await m.press({ key: 'pill-0-alpha' })
+  expect(viewRuns(w)).toEqual([['gh', 'pr', 'view', '7', '--web']])
+  expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
+})
+
+// The harness draws a press only from the tree as last drawn, so a key can never be
+// stale here (#477 names the same limit). What it can show is C2's other half: the
+// press reads the roster as it is now, never the number or repository the key was drawn with.
+test('desktop, C2: a press finds its card again in the current roster, by place and title', async ($, on) => {
+  const w = await prPane(on, $, w => {
+    w.ghOut = JSON.stringify([ghPr(341), ghPr(350)])
+  })
+  const m = await mountOn($, 'desktop')
+  expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
+  const r = await call($, { cards: [card('alpha', { status: 'working', pr: '350' })], todos: [] })
+  expect(r.ok).toBe(true)
+  await m.press({ key: 'pill-0-alpha' })
+  expect(viewRuns(w)).toEqual([['gh', 'pr', 'view', '350', '--web']])
+})
+
+test('desktop, C12: a failed gh pr view shows the fixed toast and none of its output', async ($, on) => {
+  const w = await prPane(on, $)
+  const m = await mountOn($, 'desktop')
+  w.procHook = (e: any) => (e.argv[2] === 'view' ? { deny: 'spawn failed: SECRET_TOKEN=abc123' } : undefined)
+  await m.press({ key: 'pill-0-alpha' })
+  expect(w.toasts).toEqual(['Could not open the pull request'])
+})
+
+test('desktop, C1: a failed PATH check runs nothing and shows the fixed toast', async ($, on) => {
+  const w = await prPane(on, $)
+  const m = await mountOn($, 'desktop')
+  // A host the pane cannot prove has no gh to find.
+  w.env = {}
+  await m.press({ key: 'pill-0-alpha' })
+  expect(viewRuns(w)).toEqual([])
+  expect(w.toasts).toEqual(['Could not open the pull request'])
+})
 
 // --- the views ------------------------------------------------------------------
 
@@ -7797,13 +7897,12 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     expect(w.ghCalls[1]).toEqual(GH_ARGV)
     expect(w.ghInits[1]).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
     const m = await mountOn($, surface)
-    const links = (await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()
-    expect(links).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // Without a pointer the repository sits inline beside the pill; on Desktop
-    // no hover title carries it (none shows there), the Pull requests tab does.
+    const links = openable(await nodes(m), surface)
+    expect(links).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
+    // The repository sits inline beside the pill on every surface (issue 513, S3).
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
-    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(surface !== 'desktop')
+    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(true)
     expect(sessions.includes('Open pull request')).toBe(false)
     // The base card's pill names no repository on the Sessions view (its link's URL aside).
     expect(sessions.split('https://github.com/o/r/').join('').includes('o/r')).toBe(false)
@@ -7811,7 +7910,7 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const text = await textOf(m)
     expect(text.includes('Other title')).toBe(true)
     expect(text.includes('beta · +12 −3 · other/proj')).toBe(true)
-    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
+    expect(openable(await nodes(m), surface)).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
     expect(text.includes('PR details unavailable')).toBe(false)
     // The rows stay in the module: no title gh answered reaches plugin state.
     expect(w.states.some(([, v]) => v.includes('Other title') || v.includes('Base title'))).toBe(false)
@@ -7829,13 +7928,13 @@ for (const [label, answer] of [
     })
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
-    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
-    // Desktop shows no hover title, so the Sessions view carries no repository text.
-    expect((await textOf(m)).includes('other/proj')).toBe(false)
+    expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
+    // The card's repository is drawn beside its pill (issue 513, S3).
+    expect((await textOf(m)).includes('other/proj')).toBe(true)
     await m.press({ key: 'view-prs' })
     // The row names it, and links only from an answer.
     expect((await textOf(m)).includes('beta · other/proj')).toBe(true)
-    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
+    expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
     const text = await textOf(m)
     expect(text.includes('Base seven')).toBe(false)
     expect(text.includes('Other title')).toBe(false)
@@ -7850,7 +7949,7 @@ test('claim 17: a repository is one however it is spelled: one run, and an answe
   expect(asked(w)).toBe(1)
   expect(w.ghInits[0]).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
   const m = await mountOn($, 'desktop')
-  expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()).toEqual(['https://github.com/OTHER/proj/pull/7', 'https://github.com/OTHER/proj/pull/8'])
+  expect(pillKeys(await nodes(m))).toEqual(['pill-0-beta', 'pill-1-gamma'])
 })
 
 test("claim 17: #n in one repository never takes another's state, and a repository stops being asked only once its own PRs are merged", async ($, on) => {
