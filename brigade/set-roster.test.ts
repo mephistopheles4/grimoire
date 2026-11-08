@@ -214,6 +214,7 @@ type World = ReturnType<typeof makeFs> & {
   verdict: { decision: 'allow' | 'ask' | 'deny'; reason?: string; rule?: string }
   registered: string[]
   descriptions: Map<string, string>
+  schemas: Map<string, any>
   roster: unknown[]
   toasts: string[]
   existsCalls: string[]
@@ -340,6 +341,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     verdict: { decision: 'ask' as const },
     registered: [] as string[],
     descriptions: new Map<string, string>(),
+    schemas: new Map<string, any>(),
     roster: [] as unknown[],
     toasts: [] as string[],
     existsCalls: [] as string[],
@@ -514,6 +516,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     if (w.failRegister) return { deny: 'forced register failure' }
     w.registered.push(e.name)
     w.descriptions.set(e.name, String(e.description))
+    w.schemas.set(e.name, e.inputSchema)
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
   on('state.set', ($, e: any, next: any) => {
@@ -4782,24 +4785,42 @@ for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
   })
 }
 
-test('#567 C4 desktop: a visit press forged for an anchored to-do runs nothing and opens nothing', async ($, on) => {
-  const w = await grouped(on, $, ANCHORED)
-  const m = await mountOn($, 'desktop')
-  await nodes(m)
-  const procs = w.procs.length
-  for (const [i, id, link] of [[0, 't1', COMMENT_LINK], [1, 't2', PR_COMMENT_LINK], [2, 't3', REVIEW_LINK], [3, 't4', REVIEW_COMMENT_LINK]] as const) {
-    // A forged key for the anchored address, and one with the digest of the address minus its fragment.
-    for (const l of [link, link.split('#')[0] as string]) {
-      try {
-        await m.press({ key: visitKey(i, id, l) })
-      } catch {
-        // The harness may refuse a key it did not draw; either way nothing runs.
-      }
+// #567 C4, a forged `visit` press on an anchored to-do, is tested at its seam: the harness presses
+// only keys the tree drew (a forged key throws before any handler), so tests/brigade-view.test.mjs
+// holds linkPress and visitPress to return nothing for a parse with an anchor. Here, the draw above
+// holds that no `visit` button is drawn for one, and no gh run follows a draw.
+
+for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
+  test(`#567 C7 ${surface}: an anchored label is drawn whole, wrapped and never cut`, async ($, on) => {
+    await grouped(on, $, ANCHORED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    for (const label of ANCHORED_LABELS) {
+      const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
+      expect(node?.props.wrap, `${surface} ${label}`).toBe('wrap')
     }
+  })
+}
+
+test('#567 C2: the registered set_roster schema takes the anchored shapes by the pattern TODO_LINK holds, and the tool keeps them', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const link = w.schemas.get(TOOL).properties.todos.items.properties.link
+  expect(link.maxLength).toBe(210)
+  // The engine's validators may read a pattern with or without the unicode flag.
+  for (const flags of ['', 'u']) {
+    const re = new RegExp(link.pattern, flags)
+    for (const ok of [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK, ISSUE_LINK, PR_LINK]) expect(re.test(ok), `${flags} ${ok}`).toBe(true)
+    for (const bad of ['https://github.com/o/r/issues/1#issuecomment-0', 'https://github.com/o/r/issues/1#pullrequestreview-5', 'https://github.com/o/r/pull/1#x', 'https://github.com/o/r/pull/1#issuecomment-5#issuecomment-6']) expect(re.test(bad), `${flags} ${bad}`).toBe(false)
   }
-  expect(linkViews(w)).toEqual([])
-  expect(w.procs.length).toBe(procs)
-  expect(w.toasts).toEqual([])
+  const r = await call($, { cards: [], todos: ANCHORED.todos })
+  expect(r.ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').todos.map((t: any) => t.link)).toEqual(ANCHORED.todos.map(t => t.link))
+  const refused = await call($, { cards: [], todos: [{ id: 't1', text: 'x', link: 'https://github.com/o/r/issues/1#issuecomment-0' }] })
+  expect(refused.ok).toBe(false)
+  expect(refused.text).toContain('link is not a github.com issue, pull request or comment link')
+  expect(refused.text).not.toContain('issuecomment-0')
 })
 
 test('#567 C5 desktop: a link with no anchor still presses gh as in #560', async ($, on) => {
@@ -4828,7 +4849,9 @@ for (const surface of ['desktop', 'terminal'] as const) {
     expect(visitKeys(all)).toEqual([])
     const links = all.filter(n => n.type === 'Link')
     expect(links.map(l => l.props.href)).toEqual([PR_COMMENT_LINK])
-    expect(await textOf(m)).toContain('PR 18 comment o/r')
+    // The Link's own address and its own text come from the one parse.
+    expect(links[0]?.children).toEqual(['PR 18 comment o/r'])
+    expect(links[0]?.props.href).toBe(PR_COMMENT_LINK)
     expect(await textOf(m)).not.toContain('evil')
   })
 }
