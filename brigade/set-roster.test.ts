@@ -10663,3 +10663,165 @@ test('533: the exception is in every variant the lead can be handed', async ($, 
   const r: any = await compactStart($)
   for (const text of [...nudges(w), ...r.additionalContext]) expect(text.includes(EXCEPTION)).toBe(true)
 })
+
+// --- issue 223: quick actions on Desktop cards ---------------------------------------------------
+//
+// A button fills the lead's prompt box with one checked line and sends nothing. The engine's
+// `prompt.read` and `prompt.fill` are answered here, and so are the `prompt.submit` that must
+// never be raised and the `ui.log` and store the draft must never reach. The checks of
+// which action a card gets are in tests/brigade-quick.test.mjs.
+
+const QUICK_ROSTER = {
+  cards: [card('alpha', { status: 'needs-you' }), card('beta', { status: 'done', pr: '18' }), card('gamma', { status: 'stopped' })],
+  todos: [],
+}
+const QUICK_LINES = ['What does alpha need from me?', 'Merge PR #18 in o/r.', 'Show me what cleaning up gamma would remove.']
+const QUICK_KEYS = [
+  ['alpha', 'ask'],
+  ['beta', 'merge'],
+  ['gamma', 'cleanup'],
+].map(([title, action], i) => `quick-${i}-${title}-${action}-${sha256Hex([action, title, QUICK_LINES[i]].join('\n')).slice(0, 16)}`)
+const QUICK_DRAFT = 'The prompt box holds a draft. Send or clear it, then press again.'
+const QUICK_CHANGED = 'The card changed. Nothing was put in the prompt box.'
+const quickFailed = (line: string) => `Brigade could not fill the prompt box. Type this instead: ${line}`
+const SECRET = 'sk-SECRET-draft-0123456789'
+
+type Box = { draft?: string; readFails?: boolean; fill?: (e: any) => unknown }
+async function quickPane(on: On, $: any, box: Box = {}) {
+  const seen = { reads: 0, fills: [] as any[], submits: [] as any[], logs: [] as string[], stored: [] as string[] }
+  on('prompt.read', () => {
+    seen.reads++
+    if (box.readFails === true) return { deny: 'forced read failure' } as any
+    const text = box.draft ?? ''
+    return { value: { text, cursor: text.length } } as any
+  })
+  on('prompt.fill', (_$: any, e: any) => {
+    seen.fills.push(e)
+    return (box.fill === undefined ? { isFilled: true, text: `${box.draft ?? ''}${e.text}` } : box.fill(e)) as any
+  })
+  on('prompt.submit', (_$: any, e: any) => {
+    seen.submits.push(e)
+    return { text: e.text } as any
+  })
+  on('ui.log', (_$: any, e: any) => {
+    seen.logs.push(JSON.stringify(e))
+    return { value: undefined } as any
+  })
+  on('store.set', (_$: any, e: any) => {
+    seen.stored.push(JSON.stringify(e))
+    return { value: undefined } as any
+  })
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(QUICK_ROSTER) } })
+    w.ghOut = JSON.stringify([ghPr(18)])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  return { w, seen }
+}
+// Finished cards start folded: open the group, then read the pane.
+const quickMount = async ($: any, surface: string) => {
+  const m = await mountOn($, surface)
+  await nodes(m)
+  await m.press({ key: 'grp-finished' })
+  return { m, all: await nodes(m) }
+}
+const quickButtons = (all: Drawn[]) => all.filter(n => n.type === 'Button' && typeof n.props.key === 'string' && n.props.key.startsWith('quick-'))
+const quickKeys = (all: Drawn[]) => quickButtons(all).map(n => n.props.key)
+
+test('#223 desktop: each card that gets an action draws one button, keyed by place, slug, action and a digest, labelled Ask, Merge or Clean up', async ($, on) => {
+  await quickPane(on, $)
+  const { all } = await quickMount($, 'desktop')
+  expect(quickKeys(all)).toEqual(QUICK_KEYS)
+  expect(quickButtons(all).map(n => n.text)).toEqual(['Ask', 'Merge', 'Clean up'])
+})
+
+test('#223 claim 13: a press on an empty box fills once, appended, with a space before the line, and puts nothing in a toast', async ($, on) => {
+  const { w, seen } = await quickPane(on, $)
+  const { m } = await quickMount($, 'desktop')
+  for (const [i, key] of QUICK_KEYS.entries()) {
+    await m.press({ key })
+    expect(seen.fills.at(-1)?.text).toBe(` ${QUICK_LINES[i]}`)
+    expect(seen.fills.at(-1)?.mode).toBe('append')
+  }
+  expect(seen.fills.length).toBe(3)
+  expect(w.toasts).toEqual([])
+})
+
+for (const [name, box] of [['a draft', { draft: 'half typed' }], ['a one-character draft after a space', { draft: ' x' }], ['a read that fails', { readFails: true }]] as [string, Box][]) {
+  test(`#223 claim 6: ${name} fills nothing, leaves the box as it was and shows the draft toast`, async ($, on) => {
+    const { w, seen } = await quickPane(on, $, box)
+    const { m } = await quickMount($, 'desktop')
+    await m.press({ key: QUICK_KEYS[0] })
+    expect(seen.reads).toBe(1)
+    expect(seen.fills).toEqual([])
+    expect(seen.submits).toEqual([])
+    expect(w.toasts).toEqual([QUICK_DRAFT])
+  })
+}
+
+test('#223 claim 6: a box of only whitespace takes the line', async ($, on) => {
+  const { seen } = await quickPane(on, $, { draft: ' \n ' })
+  const { m } = await quickMount($, 'desktop')
+  await m.press({ key: QUICK_KEYS[2] })
+  expect(seen.fills.length).toBe(1)
+})
+
+for (const [name, fill] of [['throws', () => { throw new Error('forced fill failure') }], ['answers isFilled false', () => ({ isFilled: false })]] as [string, () => unknown][]) {
+  test(`#223 claim 8: a fill that ${name} shows the fallback toast with the line, and nothing is submitted`, async ($, on) => {
+    const { w, seen } = await quickPane(on, $, { fill })
+    const { m } = await quickMount($, 'desktop')
+    await m.press({ key: QUICK_KEYS[1] })
+    expect(w.toasts).toEqual([quickFailed(QUICK_LINES[1])])
+    expect(seen.submits).toEqual([])
+  })
+}
+
+test('#223 claim 9: a press submits nothing, calls no tool, runs no process and writes no state', async ($, on) => {
+  const { w, seen } = await quickPane(on, $)
+  const { m } = await quickMount($, 'desktop')
+  const figures = () => ({ states: w.states.length, procs: w.procs.length, checks: w.checks.length, mcp: w.mcpCalls.length, notes: w.notes.length })
+  const before = figures()
+  for (const key of QUICK_KEYS) await m.press({ key })
+  expect(figures()).toEqual(before)
+  expect(seen.submits).toEqual([])
+  expect(seen.stored).toEqual([])
+})
+
+for (const surface of ['terminal', 'mobile', 'vscode'] as const) {
+  test(`#223 claim 11 ${surface}: the pane draws no quick key`, async ($, on) => {
+    const { seen } = await quickPane(on, $)
+    const { all } = await quickMount($, surface)
+    expect(quickKeys(all)).toEqual([])
+    expect(seen.reads).toBe(0)
+  })
+}
+
+test('#223 claim 7: a press whose card has since changed fills nothing and shows the changed toast', async ($, on) => {
+  const { w, seen } = await quickPane(on, $)
+  await quickMount($, 'desktop')
+  const r = await call($, { cards: [card('alpha', { status: 'working' }), QUICK_ROSTER.cards[1], QUICK_ROSTER.cards[2]], todos: [] })
+  expect(r.ok).toBe(true)
+  await $.ui.press({ plugin: 'grimoire', requestId: 'brigade', key: QUICK_KEYS[0], surface: 'desktop' })
+  expect(seen.reads).toBe(0)
+  expect(seen.fills).toEqual([])
+  expect(w.toasts).toEqual([QUICK_CHANGED])
+})
+
+for (const isFilled of [true, false]) {
+  test(`#223 claim 12 (isFilled ${isFilled}): the text a fill answers with, which carries the owner's draft, appears in no toast, log, state, store or drawn text`, async ($, on) => {
+    const { w, seen } = await quickPane(on, $, { fill: () => ({ isFilled, text: SECRET }) })
+    const { m } = await quickMount($, 'desktop')
+    await m.press({ key: QUICK_KEYS[0] })
+    const text = await textOf(m)
+    expect(seen.fills.length).toBe(1)
+    expect(w.toasts.join('\n')).not.toContain(SECRET)
+    expect(seen.logs.join('\n')).not.toContain(SECRET)
+    expect(seen.stored.join('\n')).not.toContain(SECRET)
+    expect(w.states.map(([, v]) => v).join('\n')).not.toContain(SECRET)
+    expect(text).not.toContain(SECRET)
+  })
+}

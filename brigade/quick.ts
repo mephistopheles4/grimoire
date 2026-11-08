@@ -27,6 +27,11 @@ export const FILL_FAILED = (line: string) => `Brigade could not fill the prompt 
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
+/** Where a quick action draws and fills: Desktop alone. The draw and the press
+ *  both ask. The engine only presses a button the surface drew, so the press asks
+ *  again as a guard against an event another plugin raised with another surface. */
+export const quickSurface = (surface: unknown): boolean => surface === 'desktop'
+
 /** The repository as `gh` spelled it, kept only if it is whole, passes `REPO`
  *  and has no `.` or `..` part. */
 const safeRepo = (repo: unknown): repo is string =>

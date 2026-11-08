@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { TITLE, quickAction, quickDigest, quickPress } = await import('../brigade/quick.ts');
+const { TITLE, quickAction, quickDigest, quickPress, quickSurface } = await import('../brigade/quick.ts');
 const { slug } = await import('../brigade/view.ts');
 
 const card = (title, over = {}) => ({ title, work: 'w', settings: 's', status: 'working', since: 0, ...over });
@@ -75,6 +75,11 @@ test('claim 5: a gh repository that fails REPO, or has a dot part, or is not the
   }
   assert.equal(quickAction(c, answers([gh(18, { repo: 'other/r' })]), new Map()), undefined);
   assert.equal(quickAction(c, answers([gh(18)], { pinned: undefined }), new Map()), undefined);
+});
+
+test('claim 11: only the desktop surface draws or fills a quick action', () => {
+  assert.equal(quickSurface('desktop'), true);
+  for (const surface of ['terminal', 'mobile', 'vscode', '', undefined, null, 'Desktop', 7]) assert.equal(quickSurface(surface), false, String(surface));
 });
 
 test('claim 7: quickPress returns the line when place, slug, action and digest still match', () => {
