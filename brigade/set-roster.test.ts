@@ -4026,6 +4026,90 @@ for (const surface of SURFACES) {
   })
 }
 
+// --- issue 513: Open and Split in the menu (S13) -------------------------------------------
+
+const SPLIT_NONE = "Split isn't available here. Use Open."
+
+test('desktop, C14: Open on a Desktop-session card runs the opener and makes no tool call, even where the tool is listed', async ($, on) => {
+  const w = await pane(on, $)
+  await act(mounted, 'desktop', 'open-0-alpha')
+  expect(w.mcpCalls).toEqual([])
+  expect(w.lists).toBe(0)
+  expect(w.checks).toEqual([])
+  expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+  expect(w.toasts.at(-1)).toBe('Opening alpha in the app (1)')
+})
+
+test('desktop, C15: Split makes the tool call with the card id and runs no opener, and the toast is the app\'s line', async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => answer('Opened session local_x in a split pane (pane 1) beside this one.')
+  await act(mounted, 'desktop', 'split-0-alpha')
+  expect(w.mcpCalls).toEqual([{ server: 'ccd_window', tool: 'open_session_in', args: { session_id: DESKTOP, target: 'split' } }])
+  expect(explorer(w)).toEqual([])
+  expect(w.toasts.at(-1)).toBe('Opened session local_x in a split pane (pane 1) beside this one.')
+})
+
+test('desktop, C15: a Split the app refuses with a reason shows that reason alone, and runs no opener', async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => answer('was not started from this session', true)
+  await act(mounted, 'desktop', 'split-0-alpha')
+  expect(explorer(w)).toEqual([])
+  expect(w.toasts).toEqual(['The app did not open it: was not started from this session'])
+})
+
+for (const [name, setup] of [
+  ['a refusal with no text', (w: World) => (w.mcp = () => answer('', true))],
+  ['a call that throws', (w: World) => (w.mcp = () => ({ deny: 'no such server' }))],
+  ['an answer of no known shape', (w: World) => (w.mcp = () => ({ value: 7 }))],
+  ['a tool that is not listed', (w: World) => (w.tools = [])],
+  ['a rejected tool list', (w: World) => (w.failList = true)],
+  ['a deny verdict', (w: World) => (w.verdict = { decision: 'deny' } as never)],
+] as const) {
+  test(`desktop, C15: Split with ${name} shows the fixed line, runs no opener and goes no further`, async ($, on) => {
+    const w = await pane(on, $)
+    setup(w)
+    await act(mounted, 'desktop', 'split-0-alpha')
+    expect(explorer(w)).toEqual([])
+    expect(w.toasts).toEqual([SPLIT_NONE])
+  })
+}
+
+test('desktop, C15: a Split past 5 seconds shows the fixed line and runs no opener', async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => new Promise(() => {})
+  await mounted.press({ key: 'menu-0-alpha' })
+  const pressed = mounted.press({ key: 'split-0-alpha' })
+  await w.clock.advance(5000)
+  await pressed
+  expect(explorer(w)).toEqual([])
+  expect(w.toasts).toEqual([SPLIT_NONE])
+})
+
+test('desktop, C16: a card with only a Remote Control link shows Open and no Split, and a card with no link shows neither', async ($, on) => {
+  await pane(on, $)
+  const items = async (opener: string) => {
+    await mounted.press({ key: opener })
+    const found = ((await mounted.findAll({})) as Drawn[]).filter(n => n.type === 'Button' && /^(openlink|split|dismiss)-/.test(String(n.props.key))).map(n => String(n.props.key).split('-')[0])
+    await mounted.press({ key: opener })
+    return found
+  }
+  expect(await items('menu-0-alpha')).toEqual(['openlink', 'split', 'dismiss'])
+  expect(await items('menu-1-beta')).toEqual(['openlink', 'dismiss'])
+  // A Desktop id outside the local_ shape has neither.
+  expect(await items('menu-3-delta')).toEqual(['dismiss'])
+})
+
+test('C17: the to-do row\'s Open, and the other surfaces\' Open, still try the split and then the link', async ($, on) => {
+  const w = await pane(on, $, 'terminal')
+  w.mcp = () => answer('was not started from this session', true)
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+  await press($, 'go-0-t1')
+  expect(w.mcpCalls.length).toBe(2)
+  expect(explorer(w).length).toBe(2)
+})
+
 // --- issue 513: the `⋯` menu and the settings popover (S4 to S8) --------------------------
 
 const MENU_CARDS = {
