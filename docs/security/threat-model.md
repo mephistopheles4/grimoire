@@ -671,6 +671,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 
 - the run with no network ([row 20](checks.md#row-20))
 - rule 6: `athanor.json`'s build folder held to `tests/container/`, no `inputs`, no symbolic link, no case twin ([row 20](checks.md#row-20))
+- `.gitignore` lists `.npmrc` and `.yarnrc.yml`, so neither a commit nor `--untracked` takes a contributor's own copy; rule 2b fails a force-added one ([row 20](checks.md#row-20))
 - the base image pinned by digest; the Claude Code tarball held to its sha512 ([row 20](checks.md#row-20))
 - athanor's refusal of an engine not on this machine unless `allowRemoteDocker` is set ([row 20](checks.md#row-20))
 - `CONTRIBUTING.md`'s "Run the check in a container": use the local engine, checked by `DOCKER_HOST` and `docker context inspect`; keep secrets out of tracked files; read a branch's container files first ([row 20](checks.md#row-20))

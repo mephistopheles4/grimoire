@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { tree, manifest, readJson, writeJson, assertPasses, assertFails, modFile } from './check-fixture.mjs';
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -152,6 +153,8 @@ test('a package manifest or lockfile in another case fails, as the exact name do
 });
 test('a package-manager settings file in another case fails, as the exact name does (#366)', () => {
   const dir = tree();
+  const ignore = join(dir, '.gitignore');
+  writeFileSync(ignore, readFileSync(ignore, 'utf8').split('\n').filter(l => !['.npmrc', '.yarnrc.yml'].includes(l.trim())).join('\n'));
   modFile(dir, '.NPMRC', 'registry=https://example.invalid/\n');
   assertFails(dir, /\.NPMRC: a package-manager settings file/);
 });

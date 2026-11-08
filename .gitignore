@@ -18,3 +18,8 @@ Thumbs.db
 # Output of claude plugin eval runs. It can hold local paths and session text,
 # so it is read, summarised on the issue, and deleted, never committed.
 evals/results/
+# Package-manager settings files can hold a registry token. Ignored so a
+# contributor's own copy is never committed or taken by athanor's --untracked;
+# rule 6 of scripts/check.mjs refuses one a branch un-ignores (issue 366).
+.npmrc
+.yarnrc.yml

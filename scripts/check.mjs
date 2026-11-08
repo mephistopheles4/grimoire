@@ -756,8 +756,9 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
 // fetch at another registry; CI's fetches run outside the checkout, and this
 // keeps the file off main. Nothing here runs Yarn: .yarnrc.yml is refused on
 // the issue's ask. .yarnrc, .pnpmfile.cjs and bunfig.toml are not refused;
-// they are candidate P10 in the threat model. The walk reads untracked files
-// too, so the message allows for a contributor's own file holding a token.
+// they are candidate P10 in the threat model. .gitignore lists both names, so
+// the walk skips a contributor's own copy and rule 2b fails a force-added one;
+// this rule fires when a branch drops those ignore lines.
 const SETTINGS_FILES = new Set(['.npmrc', '.yarnrc.yml']);
 const isSettingsFile = name => SETTINGS_FILES.has(name) || [...SETTINGS_FILES].some(m => caseTwin(name, m));
 for (const f of files.filter(f => isSettingsFile(basename(f)))) {
