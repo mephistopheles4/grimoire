@@ -265,8 +265,9 @@ and the engine-origin check, and reads `brigade/register.tsx`'s text for the
 stop's wiring and for what the mod must not hold: a window, a cleaner, a
 removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
-imports it to check when a turn owes a roster update and the one fixed line it
-ends with, and reads `brigade/register.tsx`'s text for the wiring. Keep all
+imports it to check that a send after the last `set_roster` owes an update and
+which sends carry a message. The turn-level cases run in
+`brigade/set-roster.test.ts`. Keep all
 six to erasable syntax (no enums, namespaces or parameter properties), so
 Node can strip their types. The
 contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`

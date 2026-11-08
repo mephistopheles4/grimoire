@@ -3240,7 +3240,8 @@ export const register: Register = on => {
   // and passed on unchanged; the turn's end (the writer's turn.complete hook,
   // above) adds one fixed note if the last send or decision came after the
   // last set_roster. It reminds only, never writes the roster, and does
-  // nothing while the pane is closed.
+  // nothing while the pane is closed. No `.catch` on this hook: a retry of a
+  // failed send would send the message twice.
   on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
     const r = await next(e)
     try {
@@ -3249,7 +3250,7 @@ export const register: Register = on => {
       // The send goes on unchanged.
     }
     return r
-  }).catch(($, e, next) => next(e))
+  })
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
     lateOffer = false

@@ -9644,8 +9644,34 @@ test('532: an idle-subscription send alone gets no reminder, and a turn with no 
   await sendTo($, { notify_when_idle: true })
   await sendTo($, { message: '', notify_when_idle: true })
   await turnEnd($)
+  expect(reminders(w)).toEqual([])
+})
+
+test('532: a logged decision alone, with no send, ends with the reminder; a refused one does not', async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  expect((await decide($, {})).ok).toBe(false)
   await turnEnd($)
   expect(reminders(w)).toEqual([])
+  expect((await decide($)).ok).toBe(true)
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
+})
+
+test("532: a subagent's send and turn end never count, and its turn end leaves the lead's debt", async ($, on) => {
+  const w = reminderWorld(on)
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  await turnEnd($, { agentId: 'a1' })
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+  await sendTo($, { message: 'go on' })
+  await turnEnd($, { agentId: 'a1' })
+  expect(reminders(w)).toEqual([])
+  await turnEnd($)
+  expect(reminders(w).length).toBe(1)
 })
 
 test('532: the reminder is said once, and a refused set_roster does not clear the debt', async ($, on) => {
