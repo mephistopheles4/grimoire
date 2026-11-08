@@ -219,8 +219,10 @@ write would push out marks of entries you read. A question marked read keeps
 its link, so an answer logged later still pairs with it.
 
 Since 0.91.0 a question in this lead's own log and the Relayed entry that
-answers it, both unread, show on one card in To review: the question, then
-every field of the answer as its own card drew it. One "✓ Read, next" marks
+answers it, both unread, show on one card in To review. Since 0.132.0 that
+card draws the question once, its options with the answer's pick marked, the
+answer's pick as its headline, and the answer's writer, label, time, level, why,
+to undo and revisit. One "✓ Read, next" marks
 both read in one write, Flag flags both and Skip moves both. To review's count
 and "n of N" count the card once; the tab's totals still count entries.
 

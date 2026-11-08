@@ -4323,66 +4323,43 @@ export const register: Register = on => {
     }
     // A card's fields, in order: the headline, the writer, the source, time and
     // level, the lead's flag, the question, the options, why, to undo, revisit
-    // and the id.
-    const cardFields = (r: Row, top: JSX.Element | undefined, stacked = false): JSX.Element[] => {
+    // and the id. An answered pair is one card (issue 552): the waiting entry's
+    // question and options once, the answer's pick marked, and the answering
+    // Relayed entry's writer, label, time, level, why, undo and revisit, which
+    // are the owner's words and who relayed them.
+    const cardFields = (r: Row, top: JSX.Element | undefined, answer?: Row): JSX.Element[] => {
       const d = r.entry
+      const a = answer?.entry
+      // The entry that speaks on the card: the answer for a pair, else the entry itself. Its writer, label, time, level, why, undo and revisit are drawn.
+      const src = answer ?? r
       const alarm = d.source === 'alarm'
-      // The option the entry's pick names: its own once answered, the answer's for a waiting entry (issue 545, row 10).
-      const chosen = d.waiting ? answerOf(r)?.pick : d.pick
-      const headlineText = alarm ? (
-        <Text color="warning" weight="semibold" wrap="wrap">
-          {headline(r)}
-        </Text>
-      ) : (
-        <Text weight="semibold" wrap="wrap">
-          {headline(r)}
-        </Text>
-      )
+      // The option the pick names: the answer's for a pair, its own for an entry, and for a lone waiting entry the answer's the log holds (issue 545, row 10).
+      const chosen = a !== undefined ? a.pick : d.waiting ? answerOf(r)?.pick : d.pick
+      // A pair's headline is the answer's pick, as the lead relayed the owner's words (the lead's pick on issue 552, decision 224).
+      const title = a !== undefined ? oneLine(a.pick, 300) : headline(r)
       return [
-        stacked ? (
-          // A nested answer: the title on its own full-width line, then the meta line.
-          <Box flexDirection="column">
-            {top}
-            {headlineText}
-            <Box flexDirection="row" columnGap={1} alignItems="flex-start">
-              <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                <Text dimColor wrap="truncate-end">
-                  {r.writer}
-                </Text>
-              </Box>
-              <Box flexShrink={0} flexDirection="row" columnGap={1}>
-                <Text>{labelOf(r)}</Text>
-                <Text dimColor tabular>
-                  {stamp(d.at)}
-                </Text>
-                <Text dimColor>{`at level ${d.level}`}</Text>
-              </Box>
-            </Box>
-          </Box>
-        ) : (
         <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             {top}
             {alarm ? (
               <Text color="warning" weight="semibold" wrap="wrap">
-                {headline(r)}
+                {title}
               </Text>
             ) : (
               <Text weight="semibold" wrap="wrap">
-                {headline(r)}
+                {title}
               </Text>
             )}
-            <Text dimColor>{r.writer}</Text>
+            <Text dimColor>{src.writer}</Text>
           </Box>
           <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
-            <Text>{labelOf(r)}</Text>
+            <Text>{labelOf(src)}</Text>
             <Text dimColor tabular>
-              {stamp(d.at)}
+              {stamp(src.entry.at)}
             </Text>
-            <Text dimColor>{`at level ${d.level}`}</Text>
+            <Text dimColor>{`at level ${src.entry.level}`}</Text>
           </Box>
-        </Box>
-        ),
+        </Box>,
         ...(d.flag !== undefined ? [part('Flagged by the lead', lines(d.flag))] : []),
         part('Question', lines(d.question)),
         part(
@@ -4398,23 +4375,17 @@ export const register: Register = on => {
             ))}
           </Box>,
         ),
-        part('Why', lines(d.why)),
-        part('To undo', lines(d.undo)),
-        ...(d.revisit !== '' ? [part('Revisit', lines(d.revisit))] : []),
-        <Text dimColor>{`Decision ${d.id}`}</Text>,
+        part('Why', lines(src.entry.why)),
+        part('To undo', lines(src.entry.undo)),
+        ...(src.entry.revisit !== '' ? [part('Revisit', lines(src.entry.revisit))] : []),
+        <Text dimColor>{a === undefined ? `Decision ${d.id}` : `Decision ${d.id}, answered by decision ${a.id}`}</Text>,
       ]
     }
     // A card in To review, Flagged or History: its fields, then its presses.
-    // Since spec 448 a pair card draws its answer's fields after its own, as
-    // a block of its own: every field the answer's own card draws.
+    // Since spec 448 a pair card is one card, and since issue 552 its fields are drawn once.
     const entryCard = (r: Row, top: JSX.Element | undefined, buttons: JSX.Element[], answer?: Row) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: r.entry.source === 'alarm' ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
-        {cardFields(r, top)}
-        {answer !== undefined && (
-          <Box flexDirection="column" marginTop={terminal ? 1 : 'xs'} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: DARK_FILLS.bar })}>
-            {cardFields(answer, undefined, true)}
-          </Box>
-        )}
+        {cardFields(r, top, answer)}
         {buttons.length > 0 && (
           <Box flexDirection="row" columnGap={1} justifyContent="flex-start" alignItems="center">
             {buttons.map(b => (
