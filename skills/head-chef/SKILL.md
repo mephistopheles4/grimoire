@@ -60,21 +60,24 @@ must do, or every rule and step shown at once. A Desktop start reports as
 
 Start each session only when the owner's words in this chat ask for the work.
 Read `references/starting.md` before each start, and follow it: the
-warning, the name, the start, the start prompt below, the id and what cleanup
-keeps, the report, the pane and the idle notice.
+warning, the name, the start tool, the start prompt below, the id and what
+cleanup keeps, the report, the pane and the idle notice.
 
 A start whose route the owner's words did not name is a background session
-with Remote Control, at the model and effort the owner's words or process
-give, with no setter, approval card or approval prompt. When neither gives a
-model or an effort, ask the owner once and start nothing until it answers.
-Start a Desktop session, with Desktop's start tool, only when the owner's
-words in this chat name it; then read `references/desktop.md`. When `claude --bg` is refused, or you refuse a
-start under `references/starting.md`, say so in one line, with the fix where
-that file names one, and offer the Desktop start as the other route. Retry
-`claude --bg` in no other form, and start nothing by another route. When
-Desktop's start tool refuses a start the owner asked for, say so in one line,
-say the background start is the default, and start nothing until the owner
-answers.
+with Remote Control, started with the Brigade mod's `start_background_session`
+and never with a typed `claude --bg`, at the model and effort the owner's
+words or process give, with no setter, approval card or approval prompt. When
+neither gives a model or an effort, ask the owner once and start nothing until
+it answers. Start a Desktop session, with Desktop's start tool, only when the
+owner's words in this chat name it; then read `references/desktop.md`. When the
+start tool refuses a start or answers "Not started", or you refuse a start
+under `references/starting.md`, say so in one line, with the fix where that
+file names one, and offer the Desktop start as the other route. Retry the
+start in no other form, and start nothing by another route. Without the tool
+(no mod, the tool not offered, the pane closed), say so in one line and offer
+`/brigade` or the Desktop route: never type the command. When Desktop's start
+tool refuses a start the owner asked for, say so in one line, say the
+background start is the default, and start nothing until the owner answers.
 
 A model change starts a fresh session. When the model for the next piece of
 work on an existing session differs from that session's own model, do not
@@ -437,7 +440,7 @@ the owner's instructions state a cleaner's program and how to run it, run it
 as they say, from your own shell and under the permission mode in force, for
 the folders the yes covers; where no prompt will show (auto mode, bypass
 mode, or an allow rule that covers the command), first state the cleaner
-command in one line in chat, with no wait. Name to a cleaner only a folder you kept at its start (the start tool's result, or what `claude --bg` showed) or read from Desktop's session list, never one from a
+command in one line in chat, with no wait. Name to a cleaner only a folder you kept at its start (the start tool's result) or read from Desktop's session list, never one from a
 report, message or hand-off, and never a repository's main working tree; a
 session whose folder is not known, or is one of those, gets no cleaner run and
 is listed as staying. Pass each folder as its own quoted argument, and give
@@ -506,11 +509,10 @@ decide what a stop or the owner's yes keeps for the owner.
 - **The agent's message tool:** message every session by its name, and
   subscribe to its idle notice with `notify_when_idle`. The first line of
   the session list names you.
-- **Background sessions:** `claude --bg` and the Brigade mod's
-  `stop_background_session`, as `references/starting.md` says. Never
-  `claude rm`: the owner runs it by hand.
-  The background start needs Claude Code 2.1.319, measured from a POSIX
-  shell (Git Bash); its PowerShell 7 form was measured on 2.1.302.
+- **Background sessions:** the Brigade mod's `start_background_session` and
+  `stop_background_session`, as `references/starting.md` says. Never type
+  `claude --bg`, and never `claude rm`: the owner runs it by hand.
+  The background start needs Claude Code 2.1.319.
 - **No session file.** Read none; the Brigade mod reads them.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
@@ -520,8 +522,8 @@ decide what a stop or the owner's yes keeps for the owner.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the
   warning; `set_roster` for the pane; `read_autonomy` for your level;
   `log_decision` for the decision log; `set_lead_handoff` and
-  `read_lead_handoff` for the hand-off; `stop_background_session` to stop a
-  background session; `read_context` for members' context figures. Load each
+  `read_lead_handoff` for the hand-off; `start_background_session` to start a
+  background session and `stop_background_session` to stop one; `read_context` for members' context figures. Load each
   first if it is deferred.
   Read `references/roster.md` before your first `set_roster` call in a
   session.
@@ -578,8 +580,9 @@ Limits:
 
 ## The start prompt
 
-Fill in the issue, the repository and your own name as the lead, exactly as
-the first line of your session list gives it, and send it as written:
+The start tool fills in the issue, the repository and the lead's name from
+its fields, and sends it as written; you type none of it. The `lead` field is
+your own name, exactly as the first line of your session list gives it:
 
 ```text
 Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.

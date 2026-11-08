@@ -62,11 +62,11 @@ or type `/brigade` to open it.
   terminal.
 - **Starts a Desktop session only on your words.** Say "as a Desktop
   session", and the head chef uses Desktop's start tool and setters, as it did
-  before head-chef 1.20.0. When that start is refused, or `claude --bg` is
-  refused, the head chef says so in one line and offers the other route. It
-  retries neither on its own. Over Remote Control from the phone, both routes
-  are blocked while the lead runs in auto mode: the start waits until you are
-  at the desk, or until you change the lead's permission mode in the app.
+  before head-chef 1.20.0. When that start is refused, or the background start
+  tool refuses, the head chef says so in one line and offers the other route.
+  It retries neither on its own. Over Remote Control from the phone, Desktop's
+  start tool refuses a start, so the Desktop route waits until you are at the
+  desk.
 - **Starts a fresh session when the model changes** (since 1.22.0). It never
   switches a running session's model: a switch drops the prompt cache, and the
   new model would carry the old session's whole context. It starts a new

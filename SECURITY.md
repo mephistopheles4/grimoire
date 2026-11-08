@@ -413,6 +413,18 @@ counts at once, with no confirmation in the lead's chat; the lead asks for a
 goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's yes in chat at levels 1 and 2 (at level 3 the owner's user-level instructions file decides it), and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
+**Since 0.138.0 (issue 543) the owner can type `/brigade folders add <path>`,
+`remove <path>` or `list`** at the prompt or from the phone, to keep the list of
+main checkouts the start tool may start a session in. The mod acts on it only on
+the same stamps as the level command below, so a run stamped otherwise, a
+command typed in the terminal included, is refused. The list is plugin state:
+other plugins can read, rewrite or plant it (a candidate widening of class
+[C4](docs/security/threat-model.md#c4), proposed for the owner's merge decision),
+the head chef has no tool that reads it, and `list` shows its paths, with `~` for
+the home folder, in the lead's transcript, so they reach the model provider and
+Remote Control devices. The start tool re-checks the folder and the repository's
+origin at every start. Rows are in the [row 15 section](docs/security/brigade.md#row-15).
+
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
@@ -516,7 +528,7 @@ has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
 worktrees: head-chef.** The agent starts background sessions with
-`claude --bg --remote-control`, and reads and archives Desktop sessions with
+the mod's `start_background_session`, and reads and archives Desktop sessions with
 Claude Desktop's session tools. Since head-chef 1.13.0 (plugin 0.118.0, issue
 516) cleanup is the owner's yes in chat, from the desktop or the phone, and
 the Brigade mod keeps no window, binding or cleaner of its own. At levels 1
@@ -536,8 +548,11 @@ the owner's instructions have it run and which neither Brigade nor the skill
 can check. The head chef removes nothing itself. What the cleaner prints lands
 in the lead's transcript, all of it, error text included, since Brigade no longer filters it, and from there it reaches the model provider and Remote Control devices, as does the list of each session's folder and branch. Any session can call Desktop's archive tool, which
 Brigade no longer intercepts; an archive removes nothing and can be undone. Since head-chef 1.20.0 (issue 540) the head chef
-starts every session as a background session with `claude --bg
---remote-control`, and a Desktop session only on the owner's words naming that
+starts every session as a background session with Remote Control, and since
+head-chef 1.26.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
+`start_background_session`, which runs a fixed `claude --bg` command with no shell
+in a main checkout you listed with `/brigade folders add`, takes no permission
+mode and writes no card, and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's
 [class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a
