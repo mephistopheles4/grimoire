@@ -763,6 +763,21 @@ test('the gh parser keeps an entry of the stated shape, keyed by number, with th
   assert.equal(parse([pr({ state: 'CLOSED' })]).value.get(341).state, 'closed');
 });
 
+test('issue 545: an open pull request that gh calls a draft parses as draft; only an open one can be a draft', () => {
+  assert.equal(parse([pr({ isDraft: true })]).value.get(341).state, 'draft');
+  assert.equal(parse([pr({ isDraft: false })]).value.get(341).state, 'open');
+  assert.equal(parse([pr()]).value.get(341).state, 'open');
+  assert.equal(parse([pr({ isDraft: 'true' })]).value.get(341).state, 'open');
+  assert.equal(parse([pr({ state: 'MERGED', isDraft: true })]).value.get(341).state, 'merged');
+  assert.equal(parse([pr({ state: 'CLOSED', isDraft: true })]).value.get(341).state, 'closed');
+  assert.ok(roster.GH_ARGV.at(-1).split(',').includes('isDraft'));
+});
+
+test('issue 545: a card may carry prState draft, and the lead\'s tool takes it', () => {
+  assert.ok(roster.PR_STATES.includes('draft'));
+  for (const check of [fileCheck, toolCheck]) assert.equal(check({ pr: '5', prState: 'draft' }).value.cards[0].prState, 'draft');
+});
+
 test('the gh parser drops every entry of a wrong shape and never throws', () => {
   const bad = [
     null,

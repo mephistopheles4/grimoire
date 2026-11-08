@@ -1828,6 +1828,31 @@ const ALL = {
   ],
   todos: [],
 }
+// --- issue 545, row 11: a needs-you card stays in its normal group --------------------------------------
+for (const surface of SURFACES) {
+  test(`545 row 11, ${surface}: needs-you cards draw under Working in roster order, and Waiting on you holds to-dos only`, async ($, on) => {
+    await grouped(on, $, { ...ALL, todos: [{ id: 't1', text: 'look at it' }] })
+    const m = await mountOn($, surface)
+    const text = await groupsOf(m)
+    const at = (s: string) => text.indexOf(s)
+    // Working holds work-one, need-one and need-two (3), in roster order; Waiting on you counts the one to-do.
+    expect(text.includes('▾ Working 3')).toBe(true)
+    expect(text.includes('▾ Waiting on you 1')).toBe(true)
+    expect(at('▾ Working 3')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('need-one'))
+    expect(at('need-one')).toBeLessThan(at('need-two'))
+    expect(at('▾ Waiting on you 1')).toBeLessThan(at('look at it'))
+    expect(at('look at it')).toBeLessThan(at('▾ Working 3'))
+    expect((await groupText(m, 'Waiting on you')).includes('need-one')).toBe(false)
+  })
+}
+
+test('545 row 11: the Desktop card draws its work line, the reason a session needs the owner', async ($, on) => {
+  await grouped(on, $, { cards: [card('need-one', { status: 'needs-you', work: 'Plan 3 needs your yes before the merge' })], todos: [] })
+  const m = await mountOn($, 'desktop')
+  expect((await textOf(m)).includes('Plan 3 needs your yes before the merge')).toBe(true)
+})
+
 // Three titles that fold to one slug, `ab`, one in NEEDS YOU and two in
 // DONE · STOPPED: a group-local index would give the first done or stopped card
 // index 0, which is the needs-you card's place in the roster.
@@ -1867,18 +1892,18 @@ const groupsOf = async (m: any): Promise<string> => {
   return text.slice(Math.max(0, text.search(/[▾▸] Waiting on you/)))
 }
 for (const surface of SURFACES) {
-  test(`${surface}: cards sit under Waiting on you, Working, then a folded Done · stopped bar, in roster order`, async ($, on) => {
+  test(`${surface}: cards sit under Working in roster order, then a folded Done · stopped bar, after an empty Waiting on you`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     const text = await groupsOf(m)
     // The tree was drawn, not refused: its section bars are there, in order.
     const at = (s: string) => text.indexOf(s)
-    expect(text.startsWith('▾ Waiting on you 2')).toBe(true)
-    expect(at('▾ Waiting on you 2')).toBeLessThan(at('need-one'))
+    expect(text.startsWith('▾ Waiting on you 0')).toBe(true)
+    expect(at('▾ Waiting on you 0')).toBeLessThan(at('▾ Working 3'))
+    expect(at('▾ Working 3')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('need-one'))
     expect(at('need-one')).toBeLessThan(at('need-two'))
-    expect(at('need-two')).toBeLessThan(at('▾ Working 1'))
-    expect(at('▾ Working 1')).toBeLessThan(at('work-one'))
-    expect(at('work-one')).toBeLessThan(at('▸ Done · stopped 2'))
+    expect(at('need-two')).toBeLessThan(at('▸ Done · stopped 2'))
     // Closed on open: the done and stopped cards are not drawn.
     expect(text.includes('done-one')).toBe(false)
     expect(text.includes('stop-one')).toBe(false)
@@ -1959,13 +1984,14 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-working' })
     const text = await groupsOf(m)
-    expect(text.includes('▸ Working 1')).toBe(true)
+    expect(text.includes('▸ Working 3')).toBe(true)
     expect(text.includes('work-one')).toBe(false)
-    expect(text.includes('need-one')).toBe(true)
+    expect(text.includes('need-one')).toBe(false)
+    expect(text.includes('▾ Waiting on you 0')).toBe(true)
     await m.press({ key: 'grp-waiting' })
     const both = await groupsOf(m)
-    expect(both.includes('▸ Waiting on you 2')).toBe(true)
-    expect(both.includes('need-one')).toBe(false)
+    expect(both.includes('▸ Waiting on you 0')).toBe(true)
+    expect(both.includes('▸ Working 3')).toBe(true)
   })
 
   test(`${surface}: Done · stopped starts folded each time the pane opens`, async ($, on) => {
@@ -1982,7 +2008,7 @@ for (const surface of SURFACES) {
     await w.clock.settle()
     const text = await groupsOf(m)
     expect(text.includes('▸ Done · stopped 2')).toBe(true)
-    expect(text.includes('▾ Working 1')).toBe(true)
+    expect(text.includes('▾ Working 3')).toBe(true)
   })
 
   test(`${surface}: a second /brigade while the pane is open folds Done · stopped too`, async ($, on) => {
@@ -2035,8 +2061,8 @@ for (const surface of SURFACES) {
     // place 0 is the waiting card's, which has Open, and Dismiss on Desktop only (issue 513, S9).
     expect((await has(m, surface, 'dismiss-0-ab')) !== undefined).toBe(surface === 'desktop')
     expect(await has(m, surface, 'open-0-ab')).toBeDefined()
-    // No working card: the Working bar shows its hint.
-    expect((await groupsOf(m)).includes('No session is working.')).toBe(true)
+    // The waiting card draws under Working (issue 545, row 11), so the Working bar shows no hint.
+    expect((await groupsOf(m)).includes('No session is working.')).toBe(false)
     // Desktop's menu splits (the tool route alone); the terminal's Open tries the split, then the link.
     await act(m, surface, surface === 'desktop' ? 'split-1-ab' : 'open-1-ab')
     await act(m, surface, surface === 'desktop' ? 'split-0-ab' : 'open-0-ab')
@@ -2064,7 +2090,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     const text = await textOf(m)
-    expect(text.includes('▾ Waiting on you 2')).toBe(true)
+    expect(text.includes('▾ Working 3')).toBe(true)
     expect(text.includes('▾ Done · stopped 2')).toBe(true)
     expect(text.includes('odd-')).toBe(false)
     expect(text.includes('__proto__')).toBe(false)
@@ -2412,11 +2438,11 @@ for (const surface of SURFACES) {
   test(`${surface}: a ticked to-do counts as done in the bar at once, and Waiting on you agrees`, async ($, on) => {
     const w = await grouped(on, $, { ...ALL, todos: TODOS })
     const m = await mountOn($, surface)
-    expect((await textOf(m)).includes('Waiting on you 5')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 3')).toBe(true)
     await m.press({ key: 'todo-0-t1' })
     let nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
-    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 2')).toBe(true)
     if (surface === 'desktop') expect(imageBy(nodes, /^To-dos/)?.props.alt).toBe('To-dos 1 of 3 done')
     else expect(nodes.some(n => n.type === 'Text' && n.props.color === 'success' && n.text === `██████▋${' '.repeat(13)}`)).toBe(true)
     // Past the grace period the sweep moves it to done: still one of three.
@@ -2424,7 +2450,7 @@ for (const surface of SURFACES) {
     await w.clock.settle()
     nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
-    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 2')).toBe(true)
   })
 
   test(`${surface}: with no cards and no to-dos the heading says so, and there is no strip or bar`, async ($, on) => {
@@ -3000,6 +3026,25 @@ const labelOf = async (m: any, key: string) => {
   return b.props.variant === 'primary' && spoken(b) === ICONS[key.split('-').at(-1) ?? ''] ? `${spoken(b)} ●` : spoken(b)
 }
 
+// The owner's layout: with view buttons the Desktop card's PR pill sits at the right of their row,
+// level with them; without view buttons it sits under the settings label.
+test("desktop: the PR pill sits in the view buttons' row when the card has them, and under the settings label when it has none", async ($, on) => {
+  const roster = { cards: [card('need-tabs', { status: 'needs-you', pr: '341' }), card('done-full', { status: 'done', pr: '342' })], todos: [] }
+  await tabbed(on, $, roster)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'grp-finished' })
+  const all = await nodes(m)
+  const holds = (b: any, name: string): boolean => JSON.stringify(b).includes(name)
+  const tabsRow = all.find(b => b.type === 'Box' && b.props.flexDirection === 'row' && holds(b, 'tab-0-needtabs-cache'))
+  expect(tabsRow).toBeDefined()
+  expect(holds(tabsRow, '341')).toBe(true)
+  const right = all.find(b => b.type === 'Box' && b.props.alignItems === 'flex-end' && holds(b, 'set-0-needtabs'))
+  expect(right).toBeDefined()
+  expect(holds(right, '341')).toBe(false)
+  const doneRight = all.find(b => b.type === 'Box' && b.props.alignItems === 'flex-end' && holds(b, 'set-1-donefull'))
+  expect(holds(doneRight, '342')).toBe(true)
+})
+
 for (const surface of SURFACES) {
   test(`${surface}: tabs show only with two or more views, the default selected and marked ●, plain passed only as plain`, async ($, on) => {
     const w = await tabbed(on, $)
@@ -3165,6 +3210,36 @@ for (const surface of SURFACES) {
     expect(shown[0]?.props.dimColor).toBe(true)
   })
 
+  test(`${surface}: issue 545 row 8: the trend tab is the outlook; the owner's autoCompactWindow is the tick once the poll has read it; the sawtooth shows after a compaction`, async ($, on) => {
+    const roster = { cards: [card('grow', { status: 'working' }), card('saw', { status: 'working' })], todos: [] }
+    const meters = (now: number) => [
+      { name: 'grow', at: now, window: 1000000, burn: burnOf(), context: [290000, 295000, 300000, 305000] },
+      { name: 'saw', at: now, window: 1000000, burn: burnOf(), context: [800000, 100000, 120000, 140000] },
+    ]
+    const warmth = (now: number) => [warmCall('grow', 10 * MINUTE, now), warmCall('saw', 10 * MINUTE, now)]
+    const w = await tabbed(on, $, roster, meters, warmth, { grow: 'busy', saw: 'busy' })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-grow-trend' })
+    let all = await nodes(m)
+    expect(texts(all, '305k of 1M · compacts at ~967k').length).toBe(1)
+    expect(texts(all, 'about 133 turns to compaction').length).toBe(1)
+    expect(texts(all, 'large turns: +20k').length).toBe(0)
+    // No sawtooth before a compaction: the trend's own text is gone, and the bar's alone is drawn.
+    expect(texts(all, '305k now · 0 compactions').length).toBe(0)
+    // The owner's setting is read on the next poll and moves the tick, with no tilde.
+    w.put(`${CONFIG}${SEP}settings.json`, { type: 'file', data: { text: '{"autoCompactWindow":400000}' } })
+    await w.clock.advance(10000)
+    await w.clock.settle()
+    await m.redraw?.()
+    all = await nodes(m)
+    expect(texts(all, '305k of 1M · compacts at 400k').length).toBe(1)
+    expect(texts(all, 'about 19 turns to compaction').length).toBe(1)
+    // After a compaction the sawtooth draws, as the trend's own words.
+    await m.press({ key: 'tab-1-saw-trend' })
+    all = await nodes(m)
+    expect(texts(all, '140k now · 1 compaction').length).toBe(1)
+  })
+
   test(`${surface}: two cards whose titles share a slug, in different groups: a tab press acts on its own card only`, async ($, on) => {
     const roster = { cards: [card('A-b', { status: 'needs-you' }), card('a b', { status: 'working' })], todos: [] }
     const meters = (now: number) => [
@@ -3184,7 +3259,7 @@ for (const surface of SURFACES) {
     all = await nodes(m)
     expect(await labelOf(m, 'tab-0-ab-burn')).toBe(chosenLabel(surface, 'burn'))
     expect(await labelOf(m, 'tab-1-ab-trend')).toBe(chosenLabel(surface, 'trend'))
-    expect(texts(all, '200k now · 0 compactions').length).toBe(1)
+    expect(texts(all, '200k of 1M · compacts at ~967k').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     // Each choice is kept under its own card's title. The engine presses only
     // a drawn key, so a key whose place, slug or view word matches no card
@@ -3694,7 +3769,7 @@ test('with classic.SessionStart skipped, a rejected session id read is ignored a
 // and the look on each surface. The `gh` call is answered by the fake in
 // `world`, so no test reaches the network.
 
-const GH_ARGV = ['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,additions,deletions,updatedAt,url,isCrossRepository']
+const GH_ARGV = ['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,isDraft,additions,deletions,updatedAt,url,isCrossRepository']
 const ghPr = (n: number, over: Record<string, unknown> = {}) => ({
   number: n,
   title: `Title ${n}`,
@@ -3729,7 +3804,7 @@ for (const [label, over, field] of [
   ['a non-digit pr', { pr: 'abc' }, 'pr'],
   ['an 8-digit pr', { pr: '12345678' }, 'pr'],
   ['a pr that is a number', { pr: 341 }, 'pr'],
-  ['an unknown prState', { prState: 'draft' }, 'prState'],
+  ['an unknown prState', { prState: 'drafts' }, 'prState'],
   ['a prototype key as prState', { prState: 'constructor' }, 'prState'],
   ['a since the model sent', { since: 5 }, 'since'],
 ] as const) {
@@ -4205,6 +4280,56 @@ for (const [label, bad] of [
   })
 }
 
+// Issue 545, rows 3 to 5, built from the approved #513 prototype. The test engine cannot draw
+// Desktop's overflow or show a `hover` prop, so these hold the tree's shape: a fixed-width menu,
+// each item a round clear-bordered Box that holds its label and one press layer, and an outside
+// layer of keyed rows inside a clipping Box.
+test('545 row 3: the card menu is 13 wide with footnote labels, and each item holds its label and one press layer', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  const all = await nodes(m)
+  const menu = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.borderStyle === 'round' && spoken(n).includes('Dismiss'))
+  expect(menu).toBeDefined()
+  expect([menu?.props.width, menu?.props.minWidth, menu?.props.alignItems]).toEqual([13, undefined, 'stretch'])
+  const labels = all.filter(n => n.type === 'Text' && ['Open', 'Split', 'Dismiss'].includes(spoken(n)))
+  expect(labels.length).toBe(3)
+  for (const t of labels) expect([t.props.size, t.props.wrap]).toEqual(['footnote', undefined])
+  const items = all.filter(n => n.type === 'Box' && String(n.props.key).startsWith('item-'))
+  expect(items.length).toBe(3)
+  for (const it of items) {
+    expect([it.props.borderStyle, it.props.borderColor, it.props.overflow]).toEqual(['round', '#00000000', 'hidden'])
+    expect(it.children.filter((c: any) => c?.type === 'Box' && c.props.position === 'absolute').length).toBe(1)
+  }
+})
+
+test('545 row 4: the outside layer is one clipping Box over a 500-wide column of keyed rows', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  const all = await nodes(m)
+  const boxes = all.filter(n => n.type === 'Box' && String(n.props.key).startsWith('outside-box-'))
+  expect(boxes.length).toBeGreaterThan(0)
+  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0 && n.props.bottom === 0)
+  expect(layer?.props.overflow).toBe('hidden')
+  expect(layer?.children[0]?.props.width).toBe(500)
+  // Each row's press layer is 200 clear spaces on one line.
+  const row = all.find(n => n.type === 'Text' && n.text === ' '.repeat(200))
+  expect(row?.props.color).toBe('#00000000')
+})
+
+test('545 row 2: the pill press layer is the prototype clear 200-space Button past the pill, in a clipping Box', async ($, on) => {
+  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj' })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
+  })
+  const all = await nodes(await mountOn($, 'desktop'))
+  const btn = all.find(n => n.type === 'Button' && n.props.key === 'pill-0-alpha')
+  expect(btn).toBeDefined()
+  expect(spoken(btn)).toBe(' '.repeat(200))
+  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.right === -100 && n.children.some((c: any) => c?.props?.key === 'pill-0-alpha'))
+  expect(layer).toBeDefined()
+})
+
 test('desktop, C6: a card that changed group closes its popover, and so does a pane open', async ($, on) => {
   const w = await grouped(on, $, MENU_CARDS)
   const m = await mountOn($, 'desktop')
@@ -4243,14 +4368,22 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
-test('desktop, S4 and S7: the first line is the mark, title, state, age then `⋯`, and the second the label, the pill, then a named repo', async ($, on) => {
-  await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], todos: [] })
+test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the right column under the `⋯` holds the settings mark, then the pill, and no repository', async ($, on) => {
+  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
+  })
   const m = await mountOn($, 'desktop')
   const text = await textOf(m)
   const at = (x: string) => text.indexOf(x)
   expect(at('alpha')).toBeLessThan(at('⋯'))
   expect(at('⋯')).toBeLessThan(at('O·H'))
-  expect(at('O·H')).toBeLessThan(at('other/proj'))
+  // The owner's layout: under the `⋯`, the settings mark (compact at rest), then the pill (a press layer, since gh answered); no repository.
+  const keys = (await nodes(m)).map(n => String(n.props.key))
+  const pillAt = keys.indexOf('pill-0-alpha')
+  expect(pillAt).toBeGreaterThan(-1)
+  expect(keys.indexOf('set-0-alpha')).toBeLessThan(pillAt)
+  expect(text.includes('other/proj')).toBe(false)
+  expect(text.includes('opus, high')).toBe(false)
   // No Open, Dismiss or Split is drawn at rest.
   expect(text.includes('Dismiss')).toBe(false)
 })
@@ -4289,7 +4422,7 @@ test('desktop, C8: counts, the strip and the heading agree with what a waiting d
   await act(m, 'desktop', 'dismiss-0-asker')
   const text = await textOf(m)
   expect(text.startsWith('2 sessions')).toBe(true)
-  expect(text.includes('▾ Waiting on you 1')).toBe(true)
+  expect(text.includes('▾ Working 2')).toBe(true)
   expect(text.includes('● 1 needs you  ◐ 1 working')).toBe(true)
 })
 
@@ -4589,29 +4722,32 @@ for (const surface of SURFACES) {
     expect(ages).toEqual(['14m'])
   })
 
-  test(`${surface}: the settings show as one character each on Desktop, in full on the terminal`, async ($, on) => {
+  test(`${surface}: the terminal shows the settings as the card holds them; Desktop the compact mark, the full line in the popover`, async ($, on) => {
     await grouped(on, $, { cards: [card('mx', { status: 'working', settings: 'Opus, max, default mode' })], todos: [] })
     const m = await mountOn($, surface)
     const text = await textOf(m)
-    expect(text.includes('O·∞')).toBe(surface === 'desktop')
-    // The terminal shows the full line inline; Desktop shows it in the settings
-    // popover a press on the label opens (issue 513, S8; C7).
-    expect(text.includes('Opus, max, default mode')).toBe(surface !== 'desktop')
+    // Issue 545, row 9 and #513 S8: Desktop draws the compact mark at rest and the words only in the
+    // popover; the terminal, the editor and mobile draw the line as the card holds it.
     if (surface === 'desktop') {
+      expect(text.includes('O·∞')).toBe(true)
+      expect(text.includes('Opus, max, default mode')).toBe(false)
+      expect(text.includes('Opus - Max - Default mode')).toBe(false)
       await m.press({ key: 'set-0-mx' })
       expect((await textOf(m)).includes('Opus - Max - Default mode')).toBe(true)
+    } else {
+      expect(text.includes('Opus, max, default mode')).toBe(true)
     }
   })
 
   test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
-    // A waiting card and a to-do as well: Waiting on you parts its rows with a
-    // row gap, not a hairline.
+    // A waiting card and a to-do as well: the card draws under Working with the others, a hairline
+    // between each; Waiting on you holds the to-do alone, with a row gap.
     await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' }), card('wait', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
     const all = await nodes(m)
     const lines = all.filter(n => n.type === 'Svg' && n.props.alt === 'divider')
-    // The Box that holds the waiting card and the to-do, and no other card.
-    const waitingRows = all.find(n => n.type === 'Box' && spoken(n).includes('wait') && spoken(n).includes('look') && !spoken(n).includes('two') && n.children.length > 1)
+    // The smallest Box that holds the to-do and no card.
+    const waitingRows = all.filter(n => n.type === 'Box' && spoken(n).includes('look') && !spoken(n).includes('two') && !spoken(n).includes('wait')).sort((a, b) => spoken(a).length - spoken(b).length)[0]
     // A hover is not in the drawn tree; what it reveals is: a Box hidden at rest.
     const hidden = all.filter(n => n.type === 'Box' && n.props.display === 'none')
     const actions = all.filter(n => n.type === 'Box' && ['Dismiss', 'OpenDismiss'].includes(spoken(n)))
@@ -4620,8 +4756,8 @@ for (const surface of SURFACES) {
     const rounded = all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === '#1a1a19')
     expect(rounded.length).toBe(surface === 'desktop' ? 3 : 0)
     if (surface === 'desktop') {
-      expect(lines.length).toBe(1)
-      expect(waitingRows?.props.rowGap).toBe(1)
+      expect(lines.length).toBe(2)
+      expect(waitingRows).toBeDefined()
       expect(hidden.length).toBeGreaterThan(0)
       // A tooltip is a square fill, as in the prototype.
       for (const h of hidden.filter(n => n.props.position === 'absolute')) {
@@ -4633,8 +4769,8 @@ for (const surface of SURFACES) {
       expect(all.filter(n => n.type === 'Button' && String(n.props.key).startsWith('menu-')).length).toBe(3)
       expect(String(lines[0]?.props.source)).toContain('class="rule"')
     } else {
-      // A blank row parts the waiting card from the to-do, as it parts cards.
-      expect(waitingRows?.children.map(spoken)).toContain(' ')
+      // A blank row parts the cards under Working (issue 545, row 11).
+      expect(all.some(n => n.type === 'Box' && n.children.map(spoken).includes(' ') && spoken(n).includes('wait'))).toBe(true)
       expect(lines.length).toBe(0)
       expect(hidden.length).toBe(0)
       expect(actions.length).toBeGreaterThan(0)
@@ -4733,7 +4869,7 @@ for (const surface of SURFACES) {
     expect(back.includes('▸ Done · stopped 2')).toBe(true)
   })
 
-  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows in Waiting on you when it turns needs-you`, async ($, on) => {
+  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows again, under Working, when it turns needs-you`, async ($, on) => {
     const w = await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
@@ -4748,12 +4884,12 @@ for (const surface of SURFACES) {
     expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
     await act(m, surface, 'dismiss-1-workone')
     expect((await textOf(m)).includes('work-one')).toBe(false)
-    // The head chef turns the dismissed card to needs-you: it shows again, in Waiting on you.
+    // The head chef turns the dismissed card to needs-you: it shows again, under Working (issue 545, row 11).
     await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'needs-you' } : c)), todos: [] })
     await w.clock.settle()
     const text = await textOf(m)
-    expect(text.includes('▾ Waiting on you 3')).toBe(true)
-    expect(text.indexOf('work-one')).toBeLessThan(text.indexOf('▾ Working'))
+    expect(text.includes('▾ Working 3')).toBe(true)
+    expect(text.indexOf('▾ Working')).toBeLessThan(text.indexOf('work-one'))
   })
 
   test(`${surface}: a planted view or selection is checked again and changes nothing it should not`, async ($, on) => {
@@ -4909,8 +5045,9 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-working' })
     const text = await textOf(m)
-    expect(text.includes('▸ Working 1 · 2 reports')).toBe(true)
-    expect(text.includes('▾ Waiting on you 2 · 1 report')).toBe(true)
+    expect(text.includes('▸ Working 3 · 3 reports')).toBe(true)
+    expect(text.includes('▾ Waiting on you 0')).toBe(true)
+    expect(text.includes('Waiting on you 0 ·')).toBe(false)
   })
 
   test(`${surface}: the icon-only buttons draw their icon, carry no label, and a tooltip or a word names each`, async ($, on) => {
@@ -5086,14 +5223,15 @@ test('a card finds its session by Desktop id whatever the head chef titled it, a
   expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
 })
 
-test('a session waiting on a prompt moves its working card under Waiting on you with the reason, and back when it goes busy', async ($, on) => {
+test('a session waiting on a prompt marks its card needs-you with the reason and keeps it under Working, and back when it goes busy', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
   expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
   await poll(w)
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'waiting · permission prompt', shown: FULL, move: 'waiting' }])
-  const waiting = await groupText(mounted, 'Waiting on you')
+  const waiting = await groupText(mounted, 'Working')
   expect(waiting.includes(FULL)).toBe(true)
+  expect((await groupText(mounted, 'Waiting on you')).includes(FULL)).toBe(false)
   expect(waiting.includes('waiting · permission prompt')).toBe(true)
   // A waiting card has Dismiss in the menu now (issue 513, S9; C4).
   expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
@@ -8061,10 +8199,10 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const m = await mountOn($, surface)
     const links = openable(await nodes(m), surface)
     expect(links).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // The repository sits inline beside the pill on every surface (issue 513, S3).
+    // The repository sits inline beside the pill off Desktop; the Desktop card drops it (the owner's layout).
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
-    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(true)
+    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(surface !== 'desktop')
     expect(sessions.includes('Open pull request')).toBe(false)
     // The base card's pill names no repository on the Sessions view (its link's URL aside).
     expect(sessions.split('https://github.com/o/r/').join('').includes('o/r')).toBe(false)
@@ -8091,8 +8229,8 @@ for (const [label, answer] of [
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
     expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
-    // The card's repository is drawn beside its pill (issue 513, S3).
-    expect((await textOf(m)).includes('other/proj')).toBe(true)
+    // The Desktop card does not draw its repository (the owner's layout); the Pull requests row below does.
+    expect((await textOf(m)).includes('other/proj')).toBe(false)
     await m.press({ key: 'view-prs' })
     // The row names it, and links only from an answer.
     expect((await textOf(m)).includes('other/proj · beta')).toBe(true)
@@ -8103,6 +8241,22 @@ for (const [label, answer] of [
     expect(text.includes('PR details unavailable for 1 repository')).toBe(true)
   })
 }
+
+test('issue 545: a draft pull request is its own Draft group between Open and Merged, on both surfaces, and not under Open', async ($, on) => {
+  await namedPane(on, $, [ALPHA, card('drafty', { status: 'working', pr: '9' })], w => {
+    w.ghOut = JSON.stringify([ghPr(341), ghPr(9, { isDraft: true, title: 'Draft nine', url: 'https://github.com/o/r/pull/9' })])
+  })
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const m = await mountOn($, surface)
+    await m.press({ key: 'view-prs' })
+    const text = await textOf(m)
+    expect(text.includes('Open 1')).toBe(true)
+    expect(text.includes('Draft 1')).toBe(true)
+    expect(text.indexOf('Open 1')).toBeLessThan(text.indexOf('Draft 1'))
+    expect(text.indexOf('Draft 1')).toBeLessThan(text.indexOf('Draft nine'))
+    expect(text.indexOf('Draft nine')).toBeLessThan(text.indexOf('Merged 0'))
+  }
+})
 
 test('claim 17: a repository is one however it is spelled: one run, and an answer in another case counts', async ($, on) => {
   const w = await namedPane(on, $, [card('beta', { status: 'working', pr: '7', repo: 'Other/Proj' }), card('gamma', { status: 'working', pr: '8', repo: 'other/PROJ' })], w => {
@@ -8298,6 +8452,36 @@ test('spec 448 claim 1: an own unread waiting entry and its answer draw as one c
   }
   expect(await shows(/^Plain one\?$/)).toBe(false)
   expect((await buttonKeys()).filter(k => /^d(next|flag|skip)-/.test(k)).sort()).toEqual(['dflag-1-200-2-300', 'dnext-1-200-2-300', 'dskip-1-200-2-300'])
+})
+
+// Issue 545, row 10: the nested answer is laid out at full width, and the waiting card shows it was answered.
+const PAIR_545 = [
+  kept(1, 200, { question: 'Mine asks?', waiting: true, pick: '', options: ['Ship it', 'Hold'] }),
+  kept(2, 300, { question: 'Owner said ship?', source: 'relayed', answers: '1', pick: 'Ship it', options: ['Ship it', 'Hold'] }),
+]
+
+test('545 row 10: the waiting card marks the option its answer picked, and an unanswered waiting card marks none', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  // The waiting card's chosen option and the answer card's own pick.
+  expect(await textCount(/^●$/)).toBe(2)
+})
+
+test('545 row 10: an unanswered waiting card marks no option', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([PAIR_545[0]])))
+  expect(await textCount(/^●$/)).toBe(0)
+})
+
+test('545 row 10: in the nested answer the title sits on its own full-width line, above the meta line, not in a column beside it', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  const boxes = (await mounted.findAll({ type: 'Box' })) as any[]
+  const text = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(text).join(''))
+  // The smallest Box holding both the answer's headline and its "Relayed by" label.
+  const both = boxes.filter(b => text(b).includes('Answered') === false && text(b).includes('Relayed by lead-a') && text(b).includes('Ship it'))
+  const lowest = both.sort((x, y) => text(x).length - text(y).length)[0]
+  expect(lowest).toBeDefined()
+  expect(lowest.props.flexDirection).toBe('column')
+  // The title is a direct child of that column, so it takes the card's full width.
+  expect(lowest.children.some((c: any) => c.type === 'Text' && text(c) === 'Ship it')).toBe(true)
 })
 
 test('spec 448 claim 2: Read, next on a pair marks both read in one write; both stay in History', async ($, on) => {
