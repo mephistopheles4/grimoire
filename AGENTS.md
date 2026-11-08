@@ -39,6 +39,9 @@ whether the lead can read it through a tool; when it can, the same change
 updates the head-chef contract and its `SKILL.md`, and its
 `docs/security/brigade.md` row says where the tool's answer then flows.
 
+The Decisions tab draws only the current lead's own decision log. Drawing
+anything from another session's log needs the owner's own words.
+
 ## Threat model
 
 This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md), which `SECURITY.md` also links. Hand it to any security review. A change to its scope, its accepted risks or this line is the owner's decision.
