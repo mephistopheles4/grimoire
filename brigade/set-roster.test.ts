@@ -10827,17 +10827,6 @@ test('#223 claim 7: a press whose card has since changed fills nothing and shows
   expect(w.toasts).toEqual([QUICK_CHANGED])
 })
 
-for (const isFilled of [true, false]) {
-  test(`#223 claim 12 (isFilled ${isFilled}): the text a fill answers with, which carries the owner's draft, appears in no toast, log, state, store or drawn text`, async ($, on) => {
-    const { w, seen } = await quickPane(on, $, { fill: () => ({ isFilled, text: SECRET }) })
-    const { m } = await quickMount($, 'desktop')
-    await m.press({ key: QUICK_KEYS[0] })
-    const text = await textOf(m)
-    expect(seen.fills.length).toBe(1)
-    expect(w.toasts.join('\n')).not.toContain(SECRET)
-    expect(seen.logs.join('\n')).not.toContain(SECRET)
-    expect(seen.stored.join('\n')).not.toContain(SECRET)
-    expect(w.states.map(([, v]) => v).join('\n')).not.toContain(SECRET)
-    expect(text).not.toContain(SECRET)
-  })
-}
+// Claim 12's fill half (the text a fill answers with, which carries the owner's draft, goes nowhere) has no
+// engine test: the engine stand-in replaces the answer's `text` with its own, so no test here can put a secret
+// there. tests/brigade-quick.test.mjs checks it in the press's text instead (only `?.isFilled === true` is read).
