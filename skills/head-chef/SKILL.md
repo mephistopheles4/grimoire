@@ -87,7 +87,7 @@ different. Name the fresh session as step 2 of `references/starting.md` says.
 Once it has started, name it in the start report as the session that carries
 the issue, send the old session nothing more for this issue, and ask to
 archive or stop the old session, which waits for the owner's words at levels
-1 and 2. Changing only the effort on the same model stays allowed with
+1 and 2; until then, leave it running and say so. Changing only the effort on the same model stays allowed with
 Desktop's effort setter; a background session has no setter, so say so in one
 line and the owner sets it in that session.
 

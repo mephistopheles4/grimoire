@@ -197,8 +197,9 @@ need, without overwhelming me or showing me too much.
   fresh session has started, it names it in the start report as the session
   that carries the issue, sends the old session nothing more for this issue,
   and asks to archive the old session or stop it, under the "Archives or stops
-  a session" row, unchanged: it waits for the owner's words at levels 1 and 2.
-  Removing the old session's worktree stays with the cleaner. Changing only
+  a session" row, unchanged: it waits for the owner's words at levels 1 and 2,
+  and until then it leaves the old session running and says so. Removing the
+  old session's worktree stays with the cleaner. Changing only
   the effort on the same model stays allowed: Desktop's effort setter on a
   Desktop session. A background session has no setter, so when the owner asks
   for only a new effort on one, it says so in one line and the owner sets it

@@ -9,4 +9,4 @@ You started pact-501 earlier in this lead, at level 1, as a Desktop session on O
 
 The owner wrote in the lead's chat: "Proceed on issue 501 of mephistopheles4/grimoire. Build it on Sonnet at high." They named no route.
 
-In this run you have no shell and no start, setter, archive or roster tool. Say exactly what you do for this proceed: each tool or command you use, with its arguments, and anything you call or set.
+In this run you have no shell and no start, setter, archive or roster tool. Say exactly what you do for this proceed: each tool or command you use, with its arguments, anything you call or set, and what you do about pact-501.

@@ -113,8 +113,9 @@ model carries the old session's whole context.
   the old session (a Desktop session) or stop it (a background session). That
   is the "Archive or stop a session" row of "Actions that need the owner's
   yes" in `SKILL.md`: it waits for the owner's words at levels 1 and 2, and
-  for the owner's user-level instructions file at level 3.
-  The old session's worktree and branch stay with the cleaner.
+  for the owner's user-level instructions file at level 3. Until then, leave
+  the old session running and say so. The old session's worktree and branch
+  stay with the cleaner.
 - Changing only the effort on the same model stays allowed, with Desktop's
   effort setter on a Desktop session. A background session has no setter:
   say so in one line, and the owner sets the effort in that session.
