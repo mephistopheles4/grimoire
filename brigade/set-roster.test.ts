@@ -1128,13 +1128,34 @@ async function pane(on: On, $: any, surface: 'terminal' | 'desktop' = 'desktop',
   return w
 }
 const press = (_$: any, key: string) => mounted.press({ key })
+// Desktop's card actions sit in the `⋯` menu (issue 513, S5): `act` opens it and
+// presses the item (Open there is `openlink`), `has` opens it, looks, and closes it.
+// Any other surface keeps its own buttons.
+const MENU_KEY = /^(open|openlink|split|dismiss)-(\d+)-(.+)$/
+const menuItem = (verb: string) => (verb === 'open' ? 'openlink' : verb)
+async function act(m: any, surface: string, key: string) {
+  const k = MENU_KEY.exec(key)
+  if (surface !== 'desktop' || k === null) return m.press({ key })
+  await m.press({ key: `menu-${k[2]}-${k[3]}` })
+  return m.press({ key: `${menuItem(k[1])}-${k[2]}-${k[3]}` })
+}
+async function has(m: any, surface: string, key: string) {
+  const k = MENU_KEY.exec(key)
+  if (surface !== 'desktop' || k === null) return m.find({ key })
+  const opener = `menu-${k[2]}-${k[3]}`
+  if ((await m.find({ key: opener })) === undefined) return undefined
+  await m.press({ key: opener })
+  const found = await m.find({ key: `${menuItem(k[1])}-${k[2]}-${k[3]}` })
+  await m.press({ key: opener })
+  return found
+}
 const explorer = (w: World) => w.procs.filter(p => p[0] === 'explorer.exe')
 const answer = (text: unknown, isError: unknown = false, type = 'text') => ({ value: { content: [{ type, text }], isError } })
 
 test('a press on a Desktop card asks the app to show it in a split, with that id and nothing else, and runs no explorer.exe', async ($, on) => {
   const w = await pane(on, $)
   w.mcp = () => answer('Opened session local_x in a split pane (pane 1) beside this one.\nSecond line.')
-  await press($, 'open-0-alpha')
+  await act(mounted, 'desktop', 'split-0-alpha')
   expect(w.mcpCalls).toEqual([{ server: 'ccd_window', tool: 'open_session_in', args: { session_id: DESKTOP, target: 'split' } }])
   expect(w.checks).toEqual([OPEN_TOOL])
   // The verdict is asked about the call as it will be made.
@@ -1162,7 +1183,7 @@ for (const [name, tools] of [
   test(`a tool list with ${name} asks no verdict, makes no call and takes the link route`, async ($, on) => {
     const w = await pane(on, $)
     w.tools = tools
-    await press($, 'open-0-alpha')
+    await press($, 'go-0-t1')
     expect(w.checks).toEqual([])
     expect(w.mcpCalls).toEqual([])
     expect(explorer(w)).toEqual([['explorer.exe', LINK]])
@@ -1173,16 +1194,16 @@ for (const [name, tools] of [
 test('a rejected tool list, verdict or call each takes the link route, and none throws out of the press', async ($, on) => {
   const w = await pane(on, $)
   w.failList = true
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.checks).toEqual([])
   w.failList = false
   w.failCheck = true
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.checks).toEqual([OPEN_TOOL])
   expect(w.mcpCalls).toEqual([])
   w.failCheck = false
   w.mcp = () => ({ deny: 'no such server' })
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.mcpCalls.length).toBe(1)
   expect(explorer(w)).toEqual([['explorer.exe', LINK], ['explorer.exe', LINK], ['explorer.exe', LINK]])
 })
@@ -1190,13 +1211,13 @@ test('a rejected tool list, verdict or call each takes the link route, and none 
 test("a deny and an ask naming a rule each skip the call; an ask naming none is a mode's and calls", async ($, on) => {
   const w = await pane(on, $)
   w.verdict = { decision: 'deny', reason: 'the owner denies it' }
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   w.verdict = { decision: 'ask', rule: 'mcp__ccd_window' }
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.mcpCalls).toEqual([])
   expect(explorer(w).length).toBe(2)
   w.verdict = { decision: 'ask' }
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.mcpCalls.length).toBe(1)
   expect(explorer(w).length).toBe(2)
 })
@@ -1204,7 +1225,7 @@ test("a deny and an ask naming a rule each skip the call; an ask naming none is 
 test("the app's refusal takes the link route, and the toast says the app did not open it, in its words, cleaned", async ($, on) => {
   const w = await pane(on, $)
   w.mcp = () => answer('local_x was not started from this session\u{202E}, and this tool only arranges this session.\nMore.', true)
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(explorer(w)).toEqual([['explorer.exe', LINK]])
   expect(w.toasts.slice(-2)).toEqual([
     'The app did not open it: local_x was not started from this session, and this tool only arranges this session.',
@@ -1225,7 +1246,7 @@ for (const [name, value, outcome] of [
   test(`an answer with ${name} ${outcome === 'link' ? 'takes the link route' : 'toasts the fixed line'}, and nothing throws`, async ($, on) => {
     const w = await pane(on, $)
     w.mcp = () => ({ value })
-    await press($, 'open-0-alpha')
+    await press($, 'go-0-t1')
     if (outcome === 'link') {
       expect(explorer(w)).toEqual([['explorer.exe', LINK]])
       expect(w.toasts.some(t => t.startsWith('The app did not open it'))).toBe(false)
@@ -1239,7 +1260,7 @@ for (const [name, value, outcome] of [
 test('tool text with controls, bidi marks or a long line reaches the toast cleaned and cut to 200 characters', async ($, on) => {
   const w = await pane(on, $)
   w.mcp = () => answer(`\u{1B}[31mOpened\u{7}\u{200B} \u{2066}split\u{2069}\t${'x'.repeat(400)}`)
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   const shown = w.toasts.at(-1) ?? ''
   expect(shown.startsWith('[31mOpened split xxx')).toBe(true)
   expect([...shown].length).toBe(200)
@@ -1251,7 +1272,7 @@ test('a call not answered within 5 seconds of the engine clock takes the link ro
   const w = await pane(on, $)
   let answerLate: (v: unknown) => void = () => {}
   w.mcp = () => new Promise(res => (answerLate = res))
-  const pressed = press($, 'open-0-alpha')
+  const pressed = press($, 'go-0-t1')
   await w.clock.advance(4999)
   expect(explorer(w)).toEqual([])
   await w.clock.advance(1)
@@ -1267,16 +1288,16 @@ test('a second press on the same card while the first waits makes no second call
   const w = await pane(on, $)
   let release: (v: unknown) => void = () => {}
   w.mcp = () => new Promise(res => (release = res))
-  const first = press($, 'open-0-alpha')
+  const first = press($, 'go-0-t1')
   await w.clock.settle()
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   await press($, 'go-0-t1')
   expect(w.mcpCalls.length).toBe(1)
   expect(explorer(w)).toEqual([])
   release(answer('Opened'))
   await first
   w.mcp = () => answer('Opened again')
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.mcpCalls.length).toBe(2)
   expect(w.toasts.at(-1)).toBe('Opened again')
 })
@@ -1285,7 +1306,7 @@ test('a to-do tick still works while an Open in app press waits for the app', as
   const w = await pane(on, $)
   let release: (v: unknown) => void = () => {}
   w.mcp = () => new Promise(res => (release = res))
-  const first = press($, 'open-0-alpha')
+  const first = press($, 'go-0-t1')
   await w.clock.settle()
   await press($, 'todo-0-t1')
   // The tick lands on the to-do pressed, while the first press still waits.
@@ -1308,8 +1329,8 @@ test('a card with only a url, or only a background id, makes no tool list and no
   })
   w.dirs(`${CONFIG}${SEP}projects${SEP}C--work`)
   await w.clock.advance(10000)
-  await press($, 'open-1-beta')
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-1-beta')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.lists).toBe(0)
   expect(w.mcpCalls).toEqual([])
   expect(explorer(w)).toEqual([
@@ -1322,8 +1343,8 @@ test('a card with only a url, or only a background id, makes no tool list and no
 // drawn; the shape rule itself is held in tests/brigade-roster-rules.test.mjs.
 test('a Desktop id outside the local_ shape draws no Open in app', async ($, on) => {
   await pane(on, $)
-  expect(await mounted.find({ key: 'open-0-alpha' })).toBeDefined()
-  expect(await mounted.find({ key: 'open-3-delta' })).toBeUndefined()
+  expect(await has(mounted, 'desktop', 'open-0-alpha')).toBeDefined()
+  expect(await has(mounted, 'desktop', 'open-3-delta')).toBeUndefined()
 })
 // The 5-second wait covers the whole tool route, the tool list and the
 // verdict included, so a question that never comes back cannot hold the
@@ -1332,7 +1353,7 @@ for (const stalled of ['tool list', 'verdict'] as const) {
   test(`a ${stalled} that never answers takes the link route at 5 seconds, and the next press tries again`, async ($, on) => {
     const w = await pane(on, $)
     w.stall = stalled
-    const pressed = press($, 'open-0-alpha')
+    const pressed = press($, 'go-0-t1')
     await w.clock.advance(4999)
     expect(explorer(w)).toEqual([])
     await w.clock.advance(1)
@@ -1340,7 +1361,7 @@ for (const stalled of ['tool list', 'verdict'] as const) {
     expect(explorer(w)).toEqual([['explorer.exe', LINK]])
     expect(w.mcpCalls).toEqual([])
     const before = w.lists
-    const again = press($, 'open-0-alpha')
+    const again = press($, 'go-0-t1')
     await w.clock.advance(5000)
     await again
     expect(w.lists).toBe(before + 1)
@@ -1354,7 +1375,7 @@ for (const surfaces of [['terminal'], ['terminal', 'mobile'], []]) {
     const w = await pane(on, $)
     w.surfaces = surfaces
     w.verdict = { decision: 'allow' }
-    await press($, 'open-0-alpha')
+    await press($, 'go-0-t1')
     expect(w.lists).toBe(0)
     expect(w.checks).toEqual([])
     expect(w.mcpCalls).toEqual([])
@@ -1397,7 +1418,7 @@ const linux = (w: World) => {
 test('on macOS, a press on a background card with a Remote Control link runs /usr/bin/open with that link and nothing else', async ($, on) => {
   const w = await background(on, $)
   macos(w)
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
   // Nothing else: the pane runs no other process.
   expect(w.procs).toEqual([['/usr/bin/open', BG_LINK]])
@@ -1408,7 +1429,7 @@ test('on macOS, a press on a background card with a Remote Control link runs /us
 test('on Linux, the macOS probe is missing (ENOENT), the Linux probe runs, and the press runs /usr/bin/xdg-open', async ($, on) => {
   const w = await background(on, $)
   linux(w)
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
   expect(openers(w)).toEqual([['/usr/bin/xdg-open', BG_LINK]])
   expect(w.toasts.at(-1)).toBe('Opening gamma in the app (0)')
@@ -1417,7 +1438,7 @@ test('on Linux, the macOS probe is missing (ENOENT), the Linux probe runs, and t
 test('on a system the pane cannot identify, a press runs nothing and says there is no opener', async ($, on) => {
   const w = await background(on, $)
   w.env = {}
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
   expect(openers(w)).toEqual([])
   expect(w.toasts.at(-1)).toBe(NO_OPENER)
@@ -1426,7 +1447,7 @@ test('on a system the pane cannot identify, a press runs nothing and says there 
 test('on Windows, planted probe files are never looked at, and the press runs explorer.exe', async ($, on) => {
   const w = await background(on, $)
   w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([])
   expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
 })
@@ -1436,7 +1457,7 @@ for (const env of [{ SystemRoot: 'C:\\Windows' }, { windir: 'C:\\Windows' }, { O
     const w = await background(on, $)
     w.env = env
     w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
-    await press($, 'open-2-gamma')
+    await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([])
     expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
   })
@@ -1454,7 +1475,7 @@ for (const [name, mac, lin] of [
     const w = await background(on, $)
     w.env = {}
     w.probes = { [MAC_PROBE]: fileAt(mac), [LINUX_PROBE]: fileAt(lin) }
-    await press($, 'open-2-gamma')
+    await act(mounted, 'desktop', 'open-2-gamma')
     expect(openers(w)).toEqual([])
     expect(w.toasts.at(-1)).toBe(NO_OPENER)
   })
@@ -1464,7 +1485,7 @@ test('a planted macOS probe with a bad real path stops there: the Linux probe is
   const w = await background(on, $)
   w.env = {}
   w.probes = { [MAC_PROBE]: fileAt('C:\\System\\Library\\CoreServices\\SystemVersion.plist'), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE])
   expect(openers(w)).toEqual([])
 })
@@ -1473,7 +1494,7 @@ test('an environment read that rejects means no host: no probe, no process, and 
   const w = await background(on, $)
   w.failEnv = true
   w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([])
   expect(openers(w)).toEqual([])
   expect(w.toasts.at(-1)).toBe(NO_OPENER)
@@ -1483,7 +1504,7 @@ test('a probe that rejects other than as missing means no host, and the next pro
   const w = await background(on, $)
   w.env = {}
   w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE])
   expect(openers(w)).toEqual([])
   expect(w.toasts.at(-1)).toBe(NO_OPENER)
@@ -1498,7 +1519,7 @@ for (const [name, probe] of [
     const w = await background(on, $)
     w.env = {}
     w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-    await press($, 'open-2-gamma')
+    await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([MAC_PROBE])
     expect(openers(w)).toEqual([])
     expect(w.toasts.at(-1)).toBe(NO_OPENER)
@@ -1509,7 +1530,7 @@ test('on macOS, a Desktop card tries the tool route first, and runs /usr/bin/ope
   const w = await pane(on, $)
   macos(w)
   w.mcp = () => answer('was not started from this session', true)
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.order).toEqual(['mcp', 'run /usr/bin/open'])
   expect(openers(w)).toEqual([['/usr/bin/open', LINK]])
 })
@@ -1517,7 +1538,7 @@ test('on macOS, a Desktop card tries the tool route first, and runs /usr/bin/ope
 test('on macOS, a Desktop card the app opens runs no opener and reads no host', async ($, on) => {
   const w = await pane(on, $)
   macos(w)
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.order).toEqual(['mcp'])
   expect(w.probed).toEqual([])
 })
@@ -1526,7 +1547,7 @@ test('an opener that cannot start shows the could-not-open toast naming the prog
   const w = await background(on, $)
   macos(w)
   w.failRun = true
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
   expect(w.toasts.at(-1)).toBe('Could not open gamma with /usr/bin/open.')
   expect(w.toasts.some(t => t.includes('SECRET_TOKEN') || t.includes('spawn failed'))).toBe(false)
@@ -1536,16 +1557,16 @@ test('the opener runs with a 15-second limit, and a second press on a link in fl
   const w = await background(on, $)
   linux(w)
   w.holdRun = true
-  const first = press($, 'open-2-gamma')
+  const first = act(mounted, 'desktop', 'open-2-gamma')
   await w.clock.settle()
   expect(openers(w)).toEqual([['/usr/bin/xdg-open', BG_LINK]])
   expect(w.inits[w.procs.findIndex(p => p[0] === '/usr/bin/xdg-open')]).toEqual({ timeoutMs: 15000 })
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(openers(w).length).toBe(1)
   w.releaseRun()
   await first
   w.holdRun = false
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(openers(w).length).toBe(2)
 })
 
@@ -1553,9 +1574,9 @@ test('a press on another link runs while one link is in flight', async ($, on) =
   const w = await background(on, $)
   macos(w)
   w.holdRun = true
-  const first = press($, 'open-2-gamma')
+  const first = act(mounted, 'desktop', 'open-2-gamma')
   await w.clock.settle()
-  const second = press($, 'open-1-beta')
+  const second = act(mounted, 'desktop', 'open-1-beta')
   await w.clock.settle()
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK], ['/usr/bin/open', 'claude://claude.ai/code/session_ABC123']])
   w.releaseRun()
@@ -1576,7 +1597,7 @@ for (const [name, probe] of [
     const w = await background(on, $)
     w.env = {}
     w.probes = { [LINUX_PROBE]: probe }
-    await press($, 'open-2-gamma')
+    await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
     expect(openers(w)).toEqual([])
     expect(w.toasts.at(-1)).toBe(NO_OPENER)
@@ -1587,7 +1608,7 @@ test('an OS variable that is not Windows_NT is not Windows: the probes run', asy
   const w = await background(on, $)
   macos(w)
   w.env = { OS: 'Darwin' }
-  await press($, 'open-2-gamma')
+  await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE])
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
 })
@@ -1597,10 +1618,10 @@ test('a Desktop card pressed again while its opener runs asks the app nothing an
   macos(w)
   w.mcp = () => answer('was not started from this session', true)
   w.holdRun = true
-  const first = press($, 'open-0-alpha')
+  const first = press($, 'go-0-t1')
   await w.clock.settle()
   expect(w.mcpCalls.length).toBe(1)
-  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
   expect(w.mcpCalls.length).toBe(1)
   expect(openers(w)).toEqual([['/usr/bin/open', LINK]])
   w.releaseRun()
@@ -2008,23 +2029,24 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     await m.redraw(PANE_PROPS)
-    expect(await m.find({ key: 'dismiss-1-ab' })).toBeDefined()
-    expect(await m.find({ key: 'dismiss-2-ab' })).toBeDefined()
-    // The group-local place of the first done or stopped card is 0: never a key.
-    expect(await m.find({ key: 'dismiss-0-ab' })).toBeUndefined()
-    // The card that waits on the owner has Open but no Dismiss.
-    expect(await m.find({ key: 'open-0-ab' })).toBeDefined()
+    expect(await has(m, surface, 'dismiss-1-ab')).toBeDefined()
+    expect(await has(m, surface, 'dismiss-2-ab')).toBeDefined()
+    // The group-local place of the first done or stopped card is 0: its key is the roster index 1, so
+    // place 0 is the waiting card's, which has Open, and Dismiss on Desktop only (issue 513, S9).
+    expect((await has(m, surface, 'dismiss-0-ab')) !== undefined).toBe(surface === 'desktop')
+    expect(await has(m, surface, 'open-0-ab')).toBeDefined()
     // No working card: the Working bar shows its hint.
     expect((await groupsOf(m)).includes('No session is working.')).toBe(true)
-    await m.press({ key: 'open-1-ab' })
-    await m.press({ key: 'open-0-ab' })
+    // Desktop's menu splits (the tool route alone); the terminal's Open tries the split, then the link.
+    await act(m, surface, surface === 'desktop' ? 'split-1-ab' : 'open-1-ab')
+    await act(m, surface, surface === 'desktop' ? 'split-0-ab' : 'open-0-ab')
     expect(w.mcpCalls.map(c => c.args.session_id)).toEqual([D2, D1])
-    await m.press({ key: 'dismiss-1-ab' })
+    await act(m, surface, 'dismiss-1-ab')
     const after = await groupsOf(m)
     expect(after.includes('a b')).toBe(false)
     expect(after.includes('A-b')).toBe(true)
     expect(after.includes('AB!')).toBe(true)
-    await m.press({ key: 'dismiss-2-ab' })
+    await act(m, surface, 'dismiss-2-ab')
     const last = await groupsOf(m)
     expect(last.includes('AB!')).toBe(false)
     expect(last.includes('A-b')).toBe(true)
@@ -2421,7 +2443,7 @@ for (const surface of SURFACES) {
     await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
-    await m.press({ key: 'dismiss-0-only' })
+    await act(m, surface, 'dismiss-0-only')
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
     expect(nodes.some(n => n.type === 'Text' && /sessions?$/.test(n.text ?? ''))).toBe(false)
@@ -2455,7 +2477,7 @@ for (const surface of SURFACES) {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
-    await m.press({ key: 'dismiss-0-doneone' })
+    await act(m, surface, 'dismiss-0-doneone')
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
     expect(nodes.some(n => n.type === 'Text' && n.text === '● 2 needs you  ◐ 1 working  – 1 stopped')).toBe(true)
@@ -2583,8 +2605,8 @@ for (const surface of SURFACES) {
     expect(texts(all, 'cold in 59 min').length).toBe(1)
     expect(texts(all, '◆ transcript not found').length).toBe(0)
     expect(w.listings).toBe(1)
-    expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
-    await m.press({ key: 'open-0-gamma' })
+    expect(await has(m, surface, 'open-0-gamma')).toBeDefined()
+    await act(m, surface, 'open-0-gamma')
     expect(explorer(w)).toEqual([['explorer.exe', 'claude://claude.ai/code/session_WT1']])
     holdsNoPath(w)
   })
@@ -2628,7 +2650,7 @@ test('the projects folder is listed at most once a minute, and a second hit plan
   const w = await moved(on, $, w => plantIn(w, WORKTREE, 'WT1'))
   const m = await mountOn($, 'desktop')
   expect(w.listings).toBe(1)
-  expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
+  expect(await has(m, 'desktop', 'open-0-gamma')).toBeDefined()
   plantIn(w, SECOND, 'WT2')
   // Five more polls inside the minute: no listing, and the found one stands.
   await w.clock.advance(50000)
@@ -2641,20 +2663,20 @@ test('the projects folder is listed at most once a minute, and a second hit plan
   expect(w.listings).toBe(2)
   const all = await nodes(m)
   expect(texts(all, '◆ transcript not found').length).toBe(1)
-  expect(await m.find({ key: 'open-0-gamma' })).toBeUndefined()
+  expect(await has(m, 'desktop', 'open-0-gamma')).toBeUndefined()
   holdsNoPath(w)
 })
 
 test('the Remote Control link is read again when the found path changes, and goes when the path is dropped', async ($, on) => {
   const w = await moved(on, $, w => plantIn(w, WORKTREE, 'WT1'))
   const m = await mountOn($, 'desktop')
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   // The transcript now sits at the path from cwd: found there, and its link read.
   plantIn(w, LAUNCH, 'HOME1')
   await w.clock.advance(10000)
   await w.clock.settle()
   await m.redraw(PANE_PROPS)
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   // Both gone: nothing found, and no link left to open.
   w.nodes.delete(key(`${LAUNCH}${SEP}${MID}.jsonl`))
   w.nodes.delete(key(`${WORKTREE}${SEP}${MID}.jsonl`))
@@ -2662,7 +2684,7 @@ test('the Remote Control link is read again when the found path changes, and goe
   await w.clock.settle()
   const all = await nodes(m)
   expect(texts(all, '◆ transcript not found').length).toBe(1)
-  expect(await m.find({ key: 'open-0-gamma' })).toBeUndefined()
+  expect(await has(m, 'desktop', 'open-0-gamma')).toBeUndefined()
   expect(explorer(w)).toEqual([
     ['explorer.exe', 'claude://claude.ai/code/session_WT1'],
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
@@ -2673,7 +2695,7 @@ test('the Remote Control link is read again when the found path changes, and goe
 test('a card dropped by set_roster leaves no stored link, and when it returns its link is read again (#281)', async ($, on) => {
   const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
   const m = await mountOn($, 'desktop')
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   expect(explorer(w)).toEqual([['explorer.exe', 'claude://claude.ai/code/session_HOME1']])
   const stored = () => w.states.filter(([k]) => k === 'links').map(([, v]) => v).at(-1) ?? ''
   expect(stored().includes('HOME1')).toBe(true)
@@ -2687,7 +2709,7 @@ test('a card dropped by set_roster leaves no stored link, and when it returns it
   await w.clock.advance(10000)
   await w.clock.settle()
   await m.redraw(PANE_PROPS)
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   expect(explorer(w)).toEqual([
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
@@ -2697,7 +2719,7 @@ test('a card dropped by set_roster leaves no stored link, and when it returns it
 test('a link read at 4 MiB or less is kept when the member is found at a new path past 4 MiB (#308)', async ($, on) => {
   const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
   const m = await mountOn($, 'desktop')
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   // The member moves into a worktree, where its transcript is past 4 MiB:
   // the engine would refuse the read, and the link it had stays.
   w.nodes.delete(key(`${LAUNCH}${SEP}${MID}.jsonl`))
@@ -2707,7 +2729,7 @@ test('a link read at 4 MiB or less is kept when the member is found at a new pat
   await w.clock.advance(60000)
   await w.clock.settle()
   await m.redraw(PANE_PROPS)
-  await m.press({ key: 'open-0-gamma' })
+  await act(m, 'desktop', 'open-0-gamma')
   expect(explorer(w)).toEqual([
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
@@ -3824,7 +3846,7 @@ test("a dismissed card's PR is not asked about", async ($, on) => {
   const w = await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341' })], todos: [] })
   expect(asked(w)).toBe(1)
   const m = await mountOn($, 'desktop')
-  await m.press({ key: 'dismiss-0-alpha' })
+  await act(m, 'desktop', 'dismiss-0-alpha')
   await w.clock.advance(180000)
   expect(asked(w)).toBe(1)
 })
@@ -4003,6 +4025,234 @@ for (const surface of SURFACES) {
     }
   })
 }
+
+// --- issue 513: the `⋯` menu and the settings popover (S4 to S8) --------------------------
+
+const MENU_CARDS = {
+  cards: [
+    card('waiter', { status: 'needs-you', settings: 'opus, high' }),
+    card('worker', { status: 'working', desktopId: DESKTOP, settings: 'opus, high' }),
+    card('linked', { status: 'working', url: 'https://claude.ai/code/session_ABC123', settings: '' }),
+    card('finisher', { status: 'done', settings: 'sonnet, medium' }),
+  ],
+  todos: [],
+}
+const itemKeys = async (m: any) =>
+  (await nodes(m)).filter(n => n.type === 'Button' && /^(openlink|split|dismiss)-/.test(String(n.props.key))).map(n => String(n.props.key))
+const layerRows = async (m: any) => (await nodes(m)).filter(n => n.type === 'Button' && String(n.props.key).startsWith('outside-')).length
+
+test('desktop, C4: every card in all three groups has `⋯`, holding Open, Split and Dismiss only where each applies, in that order', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'grp-finished' })
+  const openers = (await nodes(m)).filter(n => n.type === 'Button' && String(n.props.key).startsWith('menu-')).map(n => String(n.props.key))
+  expect(openers).toEqual(['menu-0-waiter', 'menu-1-worker', 'menu-2-linked', 'menu-3-finisher'])
+  // Closed: no item is drawn.
+  expect(await itemKeys(m)).toEqual([])
+  const want: [string, string[]][] = [
+    ['menu-0-waiter', ['dismiss-0-waiter']],
+    ['menu-1-worker', ['openlink-1-worker', 'split-1-worker', 'dismiss-1-worker']],
+    ['menu-2-linked', ['openlink-2-linked', 'dismiss-2-linked']],
+    ['menu-3-finisher', ['dismiss-3-finisher']],
+  ]
+  for (const [opener, items] of want) {
+    await m.press({ key: opener })
+    expect(await itemKeys(m)).toEqual(items)
+    await m.press({ key: opener })
+  }
+})
+
+test('desktop, C6: an outside press, an item and a second press on the opener each close the popover, and opening one closes the other', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  expect(await layerRows(m)).toBe(0)
+  await m.press({ key: 'menu-1-worker' })
+  expect((await itemKeys(m)).length).toBe(3)
+  // The layer reaches the visible part of a scrolled pane: bodyRows plus the offset.
+  expect(await layerRows(m)).toBe(PANE_PROPS.scroll.bodyRows)
+  await m.press({ key: 'outside-3' })
+  expect(await itemKeys(m)).toEqual([])
+  expect(await layerRows(m)).toBe(0)
+  await m.press({ key: 'menu-1-worker' })
+  await m.press({ key: 'menu-1-worker' })
+  expect(await itemKeys(m)).toEqual([])
+  // One at a time, across the menu and the settings popover.
+  await m.press({ key: 'menu-1-worker' })
+  await m.press({ key: 'set-1-worker' })
+  expect(await itemKeys(m)).toEqual([])
+  expect(await layerRows(m)).toBe(PANE_PROPS.scroll.bodyRows)
+  await m.press({ key: 'menu-2-linked' })
+  expect((await itemKeys(m)).length).toBe(2)
+  // An item closes it and acts; so does a press on another control.
+  await m.press({ key: 'dismiss-2-linked' })
+  expect(await layerRows(m)).toBe(0)
+  await m.press({ key: 'menu-1-worker' })
+  await m.press({ key: 'grp-finished' })
+  expect(await layerRows(m)).toBe(0)
+})
+
+test('desktop, C6: the layer has as many rows as the body shows and has scrolled, else 60', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  const rowsAt = async (props: unknown) => {
+    await m.redraw(props)
+    return ((await m.findAll({})) as Drawn[]).filter(n => n.type === 'Button' && String(n.props.key).startsWith('outside-')).length
+  }
+  expect(await rowsAt({ ...PANE_PROPS, scroll: { offset: 30, bodyRows: 40 } })).toBe(70)
+  expect(await rowsAt({ ...PANE_PROPS, placement: 'float', scroll: undefined })).toBe(60)
+})
+
+for (const [label, bad] of [
+  ['a value that is no shape', 'garbage'],
+  ['a place no card holds', 'menu-9'],
+  ['a prototype word', '__proto__'],
+  ['a long number', 'set-99999'],
+  ['not text', { menu: 1 }],
+] as const) {
+  test(`desktop, C6: a planted popover value of ${label} draws no popover and no layer`, async ($, on) => {
+    await grouped(on, $, MENU_CARDS, (key, value) => (key === 'popover' ? bad : value))
+    const m = await mountOn($, 'desktop')
+    expect(await itemKeys(m)).toEqual([])
+    expect(await layerRows(m)).toBe(0)
+    expect((await textOf(m)).includes('No settings on the card.')).toBe(false)
+  })
+}
+
+test('desktop, C6: a card that changed group closes its popover, and so does a pane open', async ($, on) => {
+  const w = await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  expect((await itemKeys(m)).length).toBe(3)
+  // The same card now needs the owner: its group changed.
+  const r = await call($, { cards: MENU_CARDS.cards.map(c => (c.title === 'worker' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+  expect(r.ok).toBe(true)
+  expect(await itemKeys(m)).toEqual([])
+  expect(await layerRows(m)).toBe(0)
+  await m.press({ key: 'menu-1-worker' })
+  expect((await itemKeys(m)).length).toBe(3)
+  await brigade($)
+  await w.clock.settle()
+  expect(await itemKeys(m)).toEqual([])
+})
+
+test('desktop, C7: the settings label opens `Opus - High`, and a card with no settings reads `No settings on the card.`', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  expect((await textOf(m)).includes('Opus - High')).toBe(false)
+  await m.press({ key: 'set-1-worker' })
+  expect((await textOf(m)).includes('Opus - High')).toBe(true)
+  await m.press({ key: 'set-2-linked' })
+  const text = await textOf(m)
+  expect(text.includes('No settings on the card.')).toBe(true)
+  expect(text.includes('Opus - High')).toBe(false)
+})
+
+test('desktop, C7: the settings words come from card text through the one-line cleaner', async ($, on) => {
+  await grouped(on, $, { cards: [card('odd', { status: 'working', settings: ' opus ,‮ high\n, ,plan mode ' })], todos: [] })
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'set-0-odd' })
+  const text = await textOf(m)
+  expect(text.includes('Opus - High - Plan mode')).toBe(true)
+  expect(text.includes('‮')).toBe(false)
+})
+
+test('desktop, S4 and S7: the first line is the mark, title, state, age then `⋯`, and the second the label, the pill, then a named repo', async ($, on) => {
+  await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], todos: [] })
+  const m = await mountOn($, 'desktop')
+  const text = await textOf(m)
+  const at = (x: string) => text.indexOf(x)
+  expect(at('alpha')).toBeLessThan(at('⋯'))
+  expect(at('⋯')).toBeLessThan(at('O·H'))
+  expect(at('O·H')).toBeLessThan(at('other/proj'))
+  // No Open, Dismiss or Split is drawn at rest.
+  expect(text.includes('Dismiss')).toBe(false)
+})
+
+// --- issue 513: dismissing a waiting card (S9) -------------------------------------------
+
+const WAITING = {
+  cards: [card('asker', { status: 'needs-you' }), card('other', { status: 'needs-you' }), card('worker', { status: 'working' })],
+  todos: [],
+}
+const isShown = async (m: any, title: string) => (await textOf(m)).includes(title)
+
+test('desktop, C8: a waiting card dismissed stays hidden while it waits, and shows after set_roster says it is not waiting', async ($, on) => {
+  await grouped(on, $, WAITING)
+  // The head chef's first write stamps each card's `since`, as in a session.
+  expect((await call($, WAITING)).ok).toBe(true)
+  const m = await mountOn($, 'desktop')
+  await act(m, 'desktop', 'dismiss-0-asker')
+  expect(await isShown(m, 'asker')).toBe(false)
+  expect(await isShown(m, 'other')).toBe(true)
+  // The same roster again: still waiting, still hidden.
+  expect((await call($, WAITING)).ok).toBe(true)
+  expect(await isShown(m, 'asker')).toBe(false)
+  // Not waiting for one write, then waiting again: it shows.
+  const r = await call($, { cards: WAITING.cards.map(c => (c.title === 'asker' ? { ...c, status: 'working' } : c)), todos: [] })
+  expect(r.ok).toBe(true)
+  expect(await isShown(m, 'asker')).toBe(true)
+  await call($, WAITING)
+  expect(await isShown(m, 'asker')).toBe(true)
+})
+
+test('desktop, C8: counts, the strip and the heading agree with what a waiting dismissal hides (C10)', async ($, on) => {
+  await grouped(on, $, WAITING)
+  const m = await mountOn($, 'desktop')
+  expect((await textOf(m)).startsWith('3 sessions')).toBe(true)
+  await act(m, 'desktop', 'dismiss-0-asker')
+  const text = await textOf(m)
+  expect(text.startsWith('2 sessions')).toBe(true)
+  expect(text.includes('▾ Waiting on you 1')).toBe(true)
+  expect(text.includes('● 1 needs you  ◐ 1 working')).toBe(true)
+})
+
+test('desktop, C8: the poll showing the card not waiting ends the dismissal, and a failed poll does not', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
+  await poll(w)
+  await act(mounted, 'desktop', 'dismiss-0-alpha')
+  expect(await isShown(mounted, FULL)).toBe(false)
+  // A poll that cannot read the sessions folder clears nothing: when the
+  // folder is back and the session waits again, the card is still dismissed.
+  w.drop(SESSIONS)
+  await poll(w)
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
+  await poll(w)
+  expect(await isShown(mounted, FULL)).toBe(false)
+  liveRows(w, [idRow()])
+  await poll(w)
+  expect(await isShown(mounted, FULL)).toBe(true)
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
+  await poll(w)
+  expect(await isShown(mounted, FULL)).toBe(true)
+})
+
+test('desktop, C8: a pane open, and a card dismissed while working that then waits, each show the card', async ($, on) => {
+  const w = await grouped(on, $, WAITING)
+  expect((await call($, WAITING)).ok).toBe(true)
+  const m = await mountOn($, 'desktop')
+  await act(m, 'desktop', 'dismiss-0-asker')
+  await call($, { cards: WAITING.cards.map(c => (c.title === 'asker' ? { ...c, work: 'a new question' } : c)), todos: [] })
+  // A change that leaves it waiting is the same wait: still dismissed.
+  expect(await isShown(m, 'asker')).toBe(false)
+  await brigade($)
+  await w.clock.settle()
+  expect(await isShown(m, 'asker')).toBe(true)
+  // Dismissed while working, it still shows when it turns waiting.
+  await act(m, 'desktop', 'dismiss-2-worker')
+  expect(await isShown(m, 'worker')).toBe(false)
+  await call($, { cards: WAITING.cards.map(c => (c.title === 'worker' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+  expect(await isShown(m, 'worker')).toBe(true)
+})
+
+test('desktop, C9: a waiting card planted in the dismissed state still shows', async ($, on) => {
+  await grouped(on, $, WAITING, (key, value) => (key === 'dismissed' ? ['asker', 'other'] : value))
+  const m = await mountOn($, 'desktop')
+  expect(await isShown(m, 'asker')).toBe(true)
+  expect(await isShown(m, 'other')).toBe(true)
+  expect((await textOf(m)).startsWith('3 sessions')).toBe(true)
+})
 
 // --- issue 513: a pill press opens the pull request ------------------------------------
 
@@ -4222,8 +4472,13 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const text = await textOf(m)
     expect(text.includes('O·∞')).toBe(surface === 'desktop')
-    // The tooltip holds the full line on Desktop; the terminal shows it inline.
-    expect(text.includes('Opus, max, default mode')).toBe(true)
+    // The terminal shows the full line inline; Desktop shows it in the settings
+    // popover a press on the label opens (issue 513, S8; C7).
+    expect(text.includes('Opus, max, default mode')).toBe(surface !== 'desktop')
+    if (surface === 'desktop') {
+      await m.press({ key: 'set-0-mx' })
+      expect((await textOf(m)).includes('Opus - Max - Default mode')).toBe(true)
+    }
   })
 
   test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
@@ -4251,7 +4506,9 @@ for (const surface of SURFACES) {
         expect(h.props.backgroundColor).toBe('#3a3a38')
         expect(h.props.borderStyle).toBeUndefined()
       }
-      expect(actions.some(a => a.props.display === 'none')).toBe(true)
+      // Open and Dismiss are no longer hover actions: the `⋯` menu holds them (S4, S5).
+      expect(actions).toEqual([])
+      expect(all.filter(n => n.type === 'Button' && String(n.props.key).startsWith('menu-')).length).toBe(3)
       expect(String(lines[0]?.props.source)).toContain('class="rule"')
     } else {
       // A blank row parts the waiting card from the to-do, as it parts cards.
@@ -4354,19 +4611,20 @@ for (const surface of SURFACES) {
     expect(back.includes('▸ Done · stopped 2')).toBe(true)
   })
 
-  test(`${surface}: Dismiss is on working, done and stopped cards and never on one that waits on the owner; a card dismissed while working shows in Waiting on you when it turns needs-you`, async ($, on) => {
+  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows in Waiting on you when it turns needs-you`, async ($, on) => {
     const w = await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     await m.redraw(PANE_PROPS)
-    expect(await m.find({ key: 'dismiss-1-workone' })).toBeDefined()
-    expect(await m.find({ key: 'dismiss-0-doneone' })).toBeDefined()
-    expect(await m.find({ key: 'dismiss-3-stopone' })).toBeDefined()
-    expect(await m.find({ key: 'dismiss-2-needone' })).toBeUndefined()
-    expect(await m.find({ key: 'dismiss-4-needtwo' })).toBeUndefined()
+    expect(await has(m, surface, 'dismiss-1-workone')).toBeDefined()
+    expect(await has(m, surface, 'dismiss-0-doneone')).toBeDefined()
+    expect(await has(m, surface, 'dismiss-3-stopone')).toBeDefined()
+    // A waiting card's Dismiss is Desktop's menu alone (issue 513, S9; C4).
+    expect((await has(m, surface, 'dismiss-2-needone')) !== undefined).toBe(surface === 'desktop')
+    expect((await has(m, surface, 'dismiss-4-needtwo')) !== undefined).toBe(surface === 'desktop')
     // Nor a checkbox: the bar's Dismiss never takes a card that waits.
     expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
-    await m.press({ key: 'dismiss-1-workone' })
+    await act(m, surface, 'dismiss-1-workone')
     expect((await textOf(m)).includes('work-one')).toBe(false)
     // The head chef turns the dismissed card to needs-you: it shows again, in Waiting on you.
     await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'needs-you' } : c)), todos: [] })
@@ -4430,7 +4688,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'pick-1-workone' })
     expect((await textOf(m)).includes('1 selected')).toBe(true)
-    await m.press({ key: 'dismiss-1-workone' })
+    await act(m, surface, 'dismiss-1-workone')
     const text = await textOf(m)
     expect(text.includes('selected')).toBe(false)
   })
@@ -4706,16 +4964,17 @@ test('a card finds its session by Desktop id whatever the head chef titled it, a
   expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
 })
 
-test('a session waiting on a prompt moves its working card under Waiting on you with the reason, no Dismiss, and back when it goes busy', async ($, on) => {
+test('a session waiting on a prompt moves its working card under Waiting on you with the reason, and back when it goes busy', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
-  expect(await mounted.find({ key: 'dismiss-0-alpha' })).toBeDefined()
+  expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
   await poll(w)
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'waiting · permission prompt', shown: FULL, move: 'waiting' }])
   const waiting = await groupText(mounted, 'Waiting on you')
   expect(waiting.includes(FULL)).toBe(true)
   expect(waiting.includes('waiting · permission prompt')).toBe(true)
-  expect(await mounted.find({ key: 'dismiss-0-alpha' })).toBeUndefined()
+  // A waiting card has Dismiss in the menu now (issue 513, S9; C4).
+  expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
   // A reason outside the fixed set draws a bare waiting.
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'anything the engine might say' })])
   await poll(w)
@@ -4846,7 +5105,7 @@ test('C4: a second load with the pane open resets nothing, offers the tool again
   await w.clock.settle()
   const m = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
   await m.press({ key: 'pick-0-alpha' })
-  await m.press({ key: 'dismiss-1-beta' })
+  await act(m, 'desktop', 'dismiss-1-beta')
   await m.press({ key: 'view-prs' })
   await $.session.receive({ origin: { kind: 'peer' }, text: '<cross-session-message from="alpha">\nfinished\n</cross-session-message>' })
   const mine = (key: string) => w.states.filter(([k]) => k === key)

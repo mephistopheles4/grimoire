@@ -143,6 +143,7 @@ import {
   contextMeter,
   contextMeterSvg,
   compactSettings,
+  settingsPopover,
   contextTrend,
   drawnTitle,
   foldedFrom,
@@ -253,6 +254,32 @@ const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 const viewAtom = atom({ plugin: 'grimoire', key: 'view' } as const, 'sessions')
 const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
 const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
+// The open popover (issue 513, S5): `menu-<place>` or `set-<place>`, else
+// closed. Read again through POPOVER before use; a bad value draws nothing.
+// The group its card was in when it opened is kept in this module, so a card
+// that changed group closes it. The lead cannot read either.
+const popover = atom({ plugin: 'grimoire', key: 'popover' } as const, '')
+const POPOVER = /^(menu|set)-([0-9]{1,3})$/
+let popoverGroup: string | undefined
+// Waiting cards the owner dismissed, for one wait (issue 513, S9): title to
+// the card's `since` at the dismissal. Module memory, so the lead cannot read
+// it and another plugin cannot plant it; the `dismissed` atom keeps its rule
+// of never hiding a waiting card. A pane open and a reload clear it.
+const waitDismissed = new Map<string, number | undefined>()
+// The titles it hides now: the card's `since` must still be the one dismissed.
+const waitHiddenOf = (cards: readonly { title: string; since?: number }[]): ReadonlySet<string> =>
+  new Set(cards.filter(c => waitDismissed.has(c.title) && waitDismissed.get(c.title) === c.since).map(c => c.title))
+// A dismissal ends when the card is read as not waiting or its `since` changed.
+function pruneWaitDismissed(cards: readonly Card[], moves: Moves) {
+  for (const [title, since] of [...waitDismissed]) {
+    const c = cards.find(x => x.title === title)
+    if (c === undefined || c.since !== since || !(c.status === 'needs-you' || movedLook(c, moves)?.group === 'needsYou')) waitDismissed.delete(title)
+  }
+}
+const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefined => {
+  const m = typeof v === 'string' ? POPOVER.exec(v) : null
+  return m === null ? undefined : { kind: m[1] === 'set' ? 'set' : 'menu', place: Number(m[2]) }
+}
 // The groups that start folded each time the pane opens.
 const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 // The line under the autonomy slider: what each level lets the lead do, in
@@ -491,6 +518,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // With no session read at all, the cards keep the cache and meter values
     // they had: no rows would only redraw every card as not found.
     if (files === undefined) return
+    // A read that came back ends a waiting card's dismissal when the card no longer waits (S9).
+    pruneWaitDismissed((await read($, roster)).cards, await movesOf($))
     try {
       // Transcripts are found under the config folder.
       const config = at.config
@@ -1068,7 +1097,7 @@ const MAX_NAMED_ROWS = 100
 // repository, and, by repository, the numbers of those that name one. A card
 // whose `repo` fails the check is in neither.
 const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: Moves): { base: number[]; named: Map<string, number[]> } => {
-  const g = groupCards(cards, hidden, moves)
+  const g = groupCards(cards, hidden, moves, waitHiddenOf(cards))
   const base: number[] = []
   const named = new Map<string, number[]>()
   for (const { c } of [...g.needsYou, ...g.working, ...g.finished]) {
@@ -1363,13 +1392,20 @@ const opening = new Set<string>()
 // on the engine's clock, from the tool list to the answer, ends the route, and
 // the press goes on to the link. Resolves true when the app said it opened
 // the session.
+type ToolRoute = { opened: boolean; shown: boolean }
 async function viaTool($: EngineInterface, session: string): Promise<boolean> {
+  return (await viaToolRoute($, session)).opened
+}
+
+// The same route, saying also whether it showed the app's own reason, so the
+// Desktop menu's Split can add its fixed line only when none was shown (S13).
+async function viaToolRoute($: EngineInterface, session: string): Promise<ToolRoute> {
   let over = false
   let timer: Timer | undefined
-  const waited = new Promise<false>(res => {
+  const waited = new Promise<ToolRoute>(res => {
     timer = $.clock.after(OPEN_WAIT_MS, () => {
       over = true
-      res(false)
+      res({ opened: false, shown: false })
     })
   })
   const route = askTool($, session, () => over)
@@ -1385,23 +1421,27 @@ async function viaTool($: EngineInterface, session: string): Promise<boolean> {
 // The tool route itself. After the wait is over it makes no call and shows
 // nothing; a call already made may still show the split after the link route
 // ran.
-async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
+async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<ToolRoute> {
+  const no = { opened: false, shown: false }
   // Only where the Desktop app draws this session: elsewhere its server is
   // absent, and a server of the same name would be the only one to answer.
   const surfaces = await $.session.surfaces()
-  if (!surfaces.includes('desktop')) return false
-  if (!listsOpenTool(await $.tool.list())) return false
+  if (!surfaces.includes('desktop')) return no
+  if (!listsOpenTool(await $.tool.list())) return no
   const args = { session_id: session, target: OPEN_TARGET }
-  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
-  if (over()) return false
+  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return no
+  if (over()) return no
   const outcome = readOpenAnswer(await $.mcp.call(OPEN_SERVER, OPEN_NAME, args))
-  if (over()) return false
+  if (over()) return no
   if (outcome.opened) {
     $.ui.toast(outcome.toast)
-    return true
+    return { opened: true, shown: true }
   }
-  if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
-  return false
+  if (outcome.reason !== undefined) {
+    $.ui.toast(outcome.reason)
+    return { opened: false, shown: true }
+  }
+  return no
 }
 
 // The links with a link-route press in progress, from host detection through
@@ -1430,6 +1470,35 @@ async function openInApp($: EngineInterface, c: Card) {
       opening.delete(session)
     }
   }
+  await viaLink($, c, app)
+}
+
+// The Desktop menu's Open (issue 513, S13): the link route alone, never the
+// tool, for a card that has a link.
+async function openLink($: EngineInterface, c: Card) {
+  const app = appLink(c, lookup(await read($, links)).get(c.title))
+  if (app === undefined) return
+  await viaLink($, c, app)
+}
+
+// The Desktop menu's Split: the tool route alone, for a card with a Desktop
+// session id, one press at a time. A route that opened nothing and showed no
+// reason says so in one fixed line; it never goes on to the link.
+const SPLIT_NONE = "Split isn't available here. Use Open."
+async function openSplit($: EngineInterface, c: Card) {
+  const session = toolSession(c)
+  if (session === undefined || opening.has(session)) return
+  opening.add(session)
+  try {
+    const route = await viaToolRoute($, session).catch(() => ({ opened: false, shown: false }))
+    if (!route.opened && !route.shown) $.ui.toast(SPLIT_NONE)
+  } finally {
+    opening.delete(session)
+  }
+}
+
+// The link route: the host's opener, one press per link at a time.
+async function viaLink($: EngineInterface, c: Card, app: string) {
   if (linking.has(app)) return
   linking.add(app)
   try {
@@ -1610,6 +1679,9 @@ type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false) {
   await update($, viewAtom, () => 'sessions')
   await update($, dismissed, () => [])
+  await update($, popover, () => '')
+  popoverGroup = undefined
+  waitDismissed.clear()
   await update($, picked, () => [])
   await update($, reports, () => [])
   // The Decisions tab starts over too: no search, nothing skipped or opened.
@@ -1879,6 +1951,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // stays the reader for changes made elsewhere.
     await update($, roster, () => value)
     await update($, rosterError, () => '')
+    pruneWaitDismissed(value.cards, await movesOf($))
     return { result: `Roster kept: ${value.cards.length} card(s), ${value.todos.length} to-do(s).` }
   })
 }
@@ -3185,6 +3258,9 @@ export const register: Register = on => {
   // The switch, group (`grp-`) and selection-bar keys are matched whole, before
   // the split below; only card and to-do keys are split on a hyphen.
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
+    // A press on any control but a popover's opener or its outside layer
+    // closes the popover and then acts (issue 513, S6).
+    if (!/^(menu|set|outside)-/.test(e.element) && (await read($, popover)) !== '') await update($, popover, () => '')
     // The switch, a group's fold and the selection bar: fixed words, read
     // through fixed sets.
     if (e.element === 'view-sessions' || e.element === 'view-prs' || e.element === 'view-decisions') {
@@ -3306,6 +3382,30 @@ export const register: Register = on => {
     const i = Number(place)
     const current = await read($, roster)
 
+    // A popover's opener toggles it, and one is open at a time. An outside
+    // press closes it; so does a press on any other control, which also acts
+    // (issue 513, S5 and S6).
+    const opened = popoverOf(await read($, popover))
+    if ((verb === 'menu' || verb === 'set') && word === undefined) {
+      const c = current.cards[i]
+      if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
+      const value = `${verb}-${i}`
+      // A value left by a card that has gone or changed group is closed.
+      const old = opened === undefined ? undefined : current.cards[opened.place]
+      const live = old !== undefined && (movedLook(old, await movesOf($))?.group ?? statusOf(old.status)?.group) === popoverGroup
+      if (opened !== undefined && live && `${opened.kind}-${opened.place}` === value) {
+        await update($, popover, () => '')
+      } else {
+        popoverGroup = movedLook(c, await movesOf($))?.group ?? statusOf(c.status)?.group
+        await update($, popover, () => value)
+      }
+      return { element: e.element }
+    }
+    if (verb === 'outside') {
+      await update($, popover, () => '')
+      return { element: e.element }
+    }
+
     if (verb === 'todo' || verb === 'go') {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
@@ -3327,9 +3427,17 @@ export const register: Register = on => {
       return { element: e.element }
     }
     if (verb === 'open') await openInApp($, c)
-    // A card that waits on the owner has no Dismiss, and a press cannot add one.
-    if (verb === 'dismiss' && c.status !== 'needs-you' && movedLook(c, await movesOf($))?.group !== 'needsYou') {
-      await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+    if (verb === 'openlink') await openLink($, c)
+    if (verb === 'split') await openSplit($, c)
+    if (verb === 'dismiss') {
+      if (c.status === 'needs-you' || movedLook(c, await movesOf($))?.group === 'needsYou') {
+        // A waiting card is dismissed for this one wait, in module memory
+        // only; the `dismissed` atom never hides one (issue 513, S9).
+        waitDismissed.set(c.title, c.since)
+        await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      } else {
+        await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+      }
       // A dismissed card leaves the selection too.
       await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))
     }
@@ -3444,7 +3552,17 @@ export const register: Register = on => {
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
-    const { needsYou, working, finished } = groupCards(cards, hidden, moves)
+    const waitHidden = waitHiddenOf(cards)
+    const { needsYou, working, finished } = groupCards(cards, hidden, moves, waitHidden)
+    // The open popover, read again through its fixed shape. It draws only for
+    // a card still drawn in the group it opened in (issue 513, S5).
+    const popped = pointer && view === 'sessions' ? popoverOf(await read($, popover)) : undefined
+    const rowsOf = (n: unknown) => (typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : undefined)
+    const bodyRows = rowsOf(e.props.scroll?.bodyRows)
+    const outsideRows = bodyRows === undefined ? 60 : Math.min(400, bodyRows + (rowsOf(e.props.scroll?.offset) ?? 0))
+    const popLive =
+      popped !== undefined &&
+      ([['needsYou', needsYou], ['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place))
     // The bar counts only picks a checkbox shows: a card that waits on the
     // owner has none, and a title no shown card holds is no pick.
     const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
@@ -3455,7 +3573,7 @@ export const register: Register = on => {
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
-    const strip = statusStrip(cards, hidden, moves)
+    const strip = statusStrip(cards, hidden, moves, waitHidden)
     const progress = todoBar(todos, done, ticks)
     const sessionsCount =
       shown > 0 || progress !== undefined
@@ -3464,7 +3582,7 @@ export const register: Register = on => {
           ? 'No cards in the roster yet.'
           : undefined
     const named = namedAnswers()
-    const prs = prRows(cards, hidden, ghAnswers, now, moves, named)
+    const prs = prRows(cards, hidden, ghAnswers, now, moves, named, waitHidden)
     const unavailable = unavailableLine(ghDown, [...ghNamed.values()].filter(b => b.down).length)
     const prCount = prs.open.length + prs.merged.length + prs.closed.length
 
@@ -3679,11 +3797,56 @@ export const register: Register = on => {
       // the Pull requests tab names it there). gh's spelling once it answered,
       // else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
-      // The actions: on Desktop hidden until the pointer is on the row, in the
-      // terminal always shown. A card that waits on the owner has no Dismiss.
+      // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
+      // each opens upward from its opener, one at a time.
+      const canSplit = toolSession(c) !== undefined
+      const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
+      const widest = Math.max(...items.map(([, label]) => label.length)) + 4
+      const popRows = (rowItems: readonly (readonly [string, string])[], width: number) => (
+        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} width={width}>
+          {rowItems.map(([verb, label]) => (
+            <Box key={`row-${verb}-${i}`} hover={{ scope: `row-${verb}-${i}`, backgroundColor: DARK_FILLS.hover }} paddingX="sm">
+              <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
+                <Text size="footnote">{label}</Text>
+              </Button>
+            </Box>
+          ))}
+        </Box>
+      )
+      const popText = (text: string) => (
+        <Box position="absolute" bottom={1} left={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
+          <Text size="footnote">{text}</Text>
+        </Box>
+      )
+      const menuOpen = popLive && popped?.kind === 'menu' && popped.place === i
+      const setOpen = popLive && popped?.kind === 'set' && popped.place === i
+      const menuButton = (
+        <Box position="relative" flexShrink={0}>
+          <Button key={keyFor('menu', i, c.title)} plain dimColor onPress={noop}>
+            ⋯
+          </Button>
+          {menuOpen && popRows(items, widest)}
+        </Box>
+      )
+      const pillBlock =
+        number === undefined ? null : (
+          <Box flexShrink={0}>
+            {answer === undefined ? (
+              pill(number, pillState(undefined, c.prState))
+            ) : href !== undefined && pointer ? (
+              pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
+            ) : href !== undefined && Image === undefined ? (
+              linkedNumber(number, pillState(answer.state, c.prState), href)
+            ) : (
+              pill(number, pillState(answer.state, c.prState))
+            )}
+          </Box>
+        )
+      // The actions: in the terminal always shown; a card that waits on the
+      // owner has no Dismiss there. Desktop has the menu instead.
       const actions =
-        canOpen || !needs ? (
-          <Box flexShrink={0} flexDirection="row" columnGap={1} {...(!pointer ? {} : { display: 'none' as const, hover: { scope, display: 'flex' as const } })}>
+        pointer ? null : canOpen || !needs ? (
+          <Box flexShrink={0} flexDirection="row" columnGap={1}>
             {canOpen && (
               <Button key={keyFor('open', i, c.title)} plain dimColor onPress={noop}>
                 Open
@@ -3745,20 +3908,8 @@ export const register: Register = on => {
                   </Text>
                 </Box>
                 {actions}
-                {number !== undefined && (
-                  <Box flexShrink={0}>
-                    {answer === undefined ? (
-                      pill(number, pillState(undefined, c.prState))
-                    ) : href !== undefined && pointer ? (
-                      pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
-                    ) : href !== undefined && Image === undefined ? (
-                      linkedNumber(number, pillState(answer.state, c.prState), href)
-                    ) : (
-                      pill(number, pillState(answer.state, c.prState))
-                    )}
-                  </Box>
-                )}
-                {namedRepo !== undefined && number !== undefined && (
+                {!pointer && pillBlock}
+                {namedRepo !== undefined && number !== undefined && !pointer && (
                   <Box flexShrink={0}>
                     <Text dimColor>{namedRepo}</Text>
                   </Box>
@@ -3782,11 +3933,26 @@ export const register: Register = on => {
                     </Text>
                   </Box>
                 )}
+                {pointer && menuButton}
               </Box>
               {pointer && (
-                <Box flexDirection="row" columnGap={1}>
-                  <Box flexGrow={1} flexShrink={1} minWidth={0} />
-                  <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>
+                <Box flexDirection="row" columnGap={1} alignItems="center">
+                  <Box position="relative" flexShrink={0}>
+                    <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
+                      <Text dimColor mono>
+                        {short.text}
+                      </Text>
+                    </Button>
+                    {setOpen && popText(settingsPopover(c.settings))}
+                  </Box>
+                  {pillBlock}
+                  {namedRepo !== undefined && number !== undefined && (
+                    <Box flexShrink={1} minWidth={0}>
+                      <Text dimColor wrap="truncate-end">
+                        {namedRepo}
+                      </Text>
+                    </Box>
+                  )}
                 </Box>
               )}
               {!pointer && (
@@ -4513,7 +4679,23 @@ export const register: Register = on => {
       )
 
     return (
-      <Box flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+      <Box position="relative" flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+        {/* While a popover is open, a transparent layer under it (issue 513,
+            S6): a stack of one-line plain Buttons, each in a keyed Box with a
+            hover, as many rows as the body shows and has scrolled, else 60.
+            A press on it closes the popover; later elements paint over it, so
+            a press on any other control reaches that control. */}
+        {popLive && (
+          <Box position="absolute" top={0} left={0} right={0} flexDirection="column">
+            {Array.from({ length: outsideRows }, (_, k) => (
+              <Box key={`outside-box-${k}`} hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
+                <Button key={`outside-${k}`} plain onPress={noop}>
+                  <Text>{' '.repeat(200)}</Text>
+                </Button>
+              </Box>
+            ))}
+          </Box>
+        )}
         {/* The top row: what the chosen view holds, on the left; the switch on
             the right. The pane's own title names the pane, and the roster's
             file is not named here. */}
