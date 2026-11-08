@@ -129,7 +129,8 @@ such a package without asking when no one is at a terminal.
   address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
   `.gitignore` lists `.npmrc` and `.yarnrc.yml`, so `--untracked` never takes
-  your own copy.
+  your own copy on a branch that keeps those lines; read a branch's
+  `.gitignore` before you run it with `--untracked`.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
   history, until the run has streamed it (up to a day after a run killed hard).
