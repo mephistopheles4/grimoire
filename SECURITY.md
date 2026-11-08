@@ -577,7 +577,7 @@ The pane's own read of those files, with its stronger checks, is above. head-che
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post; on
 the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, the head chef merges, closes, edits,
-deletes or labels a record, files an issue or posts a comment; the head
+deletes or labels a record, files an issue or posts a comment, and at levels 2 and 3 each such post it makes on its own pick opens with a fixed line naming it so (issue 438, proposed); the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
