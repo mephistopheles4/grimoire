@@ -5102,3 +5102,27 @@ test('#560 C5: a visit press finds its to-do by place and id slug, then by the d
   assert.equal(visitPress([{ id: 'Review-18', link: 'https://github.com/o/my-repo/pull/19' }], 0, 'review18', word), undefined, 'relinked');
   assert.equal(visitPress([{ id: 'Review-18' }], 0, 'review18', word), undefined, 'link removed');
 });
+
+// --- issue 567: an anchored link is never a button route -----------------------------------
+
+const ANCHORED_LINKS = [
+  'https://github.com/o/my-repo/issues/18#issuecomment-5',
+  'https://github.com/o/my-repo/pull/18#issuecomment-5',
+  'https://github.com/o/my-repo/pull/18#pullrequestreview-5',
+  'https://github.com/o/my-repo/pull/18#discussion_r5',
+];
+
+test('#567 C4: a visit or link press on a parse with an anchor gives nothing, whatever digest it carries', () => {
+  for (const link of ANCHORED_LINKS) {
+    const word = linkDigest(link);
+    assert.equal(linkPress(link, word), undefined, link);
+    assert.equal(visitPress([{ id: 'Review-18', link }], 0, 'review18', word), undefined, link);
+    // The digest of the same address with no fragment does not open the anchored one either.
+    assert.equal(visitPress([{ id: 'Review-18', link }], 0, 'review18', linkDigest(link.split('#')[0])), undefined, link);
+  }
+});
+
+test('#567 C5: a link with no anchor presses as in #560, with the same parts and no anchor key', () => {
+  assert.deepEqual(linkPress(LINK_A, linkDigest(LINK_A)), { repo: 'o/my-repo', kind: 'pr', number: '18' });
+  assert.equal('anchor' in linkPress(LINK_A, linkDigest(LINK_A)), false);
+});

@@ -953,10 +953,14 @@ export const linkDigest = (url: string): string => sha256Hex(url).slice(0, 16)
 
 /** A link button's press: the to-do's link parsed again from the roster as it
  *  is now, and kept only if the button's digest is the one of that address.
- *  A link changed since the draw, to anything, gives undefined. */
+ *  A link changed since the draw, to anything, gives undefined. A link with an
+ *  anchor (issue 567) is never a button's: no `gh` command takes the anchor, so
+ *  it is drawn as the engine's Link and a press here, forged or real, gives
+ *  undefined. */
 export function linkPress(link: unknown, word: unknown): LinkParts | undefined {
   const parts = parseLink(link)
-  return parts !== undefined && word === linkDigest(linkUrl(parts)) ? parts : undefined
+  if (parts === undefined || parts.anchor !== undefined) return undefined
+  return word === linkDigest(linkUrl(parts)) ? parts : undefined
 }
 
 /** A button's key part: a title or id folded to letters and digits. */

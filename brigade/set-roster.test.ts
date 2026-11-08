@@ -4746,6 +4746,93 @@ test('#560 C8: a to-do that carries a link and a session draws both its link but
   expect(keys).toContain(visitKey(0, 't3', PR_LINK))
 })
 
+// --- issue 567: a to-do's comment link ----------------------------------------------------
+//
+// An anchored link is the engine's Link on every surface, Desktop included: no gh command takes
+// the anchor, so there is no press button, no process run and no host opener.
+
+const COMMENT_LINK = 'https://github.com/mephistopheles4/grimoire/issues/560#issuecomment-4300000000'
+const PR_COMMENT_LINK = 'https://github.com/o/r/pull/18#issuecomment-5'
+const REVIEW_LINK = 'https://github.com/o/r/pull/18#pullrequestreview-7'
+const REVIEW_COMMENT_LINK = 'https://github.com/o/r/pull/18#discussion_r9'
+const ANCHORED = {
+  cards: [],
+  todos: [
+    { id: 't1', text: 'Answer in the comment', link: COMMENT_LINK },
+    { id: 't2', text: 'Reply on the PR', link: PR_COMMENT_LINK },
+    { id: 't3', text: 'Read the review', link: REVIEW_LINK },
+    { id: 't4', text: 'Read the review comment', link: REVIEW_COMMENT_LINK },
+    { id: 't5', text: 'Plain issue', link: ISSUE_LINK },
+  ],
+}
+const ANCHORED_LABELS = ['#560 comment mephistopheles4/grimoire', 'PR 18 comment o/r', 'PR 18 review o/r', 'PR 18 review comment o/r']
+
+for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
+  test(`#567 C3 ${surface}: an anchored link draws as the engine's Link on the rebuilt address with its label, and no press button`, async ($, on) => {
+    const w = await grouped(on, $, ANCHORED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    const hrefs = all.filter(n => n.type === 'Link').map(l => l.props.href)
+    // The plain issue link is the Button route on Desktop (#560) and a Link elsewhere.
+    expect(hrefs).toEqual(surface === 'desktop' ? [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK] : [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK, ISSUE_LINK])
+    expect(visitKeys(all)).toEqual(surface === 'desktop' ? [visitKey(4, 't5', ISSUE_LINK)] : [])
+    const text = await textOf(m)
+    for (const label of ANCHORED_LABELS) expect(text).toContain(label)
+    expect(linkViews(w)).toEqual([])
+  })
+}
+
+test('#567 C4 desktop: a visit press forged for an anchored to-do runs nothing and opens nothing', async ($, on) => {
+  const w = await grouped(on, $, ANCHORED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  const procs = w.procs.length
+  for (const [i, id, link] of [[0, 't1', COMMENT_LINK], [1, 't2', PR_COMMENT_LINK], [2, 't3', REVIEW_LINK], [3, 't4', REVIEW_COMMENT_LINK]] as const) {
+    // A forged key for the anchored address, and one with the digest of the address minus its fragment.
+    for (const l of [link, link.split('#')[0] as string]) {
+      try {
+        await m.press({ key: visitKey(i, id, l) })
+      } catch {
+        // The harness may refuse a key it did not draw; either way nothing runs.
+      }
+    }
+  }
+  expect(linkViews(w)).toEqual([])
+  expect(w.procs.length).toBe(procs)
+  expect(w.toasts).toEqual([])
+})
+
+test('#567 C5 desktop: a link with no anchor still presses gh as in #560', async ($, on) => {
+  const w = await grouped(on, $, ANCHORED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  await m.press({ key: visitKey(4, 't5', ISSUE_LINK) })
+  expect(linkViews(w)).toEqual([['gh', 'issue', 'view', '560', '--web']])
+})
+
+for (const surface of ['desktop', 'terminal'] as const) {
+  test(`#567 C6 ${surface}: a hostile anchored link planted in plugin state draws nothing, and an accepted one draws a label and an address from one parse`, async ($, on) => {
+    const HOSTILE = {
+      cards: [],
+      todos: [
+        { id: 't1', text: 'Look', link: 'https://github.com/o/r/issues/1#issuecomment-5#x' },
+        { id: 't2', text: 'Look', link: 'https://github.com.evil.example/o/r/issues/1#issuecomment-5' },
+        { id: 't3', text: 'Look', link: 'https://github.com/o/r/issues/1#pullrequestreview-5' },
+        { id: 't4', text: 'Look', link: 'https://github.com/o/r/issues/1#issuecomment-0' },
+        { id: 't5', text: 'Look', link: PR_COMMENT_LINK },
+      ],
+    }
+    await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(visitKeys(all)).toEqual([])
+    const links = all.filter(n => n.type === 'Link')
+    expect(links.map(l => l.props.href)).toEqual([PR_COMMENT_LINK])
+    expect(await textOf(m)).toContain('PR 18 comment o/r')
+    expect(await textOf(m)).not.toContain('evil')
+  })
+}
+
 // --- the views ------------------------------------------------------------------
 
 for (const surface of SURFACES) {

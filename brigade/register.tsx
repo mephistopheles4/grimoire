@@ -4588,9 +4588,12 @@ export const register: Register = on => {
       // A to-do's link (issue 560), parsed again at each draw from the roster as read: what is
       // drawn and keyed is the address rebuilt from the parse, never the stored string, and a
       // string the pattern refuses draws nothing. The label names the repository and wraps
-      // whole, never cut; the text above it is the one that is cut.
+      // whole, never cut; the text above it is the one that is cut. A link with an anchor
+      // (issue 567) is the engine's Link on every surface, Desktop included: no `gh` command
+      // takes the anchor, so it has no button, and its label and address come from this one parse.
       const linkParts = parseLink(t.link)
       const linkHref = linkParts === undefined ? undefined : linkUrl(linkParts)
+      const linkButton = pointer && linkParts?.anchor === undefined
       return (
         <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
           {/* Dim at rest (a blank on the terminal, a ○ on a desktop), a tick
@@ -4616,7 +4619,7 @@ export const register: Register = on => {
               {oneLine(t.text, MAX_TEXT)}
             </Text>
             {linkParts !== undefined && linkHref !== undefined &&
-              (pointer ? (
+              (linkButton ? (
                 <Button key={`${keyFor('visit', i, t.id)}-${linkDigest(linkHref)}`} plain onPress={noop}>
                   <Text wrap="wrap">{linkLabel(linkParts)}</Text>
                 </Button>
