@@ -73,16 +73,6 @@
     },
     {
       "skill": "head-chef",
-      "path": "references/CONTRACT.md",
-      "reason_code": "static_parse_limit",
-      "analyzers": [
-        "static_patterns_tool_misuse"
-      ],
-      "sha256": "21fbb334c7fd3059e560a9b0b827a4ce9a651b1945f480c75b540a514035c139",
-      "reason": "The skill's contract, which its SKILL.md is generated from. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Since head-chef 1.20.0 (issue 540) the file holds the background start as a command line with a quoted heredoc, and the parser gives up inside it; the file's other text did not change in kind. Read on 2026-11-08 for issue 540: every line that names `claude rm`, `claude stop` or a worktree removal was read by hand; each forbids the act, or describes the owner running it, and none gives an agent a destructive command to run. A second give-up inside this file is invisible to the gate, so the hash below pins the whole file: any edit puts this entry in the same diff, and review reads it again. Re-read on 2026-11-08 for head-chef 1.21.0 (issue 509, ticket T3): the change adds one rule on how an open decision travels in the hand-off and rewrites the old-waiting-entry rule; the diff was read by hand and adds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 after Test round 1 on that pull request: the change adds field-shape, cap and naming clauses to the same rule and one clause to the old-waiting-entry rule, with no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 for issue 530: the change adds one roles bullet, a rule that a model change starts a fresh session, and raises the version line; the added lines are prose, hold no rm, del or erase in any spelling, and give an agent no command to run. Re-read on 2026-11-08 for issue 541 (reopened), after Test rounds 1 and 2: the diff adds clauses on a command goal the owner widens or narrows in chat, on findings and risks at level 3, on the wording of an accept ask and on a pressed goal's logged narrowing; it names `/brigade level 2` and `/brigade level 3` as typed commands, holds no rm, del or erase, and gives no destructive command to run. Re-read on 2026-11-08 for issue 560 (the to-do rule and its link): the change adds one clause on how a to-do is written and which link it may carry; the diff was read by hand and adds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 after Test round 2 on issue 560 (the mark on the new clause changed to Proposed): the diff was read by hand and adds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08: for head-chef 1.25.0 (issue 533) the change splits one subscribe-again sentence and adds one rule on Brigade's compaction notes; the diff was read by hand and adds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 after Test round 1: the same rule gained prose on an explicit own-mark condition, a fixed pending line and a bar on subscribing while it stands; it holds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 after Test round 2: the same rule gained prose that carries the pending-line bar to the own-mark branch; it holds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08 for issue 476 (head-chef 1.27.0): the change adds one sentence on the route a GitHub title takes and rewords the merging clause; the diff was read by hand and adds no command, no rm, del or erase, and no worktree removal. Re-read on 2026-11-08: for the start tool change of issue 543 the diff replaces the typed background start, its shell forms and the PowerShell refusal with a call to the Brigade mod's start tool, and adds prose on the folder, the card, the permission mode and a start that may have run; it was read by hand and holds no destructive command, no rm, del or erase, and no worktree removal. The quoted heredoc form this entry was written for is gone, and whether the parser still gives up on this file was not measured here, so the entry stays until the SkillSpector run in CI says it is unused."
-    },
-    {
-      "skill": "head-chef",
       "path": "references/contract.changelog.md",
       "reason_code": "obfuscated_instruction_text",
       "analyzers": [
@@ -167,12 +157,6 @@
       "from": "SKILL.md",
       "target": "audit.mjs",
       "count": 2
-    },
-    {
-      "skill": "head-chef",
-      "from": "SKILL.md",
-      "target": "references/CONTRACT.md",
-      "count": 1
     },
     {
       "skill": "head-chef",
