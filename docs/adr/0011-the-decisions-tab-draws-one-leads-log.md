@@ -97,18 +97,6 @@ that has changed writes nothing, and while other logs are carried, a press past
 500 entries leaves the button drawn for a second press. This amendment replaces
 the 0.109.0 one and the "Mark N of M read" label of the 0.113.0 one.
 
-Amended in 0.130.0 (issue 552, the owner's words relayed by the lead on
-2026-11-08: "One card, no nesting"): an answered pair is one card with one set
-of fields. Its headline is the answer's pick, and its Why is the answer's why,
-where the lead quotes the owner's words (the lead's pick, decision 224). It
-draws the waiting entry's question once, its options with the answer's pick
-marked, and the answer's writer, source label, time, level, to undo and
-revisit, then one id line. The answer's own question is not drawn, and the
-waiting entry's own source label is not either. This replaces the
-0.91.0 amendment's "every field the answer's own card drew" and the nested
-answer block of issue 545 (row 10). Keys, marks and counts are unchanged.
-History and Flagged still list the two entries as two rows.
-
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside
@@ -125,6 +113,20 @@ skipped file's time plus the two-minute clock allowance counts for nothing, so
 a flag in a skipped file cannot be hidden behind an older read mark.
 
 Amended in 0.112.0 (issue 497): the pane's own Owner, Pane and alarm entries take the same drop scan when the byte cap refuses them, so a log `log_decision` keeps full still takes a raise. When this session's own marks file is dated ahead, over its cap or fails its check, the scan takes no mark at all and nothing drops, so a flag only that file holds never loses to an older read mark in another.
+
+Amended in 0.130.0 (issue 552, the owner's words relayed by the lead on
+2026-11-08: "One card, no nesting"): an answered pair is one card with one set
+of fields. Its headline is the answer's pick, and its Why is the answer's why,
+which is where a relayed entry carries the owner's words (the lead's pick,
+decision 224). It draws the waiting entry's question once, its options with the
+answer's pick marked, and the answer's writer, source label, time, level, to
+undo and revisit, then one id line. The answer's own question is not drawn, and
+the waiting entry's own source label is not either. This replaces the 0.91.0
+amendment's "every field the answer's own card drew", the nested answer block of
+issue 545 (row 10) and, in the Why below, the answer "drawn in full": the
+answer's pick, words and undo are still drawn, its restated question is not.
+Keys, marks and counts are unchanged. History and Flagged still list the two
+entries as two rows.
 
 ## Why
 

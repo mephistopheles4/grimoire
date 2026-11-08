@@ -4299,14 +4299,13 @@ export const register: Register = on => {
     const cardFields = (r: Row, top: JSX.Element | undefined, answer?: Row): JSX.Element[] => {
       const d = r.entry
       const a = answer?.entry
-      const meta = answer ?? r
+      // The entry that speaks on the card: the answer for a pair, else the entry itself. Its writer, label, time, level, why, undo and revisit are drawn.
+      const src = answer ?? r
       const alarm = d.source === 'alarm'
       // The option the pick names: the answer's for a pair, its own for an entry, and for a lone waiting entry the answer's the log holds (issue 545, row 10).
       const chosen = a !== undefined ? a.pick : d.waiting ? answerOf(r)?.pick : d.pick
       // A pair's headline is the answer's pick, as the lead relayed the owner's words (the lead's pick on issue 552, decision 224).
       const title = a !== undefined ? oneLine(a.pick, 300) : headline(r)
-      const said = a ?? d
-      const flags = [d.flag, a?.flag].filter(x => x !== undefined)
       return [
         <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
@@ -4320,17 +4319,17 @@ export const register: Register = on => {
                 {title}
               </Text>
             )}
-            <Text dimColor>{meta.writer}</Text>
+            <Text dimColor>{src.writer}</Text>
           </Box>
           <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
-            <Text>{labelOf(meta)}</Text>
+            <Text>{labelOf(src)}</Text>
             <Text dimColor tabular>
-              {stamp(meta.entry.at)}
+              {stamp(src.entry.at)}
             </Text>
-            <Text dimColor>{`at level ${meta.entry.level}`}</Text>
+            <Text dimColor>{`at level ${src.entry.level}`}</Text>
           </Box>
         </Box>,
-        ...flags.map(f => part('Flagged by the lead', lines(f))),
+        ...(d.flag !== undefined ? [part('Flagged by the lead', lines(d.flag))] : []),
         part('Question', lines(d.question)),
         part(
           'Options',
@@ -4345,9 +4344,9 @@ export const register: Register = on => {
             ))}
           </Box>,
         ),
-        part('Why', lines(said.why)),
-        part('To undo', lines(said.undo)),
-        ...(said.revisit !== '' ? [part('Revisit', lines(said.revisit))] : []),
+        part('Why', lines(src.entry.why)),
+        part('To undo', lines(src.entry.undo)),
+        ...(src.entry.revisit !== '' ? [part('Revisit', lines(src.entry.revisit))] : []),
         <Text dimColor>{a === undefined ? `Decision ${d.id}` : `Decision ${d.id}, answered by decision ${a.id}`}</Text>,
       ]
     }

@@ -6436,7 +6436,7 @@ test('claim 8: the tab draws no search box on mobile, and one on the terminal', 
   expect(await mounted.find({ key: 'dsearch' })).toBeDefined()
 })
 
-test('claim 10: Lead, Relayed by the writer, a waiting entry and its answer draw as their sources say', async ($, on) => {
+test('claim 10: an answered pair draws the answer\'s Relayed label and not the waiting entry\'s Lead; a lone Relayed entry draws its own', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w =>
     seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' }), kept(2, 300, { source: 'relayed', answers: '1' }), kept(3, 400, { source: 'relayed', question: 'Lone claim?' })])),
   )
@@ -8436,7 +8436,7 @@ const PAIR_448 = [
 const buttonKeys = async () => (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key))
 const textCount = async (text: RegExp) => (await mounted.findAll({ type: 'Text', text })).length
 
-test('spec 448 claim 1: an own unread waiting entry and its answer draw as one card at the waiting entry\'s place, with every field of the answer, counted once', async ($, on) => {
+test('spec 448 claim 1, issue 552: an own unread waiting entry and its answer draw as one card at the waiting entry\'s place: the question once, the answer\'s pick, label, time, level, why, undo and revisit once', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_448)))
   // "n of N" counts cards; the top line still counts entries.
   expect(await shows(/^1 of 2$/)).toBe(true)
@@ -8453,20 +8453,25 @@ test('spec 448 claim 1: an own unread waiting entry and its answer draw as one c
   for (const text of [/^The owner typed it\.$/, /^Ask again\.$/, /^At the merge\.$/, /^Decision 1, answered by decision 2$/]) {
     expect(await textCount(text)).toBe(1)
   }
-  // The answer's own question is the lead's restatement; the card does not ask twice.
+  // The answer's own question is the lead's restatement; the card does not ask twice. Nor does it draw the waiting entry's own why and undo beside the answer's.
   expect(await shows(/^Owner said yes\?$/)).toBe(false)
+  expect(await textCount(/^Why$/)).toBe(1)
+  expect(await shows(/^Because\.$/)).toBe(false)
+  expect(await shows(/^Undo it\.$/)).toBe(false)
   expect(await shows(/^Plain one\?$/)).toBe(false)
   expect((await buttonKeys()).filter(k => /^d(next|flag|skip)-/.test(k)).sort()).toEqual(['dflag-1-200-2-300', 'dnext-1-200-2-300', 'dskip-1-200-2-300'])
 })
 
-// Issue 545, row 10: the nested answer is laid out at full width, and the waiting card shows it was answered.
+// Issue 552 (after 545, row 10): an answered pair on one card. The answer comes a minute after the question, so the time drawn shows whose it is.
 const PAIR_545 = [
   kept(1, 200, { question: 'Mine asks?', waiting: true, pick: '', options: ['Ship it', 'Hold'] }),
-  kept(2, 300, { question: 'Owner said ship?', source: 'relayed', answers: '1', pick: 'Ship it', options: ['Ship it', 'Hold'] }),
+  kept(2, 60000, { question: 'Owner said ship?', source: 'relayed', answers: '1', pick: 'Ship it', options: ['Ship it', 'Hold'] }),
 ]
 
-test('552: the one card marks the option its answer picked, once', async ($, on) => {
+test('552: the one card marks the option its answer picked, once, and draws the answer\'s time', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  expect(await textCount(/^1970-01-01 00:01$/)).toBe(1)
+  expect(await textCount(/^1970-01-01 00:00$/)).toBe(0)
   expect(await textCount(/^●$/)).toBe(1)
   // The headline and the option.
   expect(await textCount(/^Ship it$/)).toBe(2)
@@ -8485,8 +8490,11 @@ test('552: the answer is not nested: the pair draws one bordered card', async ($
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
   const boxes = (await mounted.findAll({ type: 'Box' })) as any[]
   const text = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(text).join(''))
-  // Bordered boxes holding the question: the card, and no inner box for the answer.
-  expect(boxes.filter(b => b.props.borderStyle === 'round' && text(b).includes('Owner said ship?')).length + boxes.filter(b => b.props.borderStyle === 'round' && text(b).includes('Mine asks?')).length).toBe(1)
+  const bordered = boxes.filter(b => b.props.borderStyle === 'round')
+  // One bordered box holds the question: the card.
+  expect(bordered.filter(b => text(b).includes('Mine asks?'))).toHaveLength(1)
+  // One bordered box holds the answer's fields ("To undo" is the answer's): no inner box wraps them.
+  expect(bordered.filter(b => text(b).includes('To undo'))).toHaveLength(1)
 })
 
 test('545 row 10: an unanswered waiting card marks no option', async ($, on) => {
