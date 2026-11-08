@@ -77,10 +77,7 @@ const LEAD = /^[A-Za-z0-9][A-Za-z0-9 _-]{0,79}$/
 
 const goodName = (v: string): boolean => NAME.test(v) && !v.includes('..') && !v.endsWith('.') && !v.endsWith('.lock')
 
-/** The tool's seven fields: exactly those keys, every one a string, each by its
- *  own rule. None is rewritten; the first that fails refuses the call. The
- *  folder is only length-checked here; S4 owns its spelling. */
-export function checkInputs(raw: unknown): Checked<Inputs> {
+function shape(raw: unknown): Checked<Inputs> {
   if (!isRecord(raw)) return { why: 'input: not an object' }
   const keys = Object.keys(raw)
   if (keys.length !== KEYS.length || !KEYS.every(k => keys.includes(k))) return { why: 'input: exactly name, repository, issue, model, effort, lead and folder' }
@@ -96,8 +93,21 @@ export function checkInputs(raw: unknown): Checked<Inputs> {
   return { value: { name: i.name, repository: i.repository, issue: i.issue, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder } }
 }
 
+/** The tool's seven fields: exactly those keys, every one a string, each by its
+ *  own rule, and `lead` equal to the caller's own session name, exactly. None is
+ *  rewritten; the first that fails refuses the call. The folder is only
+ *  length-checked here; S4 owns its spelling. The equality is what keeps a lead's
+ *  own clause out of the member's first prompt: the caller's name comes from the
+ *  engine, never from the model. */
+export function checkInputs(raw: unknown, callerName: unknown): Checked<Inputs> {
+  const r = shape(raw)
+  if ('why' in r) return r
+  if (r.value.lead !== callerName) return { why: 'lead: must be your own session name, exactly' }
+  return r
+}
+
 function passed(i: unknown): Inputs {
-  const r = checkInputs(i)
+  const r = shape(i)
   if ('why' in r) throw new Error('start: an input did not pass the check')
   return r.value
 }
@@ -150,10 +160,11 @@ export function folderSpelling(folder: string, platform: Platform): Checked<stri
 }
 
 /** Step 2's compare: the resolved path against the given one. */
+// Only A to Z fold: toLowerCase also folds letters such as U+212A onto k, which NTFS keeps distinct.
+const foldAscii = (p: string): string => p.replace(/[A-Z]/g, c => c.toLowerCase())
+
 export function samePath(a: string, b: string, platform: Platform): boolean {
-  // Only A to Z fold: toLowerCase also folds letters such as U+212A onto k, which NTFS keeps distinct.
-  const fold = (p: string) => p.replace(/[A-Z]/g, c => c.toLowerCase())
-  return platform === 'win32' ? fold(a) === fold(b) : a === b
+  return platform === 'win32' ? foldAscii(a) === foldAscii(b) : a === b
 }
 
 /** Step 3: a main checkout. `gitKind` is what `<folder>/.git` is, and
@@ -323,7 +334,7 @@ export function foldersList(stored: unknown, home: string): string {
   if (list.length === 0) return FOLDERS_REPLIES.empty
   const win = /^[A-Za-z]:/.test(home)
   const sep = win ? '\\' : '/'
-  const key = (p: string) => (win ? p.toLowerCase() : p)
+  const key = (p: string) => (win ? foldAscii(p) : p)
   return list
     .map(e => {
       if (home === '') return e
