@@ -4806,7 +4806,7 @@ test('#567 C2: the registered set_roster schema takes the anchored shapes by the
   const w = world(on)
   await start($)
   await brigade($)
-  const link = w.schemas.get(TOOL).properties.todos.items.properties.link
+  const link = w.schemas.get('set_roster').properties.todos.items.properties.link
   expect(link.maxLength).toBe(210)
   // The engine's validators may read a pattern with or without the unicode flag.
   for (const flags of ['', 'u']) {
