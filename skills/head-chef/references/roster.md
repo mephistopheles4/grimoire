@@ -52,7 +52,7 @@ the file itself.
   source for it.
 - `bgId` is a background session's job id: the id you kept from what
   `claude --bg` printed. Write it only on the card of a session you started
-  in the background, after Desktop refused the start, and give that card no
+  in the background, and give that card no
   `desktopId` and no `url`: the pane finds the session by its job id and
   reads its Remote Control link itself. A value read back from the pane is
   never a source for it.

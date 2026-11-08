@@ -507,7 +507,8 @@ machine: the [row 15 section](docs/security/brigade.md#row-15) of the threat mod
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
-worktrees: head-chef.** The agent starts and archives Desktop sessions with
+worktrees: head-chef.** The agent starts background sessions with
+`claude --bg --remote-control`, and reads and archives Desktop sessions with
 Claude Desktop's session tools. Since head-chef 1.13.0 (plugin 0.118.0, issue
 516) cleanup is the owner's yes in chat, from the desktop or the phone, and
 the Brigade mod keeps no window, binding or cleaner of its own. At levels 1
@@ -526,10 +527,12 @@ and what a cleaner keeps, is the cleaner's own promise, which depends on how
 the owner's instructions have it run and which neither Brigade nor the skill
 can check. The head chef removes nothing itself. What the cleaner prints lands
 in the lead's transcript, all of it, error text included, since Brigade no longer filters it, and from there it reaches the model provider and Remote Control devices, as does the list of each session's folder and branch. Any session can call Desktop's archive tool, which
-Brigade no longer intercepts; an archive removes nothing and can be undone. The
-head chef starts a background session with
-`claude --bg` only when Desktop refused a start and the owner chose that
-route. Until head-chef 1.10.0 (issue 503) a
+Brigade no longer intercepts; an archive removes nothing and can be undone. Since head-chef 1.20.0 (issue 540) the head chef
+starts every session as a background session with `claude --bg
+--remote-control`, and a Desktop session only on the owner's words naming that
+route, so every background member's whole conversation reaches claude.ai and
+every device signed in to the owner's account (the threat model's
+[class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a
 session took any message from the head chef as a relayed decision, on any
 matter, labelled as relayed and never as the owner's own words; since then
 its start prompt carries only its issue and the lead's name, and the
