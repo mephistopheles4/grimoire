@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { tree, manifest, readJson, writeJson, assertPasses, assertFails, modFile } from './check-fixture.mjs';
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -149,6 +150,13 @@ test('a package manifest or lockfile in another case fails, as the exact name do
   const only = tree();
   modFile(only, 'Package.json', '{"athanor":{}}\n');
   assertFails(only, /Package\.json: a dependency manifest or lockfile/);
+});
+test('a package-manager settings file in another case fails, as the exact name does (#366)', () => {
+  const dir = tree();
+  const ignore = join(dir, '.gitignore');
+  writeFileSync(ignore, readFileSync(ignore, 'utf8').split('\n').filter(l => !['.npmrc', '.yarnrc.yml'].includes(l.trim())).join('\n'));
+  modFile(dir, '.NPMRC', 'registry=https://example.invalid/\n');
+  assertFails(dir, /\.NPMRC: a package-manager settings file/);
 });
 test('a root athanor.json in another case fails, because a folding checkout reads it past the hold on the image build folder', () => {
   // One spelling at a time: on a disk that folds case two would be one file.

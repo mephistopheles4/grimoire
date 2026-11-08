@@ -577,8 +577,8 @@ folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` fil
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post; on
-the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, the head chef merges, closes, edits,
-deletes or labels a record, files an issue or posts a comment; the head
+the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, or at levels 2 and 3 as that file allows, the head chef merges, closes, edits,
+deletes or labels a record, files an issue or posts a comment, and at levels 2 and 3 each such post it makes on its own pick opens with a fixed line naming it so (issue 438, proposed); the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
@@ -641,7 +641,8 @@ The realistic risks:
   does not read the mod.
 - **A dependency.** The renderers import Node built-in modules only, so there is
   no dependency tree to poison. That is true now, not a promise about later.
-  `scripts/check.mjs` fails on a lockfile and on any `package.json`. The root
+  `scripts/check.mjs` fails on a lockfile, on any `package.json`, and on a
+  `.npmrc` or `.yarnrc.yml`, which npm and Yarn read as settings. The root
   `athanor.json`, which athanor reads to run the check in a container, is not
   a manifest and carries no dependency. Its build folder is held to `tests/container/` with no `inputs` and no
   symbolic link there, because the image build has network access. The check
