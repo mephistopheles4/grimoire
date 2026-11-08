@@ -195,7 +195,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { compactSign, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
+import { compactSign, endTurn, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -1226,10 +1226,11 @@ function takeNamed(repo: string, found: ReadonlyMap<number, GhPr> | undefined, w
 }
 
 // This session's own usage, for the section at the bottom of the pane. The
-// plain reading costs nothing. The context breakdown is asked for only when
-// the session draws somewhere other than the terminal, the one place the
-// image shows its rows, and only as the local summary estimate, which sends
-// no request. Only the fields the section draws are stored. Each reading also
+// context breakdown is asked for on every surface, only as the local summary
+// estimate, which sends no request (since issue 533 it carries the
+// auto-compact threshold the before-compaction line needs). The terminal is not
+// the image's surface, so its rows are dropped before anything is stored. Only
+// the fields the section draws are stored. Each reading also
 // samples the session limit for its projection, by view.ts's rules. A failed
 // reading keeps the last one, and a reading that started before the pane
 // closed is dropped, so it cannot land over a fresh one after a reopen.
@@ -2967,8 +2968,13 @@ export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
   registerWriter(on, e => {
     if (e.agentId !== undefined) return undefined
-    const line = turnEnd(cycle, owedRoster)
-    return timers.length > 0 ? line : undefined
+    // With the pane closed nothing is added, and the compaction cycle is left
+    // alone, so a line is not used up unseen (issue 533).
+    if (timers.length === 0) {
+      endTurn(owedRoster)
+      return undefined
+    }
+    return turnEnd(cycle, owedRoster)
   })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
   // hooks, so the permission warning draws beneath it.

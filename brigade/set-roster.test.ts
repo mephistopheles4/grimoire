@@ -25,6 +25,7 @@ import { RECORDED } from './recorded-stats.ts'
 import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
 let otherContext: string | undefined
+let appendFails = false
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const SID = '11111111-2222-3333-4444-555555555555'
@@ -280,6 +281,8 @@ type World = ReturnType<typeof makeFs> & {
    *  usage calls the plugins made. */
   stepUsage: unknown
   usageCalls: number
+  /** The breakdown each session usage call asked for (issue 533). */
+  usageArgs: unknown[]
   /** A message the bottom of `turn.step` fails with after its first chunk, or ''. */
   stepFail: string
   /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
@@ -383,6 +386,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     listDeny: '',
     stepUsage: null as unknown,
     usageCalls: 0,
+    usageArgs: [],
     stepFail: '',
     holdStat: false,
     releaseStat: () => {},
@@ -534,6 +538,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   on('skill.prompt', ($, e: any) => ({ text: e.text }))
   // A row a plugin appends: kept as the engine keeps it, its text recorded.
   on('session.append', ($, e: any, next: any) => {
+    if (appendFails) throw new Error('append refused')
     for (const block of e.message?.content ?? []) w.notes.push(String(block.text))
     return next(e)
   })
@@ -570,9 +575,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   }
   // Where the session is drawn: the Desktop app, unless a test says otherwise.
   on('session.surfaces', () => ({ value: w.surfaces }))
+  // The engine's own measurement, which echoes the units that moved.
+  on('session.measure', (_$, e: any) => ({ changed: e.changed }))
   // This session's usage reading, when a test gives one; else the kit's own.
   on('session.usage', ($, e: any, next: any) => {
     w.usageCalls++
+    w.usageArgs.push(e?.breakdown)
     if (w.usage === 'fail') return { deny: 'forced usage failure' }
     return w.usage === undefined ? next(e) : { value: w.usage }
   })
@@ -9805,6 +9813,11 @@ test('533: with the pane closed nothing is added and no usage call is made', asy
   await turnEnd($)
   expect(nudges(closed)).toEqual([])
   expect(closed.usageCalls).toBe(0)
+  // Opening the pane afterwards leaves the compaction that happened while it
+  // was closed unannounced: the arm was never set.
+  await brigade($)
+  await turnEnd($)
+  expect(nudges(closed)).toEqual([])
 })
 
 test('533: a subagent, and a source other than compact, add nothing', async ($, on) => {
@@ -9815,6 +9828,26 @@ test('533: a subagent, and a source other than compact, add nothing', async ($, 
   }
   await turnEnd($)
   expect(nudges(w)).toEqual([])
+})
+
+test("533: a subagent's, a precompute and a skipped compaction arm nothing", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($, { agentId: 'a1' })
+  await compactNow($, { trigger: 'precompute' })
+  w.compactSkip = true
+  await compactNow($)
+  w.compactSkip = false
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: a later compaction in the same session is announced again', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  await turnEnd($)
+  await compactNow($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(afterLine(false)), NUDGE(afterLine(false))])
 })
 
 test("533: another plugin's added context is kept beside the after-line, untouched", async ($, on) => {
@@ -9837,33 +9870,57 @@ test('533: a turn that owes the hand-off line and the roster note gets one note,
   expect(w.notes.filter(n => n.startsWith(NOTE_PREFIX))).toEqual([`${NOTE_PREFIX}${afterLine(false)}\n${REMINDER_LINE}`])
 })
 
-test('533: a failed usage read leaves the turn unchanged and adds no line', async ($, on) => {
+test('533: a failed usage read leaves the last figures and the turn unchanged', async ($, on) => {
   const w = await nudgeWorld(on, $, w => {
-    w.usage = 'fail'
+    w.usage = NEAR(899)
   })
   await turnEnd($)
   expect(nudges(w)).toEqual([])
+  // The next measurement's read fails: the figures stay as they were, the turn
+  // ends as before and nothing is added.
+  w.usage = 'fail'
+  await $.session.measure({ context: { percent: 90, tokens: 950, window: 1000 }, rateLimits: [], changed: ['context'] })
   await w.clock.settle()
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
 })
 
-test('533: on the terminal the reading is read for the threshold and the stored snapshot gains no categories', async ($, on) => {
+test('533: a failed append leaves the turn unchanged', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  appendFails = true
+  try {
+    await expect(turnEnd($)).resolves.toBeDefined()
+  } finally {
+    appendFails = false
+  }
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: on the terminal the read asks for the summary breakdown, stores no categories and keeps the threshold out of plugin state', async ($, on) => {
   const terminal = await nudgeWorld(on, $, w => {
     w.surfaces = ['terminal']
     w.usage = NEAR(950)
   })
   await turnEnd($)
   expect(nudges(terminal)).toEqual([NUDGE(BEFORE_LINE)])
+  expect(terminal.usageArgs.length).toBeGreaterThan(0)
+  for (const arg of terminal.usageArgs) expect(arg).toBe('summary')
   const stored = JSON.parse(terminal.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
   expect(stored.categories).toBeUndefined()
   expect(stored.context.tokens).toBe(950)
+  expect(terminal.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
 })
 
-test('533: on Desktop the stored snapshot keeps its categories, as before', async ($, on) => {
+test('533: on Desktop the read asks for the summary breakdown and the stored snapshot keeps its categories, as before', async ($, on) => {
   const desktop = await nudgeWorld(on, $, w => {
     w.usage = NEAR(950)
   })
+  expect(desktop.usageArgs.length).toBeGreaterThan(0)
+  for (const arg of desktop.usageArgs) expect(arg).toBe('summary')
   const stored = JSON.parse(desktop.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
   expect(stored.categories?.length).toBe(1)
+  expect(desktop.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
 })
 
 test('533: the exception is in every variant the lead can be handed', async ($, on) => {

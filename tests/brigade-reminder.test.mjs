@@ -128,10 +128,13 @@ test('whether the before-line went out is captured at the first sign, before any
   compactSign(c); // session.compact: captures, then resets the said flag
   compactSign(c); // the classic sign of the same compaction: no new capture
   assert.equal(takeAfter(c), afterLine(true), 'the line carries no stale clause');
-  // The turn ends, the cycle closes: the before-line can go out again.
+  // The turn ends, the cycle closes: the before-line can go out again, and a
+  // second compaction owes a new after-line.
   turnEnd(c, roster());
   setFigures(c, 950, 1000);
   assert.equal(turnEnd(c, roster()), BEFORE_LINE);
+  compactSign(c);
+  assert.equal(takeAfter(c), afterLine(true), 'a later compaction is announced again');
 });
 
 test('a compaction clears the figures, so a stale reading cannot fire the before-line', () => {
