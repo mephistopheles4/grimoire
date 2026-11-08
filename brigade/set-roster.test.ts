@@ -9446,6 +9446,16 @@ test('543 C8: with the host or PATH not to be trusted, or a program missing, in 
   expect(runs()).toEqual([])
 })
 
+withJunction('543 C8: a PATH entry that is a junction into the checkout leads to a program inside it, and nothing runs', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  w.dirs(`${REPO_DIR}\\bin`)
+  w.put(`${REPO_DIR}\\bin\\claude.exe`, { type: 'file', data: { text: '' } })
+  w.put('C:\\lnk', { type: 'link', kind: 'junction', target: `${REPO_DIR}\\bin` })
+  w.env = { ...WINDOWS, PATH: `C:\\lnk;${BIN}` }
+  expect((await startTool($)).text).toBe(refusedStart('program: found inside the folder'))
+  expect(runs().filter(a => a[0] === exe('claude'))).toEqual([])
+})
+
 test('543 C15: a folder not on the list, an empty or unreadable list and a list of another shape refuse with the fixed reason and run nothing', async ($, on) => {
   const { w, store, runs } = await startWorld(on, $)
   const reason = refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>")

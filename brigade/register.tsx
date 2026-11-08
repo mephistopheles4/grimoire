@@ -23,6 +23,8 @@ import {
   checkRoster,
   dataFolder,
   dataPlace,
+  foldsCase,
+  pathKey,
   ghRun,
   ghViewRun,
   listsOpenTool,
@@ -2985,7 +2987,15 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
     known.set(p, 'found' in found && found.found.kind === 'file')
   }
   wanted.clear()
-  return lookup()
+  const hit = lookup()
+  if ('why' in hit) return hit
+  // A link or junction on PATH can lead into the folder by a route the spelling compare cannot see:
+  // the file's real path must lie outside it too.
+  const real = await statPath($, hit.value)
+  if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
+  const fold = platform === 'win32' || foldsCase(folder)
+  if (pathKey(real.found.realPath, fold).startsWith(`${pathKey(folder, fold)}/`)) return { why: 'program: found inside the folder' }
+  return hit
 }
 
 // The start. Every refusal is fixed words; nothing of a run is shown.
