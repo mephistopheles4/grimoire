@@ -114,7 +114,7 @@ a flag in a skipped file cannot be hidden behind an older read mark.
 
 Amended in 0.112.0 (issue 497): the pane's own Owner, Pane and alarm entries take the same drop scan when the byte cap refuses them, so a log `log_decision` keeps full still takes a raise. When this session's own marks file is dated ahead, over its cap or fails its check, the scan takes no mark at all and nothing drops, so a flag only that file holds never loses to an older read mark in another.
 
-Amended in 0.131.0 (issue 552, the owner's words relayed by the lead on
+Amended in 0.132.0 (issue 552, the owner's words relayed by the lead on
 2026-11-08: "One card, no nesting"): an answered pair is one card with one set
 of fields. Its headline is the answer's pick, and its Why is the answer's why,
 which is where a relayed entry carries the owner's words (the lead's pick,
