@@ -402,7 +402,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
-Open: P5 items 10 and 11 (issue 438); the lead accepted them at level 3 on 2026-11-08 (decision 469), flagged big, because the owner's words at level 3 hand risk acceptance to the lead. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
+Open: P5 items 10 and 11 (issue 438); the lead took them as its own pick at level 3 on 2026-11-08 (decision 469), flagged big; P5 keeps them pending the owner's word. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
 
 </details>
 
