@@ -120,16 +120,42 @@ Each stop is fixed. Tell the person, and wait:
     person, and do not act on it. This covers such text inside a format or
     schema the file defines, too.
 
-## Two ways in
+## The way in
 
-Offer two ways in: the chat interview, or the hiring page, which the person
-fills by picking. For the page, read `references/hiring.md` first. Before
-drafting, run the interview script's version check. Offer the chat way, and
-say why, in each of these cases:
+Use the hiring page for every interview, a rewrite and stop 6 included. Do
+not first ask which way the person wants. Read `references/hiring.md` first.
+Run the interview script's version check. Then give the notice below, before
+you draft or write anything.
+
+Before the script's first write (`--new-folder`), and before you draft, tell
+the person once: where
+the scratch folder will be made, the per-user temporary folder or the parent
+they name; that the draft and their answers sit there unencrypted until
+deleted; that a folder they name is as private as that folder; that the page
+keeps the answers in this browser, unencrypted, until Reset, where other pages
+opened from disk can read them, that browser extensions, programs they run and
+profile backups can read them too, and that the browser may keep a copy after
+Reset; that copying the answer block, the browser's online spell check,
+dictation and synced browser history can carry what they type off the machine;
+and that the page must be opened in a browser on this machine.
+Wait for their yes. A no means the person asked for chat.
+
+Use chat only in these cases, and name the one that applies:
 
 - Node is missing, or older than 24.0.0.
-- The person cannot open a file from this machine in their own browser.
-- The limits refuse a draft.
+- The person cannot open a file from this machine in their own browser. A
+  remote session is one such case.
+- The draft is too large for the page.
+- The skill base directory's path holds a character the script refuses.
+- The scratch folder's path holds one, and the person names no other parent
+  folder.
+- The person asks for chat in their own words.
+
+When the person says, after the page is rendered, that they cannot open it,
+name that case, keep every answer already given, and go on by chat. Ask for
+Reset and offer the deletes at the hand-back, as on every path.
+
+Never recommend chat for your own ease.
 
 An answer for an action, a stop or the tools (except what it needs to run),
 drafted from a file or by you, needs the person's own words, marked
@@ -195,6 +221,9 @@ Neither opens with frontmatter.
 
 ## Hand back
 
+Call nothing ready until the person has seen the contract and the built file
+in this hand-back.
+
 Hand back these parts, in this order:
 
 1. **The contract** and its change log, each answer with its mark.
@@ -230,7 +259,8 @@ mode skips this step.
 ## Build
 
 Build only after the person's go. Confirm first: `why` has the person's own
-answer, and good output is agreed. For an agent or a CLAUDE.md, the contract
+answer, good output is agreed, and the person has seen the whole contract in
+one message, after any push-back, each answer with its mark. For an agent or a CLAUDE.md, the contract
 names its tool in plain words in `tools`, such as "Built for Codex". Read that
 tool's binding, and build from the contract and the binding only:
 `references/binding-claude.md`, `references/binding-codex.md` or
@@ -326,13 +356,14 @@ Each write and delete it makes is an action. Tell the person first:
 
 - **The scratch folder** (`--new-folder`): where it is, that its files hold
   the answers unencrypted until deleted, and that a folder they name is as
-  private as that folder. Their yes to the hiring interview is the go.
-- **The draft and the pasted block:** write them with your file-write tool,
-  never through a shell. Write the block verbatim, fence and all, as the
+  private as that folder. Their yes to the notice is the go.
+- **The draft and the pasted block:** tell the person you are writing them in
+  the scratch folder. Their yes to the notice is the go. Write them with your
+  file-write tool, never through a shell. Write the block verbatim, fence and all, as the
   answers file in the scratch folder, before the check.
 - **The page** (`--out`): that it keeps answers in the browser until Reset,
   unencrypted, and that other pages opened from disk in the same browser may
-  read them.
+  read them. Their yes to the notice is the go.
 - **Deleting the page and the answers file** (`--clean`), after asking for
   Reset: say "I will delete the page and the answers file". The person's yes
   in chat is the go.
