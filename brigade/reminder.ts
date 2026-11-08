@@ -9,7 +9,7 @@ export const SEND_TOOL = 'SendMessage'
 /** The one fixed line added at such a turn's end. Nothing from the turn, the
  *  roster or an error reaches it. */
 export const REMINDER_LINE =
-  'The roster may be behind: you sent a message or logged a decision after your last set_roster call. Call set_roster now with the full roster.'
+  'The roster may be behind: you sent a message, logged a decision or started a background session after your last set_roster call. Call set_roster now with the full roster.'
 
 /** Whether a SendMessage call carries a message. A send without one, such as
  *  an idle subscription, owes no update. */
@@ -23,10 +23,11 @@ export const sendsMessage = (input: unknown): boolean => {
  *  last set_roster call. */
 export type Tally = { owed: boolean }
 
-/** A send with a message, or a logged decision, makes the turn owe an
+/** A send with a message, a logged decision, or a background start that
+ *  reached its run (the tool wrote no card), makes the turn owe an
  *  update; a set_roster call clears it. Call this only for a call that
  *  landed: a refused one changed nothing. */
-export const tally = (t: Tally, call: 'send' | 'decision' | 'roster'): void => {
+export const tally = (t: Tally, call: 'send' | 'decision' | 'start' | 'roster'): void => {
   t.owed = call !== 'roster'
 }
 

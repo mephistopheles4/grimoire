@@ -60,6 +60,7 @@ export const FOLDERS_REPLIES = {
   unreadable: 'the list could not be read',
   usage: 'usage: /brigade folders add <path>, /brigade folders remove <path> or /brigade folders list',
   notTyped: 'folders: only the owner, typed at the prompt or sent from the phone, can use this command',
+  failed: 'folders: the command failed; type /brigade folders list to see the list as it stands',
 }
 
 // --- the seven inputs (S2.1) ------------------------------------------------------

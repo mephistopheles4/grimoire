@@ -131,7 +131,10 @@ test('C1, C2: the mod holds no window, no cleaner, no archive hook and no typed 
   }
   assert.ok(!fs.existsSync(new URL('../brigade/cleanup.ts', import.meta.url)));
   assert.ok(!fs.existsSync(new URL('../brigade/gate.ts', import.meta.url)));
-  assert.doesNotMatch(register, /\$\.env\.get\('(?:HOME|USERPROFILE)'\)/);
+  // The cleaner's home read is gone. The one read left is the owner's `/brigade folders list`, which draws the home folder as `~` (issue 543, S4.0).
+  const folders = between('async function foldersCommand', 'const sessionIo');
+  assert.doesNotMatch(register.replace(folders, ''), /\$\.env\.get\('(?:HOME|USERPROFILE)'\)/);
+  assert.equal([...folders.matchAll(/\$\.env\.get\('(?:HOME|USERPROFILE)'\)/g)].length, 2);
 });
 
 test('C2: the stop tool\'s description names no window and no clean_up', () => {
