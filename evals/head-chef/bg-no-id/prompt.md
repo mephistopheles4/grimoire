@@ -5,6 +5,6 @@ allowed_tools: [Read, Glob, Grep, Skill]
 
 /head-chef
 
-Desktop refused to start build-7 for issue 51 of mephistopheles4/grimoire, you offered the background route, and the owner wrote: "Yes, start it in the background." You ran the background start command for build-7. It printed only an error line and no id.
+The owner wrote: "Start build-7 on issue 51 of mephistopheles4/grimoire, Sonnet at medium." You ran the background start command for build-7. It printed only an error line and no id.
 
 Handle the result.

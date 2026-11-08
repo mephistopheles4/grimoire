@@ -44,14 +44,15 @@ tool's refusal in plain words, without its text.
 
 A start report, in the form to aim at:
 
-> Started **rewrite-296** for issue 296: a Desktop session, Opus at high.
-> - It is waiting on the approval card for high effort. Tap Approve in its chat.
+> Started **rewrite-296** for issue 296: a background session with Remote Control, Opus at high.
+> - Open it from its card in the Brigade pane, or from the claude.ai session list on your phone.
 > - It reports to me only when it stops for you, posts the spec, pushes the build, and finishes.
 > - Weekly usage is 88%, and resets in about a day.
 
 Good is a short overview of what is happening, with the details the owner
 needs, without overwhelming them. So-so is one line that hides what the owner
-must do, or every rule and step shown at once.
+must do, or every rule and step shown at once. A Desktop start reports as
+`references/desktop.md` says.
 <!-- contract:end good -->
 
 <!-- contract:begin roles -->
@@ -59,8 +60,20 @@ must do, or every rule and step shown at once.
 
 Start each session only when the owner's words in this chat ask for the work.
 Read `references/starting.md` before each start, and follow it: the
-warning, the name, the start, the start prompt below, the Desktop id and what
-cleanup keeps, the report, the pane and the idle notice.
+warning, the name, the start, the start prompt below, the id and what cleanup
+keeps, the report, the pane and the idle notice.
+
+A start whose route the owner's words did not name is a background session
+with Remote Control, at the model and effort the owner's words or process
+give, with no setter, card or prompt. Start a Desktop session, with Desktop's
+start tool, only when the owner's words in this chat name it; then read
+`references/desktop.md`. When `claude --bg` is refused, or you refuse a
+start under `references/starting.md`, say so in one line, with the fix where
+that file names one, and offer the Desktop start as the other route. Retry
+`claude --bg` in no other form, and start nothing by another route. When
+Desktop's start tool refuses a start the owner asked for, say so in one line,
+say the background start is the default, and start nothing until the owner
+answers.
 
 ## Sending and idle notices
 
@@ -73,9 +86,17 @@ cleanup keeps, the report, the pane and the idle notice.
   title, not your session name. When the message tool asks you to pick
   between sessions that share a name, or the session list shows a name more
   than once, send nothing to that name and tell the owner; never pick one.
+  The one exception is a background member's twin: a background member with
+  Remote Control lists twice under one name, the session on this machine and
+  its Remote Control row. When exactly two rows share a member's name, one on
+  this machine and one a Remote Control row, send to the row on this machine
+  by its ref, never to the Remote Control row. Any other shape keeps the
+  rule: two rows on this machine, three or more rows, or no row on this
+  machine, send nothing and tell the owner.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
-  `notify_when_idle` set to true, and no message. Messages arrive on their
+  `notify_when_idle` set to true, and no message. The twin rule above
+  applies to the name. Messages arrive on their
   own: don't poll. After each message you send a session, subscribe again.
   After a compaction, a restart or reading a hand-off, subscribe again for
   every session you track.
@@ -112,7 +133,9 @@ cleanup keeps, the report, the pane and the idle notice.
   the same machine. When a subscription is refused or never arrives, tell
   the owner once and carry on without it. A member waiting at a permission
   prompt may not go idle, and you will not notice it; the member's own chat
-  shows the prompt.
+  shows the prompt. For a background member, that chat is its card's link in
+  the Brigade pane, its row in the claude.ai session list, or `claude attach
+  <name>` in a terminal.
 - Before you message a session idle for over an hour, tell the owner in one
   line that the session will re-read its whole context at full price.
 - Track and report only the sessions you started or the owner handed you.
@@ -388,16 +411,17 @@ decide what a stop or the owner's yes keeps for the owner.
 <!-- contract:begin tools -->
 ## Tools
 
-- **Claude Desktop's session tools:** start, read and archive Desktop
-  sessions, set a session's model and effort, and read usage, so the owner
-  can talk to each one.
+- **Claude Desktop's session tools:** read usage, and, on the owner's words
+  naming the Desktop route, start, read and archive Desktop sessions and set
+  a session's model and effort.
 - **The agent's message tool:** message every session by its name, and
   subscribe to its idle notice with `notify_when_idle`. The first line of
   the session list names you.
 - **Background sessions:** `claude --bg` and the Brigade mod's
-  `stop_background_session`, as `references/background.md` says. Never
+  `stop_background_session`, as `references/starting.md` says. Never
   `claude rm`: the owner runs it by hand.
-  Measured on Claude Code 2.1.302.
+  The background start needs Claude Code 2.1.319, measured from a POSIX
+  shell (Git Bash); its PowerShell 7 form was measured on 2.1.302.
 - **No session file.** Read none; the Brigade mod reads them.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
@@ -502,7 +526,7 @@ The mod draws it. When there is no mod, say it in chat, once, as written:
 | Act | Tell the owner first | The owner's yes |
 |---|---|---|
 | Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level |
-| Start a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route |
+| Start a Desktop session in place of a background one | nothing: report the start right after, in the short form | the owner's words in this chat naming that route |
 | Archive or stop a session, and have a cleaner the owner's instructions name remove its worktree and branch | at levels 1 and 2, what you will touch, unless the owner's words already name each session; the list is each session's title and kind, folder and branch, and the cleaner named | the owner's words in this chat: at levels 1 and 2 naming each session, or a yes to the list; at level 3, as the owner's user-level instructions file says |
 | Merge, close, edit, delete or label something on GitHub, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at levels 2 and 3, as the owner's user-level instructions file says |
 
@@ -524,12 +548,12 @@ merge, a cleanup. Never leave it for later. A refused call is said once in
 your next report, and you carry on. A card's `work` names the repository and
 issue number only.
 
-Give each Desktop session's card its Desktop id. The pane finds the session
-by the Desktop id and draws the session's own name; it falls back to the
-card's title only when no session file carries a Desktop id, so keep the
-title equal to the session's name, exactly. Give a background session's card
-its job id as `bgId`, and no `desktopId` or `url`: the pane finds it by the
-job id and reads its Remote Control link itself. Give a card whose pull
+Give each background session's card its job id as `bgId`, and no
+`desktopId` or `url`: the pane finds it by the job id and reads its Remote
+Control link itself. Give each Desktop session's card its Desktop id. The
+pane finds that session by the Desktop id and draws the session's own name;
+it falls back to the card's title only when no session file carries a
+Desktop id, so keep the title equal to the session's name, exactly. Give a card whose pull
 request is in another repository than your own working folder's that
 repository as `repo`, an `owner/name` with no host; give no other card one.
 <!-- contract:end tools -->
@@ -561,11 +585,12 @@ The first rule is fixed, and so are the three after it.
 - `references/cleanup.md`: the owner's yes, the list, the archive or stop,
   the cleaner, what stays, and how to undo a wrong card. Read when the owner
   says "done", or asks you to clean up.
-- `references/starting.md`: the steps of a start. Read before each start.
+- `references/starting.md`: the steps of a start, background by default.
+  Read before each start.
 - `references/handoff.md`: writing and reading your hand-off. Read before
   each.
-- `references/background.md`: starting a background session after Desktop
-  refused a start. Read when the owner chooses that route.
+- `references/desktop.md`: starting a Desktop session. Read only when the
+  owner's words name the Desktop route.
 - `references/roster.md`: the shape of a `set_roster` call, its caps, and
   what each refusal means. Read before your first `set_roster` call in a
   session.

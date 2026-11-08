@@ -41,7 +41,8 @@ but not `/brigade` or the warning band: the skill then works without a pane,
 and says the warning once in chat instead.
 
 It needs Claude Code, Claude Desktop, git, and the GitHub command line (`gh`)
-installed and signed in.
+installed and signed in. The background start needs Claude Code 2.1.319,
+measured from a POSIX shell (Git Bash).
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
@@ -50,16 +51,25 @@ or type `/brigade` to open it.
 
 ## What it does
 
-- **Starts sessions.** Each one is a Desktop session under the lead by default, with its
-  name, model and effort set. The model and effort come from your words or
-  your own process. Its start prompt is one sentence pair: the issue, which
-  holds the brief, and the lead to send questions and reports to.
-- **Offers a background session when Desktop refuses.** Desktop's start tool
-  refuses a start you type from the phone over Remote Control. The head chef
-  then says so in one line and offers to start the session in the background
-  with Remote Control instead, and starts it only when you choose that. You
-  open it from its card in the Brigade pane, or from the claude.ai session
-  list on the phone.
+- **Starts sessions in the background.** Each one is a background session
+  with Remote Control by default, with its name, model and effort on the
+  command line, so there is no approval card to accept. The model and effort
+  come from your words or your own process. Its start prompt is one sentence
+  pair: the issue, which holds the brief, and the lead to send questions and
+  reports to. You open it from its card in the Brigade pane, from the
+  claude.ai session list on the phone, or with `claude attach <name>` in a
+  terminal.
+- **Starts a Desktop session only on your words.** Say "as a Desktop
+  session", and the head chef uses Desktop's start tool and setters, as it did
+  before head-chef 1.18.0. When that start is refused, or `claude --bg` is
+  refused, the head chef says so in one line and offers the other route. It
+  retries neither on its own. Over Remote Control from the phone, both routes
+  are blocked while the lead runs in auto mode: the start waits until you are
+  at the desk, or until you change the lead's permission mode in the app.
+- **What you give up with a background session.** A member's chat in the
+  Desktop sidebar, Desktop's split view, and the approval card that showed an
+  effort raise. Whether a background session survives the app closing is not
+  checked.
 - **Never relies on a card** to start work you asked for. When a start can
   only happen through a card, such as an approval above the lead's settings,
   it says in one line that the card needs a tap in the desktop app.
@@ -153,8 +163,8 @@ and you the new name.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
-While Remote Control is on, any device signed in to your account can drive
-the sessions it starts. The permission warning says all of this before the
+Every background session it starts is on Remote Control, so any device signed
+in to your account can read and drive it. The permission warning says all of this before the
 first launch in each lead, until you tick "Don't show again". It shows again
 when its wording changes.
 
@@ -236,8 +246,8 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 | `SKILL.md` | The skill. Generated from the contract. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
 | `references/cleanup.md` | Cleanup's steps: your yes, the list, the archive or stop, the cleaner, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
-| `references/starting.md` | The steps of a start, read before each start. Generated with `SKILL.md`. |
-| `references/background.md` | The background route after Desktop refused a start. Generated with `SKILL.md`. |
+| `references/starting.md` | The steps of a start, background by default, read before each start. Generated with `SKILL.md`. |
+| `references/desktop.md` | The Desktop route, read only when your words name it. Generated with `SKILL.md`. |
 | `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |
 | `references/CONTRACT.md` | The contract `SKILL.md` is generated from. |
 | `references/contract.changelog.md` | The contract's history, from 0.1.0. |
