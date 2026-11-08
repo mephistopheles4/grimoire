@@ -67,6 +67,12 @@ or type `/brigade` to open it.
   retries neither on its own. Over Remote Control from the phone, both routes
   are blocked while the lead runs in auto mode: the start waits until you are
   at the desk, or until you change the lead's permission mode in the app.
+- **Starts a fresh session when the model changes** (since 1.21.0). It never
+  switches a running session's model: a switch drops the prompt cache, and the
+  new model would carry the old session's whole context. It starts a new
+  session from the record on the issue, names it as the one carrying the
+  issue, and asks you before it archives or stops the old one. Changing only
+  the effort on the same model stays allowed on a Desktop session.
 - **What you give up with a background session.** A member's chat in the
   Desktop sidebar, Desktop's split view, and the approval card that showed an
   effort raise. Whether a background session survives the app closing is not

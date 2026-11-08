@@ -5,7 +5,10 @@ Read this only when the owner's words in the lead's chat name the Desktop route,
 Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and the idle notice). Follow this file in place of its steps 3 to 7.
 
 1. **Start it as a Desktop session under the lead,** with Desktop's start
-   tool. Set its model and effort with Desktop's setters. The model and effort
+   tool. Set its model and effort with Desktop's setters, at the start only:
+   never change a running session's model with a setter, as "When the model
+   changes" in `references/starting.md` says. The effort setter on the same
+   model stays allowed. The model and effort
    come from the owner's words or the owner's own process; this skill sets no
    default of its own. Set no permission mode: the session takes the default
    unless the owner's words name one.

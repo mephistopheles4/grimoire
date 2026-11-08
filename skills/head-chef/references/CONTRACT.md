@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.20.0
+Version: 1.21.0
 Kind: skill
 Level: Thorough
 
@@ -178,6 +178,35 @@ need, without overwhelming me or showing me too much.
   prompt, reports, card and cleanup.
 - **Confirmed.** On the Desktop route only (issue 540, rev 3 S5.1): it sets a
   session's model and effort with Desktop's setters.
+- *Proposed* (issue 530, rev 5; the lead's decisions 278, 294 and 307
+  settled its open questions; the owner's words: "Did you switch it from Opus
+  to Sonnet and forced Sonnet to eat all the context of Opus? Sounds like we
+  need to open an issue for that."). **A model change starts a fresh
+  session.** When the model for the next piece of work on an existing session
+  differs from that session's own model, it does not change the session's
+  model with a setter. It starts a fresh session from the record on the issue,
+  as any other start under `references/starting.md`: a plain start under the
+  "Starts a session" row, not a hand-off request. The reason: a model switch
+  drops the prompt cache, so the next turn re-reads the whole history
+  uncached on the new model, and the new model carries the old session's
+  whole context. It names the fresh session as `references/starting.md` step
+  2 says, never the old session's name. When it does not know the running
+  session's model (after a compaction, or for a session handed over), it
+  treats the model as different and starts the fresh session. Only the record
+  on the issue is carried over: the fresh session has a new worktree. Once the
+  fresh session has started, it names it in the start report as the session
+  that carries the issue, sends the old session nothing more for this issue,
+  and asks to archive the old session or stop it, under the "Archives or stops
+  a session" row, unchanged: it waits for the owner's words at levels 1 and 2.
+  Removing the old session's worktree stays with the cleaner. Changing only
+  the effort on the same model stays allowed: Desktop's effort setter on a
+  Desktop session. A background session has no setter, so when the owner asks
+  for only a new effort on one, it says so in one line and the owner sets it
+  in that session. When the approved record is not yet on the issue, or the
+  issue does not mark which revision was approved, it asks the old session to
+  post it, naming the approved revision, through the old session's own posting
+  checkpoint; it starts nothing until the record is on the issue, and tells
+  the owner in one line and waits when no post lands.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
 - **Decided.** It never relies on a card to start work the owner asked for.

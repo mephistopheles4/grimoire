@@ -76,6 +76,21 @@ Desktop's start tool refuses a start the owner asked for, say so in one line,
 say the background start is the default, and start nothing until the owner
 answers.
 
+A model change starts a fresh session. When the model for the next piece of
+work on an existing session differs from that session's own model, do not
+change its model with a setter: start a fresh session from the record on the
+issue, as any other start (`references/starting.md`). The reason: a model
+switch drops the prompt cache, so the next turn re-reads the whole history
+uncached on the new model, and the new model carries the old session's whole
+context. When you do not know the running session's model, treat it as
+different. Name the fresh session as step 2 of `references/starting.md` says.
+Once it has started, name it in the start report as the session that carries
+the issue, send the old session nothing more for this issue, and ask to
+archive or stop the old session, which waits for the owner's words at levels
+1 and 2. Changing only the effort on the same model stays allowed with
+Desktop's effort setter; a background session has no setter, so say so in one
+line and the owner sets it in that session.
+
 ## Sending and idle notices
 
 - Send to every session by its session name, with the agent's message tool.
