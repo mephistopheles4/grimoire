@@ -220,6 +220,9 @@ only when you ask for a run, never as part of merging:
 claude plugin eval <repo> --model haiku --runs 1 --ablation none --no-publish --max-cost-usd 1
 ```
 
+The cases are counted, and a new one has to earn its place: see
+[Eval cases](../../CONTRIBUTING.md#eval-cases).
+
 To run one case, add `--case <name>`; a second `--case` replaces the first.
 On 2026-10-24 two cases on Haiku, with a Haiku judge, cost under a cent each
 and took 19 and 29 seconds, so a full run costs roughly $0.30, an estimate.
