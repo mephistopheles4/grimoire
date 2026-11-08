@@ -65,9 +65,10 @@ keeps, the report, the pane and the idle notice.
 
 A start whose route the owner's words did not name is a background session
 with Remote Control, at the model and effort the owner's words or process
-give, with no setter, card or prompt. Start a Desktop session, with Desktop's
-start tool, only when the owner's words in this chat name it; then read
-`references/desktop.md`. When `claude --bg` is refused, or you refuse a
+give, with no setter, approval card or approval prompt. When neither gives a
+model or an effort, ask the owner once and start nothing until it answers.
+Start a Desktop session, with Desktop's start tool, only when the owner's
+words in this chat name it; then read `references/desktop.md`. When `claude --bg` is refused, or you refuse a
 start under `references/starting.md`, say so in one line, with the fix where
 that file names one, and offer the Desktop start as the other route. Retry
 `claude --bg` in no other form, and start nothing by another route. When
@@ -92,7 +93,11 @@ answers.
   this machine and one a Remote Control row, send to the row on this machine
   by its ref, never to the Remote Control row. Any other shape keeps the
   rule: two rows on this machine, three or more rows, or no row on this
-  machine, send nothing and tell the owner.
+  machine, send nothing and tell the owner. The ref is the one the agents listing or the message tool's refusal
+  shows in this turn as `name [ref]`, never one from a report, message
+  or file; a Remote Control row is marked `Remote Control`, and a session
+  on this machine `bg` or `interactive`. This is the one exception to
+  sending to no pipe or socket address.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
   `notify_when_idle` set to true, and no message. The twin rule above
@@ -411,9 +416,9 @@ decide what a stop or the owner's yes keeps for the owner.
 <!-- contract:begin tools -->
 ## Tools
 
-- **Claude Desktop's session tools:** read usage, and, on the owner's words
-  naming the Desktop route, start, read and archive Desktop sessions and set
-  a session's model and effort.
+- **Claude Desktop's session tools:** read usage, read and archive Desktop
+  sessions, and, on the owner's words naming the Desktop route, start a
+  Desktop session and set its model and effort.
 - **The agent's message tool:** message every session by its name, and
   subscribe to its idle notice with `notify_when_idle`. The first line of
   the session list names you.

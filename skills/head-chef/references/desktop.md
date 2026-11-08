@@ -24,9 +24,9 @@ Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and 
 5. **Update the Brigade pane** in the same step, as "The Brigade pane" in
    `SKILL.md` says. Give the card the Desktop id as `desktopId`.
 
-When Desktop's start tool refuses a start, such as one the owner typed from
-the phone over Remote Control, say so in one line, say the background start is
-the default, and start nothing until the owner answers. Never loop back to
-the background start, or to Desktop's start tool again, on your own. Over
-Remote Control, auto mode also blocks `claude --bg`: say so once, as
+When Desktop's start tool refuses a start, say so in one line, say the
+background start is the default, and start nothing until the owner answers.
+Never loop back to the background start, or to Desktop's start tool again, on
+your own. A start typed from the phone over Remote Control is a separate case:
+both routes wait for the desk, as "When a start is refused" in
 `references/starting.md` says.

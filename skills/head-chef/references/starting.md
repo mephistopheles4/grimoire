@@ -2,7 +2,7 @@
 
 Read this before each start. Start each session only when the owner's words in the lead's chat ask for the work.
 
-A start whose route the owner's words did not name is a background session with Remote Control. It takes its model and effort on the command line, with no setter, card or prompt. Start a Desktop session only when the owner's words in the lead's chat name it, for example "as a Desktop session", and then read `references/desktop.md` in place of steps 3 to 7 below.
+A start whose route the owner's words did not name is a background session with Remote Control. It takes its model and effort on the command line, with no setter, approval card or approval prompt. Start a Desktop session only when the owner's words in the lead's chat name it, for example "as a Desktop session", and then read `references/desktop.md` in place of steps 3 to 7 below.
 
 1. **Before your first launch in this lead,** call the Brigade mod's
    `mcp__grimoire__show_permission_warning` tool, loading it first if it is deferred. It
@@ -14,8 +14,9 @@ A start whose route the owner's words did not name is a background session with 
 2. **Name the session yourself,** from letters, digits and `. _ -`,
    starting with a letter or digit, never two alike. Never copy a name from
    an issue. You send to it by this name.
-3. **Check the start, then refuse it with one plain line** that gives the fix,
-   when any of these holds:
+3. **Check the start.** When any of these holds, refuse it with one plain
+   line, give the fix where one is named, and offer the Desktop start as the
+   other route (a click in the desktop app, or the owner's words naming it):
    - your own name as the lead holds anything but letters, digits, spaces and
      `. _ -`. The fix: the owner renames your chat.
    - the model is not letters, digits and `. _ -` starting with a letter.
@@ -31,7 +32,8 @@ A start whose route the owner's words did not name is a background session with 
      PowerShell 7 or a POSIX shell.
 
    The model and effort come from the owner's words or the owner's own
-   process; this skill sets no default of its own.
+   process; this skill sets no default of its own. When neither gives a model
+   or an effort, ask the owner once, and start nothing until the owner answers.
 4. **Start it** with `claude --bg --remote-control <name> -n <name> -w <name>
    --model <model> --effort <effort>`, followed by the start prompt in "The
    start prompt" in `SKILL.md`, filled in, as one argument, in a form in which
@@ -44,7 +46,7 @@ A start whose route the owner's words did not name is a background session with 
    In a POSIX shell:
 
    ```text
-   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> "$(cat <<'HEAD_CHEF_PROMPT'
+   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> [--permission-mode <mode>] "$(cat <<'HEAD_CHEF_PROMPT'
    <the filled start prompt>
    HEAD_CHEF_PROMPT
    )"
@@ -54,7 +56,7 @@ A start whose route the owner's words did not name is a background session with 
    of its line:
 
    ```text
-   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> @'
+   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> [--permission-mode <mode>] @'
    <the filled start prompt>
    '@
    ```
@@ -75,9 +77,12 @@ A start whose route the owner's words did not name is a background session with 
    `url`.
 8. **Subscribe to its idle notice:** call the message tool with `to` set to
    the session's name, `notify_when_idle` set to true, and no message. A
-   background member with Remote Control lists twice under its name: send to
-   and subscribe to the row on this machine by its ref, as "Sending and idle
-   notices" in `SKILL.md` says.
+   background member with Remote Control lists twice under its name. When
+   exactly two rows share the name, one on this machine and one a Remote
+   Control row, send to and subscribe to the row on this machine by its ref,
+   and never to the Remote Control row. Any other shape, send nothing and tell
+   the owner, as "Sending and idle notices" in `SKILL.md` says. Take the ref
+   from the listing in this turn, as that section says.
 
 When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. When you
@@ -94,7 +99,8 @@ value you need.
 - **The folder is not trusted:** the engine refuses the start. Say so in one
   line, with the fix: the owner grants the folder in the desktop app, or
   opens `claude` there once and accepts the trust prompt. A `-w` start inside
-  a trusted repository is expected to inherit that trust.
+  a trusted repository is expected to inherit that trust. Offer the Desktop
+  start as the other route, as above.
 - **A start from the phone over Remote Control,** while you run in auto mode:
   both routes are blocked. The classifier blocks `claude --bg`, and Desktop's
   start tool refuses a start on a Remote Control turn. Say so once. The

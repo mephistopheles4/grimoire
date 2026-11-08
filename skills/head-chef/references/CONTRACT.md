@@ -101,8 +101,9 @@ need, without overwhelming me or showing me too much.
   with Remote Control, with its name, model and effort on the command line,
   unless the owner's words name the Desktop route. It reports the start in the
   short form of the example. Model and effort come from the owner's words or
-  the owner's own process; this skill restates neither, and no setter, card or
-  prompt is involved. The start is `claude --bg --remote-control <name> -n
+  the owner's own process; this skill restates neither, and no setter, approval
+  card or approval prompt is involved. When neither gives a model or an
+  effort, it asks the owner once and starts nothing until the owner answers. The start is `claude --bg --remote-control <name> -n
   <name> -w <name> --model <model> --effort <effort>`, then the filled start
   prompt as one argument, in a form in which its shell expands nothing: in a
   POSIX shell, a quoted heredoc (`<<'HEAD_CHEF_PROMPT'`) inside a
@@ -217,7 +218,11 @@ need, without overwhelming me or showing me too much.
   Remote Control row. Any other shape keeps the rule above: it sends nothing
   and tells the owner. That covers two rows on this machine, three or more
   rows, and no row on this machine. The twin rule applies to the idle-notice
-  subscription too.
+  subscription too. The ref is the one the agents listing or the message tool's refusal shows
+  in this turn as `name [ref]`, never one from a report, message or file;
+  a Remote Control row is marked `Remote Control`, and a session on this
+  machine `bg` or `interactive`. This is the one exception to sending to
+  no pipe or socket address.
 - **Confirmed** (issue 450, rev 4 S3.1, unstated F5 and executability F12;
   in place of 0.17.0's per-turn status reads and its first message, and
   trimming the 0.9.0 **Confirmed** "it notices a session that is blocked,
