@@ -1726,13 +1726,23 @@ const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with
 const READY_UNLISTED_LINE = `The Brigade pane is opening but not ready yet, so a \`${TOOL}\` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.`
 // The turn the owner's bare /brigade hands the lead: fixed words, never typed ones (issue 478).
 const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
-// At most one wake a minute, whatever stamps the runs; the time of the last
-// one is held by the module alone, so a reload starts it over.
+// At most one bare wake and one level wake a minute, two in all, whatever
+// stamps the runs; the time of the last of each is held by the module alone, so
+// a reload starts them over.
 const WAKE_GAP_MS = 60_000
 // The engine refuses a submit from inside the command's own hook, which holds
 // the turn the submit would wait on, so a short timer sends it after the reply.
 const WAKE_DELAY_MS = 500
 let lastWake: number | undefined
+// The level wake (issue 513, S14): one lead turn of fixed words, with no level,
+// goal or argument in them, after a level command lands as a lowering or a 2.
+// Its own stamp and the same gap, so a bare /brigade and a level command never
+// stop each other: at most one of each a minute, two in all. It is the
+// plugin's, not the owner's word; the level and goal are read only through
+// read_autonomy.
+const LEVEL_WAKE = 'The autonomy level was changed with /brigade level. Call read_autonomy for the level in force and any goal.'
+const LEVEL_NOT_WOKEN = 'The lead was not woken: send it a message.'
+let lastLevelWake: number | undefined
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
 const NOT_SHOWN_TOAST = 'The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'
@@ -2536,11 +2546,14 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
 // above the level in force, are logged first and land only when nothing came
 // in between; a 3 always takes this path, over a 3 too, with a new time and
 // goal. Answers the reply's line.
-async function commandLevel($: EngineInterface, l: Level, goal: string | undefined): Promise<string> {
+// The level command's answer and whether it landed: the level in force
+// changed, by a lowering or by a raise that was logged and set (issue 513, S14).
+type LevelAnswer = { line: string; landed: boolean }
+async function commandLevel($: EngineInterface, l: Level, goal: string | undefined): Promise<LevelAnswer> {
   await landWaitingReset($)
-  if (resetWaits !== undefined) return LEVEL_REPLIES.failed
+  if (resetWaits !== undefined) return { line: LEVEL_REPLIES.failed, landed: false }
   const sid = await levelSid($)
-  if (sid === undefined) return LEVEL_REPLIES.failed
+  if (sid === undefined) return { line: LEVEL_REPLIES.failed, landed: false }
   const now = await $.clock.now()
   const voided = commandsVoided
   const step = await levelTurn(async () => {
@@ -2556,12 +2569,14 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
     return { kind: 'raise' as const, turn, from: inForce }
   })
   // A 3's goal comes last, after a fixed fence, as in read_autonomy's answer.
-  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}). It lasts through compactions; a slider press, another level command, a reload, a clear or a resume ends it. The goal, as it landed, is everything after this colon: ${goal ?? ''}` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
-  if (step.kind === 'none') return `Autonomy is already ${l} (${LEVEL_NAMES[l]}).`
+  // A raise to 3 never wakes the lead, so its reply says so before the sentence
+  // that ends with the goal: nothing follows the goal (issue 513, S14).
+  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}). It lasts through compactions; a slider press, another level command, a reload, a clear or a resume ends it. ${LEVEL_NOT_WOKEN} The goal, as it landed, is everything after this colon: ${goal ?? ''}` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
+  if (step.kind === 'none') return { line: `Autonomy is already ${l} (${LEVEL_NAMES[l]}).`, landed: false }
   if (step.kind === 'lower') {
     await appendFixed($, sid, commandEntry(l), l)
     await redraw($)
-    return set
+    return { line: set, landed: true }
   }
   // What waits to be logged goes first, as for a raise from the slider.
   await flushPane($, sid)
@@ -2582,24 +2597,28 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
   })
   await ensureLevelPoll($)
   await redraw($)
-  return entry === undefined ? LEVEL_REPLIES.notLogged : landed ? set : LEVEL_REPLIES.overtaken
+  return { line: entry === undefined ? LEVEL_REPLIES.notLogged : landed ? set : LEVEL_REPLIES.overtaken, landed }
 }
 
 // The level command's answer: the origin gate first, before anything of the
 // args beyond the word `level` is read; then the grammar; then the level. It
 // never calls the hooks beneath, so its args reach none, and a throw answers
 // one fixed line holding no args and no error text.
-async function levelCommand($: EngineInterface, origin: unknown, args: string): Promise<{ text: string }> {
+// Its answer also says whether the lead should be woken (S14): the command
+// landed as a lowering or a 2, and read_autonomy is offered.
+type LevelReply = { text: string; wake: boolean }
+async function levelCommand($: EngineInterface, origin: unknown, args: string): Promise<LevelReply> {
   try {
-    if (!levelOriginAllowed(origin)) return { text: LEVEL_REPLIES.notTyped }
+    if (!levelOriginAllowed(origin)) return { text: LEVEL_REPLIES.notTyped, wake: false }
     const parsed = parseLevelCommand(args)
-    if (parsed === undefined) return { text: LEVEL_REPLIES.usage }
-    if ('refused' in parsed) return { text: parsed.refused }
-    const line = await commandLevel($, parsed.level, parsed.goal)
-    const tail = line.startsWith('Autonomy') && !(await offered($)) ? LEVEL_REPLIES.notOffered : ''
-    return { text: `${line}${tail}` }
+    if (parsed === undefined) return { text: LEVEL_REPLIES.usage, wake: false }
+    if ('refused' in parsed) return { text: parsed.refused, wake: false }
+    const { line, landed } = await commandLevel($, parsed.level, parsed.goal)
+    const ready = line.startsWith('Autonomy') && (await offered($))
+    const tail = line.startsWith('Autonomy') && !ready ? LEVEL_REPLIES.notOffered : ''
+    return { text: `${line}${tail}`, wake: landed && ready && parsed.level !== 3 }
   } catch {
-    return { text: LEVEL_REPLIES.failed }
+    return { text: LEVEL_REPLIES.failed, wake: false }
   }
 }
 
@@ -3004,6 +3023,7 @@ export const register: Register = on => {
     resetWaits = undefined
     toolsOfferedFor = undefined
     lastWake = undefined
+    lastLevelWake = undefined
     stopLevelPoll()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
@@ -3068,7 +3088,23 @@ export const register: Register = on => {
   on('command.run', { command: 'brigade' }, async ($, e, next) => {
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
-    if (isLevelCommand(e.args)) return levelCommand($, e.origin, e.args)
+    if (isLevelCommand(e.args)) {
+      // Armed only after a landed reply, and only if no overrun voided the
+      // command meanwhile: a throw or an overrun answers the failed line and
+      // submits nothing, with `lastLevelWake` as it was.
+      const voided = commandsVoided
+      const reply = await levelCommand($, e.origin, e.args)
+      if (!reply.wake || commandsVoided !== voided) return { text: reply.text }
+      try {
+        const now = await $.clock.now()
+        if (lastLevelWake !== undefined && now - lastLevelWake < WAKE_GAP_MS) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
+        lastLevelWake = now
+        $.clock.after(WAKE_DELAY_MS, () => void $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined))
+      } catch {
+        // No turn this time: the reply stands as it is.
+      }
+      return { text: reply.text }
+    }
     lateOffer = false
     const { opened, offer } = await openPane($, true, { open: false }, false)
     let ready = ''
