@@ -4261,35 +4261,54 @@ for (const [label, bad] of [
   })
 }
 
-// Issue 545, rows 3 to 5. The test engine cannot draw Desktop's overflow, so these hold the
-// tree's shape, which is what the faults were: a menu with a fixed width its padding eats, a
-// layer of 200-space rows that Desktop truncates into a column of "...", and hover scopes.
-test('545 row 3: the card menu has no fixed width, so Desktop sizes it to its labels, and a floor that holds the longest with its border and padding', async ($, on) => {
+// Issue 545, rows 3 to 5, built from the approved #513 prototype. The test engine cannot draw
+// Desktop's overflow or show a `hover` prop, so these hold the tree's shape: a fixed-width menu,
+// each item a round clear-bordered Box that holds its label and one press layer, and an outside
+// layer of keyed rows inside a clipping Box.
+test('545 row 3: the card menu is 13 wide with footnote labels, and each item holds its label and one press layer', async ($, on) => {
   await grouped(on, $, MENU_CARDS)
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'menu-1-worker' })
   const all = await nodes(m)
   const menu = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.borderStyle === 'round' && spoken(n).includes('Dismiss'))
   expect(menu).toBeDefined()
-  expect(menu?.props.width).toBeUndefined()
-  // 'Dismiss' is 7 cells; the border takes 2 and each side's padding 2 more.
-  expect(Number(menu?.props.minWidth)).toBeGreaterThanOrEqual(7 + 2 + 4)
-  // The labels are never cut.
+  expect([menu?.props.width, menu?.props.minWidth, menu?.props.alignItems]).toEqual([13, undefined, 'stretch'])
   const labels = all.filter(n => n.type === 'Text' && ['Open', 'Split', 'Dismiss'].includes(spoken(n)))
   expect(labels.length).toBe(3)
-  for (const t of labels) expect(t.props.wrap).toBeUndefined()
+  for (const t of labels) expect([t.props.size, t.props.wrap]).toEqual(['footnote', undefined])
+  const items = all.filter(n => n.type === 'Box' && String(n.props.key).startsWith('item-'))
+  expect(items.length).toBe(3)
+  for (const it of items) {
+    expect([it.props.borderStyle, it.props.borderColor, it.props.overflow]).toEqual(['round', '#00000000', 'hidden'])
+    expect(it.children.filter((c: any) => c?.type === 'Box' && c.props.position === 'absolute').length).toBe(1)
+  }
 })
 
-test('545 row 4: the outside layer clips its rows to the pane, so a narrow pane draws no column of cut-off text', async ($, on) => {
+test('545 row 4: the outside layer is one clipping Box over a 500-wide column of keyed rows', async ($, on) => {
   await grouped(on, $, MENU_CARDS)
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'menu-1-worker' })
   const all = await nodes(m)
   const boxes = all.filter(n => n.type === 'Box' && String(n.props.key).startsWith('outside-box-'))
   expect(boxes.length).toBeGreaterThan(0)
-  for (const b of boxes) expect(b.props.overflow).toBe('hidden')
-  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0)
+  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0 && n.props.bottom === 0)
   expect(layer?.props.overflow).toBe('hidden')
+  expect(layer?.children[0]?.props.width).toBe(500)
+  // Each row's press layer is 600 clear spaces on one line.
+  const row = all.find(n => n.type === 'Text' && n.text === ' '.repeat(600))
+  expect(row?.props.color).toBe('#00000000')
+})
+
+test('545 row 2: the pill press layer is the prototype clear 600-space Button past the pill, in a clipping Box', async ($, on) => {
+  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj' })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
+  })
+  const all = await nodes(await mountOn($, 'desktop'))
+  const btn = all.find(n => n.type === 'Button' && n.props.key === 'pill-0-alpha')
+  expect(btn).toBeDefined()
+  expect(spoken(btn)).toBe(' '.repeat(600))
+  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.right === -100 && n.children.some((c: any) => c?.props?.key === 'pill-0-alpha'))
+  expect(layer).toBeDefined()
 })
 
 test('desktop, C6: a card that changed group closes its popover, and so does a pane open', async ($, on) => {
@@ -4330,19 +4349,7 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
-test('545 row 2 candidate: the pill press layer holds one space and a Box as wide as the pill', async ($, on) => {
-  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj' })], w => {
-    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
-  })
-  const all = await nodes(await mountOn($, 'desktop'))
-  const btn = all.find(n => n.type === 'Button' && n.props.key === 'pill-0-alpha')
-  expect(btn).toBeDefined()
-  expect(spoken(btn)).toBe(' ')
-  const holder = all.find(n => n.type === 'Box' && n.children.some((c: any) => c === btn || c?.props?.key === 'pill-0-alpha'))
-  expect(holder?.props.width).toBe(Math.round(36 + 6.3 * '341'.length))
-})
-
-test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the pill, then the settings line at the right, and no repository', async ($, on) => {
+test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the settings mark, then the pill, then the repository', async ($, on) => {
   await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], w => {
     w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
   })
@@ -4350,14 +4357,14 @@ test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, ag
   const text = await textOf(m)
   const at = (x: string) => text.indexOf(x)
   expect(at('alpha')).toBeLessThan(at('⋯'))
-  expect(at('⋯')).toBeLessThan(at('opus, high'))
-  // Issue 545, row 9: the pill (a press layer, since gh answered) sits left of the settings line, and the repository is not drawn on the card.
+  expect(at('⋯')).toBeLessThan(at('O·H'))
+  // #513 S7 and S8: the settings mark (compact at rest), then the pill (a press layer, since gh answered), then the repository.
   const keys = (await nodes(m)).map(n => String(n.props.key))
   const pillAt = keys.indexOf('pill-0-alpha')
   expect(pillAt).toBeGreaterThan(-1)
-  expect(pillAt).toBeLessThan(keys.indexOf('set-0-alpha'))
-  expect(text.includes('other/proj')).toBe(false)
-  expect(text.includes('O·H')).toBe(false)
+  expect(keys.indexOf('set-0-alpha')).toBeLessThan(pillAt)
+  expect(at('O·H')).toBeLessThan(at('other/proj'))
+  expect(text.includes('opus, high')).toBe(false)
   // No Open, Dismiss or Split is drawn at rest.
   expect(text.includes('Dismiss')).toBe(false)
 })
@@ -4696,17 +4703,20 @@ for (const surface of SURFACES) {
     expect(ages).toEqual(['14m'])
   })
 
-  test(`${surface}: the settings show as the card holds them, on every surface`, async ($, on) => {
+  test(`${surface}: the terminal shows the settings as the card holds them; Desktop the compact mark, the full line in the popover`, async ($, on) => {
     await grouped(on, $, { cards: [card('mx', { status: 'working', settings: 'Opus, max, default mode' })], todos: [] })
     const m = await mountOn($, surface)
     const text = await textOf(m)
-    // Issue 545, row 9: both surfaces show the line as the card holds it, not one character each; Desktop
-    // also opens the settings popover on a press on it (issue 513, S8; C7).
-    expect(text.includes('O·∞')).toBe(false)
-    expect(text.includes('Opus, max, default mode')).toBe(true)
+    // Issue 545, row 9 and #513 S8: Desktop draws the compact mark at rest and the words only in the
+    // popover; the terminal, the editor and mobile draw the line as the card holds it.
     if (surface === 'desktop') {
+      expect(text.includes('O·∞')).toBe(true)
+      expect(text.includes('Opus, max, default mode')).toBe(false)
+      expect(text.includes('Opus - Max - Default mode')).toBe(false)
       await m.press({ key: 'set-0-mx' })
       expect((await textOf(m)).includes('Opus - Max - Default mode')).toBe(true)
+    } else {
+      expect(text.includes('Opus, max, default mode')).toBe(true)
     }
   })
 
@@ -4909,7 +4919,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     const text = await textOf(m)
-    expect(text.includes('Opus, high')).toBe(true)
+    expect(text.includes(surface === 'desktop' ? 'O·H' : 'Opus, high')).toBe(true)
   })
 
   test(`${surface}: a card dismissed with its own button leaves the selection and its count`, async ($, on) => {

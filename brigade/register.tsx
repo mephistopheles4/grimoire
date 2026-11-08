@@ -290,6 +290,11 @@ const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefi
   const m = typeof v === 'string' ? POPOVER.exec(v) : null
   return m === null ? undefined : { kind: m[1] === 'set' ? 'set' : 'menu', place: Number(m[2]) }
 }
+// The approved #513 prototype's menu look: a clear ink for the press layers, one soft hover for
+// a menu item, and the menu's faint round border on the user-message background.
+const CLEAR_INK = '#00000000'
+const MENU_HOVER = '#8080801a'
+const MENU_LOOK = { borderStyle: 'round', borderColor: '#8080802e', backgroundColor: 'userMessageBackground' } as const
 // The groups that start folded each time the pane opens.
 const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 // The line under the autonomy slider: what each level lets the lead do, in
@@ -3607,16 +3612,16 @@ export const register: Register = on => {
     // pill, an absolute Box in a clipping Box holding a plain Button with a
     // transparent Text of non-breaking spaces and no label. Drawn only for a
     // pill `gh` answered for; the key carries the card's place and title.
-    // Row 2 candidate, unconfirmed (issue 545): the Text is one space, and the
-    // press area keeps the pill's width through a fixed-width Box instead of
-    // twelve spaces of text.
+    // Desktop's pill press (issue 513, S1; the approved prototype): an absolute press layer past
+    // the pill's right edge inside a clipping Box, a plain Button of 600 clear spaces. Drawn only
+    // for a pill `gh` answered for; the key carries the card's place and title.
     const pillLayer = (key: string, n: string, state: string) => (
-      <Box position="relative" overflow="hidden">
-        {pill(n, state)}
-        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Box width={pillSvg(n, state)?.width}>
+      <Box position="relative">
+        <Box overflow="hidden">
+          {pill(n, state)}
+          <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
             <Button key={key} plain onPress={noop}>
-              <Text color="transparent">{' '}</Text>
+              <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
             </Button>
           </Box>
         </Box>
@@ -3814,37 +3819,44 @@ export const register: Register = on => {
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
       const short = compactSettings(c.settings)
-      // The settings line on the Desktop second line's right (issue 545, row 9): as
-      // the card holds it, cleaned and cut; a dash when it holds none.
-      const settingsLine = short.full === 'No settings on the card.' ? '—' : short.full
+      // The settings mark on the Desktop second line's right (issue 545, row 9): the compact
+      // mark at rest (`S·M`), the full line in the popover; `?` when the card holds none.
+      const settingsLine = short.text
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
-      // pill on the terminal, the editor and mobile; the Desktop card does not
-      // draw it (issue 545, row 9), and the Pull requests tab names it on every
-      // surface. gh's spelling once it answered, else the card's.
+      // pill; on Desktop the second line is the settings label, the pill, then
+      // the repository, left-aligned (#513 S7, PR 537's amendment). gh's spelling
+      // once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
       // each opens upward from its opener, one at a time.
       const canSplit = toolSession(c) !== undefined
       const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
-      const widest = Math.max(...items.map(([, label]) => label.length)) + 4
-      const popRows = (rowItems: readonly (readonly [string, string])[], width: number) => (
-        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} minWidth={width + 4}>
-          {rowItems.map(([verb, label]) => (
-            <Box key={`row-${verb}-${i}`} hover={{ scope: `row-${verb}-${i}`, backgroundColor: DARK_FILLS.hover }} paddingX="sm">
-              <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
-                <Text size="footnote">{label}</Text>
-              </Button>
-            </Box>
-          ))}
+      // One menu item (#513 S5; the approved prototype): a round clear border, one soft hover on
+      // the item and no other, and a press layer over the whole row.
+      const menuItem = (verb: string, label: string) => (
+        <Box key={`item-${keyFor(verb, i, c.title)}`} borderStyle="round" borderColor={CLEAR_INK} paddingX={1} paddingY={0} overflow="hidden" hover={{ backgroundColor: MENU_HOVER }}>
+          <Text size="footnote">{label}</Text>
+          <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
+            <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
+              <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
+            </Button>
+          </Box>
+        </Box>
+      )
+      const popRows = () => (
+        <Box position="absolute" bottom={1} right={0} width={13} flexDirection="column" alignItems="stretch" {...MENU_LOOK} paddingX="xs" paddingY="xs">
+          {items.map(([verb, label]) => menuItem(verb, label))}
         </Box>
       )
       const popText = (text: string) => (
-        <Box position="absolute" bottom={1} right={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
-          <Text size="footnote">{text}</Text>
+        <Box position="absolute" bottom={1} right={0} width={Math.min(36, short.full.length + 6)} {...MENU_LOOK} paddingX="sm" paddingY="xs">
+          <Text size="footnote" wrap="truncate-end">
+            {text}
+          </Text>
         </Box>
       )
       const menuOpen = popLive && popped?.kind === 'menu' && popped.place === i
@@ -3854,7 +3866,7 @@ export const register: Register = on => {
           <Button key={keyFor('menu', i, c.title)} plain dimColor onPress={noop}>
             ⋯
           </Button>
-          {menuOpen && popRows(items, widest)}
+          {menuOpen && popRows()}
         </Box>
       )
       const pillBlock =
@@ -3966,16 +3978,20 @@ export const register: Register = on => {
               </Box>
               {pointer && (
                 <Box flexDirection="row" columnGap={1} alignItems="center">
-                  {pillBlock}
-                  <Box flexGrow={1} flexShrink={1} minWidth={0}></Box>
                   <Box position="relative" flexShrink={1} minWidth={0}>
-                    <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
-                      <Text dimColor wrap="truncate-end">
-                        {settingsLine}
-                      </Text>
+                    <Button key={keyFor('set', i, c.title)} plain dimColor onPress={noop}>
+                      <Text mono>{settingsLine}</Text>
                     </Button>
                     {setOpen && popText(settingsPopover(c.settings))}
                   </Box>
+                  {pillBlock}
+                  {namedRepo !== undefined && number !== undefined && (
+                    <Box flexShrink={1} minWidth={0}>
+                      <Text dimColor wrap="truncate-end">
+                        {namedRepo}
+                      </Text>
+                    </Box>
+                  )}
                 </Box>
               )}
               {!pointer && (
@@ -4699,14 +4715,16 @@ export const register: Register = on => {
             A press on it closes the popover; later elements paint over it, so
             a press on any other control reaches that control. */}
         {popLive && (
-          <Box position="absolute" top={0} left={0} right={0} flexDirection="column" overflow="hidden">
-            {Array.from({ length: outsideRows }, (_, k) => (
-              <Box key={`outside-box-${k}`} overflow="hidden" hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
-                <Button key={`outside-${k}`} plain onPress={noop}>
-                  <Text>{' '.repeat(200)}</Text>
-                </Button>
-              </Box>
-            ))}
+          <Box position="absolute" top={0} left={0} right={0} bottom={0} overflow="hidden">
+            <Box width={500} flexDirection="column">
+              {Array.from({ length: outsideRows }, (_, k) => (
+                <Box key={`outside-box-${k}`}>
+                  <Button key={`outside-${k}`} plain hover={{ backgroundColor: CLEAR_INK }} onPress={noop}>
+                    <Text color={CLEAR_INK}>{' '.repeat(600)}</Text>
+                  </Button>
+                </Box>
+              ))}
+            </Box>
           </Box>
         )}
         {/* The top row: what the chosen view holds, on the left; the switch on
