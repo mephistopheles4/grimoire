@@ -230,7 +230,9 @@ unchanged. To tell which entries are read it reads this session's own marks
 file, by its own path and with no listing (since 0.121.0, issue 509; from 0.89.0 to
 0.120.0 it also listed the `brigade/marks/` folder and read the others newest
 first, up to 8 MiB in total, a file over its cap taking nothing from the bound
-and the rest counting as unread, which failed safe). When the owner presses "✓ Read,
+and the rest counting as unread, which failed safe). A mark held in another
+session's marks file, as panes from 0.90.0 to 0.120.0 wrote for entries they
+carried from this log, counts for nothing from 0.121.0. When the owner presses "✓ Read,
 next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spec
 448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
 answer writes both marks in one write), or Dismiss on its

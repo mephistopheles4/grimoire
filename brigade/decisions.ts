@@ -456,8 +456,8 @@ export function addMarks(
  *  entry's newest counted state, so the entry would read as it did before
  *  that mark. Mark all as read writes nothing when this holds (spec 447,
  *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads.
- *  Since issue 509 only this session's log is read, which holds 500 entries at
- *  most, so the pane's own press cannot push out a mark for one of them; marks
+ *  Since issue 509 only this session's log is read, which holds at most 500
+ *  entries the tool wrote, so the pane's own press cannot push out a mark for one of them; marks
  *  the file already holds for entries of other logs are no longer known and go
  *  first when the caps bite. The guard stays. */
 export function dropsLiveMark(

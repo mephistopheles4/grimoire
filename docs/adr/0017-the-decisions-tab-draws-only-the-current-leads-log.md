@@ -31,7 +31,8 @@ of this session's log, with no cap beyond the log's own 500 entries. The drop
 rule of `log_decision`, which also runs when the pane appends its own entry to
 a full log, reads this session's marks file alone and lists no marks folder:
 no other pane marks this session's entries, so a mark in another session's
-file only misled it (the lead's decision 120, on the owner's direction that the
+file only misled it, and a flag or read mark an older pane wrote there for an entry
+of this log counts for nothing too (the lead's decision 120, on the owner's direction that the
 pane holds only the current lead's log).
 
 **What stays.** The Lead hand-off card may still draw another session's

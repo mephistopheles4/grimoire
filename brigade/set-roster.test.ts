@@ -5704,6 +5704,7 @@ test("issue 509: a read mark in another session's marks file counts for nothing,
   expect(r.text).toMatch(/the decision log is full/)
   expect(w.text(LOG)).toBe(before)
   expect(readsOf(w, PEER_MARKS)).toBe(0)
+  expect(w.log.filter(l => l.startsWith('list ') && /brigade.marks/.test(l))).toEqual([])
 })
 
 test('spec 444 claim 9: a Mark all as read whose marks cannot be written changes nothing and says so', async ($, on) => {
