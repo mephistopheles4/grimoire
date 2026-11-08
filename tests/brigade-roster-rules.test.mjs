@@ -1191,7 +1191,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.match(await read('references/CONTRACT.md'), rule);
 });
 
-test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.29.0 with its row and go', async () => {
+test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.30.0 with its row and go', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const ref = await read('references/roster.md');
@@ -1202,10 +1202,10 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   assert.match(await read('SKILL.md'), use);
   const contract = await read('references/CONTRACT.md');
   assert.match(contract, use);
-  assert.match(contract, /^# .*?Version: 1\.29\.0 /);
+  assert.match(contract, /^# .*?Version: 1\.30\.0 /);
   assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
   const log = await read('references/contract.changelog.md');
-  assert.match(log, /\| 1\.29\.0 \| 2026-11-08 \| \*Proposed\.\*/);
+  assert.match(log, /\| 1\.30\.0 \| [0-9-]+ \| \*Proposed\.\*/);
   assert.match(log, /the lead's decisions 426 and 436 at level 3, not the owner's words, and the owner confirms at merge/);
 });
 
