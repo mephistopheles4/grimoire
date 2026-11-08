@@ -3747,6 +3747,9 @@ export const register: Register = on => {
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
       const short = compactSettings(c.settings)
+      // The model name on the second line's right (issue 545, row 9): the settings
+      // line as the card holds it, cleaned and cut; a dash when it holds none.
+      const modelName = short.full === 'No settings on the card.' ? '—' : short.full
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
@@ -3773,7 +3776,7 @@ export const register: Register = on => {
         </Box>
       )
       const popText = (text: string) => (
-        <Box position="absolute" bottom={1} left={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
+        <Box position="absolute" bottom={1} right={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
           <Text size="footnote">{text}</Text>
         </Box>
       )
@@ -3896,22 +3899,16 @@ export const register: Register = on => {
               </Box>
               {pointer && (
                 <Box flexDirection="row" columnGap={1} alignItems="center">
-                  <Box position="relative" flexShrink={0}>
+                  {pillBlock}
+                  <Box flexGrow={1} flexShrink={1} minWidth={0}></Box>
+                  <Box position="relative" flexShrink={1} minWidth={0}>
                     <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
-                      <Text dimColor mono>
-                        {short.text}
+                      <Text dimColor wrap="truncate-end">
+                        {modelName}
                       </Text>
                     </Button>
                     {setOpen && popText(settingsPopover(c.settings))}
                   </Box>
-                  {pillBlock}
-                  {namedRepo !== undefined && number !== undefined && (
-                    <Box flexShrink={1} minWidth={0}>
-                      <Text dimColor wrap="truncate-end">
-                        {namedRepo}
-                      </Text>
-                    </Box>
-                  )}
                 </Box>
               )}
               {!pointer && (

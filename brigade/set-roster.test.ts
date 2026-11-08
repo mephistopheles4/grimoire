@@ -3729,7 +3729,7 @@ for (const [label, over, field] of [
   ['a non-digit pr', { pr: 'abc' }, 'pr'],
   ['an 8-digit pr', { pr: '12345678' }, 'pr'],
   ['a pr that is a number', { pr: 341 }, 'pr'],
-  ['an unknown prState', { prState: 'draft' }, 'prState'],
+  ['an unknown prState', { prState: 'drafts' }, 'prState'],
   ['a prototype key as prState', { prState: 'constructor' }, 'prState'],
   ['a since the model sent', { since: 5 }, 'since'],
 ] as const) {
@@ -4243,14 +4243,19 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
-test('desktop, S4 and S7: the first line is the mark, title, state, age then `⋯`, and the second the label, the pill, then a named repo', async ($, on) => {
+test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the pill, then the model name at the right, and no repository', async ($, on) => {
   await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], todos: [] })
   const m = await mountOn($, 'desktop')
   const text = await textOf(m)
   const at = (x: string) => text.indexOf(x)
   expect(at('alpha')).toBeLessThan(at('⋯'))
-  expect(at('⋯')).toBeLessThan(at('O·H'))
-  expect(at('O·H')).toBeLessThan(at('other/proj'))
+  expect(at('⋯')).toBeLessThan(at('opus, high'))
+  // Issue 545, row 9: the pill sits left of the model name, and the repository is not drawn on the card.
+  const keys = (await nodes(m)).map(n => String(n.props.key))
+  expect(keys.indexOf('set-0-alpha')).toBeGreaterThan(-1)
+  expect(keys.findIndex(k => k.startsWith('pill-'))).toBeLessThan(keys.indexOf('set-0-alpha'))
+  expect(text.includes('other/proj')).toBe(false)
+  expect(text.includes('O·H')).toBe(false)
   // No Open, Dismiss or Split is drawn at rest.
   expect(text.includes('Dismiss')).toBe(false)
 })
@@ -4593,10 +4598,10 @@ for (const surface of SURFACES) {
     await grouped(on, $, { cards: [card('mx', { status: 'working', settings: 'Opus, max, default mode' })], todos: [] })
     const m = await mountOn($, surface)
     const text = await textOf(m)
-    expect(text.includes('O·∞')).toBe(surface === 'desktop')
-    // The terminal shows the full line inline; Desktop shows it in the settings
-    // popover a press on the label opens (issue 513, S8; C7).
-    expect(text.includes('Opus, max, default mode')).toBe(surface !== 'desktop')
+    // Issue 545, row 9: both surfaces show the line as the card holds it, not one character each; Desktop
+    // also opens the settings popover on a press on it (issue 513, S8; C7).
+    expect(text.includes('O·∞')).toBe(false)
+    expect(text.includes('Opus, max, default mode')).toBe(true)
     if (surface === 'desktop') {
       await m.press({ key: 'set-0-mx' })
       expect((await textOf(m)).includes('Opus - Max - Default mode')).toBe(true)
@@ -4802,7 +4807,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     const text = await textOf(m)
-    expect(text.includes(surface === 'desktop' ? 'O·H' : 'Opus, high')).toBe(true)
+    expect(text.includes('Opus, high')).toBe(true)
   })
 
   test(`${surface}: a card dismissed with its own button leaves the selection and its count`, async ($, on) => {
@@ -8064,7 +8069,8 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     // The repository sits inline beside the pill on every surface (issue 513, S3).
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
-    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(true)
+    // Issue 545, row 9: the Desktop card drops the repository; the terminal keeps it.
+    expect(sessions.split('https://github.com/other/proj/').join('').includes('other/proj')).toBe(surface !== 'desktop')
     expect(sessions.includes('Open pull request')).toBe(false)
     // The base card's pill names no repository on the Sessions view (its link's URL aside).
     expect(sessions.split('https://github.com/o/r/').join('').includes('o/r')).toBe(false)
@@ -8091,8 +8097,8 @@ for (const [label, answer] of [
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
     expect(pillKeys(await nodes(m))).toEqual(['pill-0-alpha'])
-    // The card's repository is drawn beside its pill (issue 513, S3).
-    expect((await textOf(m)).includes('other/proj')).toBe(true)
+    // The Desktop card no longer draws its repository (issue 545, row 9); the Pull requests row below does.
+    expect((await textOf(m)).includes('other/proj')).toBe(false)
     await m.press({ key: 'view-prs' })
     // The row names it, and links only from an answer.
     expect((await textOf(m)).includes('other/proj · beta')).toBe(true)
@@ -8103,6 +8109,22 @@ for (const [label, answer] of [
     expect(text.includes('PR details unavailable for 1 repository')).toBe(true)
   })
 }
+
+test('issue 545: a draft pull request is its own Draft group between Open and Merged, on both surfaces, and not under Open', async ($, on) => {
+  await namedPane(on, $, [ALPHA, card('drafty', { status: 'working', pr: '9' })], w => {
+    w.ghOut = JSON.stringify([ghPr(341), ghPr(9, { isDraft: true, title: 'Draft nine', url: 'https://github.com/o/r/pull/9' })])
+  })
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const m = await mountOn($, surface)
+    await m.press({ key: 'view-prs' })
+    const text = await textOf(m)
+    expect(text.includes('Open 1')).toBe(true)
+    expect(text.includes('Draft 1')).toBe(true)
+    expect(text.indexOf('Open 1')).toBeLessThan(text.indexOf('Draft 1'))
+    expect(text.indexOf('Draft 1')).toBeLessThan(text.indexOf('Draft nine'))
+    expect(text.indexOf('Draft nine')).toBeLessThan(text.indexOf('Merged 0'))
+  }
+})
 
 test('claim 17: a repository is one however it is spelled: one run, and an answer in another case counts', async ($, on) => {
   const w = await namedPane(on, $, [card('beta', { status: 'working', pr: '7', repo: 'Other/Proj' }), card('gamma', { status: 'working', pr: '8', repo: 'other/PROJ' })], w => {
