@@ -8386,6 +8386,36 @@ test('spec 448 claim 1: an own unread waiting entry and its answer draw as one c
   expect((await buttonKeys()).filter(k => /^d(next|flag|skip)-/.test(k)).sort()).toEqual(['dflag-1-200-2-300', 'dnext-1-200-2-300', 'dskip-1-200-2-300'])
 })
 
+// Issue 545, row 10: the nested answer is laid out at full width, and the waiting card shows it was answered.
+const PAIR_545 = [
+  kept(1, 200, { question: 'Mine asks?', waiting: true, pick: '', options: ['Ship it', 'Hold'] }),
+  kept(2, 300, { question: 'Owner said ship?', source: 'relayed', answers: '1', pick: 'Ship it', options: ['Ship it', 'Hold'] }),
+]
+
+test('545 row 10: the waiting card marks the option its answer picked, and an unanswered waiting card marks none', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  // The waiting card's chosen option and the answer card's own pick.
+  expect(await textCount(/^●$/)).toBe(2)
+})
+
+test('545 row 10: an unanswered waiting card marks no option', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([PAIR_545[0]])))
+  expect(await textCount(/^●$/)).toBe(0)
+})
+
+test('545 row 10: in the nested answer the title sits on its own full-width line, above the meta line, not in a column beside it', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  const boxes = (await mounted.findAll({ type: 'Box' })) as any[]
+  const text = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(text).join(''))
+  // The smallest Box holding both the answer's headline and its "Relayed by" label.
+  const both = boxes.filter(b => text(b).includes('Answered') === false && text(b).includes('Relayed by lead-a') && text(b).includes('Ship it'))
+  const lowest = both.sort((x, y) => text(x).length - text(y).length)[0]
+  expect(lowest).toBeDefined()
+  expect(lowest.props.flexDirection).toBe('column')
+  // The title is a direct child of that column, so it takes the card's full width.
+  expect(lowest.children.some((c: any) => c.type === 'Text' && text(c) === 'Ship it')).toBe(true)
+})
+
 test('spec 448 claim 2: Read, next on a pair marks both read in one write; both stay in History', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_448)))
   const before = writesTo(w, OWN_MARKS)

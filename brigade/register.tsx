@@ -4258,10 +4258,42 @@ export const register: Register = on => {
     // A card's fields, in order: the headline, the writer, the source, time and
     // level, the lead's flag, the question, the options, why, to undo, revisit
     // and the id.
-    const cardFields = (r: Row, top: JSX.Element | undefined): JSX.Element[] => {
+    const cardFields = (r: Row, top: JSX.Element | undefined, stacked = false): JSX.Element[] => {
       const d = r.entry
       const alarm = d.source === 'alarm'
+      // The option the entry's pick names: its own once answered, the answer's for a waiting entry (issue 545, row 10).
+      const chosen = d.waiting ? answerOf(r)?.pick : d.pick
+      const headlineText = alarm ? (
+        <Text color="warning" weight="semibold" wrap="wrap">
+          {headline(r)}
+        </Text>
+      ) : (
+        <Text weight="semibold" wrap="wrap">
+          {headline(r)}
+        </Text>
+      )
       return [
+        stacked ? (
+          // A nested answer: the title on its own full-width line, then the meta line.
+          <Box flexDirection="column">
+            {top}
+            {headlineText}
+            <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+              <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                <Text dimColor wrap="truncate-end">
+                  {r.writer}
+                </Text>
+              </Box>
+              <Box flexShrink={0} flexDirection="row" columnGap={1}>
+                <Text>{labelOf(r)}</Text>
+                <Text dimColor tabular>
+                  {stamp(d.at)}
+                </Text>
+                <Text dimColor>{`at level ${d.level}`}</Text>
+              </Box>
+            </Box>
+          </Box>
+        ) : (
         <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             {top}
@@ -4283,7 +4315,8 @@ export const register: Register = on => {
             </Text>
             <Text dimColor>{`at level ${d.level}`}</Text>
           </Box>
-        </Box>,
+        </Box>
+        ),
         ...(d.flag !== undefined ? [part('Flagged by the lead', lines(d.flag))] : []),
         part('Question', lines(d.question)),
         part(
@@ -4291,7 +4324,7 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {d.options.map(o => (
               <Box flexDirection="row" columnGap={1}>
-                <Box flexShrink={0}>{!d.waiting && o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
+                <Box flexShrink={0}>{chosen !== undefined && chosen !== '' && o === chosen ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
                 <Box flexShrink={1} minWidth={0}>
                   <Text wrap="wrap">{oneLine(o, 300)}</Text>
                 </Box>
@@ -4313,7 +4346,7 @@ export const register: Register = on => {
         {cardFields(r, top)}
         {answer !== undefined && (
           <Box flexDirection="column" marginTop={terminal ? 1 : 'xs'} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: DARK_FILLS.bar })}>
-            {cardFields(answer, undefined)}
+            {cardFields(answer, undefined, true)}
           </Box>
         )}
         {buttons.length > 0 && (
