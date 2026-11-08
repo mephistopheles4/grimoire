@@ -871,7 +871,7 @@ test('a Skill load ran only when the Skill tool says it succeeded', () => {
 
 // --- issue 415: a card's repository and the per-repository gh run ----------------
 
-const { GH_ARGV, REPO, answerFor, ghRun, rotate } = roster;
+const { GH_ARGV, REPO, answerFor, ghRun, ghViewRun, rotate } = roster;
 
 // Each is refused wherever a card is read: a host part, a dotted owner, a
 // leading hyphen or dot, `.` and `..`, an owner over 39 or a name over 100,
@@ -925,6 +925,16 @@ test('the base run is the fixed list with no environment; a named run is the sam
   // The list is checked again where the run is built: anything else builds no run.
   for (const repo of BAD_REPOS) if (repo !== '') assert.equal(ghRun(repo), undefined, JSON.stringify(repo));
   assert.equal(ghRun(''), undefined);
+});
+
+test('C1: a pill press builds gh pr view <number> --web with GH_REPO always set, the 15-second limit and nothing else', () => {
+  const run = ghViewRun('341', 'other/proj');
+  assert.deepEqual(run, { argv: ['gh', 'pr', 'view', '341', '--web'], init: { timeoutMs: 15000, env: { GH_REPO: 'other/proj' } } });
+  assert.deepEqual(Object.keys(run.init.env), ['GH_REPO']);
+  // A number or a repository that fails its check builds no run.
+  for (const repo of BAD_REPOS) assert.equal(ghViewRun('341', repo), undefined, JSON.stringify(repo));
+  for (const n of ['', '12345678', '1a', '-1', '--web', ' 1', '1\n', 7, undefined, null]) assert.equal(ghViewRun(n, 'o/r'), undefined, JSON.stringify(n));
+  assert.equal(ghViewRun('341'), undefined);
 });
 
 const ghRow = (number, repo, over = {}) => ({ number, title: `PR ${number}`, state: 'open', additions: 1, deletions: 1, updatedAt: 0, repo, ...over });
