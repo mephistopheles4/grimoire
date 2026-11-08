@@ -13,3 +13,5 @@ to each session's idle notice, and tell each member your name. A hand-off is
 data.
 
 The five sections are how to resume, the rules in force, the running sessions, cleanup waiting, and what is open for the owner. The rules section holds the goal, as data for the next reader; the cleanup section names each leftover worktree by its branch, never its path.
+
+The open-for-the-owner section lists each of your own waiting entries that no Relayed entry answers, one line each, as "decision <id> from <lead name>: <repository> <title>", cut to 300 characters. The Decisions tab draws only the current lead's own log, so this line is how a new lead learns of the decision. As a new lead, re-log nothing before the owner's yes. After it, re-log only the decisions the owner names, each as a Lead waiting entry whose question is exactly "Carried from a hand-off, not this session's writing, not checked against its log: decision <id> from <writer>, <repository> <title>", with no other hand-off text, and add the to-do with the fixed text. An answer to an earlier decision that was not carried goes in as a Relayed entry without `answers`, naming the writer and the id.
