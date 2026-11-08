@@ -773,7 +773,8 @@ Each condition an old accepted entry rested on, by risk. The entry's own line is
 - the tool's guards and the path rule (E39; [row 15](brigade.md#row-15))
 - the same calls open in default and auto modes (E39; [row 15](brigade.md#row-15))
 - the link stays on github.com (E41; [row 15](brigade.md#row-15))
-- the Pull requests row names the repository, and so does the pill beside it (E41; [row 15](brigade.md#row-15))
+- the Pull requests row names the repository (E41; [row 15](brigade.md#row-15)); since 0.127.0 the card no longer does
+- the pane reads one figure, `autoCompactWindow`, from `settings.json` in the config folder: a regular file of at most 1 MiB, parsed as JSON, the number kept only if a whole number from 50,000 and drawn as a tick; nothing else of the file is kept, stored or shown ([row 15](brigade.md#row-15))
 - the owner must click (E41; [row 15](brigade.md#row-15))
 - the rows never reach plugin state (E41; [row 15](brigade.md#row-15))
 - the engine offers no link-refusing write (E43; [row 15](brigade.md#row-15))

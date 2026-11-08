@@ -3816,7 +3816,7 @@ export const register: Register = on => {
       const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
       const widest = Math.max(...items.map(([, label]) => label.length)) + 4
       const popRows = (rowItems: readonly (readonly [string, string])[], width: number) => (
-        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} width={width}>
+        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} minWidth={width + 4}>
           {rowItems.map(([verb, label]) => (
             <Box key={`row-${verb}-${i}`} hover={{ scope: `row-${verb}-${i}`, backgroundColor: DARK_FILLS.hover }} paddingX="sm">
               <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
@@ -4644,9 +4644,9 @@ export const register: Register = on => {
             A press on it closes the popover; later elements paint over it, so
             a press on any other control reaches that control. */}
         {popLive && (
-          <Box position="absolute" top={0} left={0} right={0} flexDirection="column">
+          <Box position="absolute" top={0} left={0} right={0} flexDirection="column" overflow="hidden">
             {Array.from({ length: outsideRows }, (_, k) => (
-              <Box key={`outside-box-${k}`} hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
+              <Box key={`outside-box-${k}`} overflow="hidden" hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
                 <Button key={`outside-${k}`} plain onPress={noop}>
                   <Text>{' '.repeat(200)}</Text>
                 </Button>

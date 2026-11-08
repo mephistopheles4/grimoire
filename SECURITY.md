@@ -52,7 +52,9 @@ work at once. It also reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
 since 0.55.0, its context meter, and since 0.56.0, its burn rate and context
-trend; of the model id it keeps only the window
+trend; since 0.127.0 the pane also reads the one whole number `autoCompactWindow`
+from `settings.json` in the config folder (a regular file of at most 1 MiB,
+nothing else of it kept or shown); of the model id it keeps only the window
 size a fixed table gives the model's family.
 To find a transcript that moved into a worktree folder, it lists the config
 folder's `projects` folder at most once a minute, and reads a transcript only
@@ -139,7 +141,7 @@ environment and the working folder's git remotes choose the repository for
 the cards that name none, and the pane pins the first answer's repository for
 the session. A named repository's answer counts only when every pull request
 in it names that repository, and its rows, up to 100, stay in module memory
-and go once no card names it. A named card's pill and row name the
+and go once no card names it. A named card's Pull requests row names the
 repository the card names, and link to its pull request only once `gh` has
 answered for it. The titles and
 repository names it gets, private ones included, are drawn on every surface;

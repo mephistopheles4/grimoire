@@ -4235,6 +4235,55 @@ for (const [label, bad] of [
   })
 }
 
+// Issue 545, rows 3 to 5. The test engine cannot draw Desktop's overflow, so these hold the
+// tree's shape, which is what the faults were: a menu with a fixed width its padding eats, a
+// layer of 200-space rows that Desktop truncates into a column of "...", and hover scopes.
+test('545 row 3: the card menu has no fixed width, so Desktop sizes it to its labels, and a floor that holds the longest with its border and padding', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  const all = await nodes(m)
+  const menu = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.borderStyle === 'round' && spoken(n).includes('Dismiss'))
+  expect(menu).toBeDefined()
+  expect(menu?.props.width).toBeUndefined()
+  // 'Dismiss' is 7 cells; the border takes 2 and each side's padding 2 more.
+  expect(Number(menu?.props.minWidth)).toBeGreaterThanOrEqual(7 + 2 + 4)
+  // The labels are never cut.
+  for (const t of all.filter(n => n.type === 'Text' && ['Open', 'Split', 'Dismiss'].includes(spoken(n)))) expect(t.props.wrap).toBeUndefined()
+})
+
+test('545 row 4: the outside layer clips its rows to the pane, so a narrow pane draws no column of cut-off text', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  const all = await nodes(m)
+  const boxes = all.filter(n => n.type === 'Box' && String(n.props.key).startsWith('outside-box-'))
+  expect(boxes.length).toBeGreaterThan(0)
+  for (const b of boxes) expect(b.props.overflow).toBe('hidden')
+  const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0)
+  expect(layer?.props.overflow).toBe('hidden')
+})
+
+test('545 row 5: the layer\'s rows, each its own hover scope, exist only while a popover is open and are gone the moment it closes', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  const rows = async () => (await nodes(m)).filter(n => n.type === 'Box' && String(n.props.key).startsWith('outside-box-')).map(n => String(n.props.key))
+  expect(await rows()).toEqual([])
+  await m.press({ key: 'menu-1-worker' })
+  const open = await rows()
+  expect(open.length).toBeGreaterThan(0)
+  // One Box per layer row, none shared: a shared key would light two rows at once.
+  expect(new Set(open).size).toBe(open.length)
+  // Closing takes the whole layer away at once, so no row is left lit after the pointer has gone.
+  await m.press({ key: 'menu-1-worker' })
+  expect(await rows()).toEqual([])
+  // A second popover replaces the first's layer rather than adding to it.
+  await m.press({ key: 'menu-1-worker' })
+  const again = await rows()
+  await m.press({ key: 'set-1-worker' })
+  expect((await rows()).length).toBe(again.length)
+})
+
 test('desktop, C6: a card that changed group closes its popover, and so does a pane open', async ($, on) => {
   const w = await grouped(on, $, MENU_CARDS)
   const m = await mountOn($, 'desktop')

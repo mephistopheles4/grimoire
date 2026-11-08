@@ -148,10 +148,9 @@ its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
 state (a session that waits on you moves its row under Waiting on you, and a row
 shows the session's own title) and how long the session has been in its status. Model and
-effort show as one character each. On Desktop, pressing them opens a small
-popover with the full settings, and a `⋯` on each row holds Open, Split and
-Dismiss, each only where it applies; elsewhere the full settings stay in a
-tooltip, and in the terminal Open and Dismiss are always shown. A pull request
+effort show as the settings line the lead wrote, at the right of the pull request pill on Desktop. Pressing it opens a small
+popover with the same words, and a `⋯` on each row holds Open, Split and
+Dismiss, each only where it applies; in the terminal Open and Dismiss are always shown. A pull request
 pill opens the pull request in your browser.
 Tick several rows and a bar at the foot dismisses them together. A session that
 waits on you can be dismissed for that one wait; it comes back when the
@@ -162,13 +161,13 @@ the app.
 
 The lead can put each session's pull request on its row. A pill shows the
 number in the state's colour. The Pull requests view lists those pull requests
-grouped Open, Merged and Closed, with title, added and removed lines, repository
+grouped Open, Draft, Merged and Closed (a draft has a grey pill), with title, added and removed lines, repository
 and age. While the pane is open and a row carries a pull request, the pane asks
 `gh` for the details once a minute, and stops once every pull request it shows is merged. When
 a session's pull request is in another repository than the lead's own, the lead
 can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
 that repository too, at most 6 runs a minute in all, the repositories taking
-turns past five, and the pane names it beside the pill and on the Pull
+turns past five, and the pane names it on the Pull
 requests row. **The
 details need `gh` installed, signed in, and run from a github.com repository.** On
 macOS and Linux the pane also asks only when every folder on PATH is an absolute
@@ -281,9 +280,12 @@ to keep its cache, or suggests a hand-off once it has gone cold. Under its
 cache bar, a context meter shows how full the session's context is: amber from
 70%, red from 90%. Icon buttons on the row switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
-with its rate per minute. Context trend is a sparkline of its last 30 calls'
-context; it marks each call under half the one before it, a compaction, and
-counts them. A row shows these buttons only when it has more than one view, and
+with its rate per minute. Context is a bar of the session's context against its window, with a tick
+where auto-compaction fires (your `autoCompactWindow` setting when it is set,
+else the window less 33k, marked with `~`), an estimate of the turns left from the
+average growth per turn, and a dot on the bar for each turn that added more
+than 20k. A sparkline of its last 30 calls' context, marking each call under
+half the one before it as a compaction, shows only once the session has compacted. A row shows these buttons only when it has more than one view, and
 keeps your choice while the lead session lasts. The reply reminder shows under
 whichever view you chose. At the bottom of the pane
 it shows the lead session's own rate limits and context. A faint extension on

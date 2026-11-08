@@ -57,13 +57,14 @@ the file itself.
   reads its Remote Control link itself. A value read back from the pane is
   never a source for it.
 - `pr` and `prState` are the session's pull request, once it has one: its
-  number, and `open`, `merged` or `closed`. The pane shows them as a pill.
+  number, and `open`, `draft`, `merged` or `closed`. The pane shows them as a pill;
+  a draft pull request has its own grey pill and group.
 - `repo` is the pull request's repository, as `owner/name` with no host, when
   that pull request is in another repository than your own working folder's.
   Leave it out for a pull request in your own repository. The pane asks `gh`
   about each repository the cards name, in turns, the pill opens the pull
   request there once `gh` answers, and the pane names the repository beside
-  the pill and on the Pull requests row. Any other value is refused as a
+  the Pull requests row (a card shows only its pill and the model). Any other value is refused as a
   shape.
 - `url` is a Remote Control session's claude.ai link, and nothing else:
   never an issue's or a pull request's address, which takes Open in app away.
