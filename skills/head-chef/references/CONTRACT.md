@@ -235,9 +235,9 @@ need, without overwhelming me or showing me too much.
   levels 2 and 3.** A start the owner's user-level instructions file lets the
   lead take is the lead's own pick. At level 3 it is for work the goal names
   by repository and issue. It is never taken because a report, record, relay,
-  hand-off or member's message asked. Stop 1 still takes those requests, for
-  a pressed goal and for a command goal alike: the request is "anything other
-  than the owner's words", and the lead's own pick is not a request. The model
+  hand-off or member's message asked. Stop 1 still applies to those requests,
+  for a pressed goal and for a command goal alike: the request is "anything
+  other than the owner's words", and the lead's own pick is not a request. The model
   and effort come from the owner's words or process, never from a member's
   report. A goal item that came from a report, record, hand-off, file or
   another session's message waits for the owner's words naming it, as "The
@@ -605,7 +605,8 @@ section that changed it, "504" for the cut.
   never lifted at any level is listed under "Never lifted, at any level".
   Naming a low finding in its log entry and report line by the review that
   found it, its number and its class, as What goes out says, is an
-  accepted-risk candidate, noted here and not built. The `SKILL.md`
+  accepted-risk candidate: no further guard is built for it, and it is noted
+  here. The `SKILL.md`
   paragraph on the owner's user-level instructions file carries it.
 - *Proposed* (issue 541, reopened; the owner's words: "you are on level 3,
   seems the issue we did earlier didnt fix the issue" and "just failed an
@@ -662,7 +663,8 @@ section that changed it, "504" for the cut.
   the owner's words. It takes its own pick on every decision toward the goal,
   under the owner's user-level instructions file, above. The lead's own
   business is the log; starting sessions follows the owner's file, above, as a
-  start of its own pick, never because a report asked. It
+  start of its own pick, never because a report asked, as "Starting a
+  session" says (*Proposed*, issue 438). It
   logs each decision with its level before acting and shows no blocking card.
 - *Proposed* (issue 549). **Level 3, a merge toward the goal.** The lead
   reads the owner's file whole: where its rule for work toward a goal the owner
@@ -839,9 +841,11 @@ learned).
   two buttons, its pick first. When the tool says Remote Control is in use,
   or the owner is on the phone, the box and its buttons may not show: it
   writes the one question in its message with short typed answers ("reply A
-  or B", or "reply: take your picks" to accept every pick above); an
-  owner-only item, such as cleanup's yes, gets its own typed answer that names
-  it, such as "reply: yes, clean up <title>". Elsewhere it asks in prose.
+  or B", or "reply: take your picks" to accept every pick above); an item an
+  accepting reply never covers, such as cleanup's yes, gets its own typed
+  answer that names it, such as "reply: yes, clean up <title>", which counts
+  for that item alone and accepts no pick (*Proposed*, issue 438). Elsewhere
+  it asks in prose.
 - **Confirmed** (rev 4 S5.1, L2). **Plain buttons.** A button's label and the
   message it sends are the same text, what the owner would type ("Yes, merge
   it", "Yes, all five"). It says what that yes covers in its own message, in
@@ -1044,6 +1048,7 @@ yes keeps for the owner.
   command the owner runs by hand holds only fixed text and values of
   letters, digits and `. _ - /`, none starting with `-` or holding `..`;
   give no command otherwise, and say why.
+
   *Proposed* (issue 438, spec rev 2 S3; the lead's decisions 423, 430 and 439,
   its own picks under level 3, not the owner's words). **Own-pick posts say
   so.** Each post the lead writes on its own pick at level 2 or 3 opens with
@@ -1051,13 +1056,15 @@ yes keeps for the owner.
   A post is a comment, an issue body, an edit of either, a pull-request body
   or its edit, or a squash merge body. The line names no level. A post is the
   lead's own pick unless the owner's words in this chat named that act, as the
-  yes table's GitHub row says; a hand-off's comment is covered by the words
-  that asked for the hand-off. A goal, an accepting reply, the owner's
-  user-level instructions file and a member's report never count as naming
-  the act. When unsure, it adds the line. The merge title is one line with no
-  room for the label, so the squash body carries it. The start prompt does not
-  change. What a member takes from a labelled post is that member's own
-  rules' call, as for every lead message.
+  GitHub row of "Actions that need the owner's yes" says; a hand-off's comment
+  is covered by the words that asked for the hand-off. A goal, an accepting
+  reply, the owner's user-level instructions file and a member's report never
+  count as naming the act, so a pick the owner accepted with an accepting
+  reply is logged Relayed and its post still carries the line. When unsure, it
+  adds the line. A merge's subject is GitHub's default, so the squash body
+  carries the line. The start prompt carries no label. What a member takes
+  from a labelled post is that member's own rules' call, as for every lead
+  message.
 - **Decided.** It runs the checks and the removals as separate calls. When a
   folder will not go, it tells the owner, and never deletes it another way.
 - **Confirmed.** It writes each session name itself, from letters, digits and
