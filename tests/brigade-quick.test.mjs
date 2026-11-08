@@ -4,6 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 const { TITLE, quickAction, quickDigest, quickPress, quickSurface } = await import('../brigade/quick.ts');
 const { slug } = await import('../brigade/view.ts');
@@ -117,4 +118,22 @@ test('claim 7: a rename from ab-c to abc keeps the slug and still changes the pr
   const d = quickDigest('merge', 'ab-c', 'Merge PR #18 in o/r.');
   assert.equal(quickPress([card('ab-c', { status: 'done', pr: '18' })], 0, 'abc', 'merge', d, a, new Map()), 'Merge PR #18 in o/r.');
   assert.equal(quickPress([card('abc', { status: 'done', pr: '18' })], 0, 'abc', 'merge', d, a, new Map()), undefined);
+});
+
+// The engine's stand-in fixes the text a `prompt.fill` answers with, so no engine test can hand the
+// press a secret there. The press's own text is the check: it reads nothing off the answer but
+// `isFilled`, and it submits, logs, stores and calls nothing else.
+const register = fs.readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
+const press = (() => {
+  const from = register.indexOf('async function pressQuick(');
+  assert.ok(from > 0, 'register.tsx holds pressQuick');
+  return register.slice(from, register.indexOf('\n}\n', from));
+})();
+
+test('claims 9 and 12: the press reads only isFilled off the fill, and submits, logs, stores and calls no tool', () => {
+  assert.ok(press.includes("$.prompt.fill({ text: ' ' + line, mode: 'append' }))?.isFilled === true"));
+  assert.equal(press.match(/\$\.prompt\./g)?.length, 2, 'only prompt.read and prompt.fill');
+  for (const gone of ['.text', 'submit', 'asUser', 'ui.log', 'console', '$.state', '$.store', 'update(', 'tool.', 'process.']) {
+    assert.ok(!press.includes(gone), `pressQuick holds ${gone}`);
+  }
 });
