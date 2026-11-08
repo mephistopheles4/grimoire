@@ -285,14 +285,17 @@ export function ghRun(repo?: unknown): GhRun | undefined {
 }
 
 /** A pill press (issue 513, S2): the second fixed list, `gh pr view <number>
- *  --web`, with the answer's repository always set as GH_REPO and the same
+ *  --web`, with the answer's repository always set as GH_REPO, behind a
+ *  constant github.com host, and the same
  *  15-second limit. The number is on the command line and has passed
  *  `PR_NUMBER` here; the repository has passed `REPO`. Either failing builds
  *  no run. */
 export function ghViewRun(number: unknown, repo: unknown): GhRun | undefined {
   if (typeof number !== 'string' || !PR_NUMBER.test(number)) return undefined
   if (typeof repo !== 'string' || !REPO.test(repo)) return undefined
-  return { argv: ['gh', 'pr', 'view', number, '--web'], init: { timeoutMs: 15000, env: { GH_REPO: repo } } }
+  // The host is pinned: gh takes `[HOST/]OWNER/REPO`, so GH_HOST and gh's own
+  // default cannot move the page off github.com (the only host an answer draws for).
+  return { argv: ['gh', 'pr', 'view', number, '--web'], init: { timeoutMs: 15000, env: { GH_REPO: `github.com/${repo}` } } }
 }
 
 /** One PR `gh` answered for, after its checks. `updatedAt` is epoch ms. */

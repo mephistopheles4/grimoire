@@ -4396,13 +4396,13 @@ test('desktop, C1: a press layer sits on a pill gh answered for and nowhere else
 })
 
 for (const tab of ['sessions', 'prs']) {
-  test(`desktop, C1: pressing a pill on the ${tab} tab runs exactly gh pr view <number> --web, with GH_REPO the answer's repository`, async ($, on) => {
+  test(`desktop, C1: pressing a pill on the ${tab} tab runs exactly gh pr view <number> --web, with GH_REPO the answer's repository behind a constant github.com host`, async ($, on) => {
     const w = await prPane(on, $)
     const m = await mountOn($, 'desktop')
     if (tab === 'prs') await m.press({ key: 'view-prs' })
     await m.press({ key: 'pill-0-alpha' })
     expect(viewRuns(w)).toEqual([['gh', 'pr', 'view', '341', '--web']])
-    expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'o/r' } })
+    expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'github.com/o/r' } })
     expect(w.toasts).toEqual([])
   })
 }
@@ -4426,7 +4426,7 @@ test('desktop, C1: a card that names a repository opens in that repository, even
   await m.redraw(PANE_PROPS)
   await m.press({ key: 'pill-0-alpha' })
   expect(viewRuns(w)).toEqual([['gh', 'pr', 'view', '7', '--web']])
-  expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
+  expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'github.com/other/proj' } })
 })
 
 // The harness draws a press only from the tree as last drawn, so a key can never be

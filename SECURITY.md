@@ -119,7 +119,7 @@ at most 6 runs a minute, the named repositories taking turns past five, with a
 15-second limit and one run at a time. Since 0.122.0 a press of a pull request
 pill also runs `gh pr view <number> --web`, a second fixed list: its one
 variable argument is the card's checked pull request number, on the command
-line, and the repository `gh` answered with is its `GH_REPO`. It has the
+line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
 `gh`'s own configuration names. Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's

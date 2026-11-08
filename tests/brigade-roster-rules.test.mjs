@@ -929,7 +929,7 @@ test('the base run is the fixed list with no environment; a named run is the sam
 
 test('C1: a pill press builds gh pr view <number> --web with GH_REPO always set, the 15-second limit and nothing else', () => {
   const run = ghViewRun('341', 'other/proj');
-  assert.deepEqual(run, { argv: ['gh', 'pr', 'view', '341', '--web'], init: { timeoutMs: 15000, env: { GH_REPO: 'other/proj' } } });
+  assert.deepEqual(run, { argv: ['gh', 'pr', 'view', '341', '--web'], init: { timeoutMs: 15000, env: { GH_REPO: 'github.com/other/proj' } } });
   assert.deepEqual(Object.keys(run.init.env), ['GH_REPO']);
   // A number or a repository that fails its check builds no run.
   for (const repo of BAD_REPOS) assert.equal(ghViewRun('341', repo), undefined, JSON.stringify(repo));
