@@ -82,6 +82,43 @@ export const PR_NUMBER = /^[0-9]{1,7}$/
  *  pattern, and the run builder checks it again. */
 export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/
 
+/** A to-do's link (issue 560): an issue or a pull request on github.com, the
+ *  whole string and nothing else. The owner is `REPO`'s owner set, the name is
+ *  `REPO`'s name set (so the Desktop run, which holds the repository to `REPO`,
+ *  never refuses an accepted link), and the number is 1 to 7 digits with no
+ *  leading zero. The pattern allows `..` in the name; `parseLink` refuses it
+ *  after the pattern (the tool's schema, built from `LINK.source`, does not). No scheme but https, no other host, no
+ *  userinfo, port, query or fragment. */
+export const LINK = /^https:\/\/github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9_][A-Za-z0-9._-]{0,99})\/(issues|pull)\/([1-9][0-9]{0,6})$/
+
+/** The longest link the pattern allows is 174 characters; the field's cap is a little above it. */
+export const MAX_LINK = 200
+
+/** What a link parses to: the repository, the kind of page and its number. */
+export type LinkParts = { repo: string; kind: 'issue' | 'pr'; number: string }
+
+/** A link's parts, or undefined for anything the pattern does not hold whole. */
+export function parseLink(v: unknown): LinkParts | undefined {
+  if (typeof v !== 'string' || [...v].length > MAX_LINK) return undefined
+  const m = LINK.exec(v)
+  if (m === null) return undefined
+  const [, owner, name, page, number] = m
+  if (owner === undefined || name === undefined || number === undefined || name.includes('..')) return undefined
+  return { repo: `${owner}/${name}`, kind: page === 'pull' ? 'pr' : 'issue', number }
+}
+
+/** The address a link parses to, rebuilt from its parts behind the constant
+ *  prefix: the stored string is never what is drawn or passed on. */
+export function linkUrl(p: LinkParts): string {
+  return `https://github.com/${p.repo}/${p.kind === 'pr' ? 'pull' : 'issues'}/${p.number}`
+}
+
+/** A link's label, from its parts alone: the number, then the repository, so
+ *  the repository is named wherever the label is drawn. */
+export function linkLabel(p: LinkParts): string {
+  return `${p.kind === 'pr' ? 'PR ' : '#'}${p.number} ${p.repo}`
+}
+
 /** Whether a value is a whole number from 0 to 2^53 - 1. */
 const isWhole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
 
@@ -142,7 +179,7 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
 
 function todo(i: number, v: unknown): Checked<Todo> {
   const where = `to-do ${i + 1}`
-  const f = fields(where, v, ['id', 'text', 'session'])
+  const f = fields(where, v, ['id', 'text', 'session', 'link'])
   if ('error' in f) return f
   const id = text(`${where} id`, f.value.id, 40, true)
   if ('error' in id) return id
@@ -152,6 +189,11 @@ function todo(i: number, v: unknown): Checked<Todo> {
   if ('error' in session) return session
   const out: Todo = { id: id.value ?? '', text: body.value ?? '' }
   if (session.value !== undefined) out.session = session.value
+  // Fixed words: the value is never echoed.
+  if (f.value.link !== undefined) {
+    if (parseLink(f.value.link) === undefined) return { error: `${where} link is not a github.com issue or pull request link` }
+    out.link = f.value.link as string
+  }
   return { value: out }
 }
 
@@ -260,7 +302,8 @@ const MAX_PR = 9999999
  *  a card's repository passes the checked owner/name as GH_REPO in the run's
  *  environment, never on the command line (`ghRun`). The pill press runs a
  *  second list, `gh pr view <number> --web` (`ghViewRun`), whose one variable
- *  argument is a card's checked pull request number. */
+ *  argument is a card's checked pull request number; a to-do link press (issue
+ *  560) builds the same list with an issue or pull request kind. */
 export const GH_ARGV: readonly string[] = [
   'gh',
   'pr',
@@ -284,18 +327,20 @@ export function ghRun(repo?: unknown): GhRun | undefined {
   return { argv: GH_ARGV, init: { timeoutMs: 15000, env: { GH_REPO: repo } } }
 }
 
-/** A pill press (issue 513, S2): the second fixed list, `gh pr view <number>
- *  --web`, with the answer's repository always set as GH_REPO, behind a
- *  constant github.com host, and the same
- *  15-second limit. The number is on the command line and has passed
+/** A pill press (issue 513, S2) or a to-do link press (issue 560): the second
+ *  fixed list, `gh <pr|issue> view <number> --web`, with the repository always
+ *  set as GH_REPO, behind a constant github.com host, and the same 15-second
+ *  limit. The repository is the pill's `gh` answer or the to-do link's parse. The number is on the command line and has passed
  *  `PR_NUMBER` here; the repository has passed `REPO`. Either failing builds
  *  no run. */
-export function ghViewRun(number: unknown, repo: unknown): GhRun | undefined {
+export function ghViewRun(number: unknown, repo: unknown, kind: unknown = 'pr'): GhRun | undefined {
   if (typeof number !== 'string' || !PR_NUMBER.test(number)) return undefined
   if (typeof repo !== 'string' || !REPO.test(repo)) return undefined
+  // The kind is one of two words (issue 560: a to-do's link opens an issue or a pull request).
+  if (kind !== 'pr' && kind !== 'issue') return undefined
   // The host is pinned: gh takes `[HOST/]OWNER/REPO`, so GH_HOST and gh's own
   // default cannot move the page off github.com (the only host an answer draws for).
-  return { argv: ['gh', 'pr', 'view', number, '--web'], init: { timeoutMs: 15000, env: { GH_REPO: `github.com/${repo}` } } }
+  return { argv: ['gh', kind, 'view', number, '--web'], init: { timeoutMs: 15000, env: { GH_REPO: `github.com/${repo}` } } }
 }
 
 /** One PR `gh` answered for, after its checks. `updatedAt` is epoch ms. */

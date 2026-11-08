@@ -88,6 +88,38 @@ When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. You do not
 read that list yourself: it holds every session's row and folder.
 
+## When the model changes
+
+Read this when the model for the next piece of work on an existing session
+differs from that session's own model, for example when the owner asks for
+the next piece of work on another model.
+
+Do not change the session's model with a setter. Start a fresh session from
+the record on the issue, with steps 1 to 8 above. It is a plain start, not a
+hand-off request. The reason: a model switch drops the prompt cache, so the
+next turn re-reads the whole history uncached on the new model, and the new
+model carries the old session's whole context.
+
+- When you do not know the running session's model, treat it as different.
+- Name the fresh session as step 2 says. It is never the old session's name.
+- Only the record on the issue is carried over: the fresh session has a new
+  worktree. When the approved record is not on the issue, or the issue does
+  not mark which revision was approved, ask the old session to post it,
+  naming the approved revision. Its own rules govern the post.
+  Start nothing until the record is on the issue; when no post lands, tell the
+  owner in one line and wait.
+- In the start report, name the fresh session as the session that carries the
+  issue, and send the old session nothing more for this issue. Ask to archive
+  the old session (a Desktop session) or stop it (a background session). That
+  is the "Archive or stop a session" row of "Actions that need the owner's
+  yes" in `SKILL.md`: it waits for the owner's words at levels 1 and 2, and
+  for the owner's user-level instructions file at level 3. Until then, leave
+  the old session running and say so. The old session's worktree and branch
+  stay with the cleaner.
+- Changing only the effort on the same model stays allowed, with Desktop's
+  effort setter on a Desktop session. A background session has no setter:
+  say so in one line, and the owner sets the effort in that session.
+
 ## When a start is refused
 
 - **`claude --bg` is refused,** by the auto-mode classifier or anything else:

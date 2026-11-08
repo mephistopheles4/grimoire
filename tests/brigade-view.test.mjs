@@ -5030,3 +5030,43 @@ test('507 C4: a member with no summary in any folder falls back to its transcrip
   assert.equal(cardText(out).line, OLD_LINE);
   assert.equal(fs.lists.filter(p => p === DATA).length, 1, 'one listing for both members');
 });
+
+// --- issue 560: a to-do's link button and its press ---------------------------------------
+
+const { linkDigest, linkPress, visitPress } = view;
+const LINK_A = 'https://github.com/o/my-repo/pull/18';
+
+test('#560 C5: a link press goes only for the address its button was drawn for; any change since the draw gives nothing', () => {
+  const drawn = linkDigest(LINK_A);
+  assert.match(drawn, /^[0-9a-f]{16}$/);
+  assert.deepEqual(linkPress(LINK_A, drawn), { repo: 'o/my-repo', kind: 'pr', number: '18' });
+  // A look-alike repository whose slug folds to the same letters and digits.
+  assert.equal(linkPress('https://github.com/o/myrepo/pull/18', drawn), undefined);
+  assert.equal(linkPress('https://github.com/o/my.repo/pull/18', drawn), undefined);
+  // The same repository, another number or kind.
+  assert.equal(linkPress('https://github.com/o/my-repo/pull/19', drawn), undefined);
+  assert.equal(linkPress('https://github.com/o/my-repo/issues/18', drawn), undefined);
+  // Names that differ only past the key slug's 40 characters.
+  const a = `https://github.com/o/${'a'.repeat(50)}/pull/1`;
+  const b = `https://github.com/o/${'a'.repeat(49)}b/pull/1`;
+  assert.equal(linkPress(b, linkDigest(a)), undefined);
+  assert.ok(linkPress(a, linkDigest(a)));
+});
+
+test('#560 C5: a link press given a string the pattern refuses, a non-string or a wrong digest gives nothing', () => {
+  const bad = 'https://github.com.evil.example/o/r/pull/18';
+  assert.equal(linkPress(bad, linkDigest(bad)), undefined);
+  for (const link of [undefined, null, 7, ['x'], {}]) assert.equal(linkPress(link, linkDigest(LINK_A)), undefined);
+  for (const word of [undefined, '', 'x', linkDigest(LINK_A).toUpperCase(), 7]) assert.equal(linkPress(LINK_A, word), undefined, String(word));
+});
+
+test('#560 C5: a visit press finds its to-do by place and id slug, then by the digest; a to-do that moved, was renamed or was relinked gives nothing', () => {
+  const todos = [{ id: 'Review-18', text: 'a', link: LINK_A }, { id: 't2', text: 'b' }];
+  const word = linkDigest(LINK_A);
+  assert.deepEqual(visitPress(todos, 0, 'review18', word), { repo: 'o/my-repo', kind: 'pr', number: '18' });
+  assert.equal(visitPress(todos, 1, 'review18', word), undefined, 'moved to another place');
+  assert.equal(visitPress(todos, 5, 'review18', word), undefined, 'place gone');
+  assert.equal(visitPress([{ id: 'other', link: LINK_A }], 0, 'review18', word), undefined, 'renamed');
+  assert.equal(visitPress([{ id: 'Review-18', link: 'https://github.com/o/my-repo/pull/19' }], 0, 'review18', word), undefined, 'relinked');
+  assert.equal(visitPress([{ id: 'Review-18' }], 0, 'review18', word), undefined, 'link removed');
+});
