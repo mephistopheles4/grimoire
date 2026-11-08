@@ -6440,9 +6440,8 @@ test('claim 10: Lead, Relayed by the writer, a waiting entry and its answer draw
   await decisionsPane(on, $, 'desktop', w =>
     seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' }), kept(2, 300, { source: 'relayed', answers: '1' }), kept(3, 400, { source: 'relayed', question: 'Lone claim?' })])),
   )
-  expect(await shows(/^Answered, as the lead records it: decision 2$/)).toBe(true)
-  expect(await shows(/^Lead$/)).toBe(true)
-  // Since spec 448 this own answered pair draws on one card, the answer's label on it.
+  // Since spec 448 this own answered pair draws on one card, the answer's label on it and the waiting entry's none (issue 552).
+  expect(await shows(/^Lead$/)).toBe(false)
   expect(await shows(/^Relayed by lead-a$/)).toBe(true)
   // A Relayed entry that answers nothing still draws alone, with its own label.
   await press($, 'dnext-1-200-2-300')
@@ -8443,13 +8442,19 @@ test('spec 448 claim 1: an own unread waiting entry and its answer draw as one c
   expect(await shows(/^1 of 2$/)).toBe(true)
   expect(await shows(/^3 decisions · 3 unread$/)).toBe(true)
   expect(await shows(/^Mine asks\?$/)).toBe(true)
-  expect(await textCount(/^Answered, as the lead records it: decision 2$/)).toBe(1)
-  // The answer's block: its pick as headline (beside the two cards' "Yes" options), label, time, level, question, why, to undo, revisit and id.
-  expect(await textCount(/^Yes$/)).toBe(3)
-  expect(await textCount(/^1970-01-01 00:00$/)).toBe(2)
-  for (const text of [/^Relayed by lead-a$/, /^at level 2$/, /^Owner said yes\?$/, /^The owner typed it\.$/, /^Ask again\.$/, /^At the merge\.$/, /^Decision 2$/, /^Decision 1$/]) {
-    expect(await shows(text)).toBe(true)
+  // Issue 552: one card. The answer's pick is the headline (beside the "Yes" option); the question and options once; the answer's label, time, level, why, to undo and revisit once; one id line.
+  expect(await shows(/^Answered, as the lead records it/)).toBe(false)
+  expect(await textCount(/^Mine asks\?$/)).toBe(1)
+  expect(await textCount(/^Yes$/)).toBe(2)
+  expect(await textCount(/^Options$/)).toBe(1)
+  expect(await textCount(/^1970-01-01 00:00$/)).toBe(1)
+  expect(await textCount(/^Relayed by lead-a$/)).toBe(1)
+  expect(await textCount(/^at level 2$/)).toBe(1)
+  for (const text of [/^The owner typed it\.$/, /^Ask again\.$/, /^At the merge\.$/, /^Decision 1, answered by decision 2$/]) {
+    expect(await textCount(text)).toBe(1)
   }
+  // The answer's own question is the lead's restatement; the card does not ask twice.
+  expect(await shows(/^Owner said yes\?$/)).toBe(false)
   expect(await shows(/^Plain one\?$/)).toBe(false)
   expect((await buttonKeys()).filter(k => /^d(next|flag|skip)-/.test(k)).sort()).toEqual(['dflag-1-200-2-300', 'dnext-1-200-2-300', 'dskip-1-200-2-300'])
 })
@@ -8460,28 +8465,33 @@ const PAIR_545 = [
   kept(2, 300, { question: 'Owner said ship?', source: 'relayed', answers: '1', pick: 'Ship it', options: ['Ship it', 'Hold'] }),
 ]
 
-test('545 row 10: the waiting card marks the option its answer picked, and an unanswered waiting card marks none', async ($, on) => {
+test('552: the one card marks the option its answer picked, once', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
-  // The waiting card's chosen option and the answer card's own pick.
-  expect(await textCount(/^●$/)).toBe(2)
+  expect(await textCount(/^●$/)).toBe(1)
+  // The headline and the option.
+  expect(await textCount(/^Ship it$/)).toBe(2)
+  expect(await textCount(/^Hold$/)).toBe(1)
+})
+
+test('552: a pick that is no option of the question is the headline, and the options mark none', async ($, on) => {
+  // The answer's pick is one of the answer's own options, not of the question's.
+  const free = [PAIR_545[0], { ...PAIR_545[1], options: ['Ship it, but on Tuesday', 'Hold'], pick: 'Ship it, but on Tuesday' }]
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(free)))
+  expect(await textCount(/^●$/)).toBe(0)
+  expect(await textCount(/^Ship it, but on Tuesday$/)).toBe(1)
+})
+
+test('552: the answer is not nested: the pair draws one bordered card', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
+  const boxes = (await mounted.findAll({ type: 'Box' })) as any[]
+  const text = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(text).join(''))
+  // Bordered boxes holding the question: the card, and no inner box for the answer.
+  expect(boxes.filter(b => b.props.borderStyle === 'round' && text(b).includes('Owner said ship?')).length + boxes.filter(b => b.props.borderStyle === 'round' && text(b).includes('Mine asks?')).length).toBe(1)
 })
 
 test('545 row 10: an unanswered waiting card marks no option', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([PAIR_545[0]])))
   expect(await textCount(/^●$/)).toBe(0)
-})
-
-test('545 row 10: in the nested answer the title sits on its own full-width line, above the meta line, not in a column beside it', async ($, on) => {
-  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(PAIR_545)))
-  const boxes = (await mounted.findAll({ type: 'Box' })) as any[]
-  const text = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(text).join(''))
-  // The smallest Box holding both the answer's headline and its "Relayed by" label.
-  const both = boxes.filter(b => text(b).includes('Answered') === false && text(b).includes('Relayed by lead-a') && text(b).includes('Ship it'))
-  const lowest = both.sort((x, y) => text(x).length - text(y).length)[0]
-  expect(lowest).toBeDefined()
-  expect(lowest.props.flexDirection).toBe('column')
-  // The title is a direct child of that column, so it takes the card's full width.
-  expect(lowest.children.some((c: any) => c.type === 'Text' && text(c) === 'Ship it')).toBe(true)
 })
 
 test('spec 448 claim 2: Read, next on a pair marks both read in one write; both stay in History', async ($, on) => {
