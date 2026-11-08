@@ -1,4 +1,4 @@
-# Threat model detail: rows 1 to 14 and 17 to 19
+# Threat model detail: rows 1 to 14 and 17 to 20
 
 This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
 
@@ -156,11 +156,11 @@ SkillSpector is static pattern matching: an instruction written to read as ordin
 
 ### What stops it today
 
-Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code, for the plugin validator (`validate`) and the plugin tests (`plugin-test` on Windows and `plugin-test-linux` on Linux), is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; no job holds a token or secret, each has `contents: read`, and none has a path into `pages`. The athanor image fetch is hash-pinned. See [scanners.md](scanners.md).
+Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code, for the plugin validator (`validate`) and the plugin tests (`plugin-test` on Windows and `plugin-test-linux` on Linux), is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; no job holds a token or secret, each has `contents: read`, and none has a path into `pages`. Every `npm pack` runs from the runner's temp folder, outside the checkout, so npm reads no `.npmrc` a branch adds, and rule 6 of `scripts/check.mjs` refuses one, and a `.yarnrc.yml`, anywhere in the tree (issue 366). The athanor image fetch is hash-pinned; git in that image is not, accepted as class C13 (E87; [row 20](#row-20)). See [scanners.md](scanners.md).
 
 ### Residual gap
 
-A pin trusts whatever code it names. The CI npm pins are not content pins: no tarball hash is checked.
+A pin trusts whatever code it names. The CI npm pins are not content pins: no tarball hash is checked. If a fetch ran from the checkout again, a pull request's own CI run would read a branch's `.npmrc` before the check failed.
 
 ### Tags
 
@@ -304,8 +304,26 @@ Information disclosure · LINDDUN identifying
 
 ### Residual gap
 
-**The check runs after the hook has fired for a session opened on the branch**, so it protects the merge and not the reader; Claude Code runs hooks from a branch's settings file as soon as a session opens on it, and a worktree under a trusted checkout and a headless session show no dialog. **Hooks in a subagent's or a skill's frontmatter under `.claude/` are read by no rule.** **The guard is a nudge, not a control:** the flag that lets the host check through is typed by the agent, the deny message names it, and the command reader misses forms nobody listed (a computed path, a wrapper with options, a `bash -c` string). **The probe's environment:** a program first on `PATH` named `athanor` gets the session's environment before the owner's permission decision for that call; the reach is no wider than the agent's own `athanor run check`. **The hook's own `node`:** the planted-copy run was one headless session on Windows; other systems and an interactive session were not measured. **The Docker engine:** the guard sends every agent to `athanor run check`, which ships the tracked files with uncommitted edits to the engine athanor is set to use, and only `CONTRIBUTING.md` keeps that local; athanor's refusal of a non-local engine is issue 33 on the athanor repository, in progress, and this row stands until it lands. Accepted risk: class C9 (E70), in the threat model.
+**The check runs after the hook has fired for a session opened on the branch**, so it protects the merge and not the reader; Claude Code runs hooks from a branch's settings file as soon as a session opens on it, and a worktree under a trusted checkout and a headless session show no dialog. **Hooks in a subagent's or a skill's frontmatter under `.claude/` are read by no rule.** **The guard is a nudge, not a control:** the flag that lets the host check through is typed by the agent, the deny message names it, and the command reader misses forms nobody listed (a computed path, a wrapper with options, a `bash -c` string). **The probe's environment:** a program first on `PATH` named `athanor` gets the session's environment before the owner's permission decision for that call; the reach is no wider than the agent's own `athanor run check`. **The hook's own `node`:** the planted-copy run was one headless session on Windows; other systems and an interactive session were not measured. **The Docker engine:** the guard sends every agent to `athanor run check`, which ships the run's files to the engine athanor is set to use. athanor refuses an engine that is not on this machine unless the machine sets `allowRemoteDocker` (athanor issue 33, closed 2026-10-24); where it is set, the run's data reaches that engine (P6). A local run is [row 20](#row-20). Accepted risk: class C9 (E70), in the threat model.
 
 ### Tags
 
 Elevation of privilege, Tampering, Information disclosure · LINDDUN data disclosure
+
+## Row 20
+
+### Scenario
+
+**A local check run hands the container engine more than its reader expects, or its build pulls in a moved package.** A contributor or an agent runs `athanor run check` on the local engine. The run sends the engine the tracked files with their uncommitted edits, with `--untracked` the untracked files `.gitignore` does not match, and the history from the merge base with `origin/main` onward, commit messages, author names and emails and files deleted since included. A secret in any of those files reaches the engine and the container. Before the run, the image build runs with network access: a branch that changes `tests/container/` or `athanor.json` has the build run what it names, and git comes from Debian's archive at build time, so a replaced package there runs in the image. After the run, athanor's state folder, and a container killed hard, keep copies of what it took.
+
+### What stops it today
+
+The run has no network: athanor starts the container with no network and gives it nothing from the host but the snapshot. **Rule 6 of `scripts/check.mjs`** holds `athanor.json`'s `dockerfile` and `context` to `tests/container/`, and refuses `inputs`, a symbolic link at the folder or the Dockerfile, and a case twin of the file. The Dockerfile pins the base image by digest and holds the Claude Code tarball to its sha512 before it unpacks it; nothing is installed from npm. athanor removes the run's container when the run ends, and the state folder's copies go once the run has streamed them. `CONTRIBUTING.md`, "Run the check in a container", says what a run sends and keeps, and tells the reader to use the local engine, to keep secrets out of tracked files, and to read a branch's `tests/container/` and `athanor.json` before running it.
+
+### Residual gap
+
+**The build runs before the check:** on a branch nobody has read, the image build runs what the branch's `tests/container/` names, with network, and the hold on its folder fires only inside the check, after the build; the reader is the guard. **git is unpinned:** the base image's digest holds the base and not git, which comes from Debian's archive at build time. Accepted risk: class C13 (E87), in the threat model. **What stays behind:** athanor's state folder, `~/.athanor` or `$ATHANOR_HOME`, keeps copies of the index, the run's objects and a pack of the history until the run has streamed them, up to a day after a run killed hard; a run killed hard also leaves its container, with its snapshot, until the next run takes that slot or `docker rm -f -v` removes it. Both are unencrypted, and whatever can read the owner's files can read them; a program working against the owner is class C11. **A secret in any file the run takes reaches the engine.** A non-local engine is candidate P6.
+
+### Tags
+
+`AML.T0010` · `LLM03:2025` · Tampering, Information disclosure · MAESTRO 7
