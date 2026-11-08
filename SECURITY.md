@@ -451,7 +451,8 @@ a repository's or member's rule that keeps those risk calls for the owner no
 longer holds them at 3, and `read_autonomy` says the same. What C5, C6 and E85
 in the threat model keep waiting still waits: an install, a post carrying
 private work, a merge that changes the threat model's scope or accepted risks,
-and an edit to its scope, its naming line or E79's class. The control is the
+and an edit to its scope, its naming line, or an accepted risk that removes
+the rules on secrets and personal data or widens the level-3 leave (E79). The control is the
 log and the flag, which the owner reviews after the fact; the log rests on
 the decision files, whose planting by another plugin is still an open
 candidate (E40b). A 3 it sets carries its goal, which is
