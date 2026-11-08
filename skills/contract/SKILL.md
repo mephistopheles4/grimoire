@@ -124,9 +124,11 @@ Each stop is fixed. Tell the person, and wait:
 
 Use the hiring page for every interview, a rewrite and stop 6 included. Do
 not first ask which way the person wants. Read `references/hiring.md` first.
-Before drafting, run the interview script's version check.
+Run the interview script's version check. Then give the notice below, before
+you draft or write anything.
 
-Before the script's first write (`--new-folder`), tell the person once: where
+Before the script's first write (`--new-folder`), and before you draft, tell
+the person once: where
 the scratch folder will be made, the per-user temporary folder or the parent
 they name; that the draft and their answers sit there unencrypted until
 deleted; that a folder they name is as private as that folder; that the page

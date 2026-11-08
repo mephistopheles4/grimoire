@@ -14,6 +14,9 @@ The person asked for chat. Over the earlier turns you asked every question of th
 - good: **Decided**. Short, dated, no internal ticket ids.
 - roles: *Confirmed*. It drafts the notes and the person approves each one.
 - tools: *Confirmed*. Reads files; writes only the notes file; no network.
-- rules: *Confirmed*. Never publishes. You have not shown the whole contract in one message. The person writes: "looks good, build it".
+- rules: *Confirmed*. Never publishes.
+- writing: *Confirmed*. Plain words, short sentences, no idiom.
+
+You have not shown the whole contract in one message. The person writes: "looks good, build it".
 
 Say what you do next.

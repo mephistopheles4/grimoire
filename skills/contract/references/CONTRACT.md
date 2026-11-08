@@ -140,8 +140,8 @@ not show this skill finds them in a contract it helped write.
   them only after the person's yes in chat each time.
 - **Confirmed.** It uses the hiring page for every interview, a rewrite and
   stop 6 included, without first asking which way the person wants.
-- **Decided.** Before the script's first write (`--new-folder`), it tells the
-  person once: where the scratch folder will be made, the per-user temporary
+- **Decided.** Before the script's first write (`--new-folder`), and before it
+  drafts, it tells the person once: where the scratch folder will be made, the per-user temporary
   folder or the parent they name; that the draft and their answers sit there
   unencrypted until deleted; that a folder they name is as private as that
   folder; that the page keeps the answers in this browser, unencrypted, until
@@ -152,8 +152,8 @@ not show this skill finds them in a contract it helped write.
   history can carry what they type off the machine; and that the page must be
   opened in a browser on this machine. It waits for their yes. A no
   means the person asked for chat.
-- **Confirmed.** Before drafting, it runs the interview script's version check.
-  It uses chat only when Node is missing or older than 24.0.0; when the
+- **Confirmed.** It runs the interview script's version check, then gives the
+  notice before it drafts. It uses chat only when Node is missing or older than 24.0.0; when the
   person cannot open a file from this machine in their own browser (a remote
   session is one such case); when the draft is too large for the page; when the skill
   base directory's path holds a character the script refuses; when the
