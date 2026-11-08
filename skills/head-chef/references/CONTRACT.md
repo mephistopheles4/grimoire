@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.17.0
+Version: 1.19.0
 Kind: skill
 Level: Thorough
 
@@ -475,13 +475,24 @@ section that changed it, "504" for the cut.
   only that effort's step, and carries on with everything else; it shows no
   blocking card. The owner's user-level instructions file, above, governs.
 - **Confirmed** (402; rev 4 S3.2; renamed in issue 464, the owner's words,
-  relayed; 504, S3). **Level 3, Turbo.** At level 3 it works to its goal: with
+  relayed; 504, S3; the merge words trimmed, *Proposed*, issue 549). **Level 3, Turbo.** At level 3 it works to its goal: with
   a goal, check whether it is met; if not, continue; it ends when met or on
   the owner's words. It takes its own pick on every decision toward the goal,
   under the owner's user-level instructions file, above. The lead's own
-  business is the log; starting sessions and merges follow the owner's file,
-  above, and a merge takes only the reviewed head. It
+  business is the log; starting sessions follows the owner's file, above. It
   logs each decision with its level before acting and shows no blocking card.
+- *Proposed* (issue 549). **Level 3, a merge toward the goal.** The lead
+  reads the owner's file whole: where its rule for work toward a goal the owner
+  set lets the lead decide, even what it otherwise keeps, a merge toward the
+  goal needs no fresh confirm: the lead merges only the head that the member's last review, or its
+  own review, covered, with CI passed on that head, using `gh pr merge <n>
+  --squash --match-head-commit <full sha>`, logged first. It closes a pull
+  request that another one replaces, logged first, with `gh pr close <n>`; the
+  close needs no review or CI. Every other merge or close waits for the
+  owner's words, and so does a merge that changes the threat model's scope or
+  accepted risks. Where the file keeps merges even toward a goal, the merge
+  waits. A goal is either kind the skill has, set with a press or with the
+  command. Levels 1 and 2 are unchanged.
 - *Proposed* (issue 541, the owner's words: "if you would ask me to accept
   your recommendations in one line, then simply take them and log them"; and
   "In PR 541, we are targeting level 3. And we are leaving out the fact that
@@ -496,11 +507,14 @@ section that changed it, "504" for the cut.
   later (the owner's words, relayed by the lead: at level 2 "you will
   usually stop at certain conditions, such as security. And at level 3, you
   wouldn't stop at these, and you would simply log them"). Whatever that
-  file keeps, such as merges, still waits.
-- **Confirmed** (402; 504, S3). **Merging.** It follows one rule: merge only
+  file keeps still waits, except a merge toward the goal, as the Level 3 rule
+  for a merge says.
+- **Confirmed** (402; 504, S3). **Merging.** It merges only
   the head the member's last review covered, with
   `gh pr merge --match-head-commit`; a head that moved waits for a new
-  round. It writes the merge title and body itself, under "What goes out".
+  round. At level 3, a merge toward the goal is as the Level 3 rule above
+  says (*Proposed*, issue 549). It writes the merge title and body itself,
+  under "What goes out".
 - **Confirmed** (rev 4 S3.3; 504, S3). **Waiting entries.** A waiting entry
   holds only the step that waits on it, until the owner answers; every other
   act of that effort goes ahead.
@@ -837,13 +851,13 @@ that eases a control; cut to one sentence in issue 504, S8; reworded in issue
 | Starts a session | nothing: it reports the start right after, in the short form | the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level | **Confirmed**; the exception **Confirmed** (issue 492, spec v3; Test round 1, decision 476); the deference **Confirmed** (issue 504, S3) |
 | Starts a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route | *Proposed* |
 | Archives or stops a session, and has a cleaner the owner's instructions name remove its worktree and branch | at levels 1 and 2, what it will touch, unless the owner's words already name each session; the list is each session's title and kind, folder and branch, and the cleaner named | the owner's words in this chat: at levels 1 and 2 naming each session, or a yes to the list; at level 3, as the owner's user-level instructions file says | **Decided**; **Confirmed** (issue 516, spec rev 2 S4.1 and S4.6, the owner's picks, relayed; replacing the typed step of issues 359 and 484) |
-| Merges, closes, edits, deletes or labels something on GitHub, files an issue, or posts a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at levels 2 and 3, as the owner's user-level instructions file says | **Confirmed**; the deference **Confirmed** (issue 504, S3) |
+| Merges, closes, edits, deletes or labels something on GitHub, files an issue, or posts a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at levels 2 and 3, as the owner's user-level instructions file says; at level 3, a merge, or a close of a pull request another replaces, toward the goal as the Level 3 rule for a merge says | **Confirmed**; the deference **Confirmed** (issue 504, S3); the level-3 merge *Proposed* (issue 549) |
 
 **A hand-off's comment** (**Confirmed**): the head chef writes it in its own
 words, and quotes any session's text in it as that session's.
 
 **Before a merge** (**Confirmed**): it reads the pull request's head again,
-and says so when it moved since the owner's words.
+and says so when it moved since the owner's words or the review.
 
 **A branch to delete** (**Decided**): it comes only from the owner's words
 or a same-repository pull request's head, never a fork's.
