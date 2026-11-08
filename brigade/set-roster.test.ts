@@ -10691,7 +10691,7 @@ async function quickPane(on: On, $: any, box: Box = {}) {
   const seen = { reads: 0, fills: [] as any[], submits: [] as any[], logs: [] as string[], stored: [] as string[] }
   on('prompt.read', () => {
     seen.reads++
-    if (box.readFails === true) return { deny: 'forced read failure' } as any
+    if (box.readFails === true) throw new Error('forced read failure')
     const text = box.draft ?? ''
     return { value: { text, cursor: text.length } } as any
   })
@@ -10737,6 +10737,13 @@ test('#223 desktop: each card that gets an action draws one button, keyed by pla
   const { all } = await quickMount($, 'desktop')
   expect(quickKeys(all)).toEqual(QUICK_KEYS)
   expect(quickButtons(all).map(n => n.text)).toEqual(['Ask', 'Merge', 'Clean up'])
+  // Each button is drawn left of its row's `⋯`.
+  const order = all.map(n => (n.type === 'Button' ? n.props.key : undefined))
+  for (const [i, key] of QUICK_KEYS.entries()) {
+    const menu = order.findIndex(k => typeof k === 'string' && k.startsWith(`menu-${i}-`))
+    expect(menu).toBeGreaterThan(-1)
+    expect(order.indexOf(key)).toBeLessThan(menu)
+  }
 })
 
 test('#223 claim 13: a press on an empty box fills once, appended, with a space before the line, and puts nothing in a toast', async ($, on) => {
@@ -10751,15 +10758,21 @@ test('#223 claim 13: a press on an empty box fills once, appended, with a space 
   expect(w.toasts).toEqual([])
 })
 
-for (const [name, box] of [['a draft', { draft: 'half typed' }], ['a one-character draft after a space', { draft: ' x' }], ['a read that fails', { readFails: true }]] as [string, Box][]) {
+for (const [name, box] of [['a draft', { draft: SECRET }], ['a one-character draft after a space', { draft: ' x' }], ['a read that fails', { readFails: true }]] as [string, Box][]) {
   test(`#223 claim 6: ${name} fills nothing, leaves the box as it was and shows the draft toast`, async ($, on) => {
     const { w, seen } = await quickPane(on, $, box)
     const { m } = await quickMount($, 'desktop')
     await m.press({ key: QUICK_KEYS[0] })
+    const text = await textOf(m)
     expect(seen.reads).toBe(1)
     expect(seen.fills).toEqual([])
     expect(seen.submits).toEqual([])
     expect(w.toasts).toEqual([QUICK_DRAFT])
+    // The draft was tested and dropped: it is in no log, state, store or drawn text.
+    expect(seen.logs.join('\n')).not.toContain(SECRET)
+    expect(seen.stored.join('\n')).not.toContain(SECRET)
+    expect(w.states.map(([, v]) => v).join('\n')).not.toContain(SECRET)
+    expect(text).not.toContain(SECRET)
   })
 }
 
@@ -10793,12 +10806,15 @@ test('#223 claim 9: a press submits nothing, calls no tool, runs no process and 
 
 for (const surface of ['terminal', 'mobile', 'vscode'] as const) {
   test(`#223 claim 11 ${surface}: the pane draws no quick key`, async ($, on) => {
-    const { seen } = await quickPane(on, $)
+    await quickPane(on, $)
     const { all } = await quickMount($, surface)
     expect(quickKeys(all)).toEqual([])
-    expect(seen.reads).toBe(0)
   })
 }
+
+// The press half of claim 11 has no engine test: `$.ui.press` refuses a key the named surface did not
+// draw ("no Button ... is drawn on the terminal surface"), so a quick press cannot be raised from one.
+// tests/brigade-quick.test.mjs checks the gate by the press's own text instead.
 
 test('#223 claim 7: a press whose card has since changed fills nothing and shows the changed toast', async ($, on) => {
   const { w, seen } = await quickPane(on, $)

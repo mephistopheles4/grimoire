@@ -161,7 +161,7 @@ A button puts one line in your prompt box and sends nothing: you read it and
 press Enter, so the yes is still yours. Ask fills `What does <title> need from
 me?`, Merge fills `Merge PR #<n> in <owner>/<name>.`, and Clean up fills `Show me
 what cleaning up <title> would remove.`, which asks for the list first. A title
-with a space gets no button, and a button does nothing while the box holds a
+with anything but letters, digits, `.`, `_` or `-`, or over 80 characters, gets no button, and a button does nothing while the box holds a
 draft (it says so). If the box cannot be filled, a toast shows the line to type.
 The terminal, the phone and VS Code draw no button; ask the lead in chat there.
 Tick several rows and a bar at the foot dismisses them together. A session that

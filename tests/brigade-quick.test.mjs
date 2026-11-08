@@ -52,8 +52,9 @@ test('claim 4: no button on a working card, a draft PR, a stopped card with an o
   none(card('alpha', { status: 'working', pr: '18' }));
   none(card('alpha', { status: 'done', pr: '18' }), answers([gh(18, { state: 'draft' })]));
   none(card('alpha', { status: 'stopped', pr: '18' }));
-  const named = answers([], { named: new Map([['x/y', new Map([[18, gh(18, { repo: 'x/y' })]])]]) });
-  none(card('alpha', { status: 'done', pr: '18', repo: 'x/y' }), named);
+  // The card names the pinned repository itself: only the `repo` field rule keeps Merge away.
+  const named = answers([], { named: new Map([['o/r', new Map([[18, gh(18)]])]]) });
+  none(card('alpha', { status: 'done', pr: '18', repo: 'o/r' }), named);
   none(card('alpha', { status: 'done', pr: '19' }));
   none(card('alpha', { status: 'done', pr: 'abc' }));
   none(card('alpha', { status: 'done', pr: '18' }), answers());
@@ -69,7 +70,7 @@ test('claim 5: a title outside the rule gets no button, on any row', () => {
   assert.equal(quickAction(card('a'.repeat(80), { status: 'done' }), NONE, new Map())?.action, 'cleanup');
 });
 
-test('claim 5: a gh repository that fails REPO, or has a dot part, or is not the pinned one, gets no Merge', () => {
+test('claim 5: a gh repository that fails REPO, or is not the pinned one, gets no Merge', () => {
   const c = card('alpha', { status: 'done', pr: '18' });
   for (const repo of ['no-slash', 'o/..', 'o/.', '-o/r', 'o/r r', 'o/r\nx']) {
     assert.equal(quickAction(c, answers([gh(18, { repo })], { pinned: repo }), new Map()), undefined, repo);
@@ -83,18 +84,11 @@ test('claim 11: only the desktop surface draws or fills a quick action', () => {
   for (const surface of ['terminal', 'mobile', 'vscode', '', undefined, null, 'Desktop', 7]) assert.equal(quickSurface(surface), false, String(surface));
 });
 
-test('claim 7: quickPress returns the line when place, slug, action and digest still match', () => {
-  const cards = [card('alpha', { status: 'done', pr: '18' })];
-  const q = quickAction(cards[0], answers([gh(18)]), new Map());
-  const d = quickDigest(q.action, 'alpha', q.line);
-  assert.match(d, /^[0-9a-f]{16}$/);
-  assert.equal(quickPress(cards, 0, slug('alpha'), 'merge', d, answers([gh(18)]), new Map()), q.line);
-});
-
 test('claim 7: quickPress returns undefined when the place, slug, action or digest no longer matches', () => {
   const cards = [card('alpha', { status: 'done', pr: '18' })];
   const a = answers([gh(18)]);
   const d = quickDigest('merge', 'alpha', 'Merge PR #18 in o/r.');
+  assert.match(d, /^[0-9a-f]{16}$/);
   const press = (over = {}) => {
     const p = { cards, place: 0, slugged: 'alpha', action: 'merge', digest: d, answers: a, ...over };
     return quickPress(p.cards, p.place, p.slugged, p.action, p.digest, p.answers, new Map());
@@ -129,6 +123,15 @@ const press = (() => {
   assert.ok(from > 0, 'register.tsx holds pressQuick');
   return register.slice(from, register.indexOf('\n}\n', from));
 })();
+
+// The press half of claim 11: the engine only presses a key its surface drew, so no engine test can raise a
+// quick press from a surface that did not. The gate is checked in the text: it is the press's first
+// statement, and the call site hands it the event's own surface.
+test('claim 11: the press asks quickSurface first, with the surface the event reports', () => {
+  const body = press.slice(press.indexOf('{', press.indexOf(') {')) + 1).trimStart();
+  assert.ok(body.startsWith('if (!quickSurface(surface)) return'), 'the first statement is the surface gate');
+  assert.match(register, /await pressQuick\(\$, e\.surface, /);
+});
 
 test('claims 9 and 12: the press reads only isFilled off the fill, and submits, logs, stores and calls no tool', () => {
   assert.ok(press.includes("$.prompt.fill({ text: ' ' + line, mode: 'append' }))?.isFilled === true"));
