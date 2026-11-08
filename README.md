@@ -219,7 +219,7 @@ write would push out marks of entries you read. A question marked read keeps
 its link, so an answer logged later still pairs with it.
 
 Since 0.91.0 a question in this lead's own log and the Relayed entry that
-answers it, both unread, show on one card in To review. Since 0.130.0 that
+answers it, both unread, show on one card in To review. Since 0.131.0 that
 card draws the question once, its options with the answer's pick marked, the
 answer's pick as its headline, and the answer's writer, label, time, level, why,
 to undo and revisit. One "✓ Read, next" marks
