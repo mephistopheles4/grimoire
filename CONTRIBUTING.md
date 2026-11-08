@@ -128,6 +128,8 @@ such a package without asking when no one is at a terminal.
   `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
   address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
+  With `--untracked`, an untracked `.npmrc` or `.yarnrc.yml` is copied into the
+  run before the check refuses it, so keep yours outside the checkout.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
   history, until the run has streamed it (up to a day after a run killed hard).

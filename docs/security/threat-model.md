@@ -56,7 +56,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | <a id="r10"></a>R10 | **Branch code runs.** A branch's code runs when a session opens on it. | – | – | 19 | The check holds the tracked settings file to its one guard. The contributor guide says to read a branch's `.claude/` and `scripts/` first, or to open the session with hooks off. | The guard protects the merge, not the reader. A non-local container engine (P6). | [Row 19](checks.md#row-19) |
 | – | **Rows 11 and 12.** Box text skews the audit's reread order; a provider keeps audit text. | 0.18, 0.52 | 0.30, 0.20 | 11, 12 | Accepted as [K1](#k1) and [C7](#c7). | – | [Row 11](checks.md#row-11), [row 12](checks.md#row-12) |
 | <a id="r11"></a>R11 | **Skill under test.** It reaches past its practice run. | 0.15 | 0.80 | 14 | Hygiene, not a boundary: a tight posture, a scrubbed environment, and backups of the owner's live places. | What the posture does not stop. | [Row 14](checks.md#row-14) |
-| <a id="r12"></a>R12 | **Local check run.** An athanor run hands the check's files to the Docker engine, and its build fetches with network. | 0.20 | 0.45 | – | The run has no network. The build folder is held to `tests/container/`, and the base image and Claude Code are pinned by hash. | The build runs before the check on an unread branch. git in the image is unpinned ([C13](#c13)). Copies stay in athanor's state folder. | [Row 20](checks.md#row-20) |
+| <a id="r12"></a>R12 | **Local check run.** An athanor run hands the check's files to the Docker engine, and its build fetches with network. | 0.20 | 0.45 | – | The run has no network. The build folder is held to `tests/container/`, and the base image and Claude Code are pinned by hash. | The build runs before the check on an unread branch, with the registry login and proxy passwords. git in the image is unpinned ([C13](#c13)). Unencrypted copies stay in athanor's state folder and a killed run's container, readable by engine users and, where the home folder lets them, other accounts. | [Row 20](checks.md#row-20) |
 
 - **Scale.** L is likelihood and I is impact, both residual risk after
   today's guards, from 0 to 1. Likelihood is how easy and how often the attack
@@ -295,7 +295,7 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 *Named 2026-11-08 by the owner · from issue 540, spec rev 3, q4 · word "Take all, accept q4", in the build session's chat.*
 
 <a id="c13"></a>
-**C13. The local test image trusts Debian's archive at build time.** The image athanor runs the checks in installs git from Debian's package archive when it is built, unpinned; the base image's digest holds the base and not git. A replaced or moved git package would run inside that image, which only runs the checks. Not inside C13: any other package the image installs, and the base image or Claude Code, which are pinned by hash. Row 20. Entry E87.
+**C13. The local test image trusts Debian's archive at build time.** The image athanor runs the checks in installs git from Debian's package archive when it is built, unpinned; the base image's digest holds the base and not git. A replaced or moved git package would run inside that image, which only runs the checks; apt checks the archive's signatures, so this needs Debian's signing itself to fail. Its one path out is the run's output, which reaches the session's transcript. Not inside C13: any other package the image installs, and the base image or Claude Code, which are pinned by hash. Row 20. Entry E87.
 
 *Worded 2026-11-08 by the lead under the owner's relayed word; not yet named by the owner.*
 
@@ -374,7 +374,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P6. Data flows the base described, or left open.**
 
 - The `claude://` opener's inherited environment, which can hold keys and tokens (C7, with C8). Its two narrower guards were deferred to issue 235.
-- Tracked files with uncommitted edits, and the history from the merge base with `origin/main` onward (files deleted since included, because `check` names that base), sent to a container engine on a machine that sets athanor's `allowRemoteDocker` (C7, with C9). athanor refuses a non-local engine unless the machine sets that, so the risk stands only where it is set.
+- Tracked files with uncommitted edits, and the history from the merge base with `origin/main` onward (files deleted since included, because `check` names that base), and the registry login, sent to a container engine on a machine that sets athanor's `allowRemoteDocker`, unencrypted over plain TCP, which also needs `allowPlainTcp` (C7, with C9). athanor refuses a non-local engine unless the machine sets that, so the risk stands only where it is set.
 - D1a and D3b, the lead's own transcript. Questions, decisions, relays, decision gists and failed-check names in the lead's transcript, which Remote Control shows on every device it is on, unencrypted at rest unless the disk is (C7). A background member's side is in C12; a Desktop member's side with Remote Control on stays here. The permission warning names background sessions only; it does not name the lead's own transcript or a Desktop member on Remote Control.
 - D1b. The pane's report store keeps a one-line question in plugin state that other plugins can read (C4).
 - D1c. Decision gists and failed-check names in the head chef's transcript and the pane's store (C7).
@@ -410,7 +410,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 None open. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
 
-**P10. Package-manager settings files nothing here reads (issue 366).** Rule 6 refuses `.npmrc` and `.yarnrc.yml`, but not `.yarnrc` (Yarn 1), `.pnpmfile.cjs` or `bunfig.toml`. Nothing in this repository or its CI runs Yarn, pnpm or Bun, so none of them is read. Worded by the lead (decision 406); waits for the owner's word.
+**P10. Package-manager settings files nothing here reads (issue 366).** Rule 6 refuses `.npmrc` and `.yarnrc.yml`, but not `.yarnrc` (Yarn 1), `.pnpmfile.cjs` or `bunfig.toml`. Nothing in this repository or its CI runs Yarn, pnpm or Bun. Claude Code is a Bun-built executable, which by Bun's default can load a `bunfig.toml` and a `.env` from its working folder: on 2026-11-08 Claude Code 2.1.319 on Windows did not run a `bunfig.toml` preload; the pinned 2.1.314 on Linux, and `.env`, were not measured. Worded by the lead (decision 406); waits for the owner's word.
 
 </details>
 
@@ -672,7 +672,8 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the run with no network ([row 20](checks.md#row-20))
 - rule 6: `athanor.json`'s build folder held to `tests/container/`, no `inputs`, no symbolic link, no case twin ([row 20](checks.md#row-20))
 - the base image pinned by digest; the Claude Code tarball held to its sha512 ([row 20](checks.md#row-20))
-- `CONTRIBUTING.md`'s "Run the check in a container": use the local engine, keep secrets out of tracked files, read a branch's container files first ([row 20](checks.md#row-20))
+- athanor's refusal of an engine not on this machine unless `allowRemoteDocker` is set ([row 20](checks.md#row-20))
+- `CONTRIBUTING.md`'s "Run the check in a container": use the local engine, checked by `DOCKER_HOST` and `docker context inspect`; keep secrets out of tracked files; read a branch's container files first ([row 20](checks.md#row-20))
 
 #### Old row 11 (class K1)
 
