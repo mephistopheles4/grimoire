@@ -3604,13 +3604,18 @@ export const register: Register = on => {
     // pill, an absolute Box in a clipping Box holding a plain Button with a
     // transparent Text of non-breaking spaces and no label. Drawn only for a
     // pill `gh` answered for; the key carries the card's place and title.
-    const pillLayer = (key: string, pillEl: JSX.Element) => (
+    // Row 2 candidate, unconfirmed (issue 545): the Text is one space, and the
+    // press area keeps the pill's width through a fixed-width Box instead of
+    // twelve spaces of text.
+    const pillLayer = (key: string, n: string, state: string) => (
       <Box position="relative" overflow="hidden">
-        {pillEl}
+        {pill(n, state)}
         <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Button key={key} plain onPress={noop}>
-            <Text color="transparent">{' '.repeat(12)}</Text>
-          </Button>
+          <Box width={pillSvg(n, state)?.width}>
+            <Button key={key} plain onPress={noop}>
+              <Text color="transparent">{' '}</Text>
+            </Button>
+          </Box>
         </Box>
       </Box>
     )
@@ -3855,7 +3860,7 @@ export const register: Register = on => {
             {answer === undefined ? (
               pill(number, pillState(undefined, c.prState))
             ) : href !== undefined && pointer ? (
-              pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
+              pillLayer(keyFor('pill', i, c.title), number, pillState(answer.state, c.prState))
             ) : href !== undefined && Image === undefined ? (
               linkedNumber(number, pillState(answer.state, c.prState), href)
             ) : (
@@ -4182,7 +4187,7 @@ export const register: Register = on => {
             {r.title}
           </Text>
           <Box flexDirection="row" columnGap={1} alignItems="center">
-            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state)) : pill(r.number, r.state)}</Box>
+            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), r.number, r.state) : pill(r.number, r.state)}</Box>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text dimColor size="footnote" wrap="truncate-end">
                 {[r.detail.repo, r.detail.cardTitle, r.detail.age].filter(x => x !== undefined).join(' · ')}

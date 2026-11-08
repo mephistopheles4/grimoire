@@ -4304,6 +4304,18 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
+test('545 row 2 candidate: the pill press layer holds one space and a Box as wide as the pill', async ($, on) => {
+  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj' })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
+  })
+  const all = await nodes(await mountOn($, 'desktop'))
+  const btn = all.find(n => n.type === 'Button' && n.props.key === 'pill-0-alpha')
+  expect(btn).toBeDefined()
+  expect(spoken(btn)).toBe(' ')
+  const holder = all.find(n => n.type === 'Box' && n.children.some((c: any) => c === btn || c?.props?.key === 'pill-0-alpha'))
+  expect(holder?.props.width).toBe(Math.round(36 + 6.3 * '341'.length))
+})
+
 test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the pill, then the settings line at the right, and no repository', async ($, on) => {
   await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], w => {
     w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
