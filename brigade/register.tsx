@@ -5,6 +5,8 @@ import type { Card, Meter, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
   AHEAD_MS,
+  LINK,
+  MAX_LINK,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
   REPO,
@@ -27,6 +29,8 @@ import {
   pathKey,
   ghRun,
   ghViewRun,
+  linkLabel,
+  linkUrl,
   listsOpenTool,
   liveWord,
   listedAsOurs,
@@ -36,6 +40,7 @@ import {
   typedLoadRan,
   oneLine,
   openerArgv,
+  parseLink,
   parsePrList,
   placeDecisions,
   placeHandoff,
@@ -88,7 +93,7 @@ import {
   worktreeFolder,
 } from './start.ts'
 import type { Inputs as StartInputs, Platform } from './start.ts'
-import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
+import type { GhPr, HostOs, LinkParts, Placed, SessionRow, StatAnswer } from './roster.ts'
 import {
   FULL,
   HANDOFF_SECTIONS,
@@ -199,6 +204,9 @@ import {
   pillSvg,
   pillState,
   prAnswer,
+  linkDigest,
+  slug,
+  visitPress,
   prUrl,
   prNumber,
   prRows,
@@ -229,7 +237,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { endTurn, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
+import { compactSign, endTurn, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -361,7 +369,6 @@ const LABEL_CELLS = 9
 
 // A button's key: the verb, the card's place, and its title folded to letters
 // and digits, so a press finds the card it was drawn for or nothing.
-const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 40)
 const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(title)}`
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
@@ -1260,10 +1267,11 @@ function takeNamed(repo: string, found: ReadonlyMap<number, GhPr> | undefined, w
 }
 
 // This session's own usage, for the section at the bottom of the pane. The
-// plain reading costs nothing. The context breakdown is asked for only when
-// the session draws somewhere other than the terminal, the one place the
-// image shows its rows, and only as the local summary estimate, which sends
-// no request. Only the fields the section draws are stored. Each reading also
+// context breakdown is asked for on every surface, only as the local summary
+// estimate, which sends no request (since issue 533 it carries the
+// auto-compact threshold the before-compaction line needs). The terminal is not
+// the image's surface, so its rows are dropped before anything is stored. Only
+// the fields the section draws are stored. Each reading also
 // samples the session limit for its projection, by view.ts's rules. A failed
 // reading keeps the last one, and a reading that started before the pane
 // closed is dropped, so it cannot land over a fresh one after a reopen.
@@ -1274,9 +1282,17 @@ async function readUsage($: EngineInterface) {
   try {
     const surfaces = await $.session.surfaces()
     const image = surfaces.some(s => s !== 'terminal')
-    const reading = await $.session.usage(image ? LOCAL_BREAKDOWN : undefined)
+    // Every reading asks for the local summary, which sends no request: the
+    // before-compaction line (issue 533) needs the engine's auto-compact
+    // threshold, and it sits in the breakdown. Only the two numbers are kept
+    // for it. Where the pane draws no image, the stored snapshot keeps no
+    // breakdown rows, as before.
+    const reading = await $.session.usage(LOCAL_BREAKDOWN)
     if (generation !== mine) return
+    const figures = figuresOf(reading)
+    setFigures(cycle, figures.tokens, figures.threshold)
     const snapshot = snapshotFrom(reading)
+    if (!image) delete snapshot.categories
     await update($, usage, () => snapshot)
     const now = await $.clock.now()
     if (generation === mine) await update($, samples, list => addSample(list, snapshot, now))
@@ -1540,6 +1556,29 @@ async function openPill($: EngineInterface, c: Card) {
   }
 }
 
+// A to-do's link press on Desktop (issue 560): the pill's route, `gh issue view
+// <number> --web` or `gh pr view <number> --web`, built by `ghViewRun` from the
+// link's parse, with the repository behind a constant github.com host, after
+// the same PATH check. One press per to-do at a time (the pill has no such
+// guard; this one is keyed on the to-do's id). Failure is a refused or failed
+// start, a non-zero exit or a timeout, and shows the one fixed toast.
+const LINK_FAILED = 'Could not open the page'
+const visiting = new Set<string>()
+async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
+  if (visiting.has(id)) return
+  visiting.add(id)
+  try {
+    const run = ghViewRun(parts.number, parts.repo, parts.kind)
+    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    const ran = await $.process.run([...run.argv], run.init)
+    if (ran.exitCode !== 0) throw new Error('failed')
+  } catch {
+    $.ui.toast(LINK_FAILED)
+  } finally {
+    visiting.delete(id)
+  }
+}
+
 // --- set_roster ---------------------------------------------------------------
 //
 // The tool the head chef keeps the roster with. A file write of its own into
@@ -1554,7 +1593,7 @@ async function openPill($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, nothing else), or both. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -1590,7 +1629,7 @@ const SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'text'],
-        properties: { id: field(40), text: field(MAX_TEXT), session: field(80) },
+        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: LINK.source } },
       },
     },
   },
@@ -3228,12 +3267,23 @@ const HANDOFF_CAUGHT = {
 const owedRoster = { owed: false }
 const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' in r)
 
+// The compaction nudges (issue 533): the lead's last reading of its context
+// (tokens and the engine's auto-compact threshold) and where the cycle stands.
+// Module memory only; it holds two numbers and flags, no text, and no tool
+// reads it.
+const cycle = newCycle()
+
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
   registerWriter(on, e => {
     if (e.agentId !== undefined) return undefined
-    const line = endTurn(owedRoster)
-    return timers.length > 0 ? line : undefined
+    // With the pane closed nothing is added, and the compaction cycle is left
+    // alone, so a line is not used up unseen (issue 533).
+    if (timers.length === 0) {
+      endTurn(owedRoster)
+      return undefined
+    }
+    return turnEnd(cycle, owedRoster)
   })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
   // hooks, so the permission warning draws beneath it.
@@ -3312,7 +3362,15 @@ export const register: Register = on => {
     // A Pane entry still waiting for this id is logged by the level poll, with
     // the pane open or closed.
     await ensureLevelPoll($)
-    return next(e)
+    const result = await next(e)
+    // The after-compaction line (issue 533): the lead's main conversation, the
+    // pane open, source compact. The line is fixed text; the other plugins'
+    // added context is kept, and none of it is copied.
+    if (e.source !== 'compact' || (e as { agent_id?: unknown }).agent_id !== undefined || timers.length === 0) return result
+    compactSign(cycle)
+    const line = takeAfter(cycle)
+    if (line === undefined) return result
+    return { ...result, additionalContext: [...(result?.additionalContext ?? []), `${NOTE_PREFIX}${line}`] }
   })
 
   // A compaction of the lead's main conversation keeps the level (issue 504,
@@ -3324,7 +3382,11 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     try {
-      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) await compacted($)
+      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
+        // The first sign of a compaction (issue 533); the classic SessionStart is the second.
+        if (timers.length > 0) compactSign(cycle)
+        await compacted($)
+      }
     } catch {
       // The result goes back as it came.
     }
@@ -3716,9 +3778,18 @@ export const register: Register = on => {
       return { element: e.element }
     }
 
-    if (verb === 'todo' || verb === 'go') {
+    if (verb === 'todo' || verb === 'go' || verb === 'visit') {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
+      if (verb === 'visit') {
+        // visitPress (view.ts) is the tested seam: it checks the place and the id's
+        // slug again, parses the link from the roster as it is now, and goes only
+        // if the address matches the one the button was drawn for. The check above
+        // is the one this branch shares with the tick and Open presses.
+        const parts = visitPress(current.todos, i, slugged, word)
+        if (parts !== undefined) await openTodoLink($, item.id, parts)
+        return { element: e.element }
+      }
       if (verb === 'todo') {
         // A tick, or a second press inside the grace period that undoes it.
         const now = await $.clock.now()
@@ -4493,6 +4564,12 @@ export const register: Register = on => {
     // session the pane can open, Open.
     const todoRow = ({ t, i }: { t: (typeof todos)[number]; i: number }) => {
       const isTicked = crossed.has(t.id)
+      // A to-do's link (issue 560), parsed again at each draw from the roster as read: what is
+      // drawn and keyed is the address rebuilt from the parse, never the stored string, and a
+      // string the pattern refuses draws nothing. The label names the repository and wraps
+      // whole, never cut; the text above it is the one that is cut.
+      const linkParts = parseLink(t.link)
+      const linkHref = linkParts === undefined ? undefined : linkUrl(linkParts)
       return (
         <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
           {/* Dim at rest (a blank on the terminal, a ○ on a desktop), a tick
@@ -4513,10 +4590,20 @@ export const register: Register = on => {
               </Button>
             )}
           </Box>
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
+          <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
+            <Text wrap="truncate-end" strikethrough={isTicked} dimColor={isTicked}>
               {oneLine(t.text, MAX_TEXT)}
             </Text>
+            {linkParts !== undefined && linkHref !== undefined &&
+              (pointer ? (
+                <Button key={`${keyFor('visit', i, t.id)}-${linkDigest(linkHref)}`} plain onPress={noop}>
+                  <Text wrap="wrap">{linkLabel(linkParts)}</Text>
+                </Button>
+              ) : (
+                <Text wrap="wrap">
+                  <Link href={linkHref}>{linkLabel(linkParts)}</Link>
+                </Text>
+              ))}
           </Box>
           {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
             <Box flexShrink={0}>

@@ -23,7 +23,11 @@ import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
 import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, FOLDERS_REPLIES, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_STARTED } from './start.ts'
+import { sha256Hex } from './decisions.ts'
+import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
+let otherContext: string | undefined
+let appendFails = false
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const SID = '11111111-2222-3333-4444-555555555555'
@@ -279,6 +283,8 @@ type World = ReturnType<typeof makeFs> & {
    *  usage calls the plugins made. */
   stepUsage: unknown
   usageCalls: number
+  /** The breakdown each session usage call asked for (issue 533). */
+  usageArgs: unknown[]
   /** A message the bottom of `turn.step` fails with after its first chunk, or ''. */
   stepFail: string
   /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
@@ -382,6 +388,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     listDeny: '',
     stepUsage: null as unknown,
     usageCalls: 0,
+    usageArgs: [],
     stepFail: '',
     holdStat: false,
     releaseStat: () => {},
@@ -521,7 +528,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     if (e.key === 'files') w.files.push(String(e.value?.current ?? ''))
     return next(e)
   })
-  on('classic.SessionStart', () => ({}))
+  // The engine's own answer; a test sets `otherContext` to stand for the added
+  // context another plugin's hook below the module's would return (issue 533).
+  on('classic.SessionStart', () => (otherContext === undefined ? {} : ({ additionalContext: [otherContext] } as any)))
   // A reload the test raises: the session's own answers for session.start and
   // the command it registers again.
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
@@ -531,6 +540,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   on('skill.prompt', ($, e: any) => ({ text: e.text }))
   // A row a plugin appends: kept as the engine keeps it, its text recorded.
   on('session.append', ($, e: any, next: any) => {
+    if (appendFails) throw new Error('append refused')
     for (const block of e.message?.content ?? []) w.notes.push(String(block.text))
     return next(e)
   })
@@ -567,9 +577,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   }
   // Where the session is drawn: the Desktop app, unless a test says otherwise.
   on('session.surfaces', () => ({ value: w.surfaces }))
+  // The engine's own measurement, which echoes the units that moved.
+  on('session.measure', (_$, e: any) => ({ changed: e.changed }))
   // This session's usage reading, when a test gives one; else the kit's own.
   on('session.usage', ($, e: any, next: any) => {
     w.usageCalls++
+    w.usageArgs.push(e?.breakdown)
     if (w.usage === 'fail') return { deny: 'forced usage failure' }
     return w.usage === undefined ? next(e) : { value: w.usage }
   })
@@ -4596,6 +4609,142 @@ test('desktop, C1: a failed PATH check runs nothing and shows the fixed toast', 
   expect(w.toasts).toEqual(['Could not open the pull request'])
 })
 
+// --- issue 560: a to-do's link ------------------------------------------------------------
+//
+// Desktop presses a Button and runs gh, as the pill does; the other surfaces draw the engine's
+// Link with the address rebuilt from the parse. A to-do's text is one line on every surface.
+
+const PR_LINK = 'https://github.com/o/r/pull/18'
+const ISSUE_LINK = 'https://github.com/mephistopheles4/grimoire/issues/560'
+const LINKED = {
+  cards: [],
+  todos: [
+    { id: 't1', text: 'Review PR 18', link: PR_LINK },
+    { id: 't2', text: 'Answer on the issue', link: ISSUE_LINK },
+    { id: 't3', text: 'Paste the key' },
+  ],
+}
+const visitKey = (i: number, id: string, link: string) => `visit-${i}-${id}-${sha256Hex(link).slice(0, 16)}`
+const visitKeys = (all: Drawn[]) => all.filter(n => n.type === 'Button' && typeof n.props.key === 'string' && n.props.key.startsWith('visit-')).map(n => n.props.key)
+const linkViews = (w: World) => w.ghCalls.filter(a => a[2] === 'view')
+
+test('#560 desktop: a to-do with a link draws a press button keyed by place, id and a digest of the rebuilt address, labelled with the repository; one without draws none', async ($, on) => {
+  await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  expect(visitKeys(all)).toEqual([visitKey(0, 't1', PR_LINK), visitKey(1, 't2', ISSUE_LINK)])
+  expect(all.some(n => n.type === 'Link')).toBe(false)
+  const text = await textOf(m)
+  expect(text).toContain('PR 18 o/r')
+  expect(text).toContain('#560 mephistopheles4/grimoire')
+})
+
+test('#560 desktop: pressing an issue link runs exactly gh issue view <number> --web with GH_REPO pinned behind github.com, and a pull request link runs gh pr view', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  await m.press({ key: visitKey(1, 't2', ISSUE_LINK) })
+  expect(linkViews(w)).toEqual([['gh', 'issue', 'view', '560', '--web']])
+  expect(w.ghInits.at(-1)).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'github.com/mephistopheles4/grimoire' } })
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).at(-1)).toEqual(['gh', 'pr', 'view', '18', '--web'])
+  expect(w.toasts).toEqual([])
+})
+
+test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed PATH check runs nothing', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  // A refused start, the engine's own deny and not a finished run with an exit code.
+  w.ghDeny = 'spawn failed: SECRET_TOKEN=abc123'
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(w.toasts).toEqual(['Could not open the page'])
+  w.ghDeny = ''
+  w.procHook = (e: any) => (e.argv[2] === 'view' ? { exitCode: 1, stdout: 'SECRET_TOKEN=abc123', stderr: 'SECRET_TOKEN=abc123', isStdoutTruncated: false, isStderrTruncated: false } : undefined)
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(w.toasts).toEqual(['Could not open the page', 'Could not open the page'])
+  w.procHook = undefined
+  const before = linkViews(w).length
+  w.env = {}
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(before)
+  expect(w.toasts.at(-1)).toBe('Could not open the page')
+})
+
+test('#560 desktop: a second press on the same to-do while a run waits starts no second run; another to-do still runs', async ($, on) => {
+  const w = await grouped(on, $, LINKED)
+  const m = await mountOn($, 'desktop')
+  await nodes(m)
+  w.holdGh = true
+  const first = m.press({ key: visitKey(0, 't1', PR_LINK) })
+  await w.clock.settle()
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(1)
+  const other = m.press({ key: visitKey(1, 't2', ISSUE_LINK) })
+  await w.clock.settle()
+  expect(linkViews(w).length).toBe(2)
+  w.holdGh = false
+  w.releaseGh()
+  await first
+  await other
+  await m.press({ key: visitKey(0, 't1', PR_LINK) })
+  expect(linkViews(w).length).toBe(3)
+})
+
+// The harness draws a press only from the tree as last drawn, so a stale key cannot be sent here
+// (a changed link draws a new key). The press's own check, that the digest matches the link as
+// the roster holds it now, is tested at its seam: tests/brigade-view.test.mjs, linkPress and visitPress.
+
+for (const surface of ['terminal', 'vscode', 'mobile'] as const) {
+  test(`#560 ${surface}: a to-do's link draws as the engine's Link on the rebuilt address, labelled with the repository, and no press button`, async ($, on) => {
+    await grouped(on, $, LINKED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(visitKeys(all)).toEqual([])
+    expect(all.filter(n => n.type === 'Link').map(l => l.props.href)).toEqual([PR_LINK, ISSUE_LINK])
+    const text = await textOf(m)
+    expect(text).toContain('PR 18 o/r')
+    expect(text).toContain('#560 mephistopheles4/grimoire')
+  })
+}
+
+for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+  test(`#560 C1 ${surface}: a to-do's text is drawn on one line, cut with an ellipsis`, async ($, on) => {
+    await grouped(on, $, LINKED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    for (const t of ['Review PR 18', 'Answer on the issue', 'Paste the key']) {
+      const node = all.find(n => n.type === 'Text' && n.text === t)
+      expect(node?.props.wrap, `${surface} ${t}`).toBe('truncate-end')
+    }
+    // The label is the check against a look-alike repository: drawn whole, wrapped and never cut.
+    for (const label of ['PR 18 o/r', '#560 mephistopheles4/grimoire']) {
+      const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
+      expect(node?.props.wrap, `${surface} ${label}`).toBe('wrap')
+    }
+  })
+}
+
+for (const surface of ['desktop', 'terminal'] as const) {
+  test(`#560 C5 ${surface}: a roster planted in plugin state, past the file check, with a hostile link draws no link button and no Link, so there is nothing to press`, async ($, on) => {
+    const HOSTILE = { cards: [], todos: [{ id: 't1', text: 'Look', link: 'https://github.com.evil.example/o/r/pull/18' }, { id: 't2', text: 'Look', link: 7 }] }
+    await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(visitKeys(all)).toEqual([])
+    expect(all.some(n => n.type === 'Link')).toBe(false)
+    expect(await textOf(m)).not.toContain('evil')
+  })
+}
+
+test('#560 C8: a to-do that carries a link and a session draws both its link button and its Open', async ($, on) => {
+  await grouped(on, $, { cards: [card('alpha', { desktopId: D1 })], todos: [{ id: 't3', text: 'Paste the key', session: 'alpha', link: PR_LINK }] })
+  const m = await mountOn($, 'desktop')
+  const keys = (await nodes(m)).filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)
+  expect(keys).toContain('go-0-t3')
+  expect(keys).toContain(visitKey(0, 't3', PR_LINK))
+})
+
 // --- the views ------------------------------------------------------------------
 
 for (const surface of SURFACES) {
@@ -8122,10 +8271,12 @@ test("claim 27: the compaction hook returns the engine's result unchanged, and n
   const got = await $.session.compact({ trigger: 'manual', instructions: `keep ${SENTINEL}`, messages: [{ role: 'user', text: `hello ${SENTINEL}`, toolUses: [] }] })
   expect(got).toEqual(result)
   expect(w.compactSeen.instructions).toBe(`keep ${SENTINEL}`)
-  await compactStart($)
+  const started: any = await compactStart($)
+  await turnEnd($)
   await w.clock.advance(15000)
   const answers = [(await readLevel($)).text, (await decide($)).text, (await setHandoff($)).text]
-  for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers]) expect(text.includes(SENTINEL)).toBe(false)
+  // The issue 533 sinks too: the SessionStart result and the notes appended to the conversation.
+  for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers, JSON.stringify(started ?? {}), ...w.notes]) expect(text.includes(SENTINEL)).toBe(false)
   expect(ownEntries(w).slice(0, 1)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
   expect(ownEntries(w).includes(COMPACTED)).toBe(false)
 })
@@ -10077,4 +10228,219 @@ test('532: the reminder is said once, and a refused set_roster does not clear th
   await turnEnd($)
   await turnEnd($)
   expect(reminders(w).length).toBe(1)
+})
+
+// --- the compaction nudges (issue 533) -------------------------------------------
+//
+// Two fixed lines around a compaction. Before it, a lead turn's end near the
+// engine's auto-compact threshold adds one note, once per cycle. After it, the
+// classic SessionStart (source compact) adds the other to its result; where the
+// engine skips that hook, the next turn's end adds it. The two signs of one
+// compaction deliver it once. The rules themselves are tested in
+// tests/brigade-reminder.test.mjs; these cases drive them through the engine.
+
+const NUDGE = (line: string) => `${NOTE_PREFIX}${line}`
+const nudges = (w: World) => w.notes.filter(n => n.startsWith(`${NOTE_PREFIX}Your context`))
+// A usage reading whose breakdown carries the threshold, as the local summary does.
+const NEAR = (tokens: number | undefined, threshold: number | null = 1000): any => ({
+  rateLimits: [],
+  context: { percent: 50, tokens, window: 1000, breakdown: { autoCompactThreshold: threshold, categories: [{ name: 'Messages', kind: 'used', tokens: 900 }] } },
+})
+const nudgeWorld = async (on: On, $: any, setup: (w: World) => void = () => {}, open = true) => {
+  const w = world(on)
+  on('tool.call', { tool: 'SendMessage' }, () => ({ text: 'sent' }) as any)
+  setup(w)
+  await start($)
+  if (open) await brigade($)
+  await w.clock.settle()
+  return w
+}
+const compactStartAs = ($: any, over: Record<string, unknown> = {}) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT, ...over })
+
+test('533: a compaction seen by the classic SessionStart adds the after-line once to its result, with the stale clause, and the turn end adds nothing more', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: where the classic hook is skipped, session.compact alone gets the after-line at the next turn end, once', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  await turnEnd($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(afterLine(false))])
+})
+
+test("533: both signs of one compaction, in the engine's order, deliver the after-line once", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: near the threshold a lead turn end adds the before-line once; a compaction after it carries no stale clause', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(BEFORE_LINE)])
+  await turnEnd($)
+  expect(nudges(w).length).toBe(1)
+  await compactNow($)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(true))])
+})
+
+for (const [what, reading] of [
+  ['below the margin', NEAR(899)],
+  ['no threshold', NEAR(950, null)],
+  ['no token count', NEAR(undefined)],
+] as const) {
+  test(`533: ${what} adds no before-line`, async ($, on) => {
+    const w = await nudgeWorld(on, $, w => {
+      w.usage = reading
+    })
+    await turnEnd($)
+    expect(nudges(w)).toEqual([])
+  })
+}
+
+test("533: a compaction clears the reading, so the old figure cannot fire the before-line after it", async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await compactNow($)
+  await compactStart($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: with the pane closed nothing is added and no usage call is made', async ($, on) => {
+  const closed = await nudgeWorld(on, $, () => {}, false)
+  expect(((await compactStart($)) as any).additionalContext ?? []).toEqual([])
+  await compactNow($)
+  await turnEnd($)
+  expect(nudges(closed)).toEqual([])
+  expect(closed.usageCalls).toBe(0)
+  // Opening the pane afterwards leaves the compaction that happened while it
+  // was closed unannounced: the arm was never set.
+  await brigade($)
+  await turnEnd($)
+  expect(nudges(closed)).toEqual([])
+})
+
+test('533: a subagent, and a source other than compact, add nothing', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  expect(((await compactStartAs($, { agent_id: 'a1' })) as any).additionalContext ?? []).toEqual([])
+  for (const source of ['startup', 'clear', 'resume']) {
+    expect(((await compactStartAs($, { source })) as any).additionalContext ?? []).toEqual([])
+  }
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test("533: a subagent's, a precompute and a skipped compaction arm nothing", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($, { agentId: 'a1' })
+  await compactNow($, { trigger: 'precompute' })
+  w.compactSkip = true
+  await compactNow($)
+  w.compactSkip = false
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: a later compaction in the same session is announced again', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  await turnEnd($)
+  await compactNow($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(afterLine(false)), NUDGE(afterLine(false))])
+})
+
+test("533: another plugin's added context is kept beside the after-line, untouched", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  otherContext = 'other plugin text'
+  try {
+    const r: any = await compactStart($)
+    expect(r.additionalContext).toEqual(['other plugin text', NUDGE(afterLine(false))])
+    expect(w.notes.some(n => n.includes('other plugin text'))).toBe(false)
+  } finally {
+    otherContext = undefined
+  }
+})
+
+test('533: a turn that owes the hand-off line and the roster note gets one note, the hand-off line first', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await sendTo($, { message: 'go on', summary: 'go' })
+  await compactNow($)
+  await turnEnd($)
+  expect(w.notes.filter(n => n.startsWith(NOTE_PREFIX))).toEqual([`${NOTE_PREFIX}${afterLine(false)}\n${REMINDER_LINE}`])
+})
+
+test('533: a failed usage read leaves the last figures and the turn unchanged', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(899)
+  })
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+  // The next measurement's read fails: the figures stay as they were, the turn
+  // ends as before and nothing is added.
+  w.usage = 'fail'
+  await $.session.measure({ context: { percent: 90, tokens: 950, window: 1000 }, rateLimits: [], changed: ['context'] })
+  await w.clock.settle()
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: a failed append leaves the turn unchanged', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  appendFails = true
+  try {
+    await expect(turnEnd($)).resolves.toBeDefined()
+  } finally {
+    appendFails = false
+  }
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: on the terminal the read asks for the summary breakdown, stores no categories and keeps the threshold out of plugin state', async ($, on) => {
+  const terminal = await nudgeWorld(on, $, w => {
+    w.surfaces = ['terminal']
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  expect(nudges(terminal)).toEqual([NUDGE(BEFORE_LINE)])
+  expect(terminal.usageArgs.length).toBeGreaterThan(0)
+  for (const arg of terminal.usageArgs) expect(arg).toBe('summary')
+  const stored = JSON.parse(terminal.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
+  expect(stored.categories).toBeUndefined()
+  expect(stored.context.tokens).toBe(950)
+  expect(terminal.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
+})
+
+test('533: on Desktop the read asks for the summary breakdown and the stored snapshot keeps its categories, as before', async ($, on) => {
+  const desktop = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  expect(desktop.usageArgs.length).toBeGreaterThan(0)
+  for (const arg of desktop.usageArgs) expect(arg).toBe('summary')
+  const stored = JSON.parse(desktop.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
+  expect(stored.categories?.length).toBe(1)
+  expect(desktop.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
+})
+
+test('533: the exception is in every variant the lead can be handed', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  const r: any = await compactStart($)
+  for (const text of [...nudges(w), ...r.additionalContext]) expect(text.includes(EXCEPTION)).toBe(true)
 })

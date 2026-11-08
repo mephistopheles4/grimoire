@@ -125,12 +125,12 @@ variable argument is the card's checked pull request number, on the command
 line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
 `GH_BROWSER`, `BROWSER` or `gh`'s own configuration names, which inherits the
-session's environment (accepted, E84). Since 0.85.0 a card may carry `repo`,
+session's environment (accepted, E84). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (E84 as widened, waiting on the owner's confirmed merge). Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,
 unencrypted, private repositories' names included, and the roster, `repo`
-included, is also held in plugin state for the session, which other plugins
+and a to-do's `link` included, is also held in plugin state for the session, which other plugins
 can read. For a named run, as for the base run, `gh` still chooses the host,
 from `GH_HOST` or its own default; only github.com answers are drawn.
 `gh` is the owner's own GitHub command line tool: the call sends the owner's
@@ -147,7 +147,7 @@ repository the card names, and link to its pull request only once `gh` has
 answered for it. The titles and
 repository names it gets, private ones included, are drawn on every surface;
 its error text is never shown or stored.
-Everything it reads is checked and drawn as text, in the usage image too.
+Everything it reads is checked and drawn as text, in the usage image too, except two addresses the pane rebuilds itself from a checked parse and draws as links: a pull request row's page off Desktop, and a to-do's `link`.
 
 **Since 0.60.0 every session that has the plugin writes its own usage
 summary file**, whether or not it is in a brigade, from its first model call.
@@ -421,7 +421,15 @@ anything else sets nothing. Whether another plugin, or the model itself, can run
 the command with the owner's stamp, or a hook can change the stamp, is not yet
 measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
-confirmation (E35a in the threat model). A 3 it sets carries its goal, which is
+confirmation (E35a in the threat model). **Since head-chef 1.23.0 (issue 541,
+proposed; it waits on the owner's confirmed merge, which classes it)** the lead also widens or narrows a command
+goal on the owner's own typed turn in its chat, with no new command, where the
+owner's user-level instructions file counts the owner's chat words as a
+standing goal; a button it wrote, a file, a log entry, a member's message, hook-added context or
+another plugin's turn or text never does, and after a compaction a logged widening
+makes it act at 2 and ask. The mod does not see or stamp that turn, so the
+stamp above does not bind it, and the lead's reading of its chat is the
+control (the host agent as the last guard, C1). A 3 it sets carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, a
