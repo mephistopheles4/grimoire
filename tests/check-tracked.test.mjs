@@ -104,6 +104,16 @@ test('a force-added file matching an existing ignore line fails', () => {
   fails(dir, /skills\/unsealed-fixture\/settings\.local\.json .*never read/);
 });
 
+test('a force-added .npmrc, which .gitignore lists, still fails (#366)', () => {
+  const dir = tree();
+  committed(dir);
+  const rc = join(dir, '.npmrc');
+  writeFileSync(rc, 'registry=https://example.invalid/\n');
+  git(dir, 'add', '-f', rc);
+  git(dir, 'commit', '-q', '--no-verify', '-m', 'force');
+  fails(dir, /\.npmrc is tracked by git, and the check never read it/);
+});
+
 // The same check run with GITHUB_ACTIONS set, as CI runs it.
 const inCi = dir => run(checkIn(dir), [], { cwd: dir, env: { ...gitEnv, GITHUB_BASE_REF: null, GITHUB_ACTIONS: 'true' } });
 
