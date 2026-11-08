@@ -148,10 +148,14 @@ its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
 state (a session that waits on you moves its row under Waiting on you, and a row
 shows the session's own title) and how long the session has been in its status. Model and
-effort show as one character each, with the full settings in a tooltip. Open and
-Dismiss appear when you point at a row; in the terminal they are always shown.
+effort show as one character each. On Desktop, pressing them opens a small
+popover with the full settings, and a `⋯` on each row holds Open, Split and
+Dismiss, each only where it applies; elsewhere the full settings stay in a
+tooltip, and in the terminal Open and Dismiss are always shown. A pull request
+pill opens the pull request in your browser.
 Tick several rows and a bar at the foot dismisses them together. A session that
-waits on you has no Dismiss and is never hidden. Reopening the pane brings
+waits on you can be dismissed for that one wait; it comes back when the
+session waits again. Reopening the pane brings
 dismissed rows back. The pane's section bars, hover and selection bar are drawn
 for Desktop's dark theme, so in a light theme they look darker than the rest of
 the app.
@@ -164,7 +168,7 @@ and age. While the pane is open and a row carries a pull request, the pane asks
 a session's pull request is in another repository than the lead's own, the lead
 can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
 that repository too, at most 6 runs a minute in all, the repositories taking
-turns past five, and the pane names it beside the pill (where there is no pointer) and on the Pull
+turns past five, and the pane names it beside the pill and on the Pull
 requests row. **The
 details need `gh` installed, signed in, and run from a github.com repository.** On
 macOS and Linux the pane also asks only when every folder on PATH is an absolute
@@ -184,8 +188,7 @@ first; each row opens into the same card, with "⚑ Unflag", and its pick box
 feeds the same selection island as the Sessions view, whose Dismiss unflags
 the picked rows and marks them read. Since 0.93.0 the lead can flag a
 decision it is unsure of, with a one-line reason: the decision goes straight
-to Flagged to revisit, in the pane of the lead that flagged it; another lead's
-pane only counts it. It never goes to To review, so Mark all as read never takes
+to Flagged to revisit, in the pane of the lead that flagged it. It never goes to To review, so Mark all as read never takes
 it, and its card shows "Flagged by the lead" with the reason. Only you unflag it,
 and the flag holds nothing up: the lead still acts on its pick. A session
 still on an older version cannot read a log that holds a flag until it
@@ -195,49 +198,32 @@ Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
 
-Since 0.89.0 the tab shows this lead's decisions only. From other sessions'
-logs it carries four kinds of decision, each marked "From another session":
-a waiting entry, any relayed entry, and an alarm, all until you read
-them, and any decision you flagged until you unflag it. A new lead
-therefore never hides a question meant for you. A plain Lead entry of another
-session is only counted. Earlier sessions' logs stay on
-disk, unshown, and you can delete them by hand; the pane still reads the 20
-newest, and the dim line at the foot counts the unread entries of other logs
-that the tab no longer draws. "✓ Mark all as read", at the right of To review's
-heading, marks everything under To review read in one write, since 0.98.0
-of every kind and from every log: Lead, Relayed, waiting entries and alarms,
-and every ended session's line. Since 0.120.0 (issue 509) it also takes this
-lead's own waiting entries that no Relayed entry answers, which 0.109.0 had left
-under To review, and it ignores the search: it takes everything under To review,
-whatever is typed. The label does not carry a count. A press takes up to 500
-entries, and while other logs are carried a second press takes the rest. A press marks nothing if the set
-changed since the pane last drew it, or if your
-marks file is so full that the write would push out marks of entries you
-read. A question marked read keeps its link, so an answer logged later still
-pairs with it.
-
-Since 0.90.0 a session that has ended stops filling To review with its claims.
-A session counts as running while one of the engine's session files names it,
-or while its log has an entry from the last 30 minutes; it counts as ended
-once a complete read of the session files since you opened the pane names it
-nowhere and its newest entry is older than that. When the pane cannot tell,
-everything draws as before. For each ended session with unread Relayed
-entries, or unread questions such an entry answers, To review shows one dim
-line instead of their cards: "From an ended session", the time of its newest
-such entry, up to three of the work names its entries give, how many are
-and how many are unread; from 0.90.0 to 0.94.0 it also had its own "✓ Mark
-these N read", which Mark all as read replaces since 0.98.0. Its other questions and alarms
-keep their cards. History gains a fold, "From ended sessions", that holds
-those entries, read or not, newest first, with "Unread" on the ones you have
-not read; it draws from every working folder's logs among the 20 newest.
+Since 0.121.0 (issue 509) the tab draws only this session's own decision
+log, and nothing from any other log: no carried card, no line for an ended
+session, no fold, no flagged row and no count of another log's entries. The
+current lead is the session whose id the pane reads as its own, so whatever
+keeps that id keeps its log in view; a new session id starts a new lead with
+an empty tab. Earlier sessions' logs stay on disk, untouched, and you see one
+again only by resuming that session in its own chat. The tab reads this
+session's own decision log and marks file and no other session's, and so does
+a full log's drop rule. A question meant for you in an
+earlier lead's log reaches you through the hand-off, if that lead wrote it
+there. "✓ Mark all as read", at the right of To review's heading,
+marks everything under To review read in one write: every card of this
+session's log, Lead, Relayed, waiting entries and alarms, including its own
+waiting entries that no Relayed entry answers. It ignores the search: it takes everything
+under To review, whatever is typed. The label does not carry a count. A press
+takes up to 500 entries, which a lead's appends keep this log's unread
+entries within, so one press empties To review. A press marks nothing if the set
+changed since the pane last drew it, or if your marks file is so full that the
+write would push out marks of entries you read. A question marked read keeps
+its link, so an answer logged later still pairs with it.
 
 Since 0.91.0 a question in this lead's own log and the Relayed entry that
 answers it, both unread, show on one card in To review: the question, then
 every field of the answer as its own card drew it. One "✓ Read, next" marks
 both read in one write, Flag flags both and Skip moves both. To review's count
-and "n of N" count the card once; the tab's totals still count entries. A
-question and its answer carried from another session's log still show as two
-cards.
+and "n of N" count the card once; the tab's totals still count entries.
 
 A mark from any bulk press records the press, not a
 reading of each entry, and the marks one press writes share one press time.
@@ -269,7 +255,7 @@ instructions file decides it; a hand-off request or a fresh session a context
 figure prompts waits for you at every level.
 Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
-the level in force is drawn on every view, 3 in the warning colour; a 3 the
+the level in force is drawn on every view (on Desktop, at the pane's foot), 3 in the warning colour; a lowering or a 2 you type also gives the lead one turn, so it reads the new level at once (a 3 does not: tell the lead yourself); a 3 the
 command set shows its goal under the slider. Each move
 is logged as your own decision ("Owner"). The level is the last one set, held
 in the mod's memory; a stored copy in plugin state serves one job, a reload,
@@ -430,7 +416,8 @@ files you ask for:
   usage log only after you say yes. contract's page keeps your answers in the
   browser's storage until you press Reset.
 - **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
-  pull requests its rows carry, and once a minute for each other repository a
+  pull requests its rows carry (and `gh pr view <number> --web` when you press a
+  pull request pill), and once a minute for each other repository a
   row names, at most 6 runs a minute, the repositories taking turns past five,
   which uses your GitHub sign-in. It reads Claude Code's own session files and
   the transcripts of the sessions the lead started. It writes a roster file and
@@ -485,8 +472,9 @@ files you ask for:
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
-  while the pane is open it reads this session's files and the 20 newest
-  other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
+  while the pane is open it reads this session's decision log and marks file
+  and, for the Lead hand-off card, this session's hand-off and the 20 newest
+  others' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
 - **Nine calls skip the permission prompt:** the `set_roster` tool, which
@@ -534,7 +522,7 @@ it:
 
 What the pane draws, decision text included, reaches the Desktop and mobile
 apps through Claude Code's own channel. Beyond that, nothing the mod reads
-leaves the machine except the `gh pr list` requests above and Open in app's
+leaves the machine except the `gh` requests above and Open in app's
 two routes: the call to the Desktop app carries the
 session's id and the fixed target `split`, and the fallback hands a checked
 `claude://` link to your system's opener.

@@ -98,7 +98,7 @@ cleanup keeps, the report, the pane and the idle notice.
     answer moving, or no progress." Set its next check 15 minutes on. The
     answer is not a report.
   - On "moving", tell the owner nothing, and set its next check 15 minutes
-    after the answer. On "no progress", or no answer by the next wake, tell
+    after the answer. On "no progress", or no answer by the next wake of your own timer (a level wake is not one), tell
     the owner in one line, naming the member and what it waits on, with three
     options: ask the member to look into its run, stop the run, or keep
     waiting. Don't ask again a member you asked at its last check and that
@@ -161,6 +161,15 @@ chat that ask for a level ("go to level 3") never set one: answer them in
 one line, naming both ways. Never run or ask to run `/brigade level`
 yourself, and never write a goal for the owner to type; you may name the
 command's form.
+
+**The level wake.** When a level command lands as a lowering or as a 2, the
+Brigade mod starts one turn of yours with fixed words: "The autonomy level
+was changed with /brigade level. Call read_autonomy for the level in force
+and any goal." That turn is the plugin's, not the owner's. It carries no goal
+and no level, so it sets nothing and asks nothing, and it is not the owner's
+words. Read the level with `read_autonomy` and act on what that answers. A
+raise to 3 starts no such turn: the owner sends you a message. A level wake
+is not "the next wake" of a member's check.
 
 **The owner's user-level instructions file.** At levels 2 and 3 the lead follows it: what it keeps for the owner still waits, as a waiting entry and a to-do. This is deference to that file; the skill keeps no list of its own. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file. You read the file your session already loaded; it needs nothing installed.
 

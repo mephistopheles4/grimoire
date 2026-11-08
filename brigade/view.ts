@@ -736,11 +736,11 @@ export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished:
  *  and a card that is not a record or has no look is in none; cards that are
  *  not a list give three empty groups. A working card the poll moved (see
  *  `movedLook`) is in the group of its move. */
-export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>, moves?: Moves): Groups<T> {
+export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): Groups<T> {
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
-    const look = shownLook(c, hidden, moves)
+    const look = shownLook(c, hidden, moves, waitHidden)
     if (look !== undefined) out[look.group].push({ c, i })
   })
   return out
@@ -768,11 +768,15 @@ export function movedLook(c: unknown, moves: Moves | undefined): StatusLook | un
  *  statuses, or a working card's moved look (see `movedLook`), that is not
  *  dismissed, or waits on the owner; else undefined. The groups, the heading and the
  *  status strip all count cards by this one rule. */
-function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StatusLook | undefined {
+function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): StatusLook | undefined {
   if (!isRecord(c)) return undefined
   const look = movedLook(c, moves) ?? statusOf(c.status)
-  // A card that waits on the owner is never hidden, whatever was dismissed.
-  return look !== undefined && look.group !== 'needsYou' && hidden.has(c.title) ? undefined : look
+  if (look === undefined) return undefined
+  // A card that waits on the owner is never hidden by `hidden`, whatever was
+  // dismissed. Only `waitHidden`, which the pane keeps in its own memory for
+  // one wait (issue 513, S9), hides a waiting card.
+  if (look.group === 'needsYou') return waitHidden?.has(c.title) === true ? undefined : look
+  return hidden.has(c.title) ? undefined : look
 }
 
 // --- views, folds, selection and the redesigned pane -----------------------------
@@ -883,6 +887,19 @@ export function compactSettings(settings: unknown): { text: string; full: string
   return { text: text === '' ? '?' : text, full: oneLine(line, 80) || 'No settings on the card.' }
 }
 
+/** The settings popover's words (issue 513, S8): the card's settings split on
+ *  commas, each part cleaned and trimmed with its first letter capital, joined
+ *  by ` - ` and cut to fit; `No settings on the card.` with none. */
+export function settingsPopover(settings: unknown): string {
+  const line = typeof settings === 'string' ? settings : ''
+  const parts = line
+    .split(',')
+    .map(p => oneLine(p, 40).trim())
+    .filter(p => p !== '')
+    .map(p => `${[...p][0]?.toUpperCase() ?? ''}${[...p].slice(1).join('')}`)
+  return parts.length === 0 ? 'No settings on the card.' : oneLine(parts.join(' - '), 80)
+}
+
 /** The PR pill's theme key by state, never looked up in a plain object. */
 export const PILLS: ReadonlyMap<string, string> = new Map([
   ['open', 'success'],
@@ -950,12 +967,12 @@ export function unavailableLine(base: boolean, named: number): string | undefine
  *  a row has the PR's title, counts, repository and age; without one, the
  *  card's title alone, and the repository the card names, if any, with no
  *  link: a row links only from an answer. */
-export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
+export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>, waitHidden?: ReadonlySet<unknown>): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
   const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     const number = prNumber(c)
-    if (!isRecord(c) || number === undefined || shownLook(c, hidden, moves) === undefined) return
+    if (!isRecord(c) || number === undefined || shownLook(c, hidden, moves, waitHidden) === undefined) return
     const answer = prAnswer(c, answers, named)
     const own = typeof c.prState === 'string' && (PR_STATES as readonly string[]).includes(c.prState) ? c.prState : 'open'
     const state = answer?.state ?? own
@@ -1073,11 +1090,11 @@ export type StatusCount = { look: StatusLook; count: number }
  *  status with no cards. Shown is as `groupCards` has it: a record, not
  *  dismissed, and one of the four statuses, by the rule groupCards uses, so
  *  the strip, its legend, the heading and the groups count the same cards. */
-export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StatusCount[] {
+export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): StatusCount[] {
   const counts = new Map<StatusLook, number>()
   if (Array.isArray(cards)) {
     for (const c of cards) {
-      const look = shownLook(c, hidden, moves)
+      const look = shownLook(c, hidden, moves, waitHidden)
       if (look !== undefined) counts.set(look, (counts.get(look) ?? 0) + 1)
     }
   }
@@ -1162,8 +1179,8 @@ export type StripView = {
   svg: BarImage
 }
 
-export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StripView | undefined {
-  const counts = statusCounts(cards, hidden, moves)
+export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): StripView | undefined {
+  const counts = statusCounts(cards, hidden, moves, waitHidden)
   const total = counts.reduce((s, e) => s + e.count, 0)
   if (total === 0) return undefined
   const runs = stripRuns(
@@ -2632,8 +2649,8 @@ const MAX_SESSION_FILES = 500
 
 /** What one read of the session files found: the rows, whether every file
  *  the listing named was read and passed its checks, and whether a file went
- *  after the listing (spec 447 S3.7), which the ended rule takes as a read
- *  that is not complete. */
+ *  after the listing, which counts as a read that is not complete: the stop's
+ *  name check refuses on it. */
 export type SessionsRead = { rows: SessionRow[]; complete: boolean; fileGone: boolean }
 
 // A rejection that says the file is not there: a session that ended after
