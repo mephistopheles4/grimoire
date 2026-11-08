@@ -706,7 +706,7 @@ export function sessionRow(text: string): SessionRow | undefined {
 }
 
 /** A group the poll moves a card to. */
-export type Move = 'waiting'
+export type Move = 'waiting' | 'idle'
 
 /** Each card's rows at one poll, by card title: a card with a Desktop id takes
  *  the one row holding it, and falls back to its title only when no file
@@ -746,14 +746,16 @@ export function matchRows(cards: readonly Card[], rows: readonly SessionRow[], n
 }
 
 /** Where the pane moves a card, or undefined for no move: only a card the
- *  head chef marked `working` moves, and only toward the owner, to `waiting`
- *  while its session's status is `waiting` (a permission prompt or input).
- *  The head chef's needs-you, done and stopped always hold. The pane takes no
- *  background `state` from a session file (a real one carries none, and a
- *  forged one must not move a card; see #370). */
+ *  head chef marked `working` moves, to `waiting` while its session's status
+ *  is `waiting` (a permission prompt or input), or to `idle` while it is
+ *  `idle` (no turn running). Any other status gives no move. The head chef's
+ *  needs-you, done and stopped always hold. The pane takes no background
+ *  `state` from a session file (a real one carries none, and a forged one
+ *  must not move a card; see #370). */
 export function rowMove(status: string, row: SessionRow | undefined): Move | undefined {
   if (status !== 'working' || row === undefined) return undefined
-  return row.status === 'waiting' ? 'waiting' : undefined
+  if (row.status === 'waiting') return 'waiting'
+  return row.status === 'idle' ? 'idle' : undefined
 }
 
 /** A row's live word, at most 40 characters: `waiting · <reason>` for a

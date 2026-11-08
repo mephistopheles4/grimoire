@@ -81,7 +81,7 @@ function attributes(source) {
 // threat-model row 15 says. The class `proj` is admitted for the usage
 // image's projection (#275). The `tint-` and `ink-` classes are admitted for
 // the PR pill (#339).
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-draft', 'tint-merged', 'tint-closed', 'ink-open', 'ink-draft', 'ink-merged', 'ink-closed']);
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'idle', 'proj', 'rule', 'tint-open', 'tint-draft', 'tint-merged', 'tint-closed', 'ink-open', 'ink-draft', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -2520,6 +2520,35 @@ test('a roster whose titles and to-do texts hold hostile text draws, and none of
   assert.equal(bar.svg.alt, 'To-dos 1 of 2 done');
 });
 
+test('liveFrom keeps a stored move only when it is waiting or idle, and statusOf gives idle no look', () => {
+  const { liveFrom } = view;
+  const mv = move => liveFrom([{ name: 'a', value: 'v', move }])[0]?.move;
+  assert.equal(mv('waiting'), 'waiting');
+  assert.equal(mv('idle'), 'idle');
+  for (const bad of ['finished', 'busy', 'Idle', '', 5, null, {}]) assert.equal(mv(bad), undefined, String(bad));
+  assert.equal(statusOf('idle'), undefined);
+});
+
+test('an idle move counts as idle between working and done, in the Working group, and a stored idle status counts nowhere', () => {
+  const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'stopped'), cardOf('d', 'done'), cardOf('e', 'idle')];
+  const moves = new Map([['b', 'idle'], ['c', 'idle'], ['d', 'idle'], ['e', 'idle']]);
+  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['working', 1], ['idle', 1], ['done', 1], ['stopped', 1]]);
+  assert.deepEqual(groupCards(cards, new Set(), moves).working.map(p => p.c.title), ['a', 'b']);
+  const v = statusStrip(cards, new Set(), moves);
+  assert.deepEqual(v.legend.map(l => l.text), ['◐ 1 working', '○ 1 idle', '✓ 1 done', '– 1 stopped']);
+  assert.equal(v.svg.alt, 'Status: 1 working, 1 idle, 1 done, 1 stopped');
+  assert.match(v.svg.source, /class="idle"/);
+});
+
+test('the idle fill differs from the warn fill in light and in dark', () => {
+  const fill = (css, cls) => new RegExp(`\\.${cls}\\{fill:(#[0-9a-f]{6})\\}`).exec(css)?.[1];
+  const at = view.STYLE.indexOf('@media');
+  for (const css of [view.STYLE.slice(0, at), view.STYLE.slice(at)]) {
+    assert.match(fill(css, 'idle') ?? '', /^#[0-9a-f]{6}$/);
+    assert.notEqual(fill(css, 'idle'), fill(css, 'warn'));
+  }
+});
+
 test('the style block gives the strip\'s and to-do bar\'s classes done and stopped a fill, in light and dark', () => {
   assert.match(view.STYLE, /\.done\{fill:#[0-9a-f]{6}\}/);
   assert.match(view.STYLE, /\.stopped\{fill:#[0-9a-f]{6}\}/);
@@ -4701,17 +4730,19 @@ test('two rows with one Desktop id: the later update time wins, a usable time be
   assert.equal(pick([rowOf('x', { hostId: HOST('a1') }), rowOf('y', { hostId: HOST('a1') })]), 'x,y');
 });
 
-test('the group rule moves only a working card, toward the owner: only a waiting status moves it to Waiting on you', () => {
+test('the group rule moves only a working card: a waiting status moves it to Waiting on you, an idle one marks it idle, nothing else moves it', () => {
   const { rowMove } = roster;
   const w = status => rowMove('working', rowOf('r', { status }));
   assert.equal(w('waiting'), 'waiting');
-  assert.equal(w('busy'), undefined);
-  assert.equal(w('idle'), undefined);
+  assert.equal(w('idle'), 'idle');
+  for (const s of ['busy', 'shell', '?', 'Idle', 'done', 'working']) assert.equal(w(s), undefined, s);
   // A background row moves only by its status: a forged state in the file moves nothing.
-  const forged = sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'B', jobId: 'ab12cd34', status: 'idle', state: 'done' }));
+  const forged = sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'B', jobId: 'ab12cd34', status: 'busy', state: 'waiting' }));
   assert.equal(rowMove('working', forged), undefined);
   // The head chef's other statuses always hold; no row holds too.
-  for (const s of ['needs-you', 'done', 'stopped']) assert.equal(rowMove(s, rowOf('r', { status: 'waiting' })), undefined, s);
+  for (const s of ['needs-you', 'done', 'stopped']) {
+    for (const status of ['waiting', 'idle']) assert.equal(rowMove(s, rowOf('r', { status })), undefined, s);
+  }
   assert.equal(rowMove('working', undefined), undefined);
 });
 

@@ -157,6 +157,7 @@ import {
   movedLook,
   movesFrom,
   hairlineSvg,
+  IDLE_LOOK,
   idsFrom,
   levelTrackSvg,
   isReason,
@@ -3887,8 +3888,11 @@ export const register: Register = on => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
-      // The look of the group the card draws in; its dot and word stay the head chef's.
-      const group = movedLook(c, moves)?.group ?? look.group
+      // The look of the group the card draws in; its dot stays the head chef's,
+      // except an idle move's, which takes the idle look.
+      const moved = movedLook(c, moves)
+      const group = moved?.group ?? look.group
+      const markLook = moved === IDLE_LOOK ? IDLE_LOOK : look
       const isFinished = group === 'finished'
       const views = isFinished ? [] : cardViews(warm.get(c.title), meterOf.get(c.title))
       const chosen = isFinished ? undefined : chosenView(tabChoices, c.title, views)
@@ -4034,16 +4038,16 @@ export const register: Register = on => {
                     glyph, which reads without colour. */}
                 <Box flexShrink={0}>
                   {terminal ? (
-                    <Text color={look.color}>{look.glyph}</Text>
+                    <Text color={markLook.color}>{markLook.glyph}</Text>
                   ) : needs ? (
-                    <Text color={look.color}>●</Text>
+                    <Text color={markLook.color}>●</Text>
                   ) : (
                     // On a desktop the dot is the card's checkbox, drawn as
                     // a to-do's is: a circle in the status colour, a tick once
                     // selected, in a slot that keeps the title still.
                     <Box width={CHECK_CELLS_DESKTOP} flexShrink={0}>
                       <Button key={keyFor('pick', i, c.title)} plain onPress={noop}>
-                        <Text color={look.color}>{isPicked ? '✓' : '○'}</Text>
+                        <Text color={markLook.color}>{isPicked ? '✓' : '○'}</Text>
                       </Button>
                     </Box>
                   )}
