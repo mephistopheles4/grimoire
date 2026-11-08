@@ -125,12 +125,12 @@ variable argument is the card's checked pull request number, on the command
 line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
 `GH_BROWSER`, `BROWSER` or `gh`'s own configuration names, which inherits the
-session's environment (accepted, E84). Since 0.85.0 a card may carry `repo`,
+session's environment (accepted, E84). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (E84 as widened, waiting on the owner's confirmed merge). Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,
 unencrypted, private repositories' names included, and the roster, `repo`
-included, is also held in plugin state for the session, which other plugins
+and a to-do's `link` included, is also held in plugin state for the session, which other plugins
 can read. For a named run, as for the base run, `gh` still chooses the host,
 from `GH_HOST` or its own default; only github.com answers are drawn.
 `gh` is the owner's own GitHub command line tool: the call sends the owner's
@@ -147,7 +147,7 @@ repository the card names, and link to its pull request only once `gh` has
 answered for it. The titles and
 repository names it gets, private ones included, are drawn on every surface;
 its error text is never shown or stored.
-Everything it reads is checked and drawn as text, in the usage image too.
+Everything it reads is checked and drawn as text, in the usage image too, except two addresses the pane rebuilds itself from a checked parse and draws as links: a pull request row's page off Desktop, and a to-do's `link`.
 
 **Since 0.60.0 every session that has the plugin writes its own usage
 summary file**, whether or not it is in a brigade, from its first model call.

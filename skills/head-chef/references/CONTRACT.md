@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.23.0
+Version: 1.24.0
 Kind: skill
 Level: Thorough
 
@@ -1056,6 +1056,17 @@ is open. Nothing else is recorded. **Confirmed** (issue 416, spec 402 S5.5,
 reversing "Nothing else is recorded" as ADR 0010 records): its decisions, in
 its decision log through `log_decision`, and its hand-off through
 `set_lead_handoff`, under "What goes out".
+
+**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2; the
+go is the lead's decision 334 at level 3, not the owner's words, and the owner
+confirms at merge): one line of at most 80 characters,
+one ask or one owner step each. It names the act or the place ("Answer in
+build-312's chat"), never the question or the decision text, and carries no
+facts, picks, commands or reasons. A waiting entry's fixed text is exempt. A
+to-do carries `session`, a card's title, when the step is in that member's
+chat, and `link`, an issue or pull request on github.com written as
+`https://github.com/owner/name/issues/N` or `.../pull/N` and nothing else,
+when the answer or step is on one.
 
 ## rules
 
