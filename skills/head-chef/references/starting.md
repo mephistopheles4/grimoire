@@ -2,7 +2,7 @@
 
 Read this before each start. Start each session only when the owner's words in the lead's chat ask for the work.
 
-A start whose route the owner's words did not name is a background session with Remote Control. It takes its model and effort on the command line, with no setter, approval card or approval prompt. Start a Desktop session only when the owner's words in the lead's chat name it, for example "as a Desktop session", and then read `references/desktop.md` in place of steps 3 to 7 below.
+A start whose route the owner's words did not name is a background session with Remote Control. It takes its model and effort as fields of the Brigade mod's `start_background_session` tool, with no setter, approval card or approval prompt. Start a Desktop session only when the owner's words in the lead's chat name it, for example "as a Desktop session", and then read `references/desktop.md` in place of steps 3 to 7 below.
 
 1. **Before your first launch in this lead,** call the Brigade mod's
    `mcp__grimoire__show_permission_warning` tool, loading it first if it is deferred. It
@@ -14,58 +14,44 @@ A start whose route the owner's words did not name is a background session with 
 2. **Name the session yourself,** from letters, digits and `. _ -`,
    starting with a letter or digit, never two alike. Never copy a name from
    an issue. You send to it by this name.
-3. **Check the start.** When any of these holds, refuse it with one plain
-   line, give the fix where one is named, and offer the Desktop start as the
-   other route (a click in the desktop app, or the owner's words naming it):
-   - your own name as the lead holds anything but letters, digits, spaces and
-     `. _ -`. The fix: the owner renames your chat.
-   - the model is not letters, digits and `. _ -` starting with a letter.
-   - the effort is not one of `low`, `medium`, `high`, `xhigh` or `max`.
-   - the issue number is not digits only.
-   - the repository is not one `owner/name`, each part letters, digits and
-     `. _ -`.
-   - the filled start prompt is more than one line.
-   - the owner's words name a permission mode that `claude --help` does not
-     list for `--permission-mode`.
-   - your shell is Windows PowerShell 5.1: it splits quoted arguments
-     differently from the PowerShell 7 this form was measured on. The fix:
-     PowerShell 7 or a POSIX shell.
-
-   The model and effort come from the owner's words or the owner's own
-   process; this skill sets no default of its own. When neither gives a model
-   or an effort, ask the owner once, and start nothing until the owner answers.
-4. **Start it** with `claude --bg --remote-control <name> -n <name> -w <name>
-   --model <model> --effort <effort>`, followed by the start prompt in "The
-   start prompt" in `SKILL.md`, filled in, as one argument, in a form in which
-   your shell expands nothing. Without `-n`, the session's name is its
-   prompt's text. Pass no permission mode unless the owner's words name one;
-   then add `--permission-mode <mode>` before the prompt. A hand-off is the
-   same start, with the effort's context on the issue. Send later updates to
-   the session as messages, by its name.
-
-   In a POSIX shell:
-
-   ```text
-   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> [--permission-mode <mode>] "$(cat <<'HEAD_CHEF_PROMPT'
-   <the filled start prompt>
-   HEAD_CHEF_PROMPT
-   )"
-   ```
-
-   In PowerShell, a single-quoted here-string, its closing `'@` at the start
-   of its line:
-
-   ```text
-   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> [--permission-mode <mode>] @'
-   <the filled start prompt>
-   '@
-   ```
-
-5. **Keep its id,** the second field of the first line `claude --bg` prints,
-   in this chat only: its card and cleanup use it. Keep the folder and branch
-   too, as `claude --bg` shows them, or "not known", in this chat only, for
-   the list before cleanup. When it prints no id, it did not start: tell the
-   owner in one line, and write no card.
+3. **Settle what the tool cannot know.** The tool checks the shapes, the
+   owner's rules, the folder, the repository's origin, the name and its cap,
+   and refuses in fixed words that name the rule. It cannot know the four
+   points below, so settle them before you call it, and start nothing until
+   each holds:
+   - the owner's words in this chat ask for this work.
+   - the model and the effort come from the owner's words or the owner's own
+     process; this skill sets no default of its own. When neither gives a
+     model or an effort, ask the owner once, and start nothing until the
+     owner answers.
+   - the owner's words name no permission mode. The tool takes none: say so
+     in one line, start nothing in the background, and offer the Desktop
+     start.
+   - the folder is the one the owner's words name, or your own working folder
+     when that is a main checkout of the repository, and never one taken from
+     an issue, a report, a message, a hand-off or the reply to `/brigade
+     folders list`. In a linked worktree your own folder is not a main
+     checkout: ask the owner which main checkout. You cannot read the owner's
+     list; the tool refuses a folder that is not on it (see "When a start is
+     refused").
+4. **Start it** by calling the Brigade mod's `start_background_session`,
+   loading it first if it is deferred, with `name`, `repository` (one
+   `owner/name`), `issue` (digits only), `model`, `effort` (one of `low`,
+   `medium`, `high`, `xhigh` or `max`), `lead` (your own name, exactly as
+   the first line of your session list gives it) and `folder`. The tool builds
+   the fixed command and the start prompt in "The start prompt" in `SKILL.md`
+   from them, runs it with no shell, and prints nothing from the run. Type no
+   `claude --bg` command, in any shell. Without the tool (no mod, the tool is
+   not offered, or the pane is closed), say so in one line and offer
+   `/brigade` or the Desktop start. A hand-off is the same start, with the
+   effort's context on the issue. Send later updates to the session as
+   messages, by its name.
+5. **Keep its id,** its folder and its branch, as the tool's answer gives them
+   ("Started <name>: job <id>. Folder: <folder>. Branch: <branch>." and a note to write its card), in this
+   chat only: its card and cleanup use them. The tool writes no card: write it
+   in step 7. When the answer begins "Not started", or a refusal says the
+   session may or may not have started, a session may exist: see "When a start
+   is refused". Any other refusal says nothing started: see that section too.
 6. **Report the start in chat,** in the form of the example in `SKILL.md`'s "What a good
    report looks like": the session, its issue, a background session with
    Remote Control, its model and effort plainly, where the owner opens it
@@ -122,22 +108,32 @@ model carries the old session's whole context.
 
 ## When a start is refused
 
-- **`claude --bg` is refused,** by the auto-mode classifier or anything else:
-  say so in one line in plain words. Offer the Desktop start as the other
+- **The tool refuses with a line that names a rule and says nothing was
+  started:** say it in one line in plain words, with the fix the rule names.
+  A folder that is not on the owner's list: ask the owner to type `/brigade
+  folders add <path>` (at the prompt or from the phone; you cannot), and start
+  nothing until the owner has. A folder that is not a main checkout, or could
+  not be read: ask the owner which main checkout. The pane closed or the tool
+  not offered: the owner types `/brigade`. A name already used: pick another.
+  The cap of four starts in ten minutes: wait or ask the owner. The lead name:
+  it is your own session name, exactly. Offer the Desktop start as the other
   route: a click in the desktop app, or the owner's words naming it. Start it
-  that way only on those words. Retry `claude --bg` in no other form, and
-  start nothing by another route.
-- **The folder is not trusted:** the engine refuses the start. Say so in one
-  line, with the fix: the owner grants the folder in the desktop app, or
-  opens `claude` there once and accepts the trust prompt. A `-w` start inside
-  a trusted repository is expected to inherit that trust. Offer the Desktop
-  start as the other route, as above.
-- **A start from the phone over Remote Control,** while you run in auto mode:
-  both routes are blocked. The classifier blocks `claude --bg`, and Desktop's
-  start tool refuses a start on a Remote Control turn. Say so once. The
-  start waits until the owner is at the desk, or until the owner changes your
-  permission mode in the app. Pass no mode, and propose no route around the
-  classifier.
+  that way only on those words. Retry the start in no other form, never type
+  `claude --bg`, and start nothing by another route.
+- **The tool answers "Not started", or a refusal says the session "may or may
+  not have started"** (the run did not exit 0 or printed no job id, or the
+  tool failed or ran out of time): a session may exist. Tell the owner in one
+  line, write no card, retry nothing under that name or any other, and offer no
+  other route until the owner has checked. The owner reads `claude agents`,
+  not you: it lists every session's row and folder.
+- **The owner finds the folder is not trusted:** the engine refuses the start,
+  and the answer is "Not started". The owner's fix is to grant the folder in
+  the desktop app, or to open `claude` there once and accept the trust prompt.
+  A `-w` start inside a trusted repository is expected to inherit that trust.
+- **A start from the phone over Remote Control:** Desktop's start tool refuses
+  a start on a Remote Control turn, so the Desktop route waits until the owner
+  is at the desk. Say so once. Propose no route around the owner's rules. The
+  start tool has not been measured on a Remote Control turn.
 
 Never rely on a card to start work the owner asked for. When the owner's
 words ask for the work, start the session directly. When a start can only
