@@ -381,7 +381,7 @@ const logs = () => {
   ];
 };
 
-test('claim 6: To review is the oldest unread entry across the logs read, with n of N; Owner and Pane never show there', () => {
+test('claim 6: reviewQueue puts the oldest unread entry of the logs it is given first, with n of N; Owner and Pane never show there', () => {
   const ls = logs();
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '9', at: NOW - 100, source: 'owner' }, { ...ls[0].log.entries[0], id: '10', at: NOW - 99, source: 'pane' });
   const q = reviewQueue(ls, new Map(), new Set(), []);
@@ -694,7 +694,7 @@ test('claim 12: the hand-off chosen is this session\'s own, else the newest by s
   assert.equal(chooseHandoff(own, others, null, NOW), own);
 });
 
-// --- spec 444: one lead's log, carried entries, Mark all as read, the marks cap order ------------
+// --- spec 444: one lead's log, Mark all as read, the marks cap order ------------
 
 const mk = (sid, id, at, state, when) => ({ log: sid, id, entryAt: at, state, at: when });
 // This session's log (3 plain leads) and another's: two waiting entries (one answered), the answer, a plain lead, a relayed, an alarm and an Owner entry.
@@ -717,61 +717,15 @@ const tabLogsFor = () => {
 };
 const keyOf = (sid, e) => markKey(sid, e.id, e.at);
 
-test('spec 444 claims 1, 2, 13: the tab draws this log, and from another only waiting, Relayed, unread fixed-shape alarm and flagged entries', () => {
+// Issue 509 (ADR 0017, S5.2): the tab draws this session's log and nothing from another.
+test("issue 509 C5: the tab draws this session's log alone: no entry of another log, of any kind, flag or answer, is drawn or counted, whatever its marks say", () => {
   const ls = tabLogsFor();
   const other = ls[1].log.entries;
-  const v = drawnLogs(ls, SID, new Map());
-  const reviewOther = v.review.find(l => l.sid === OTHER).log.entries.map(e => e.work);
-  // The answered waiting entry comes with its unread answer, and every Relayed entry is carried, answering or not.
-  assert.deepEqual(reviewOther.sort(), [alarmEntry(3).work, 'waits', 'answered', 'the answer', 'relayed plain'].sort());
-  assert.equal(v.review.find(l => l.sid === SID).log.entries.length, 3);
-  assert.deepEqual(v.history.map(l => l.sid), [SID], 'History draws this log only');
-  // A mark clears a carried one.
-  const waits = other[0];
-  const states = new Map([[keyOf(OTHER, waits), 'read']]);
-  assert.ok(!reviewQueue(drawnLogs(ls, SID, states).review, states, new Set(), []).order.some(r => r.entry.work === 'waits'));
-  // Flagged: any source from another log whose latest mark is flagged; unflagged leaves.
-  const owner = other[6];
-  const fs = new Map([[keyOf(OTHER, owner), 'flagged'], [keyOf(OTHER, other[3]), 'flagged']]);
-  assert.deepEqual(flaggedRows(drawnLogs(ls, SID, fs).flagged, fs, []).map(r => r.entry.id).sort(), [owner.id, other[3].id].sort());
-  const un = new Map([[keyOf(OTHER, owner), 'unflagged']]);
-  assert.deepEqual(flaggedRows(drawnLogs(ls, SID, un).flagged, un, []), []);
-  // An alarm out of its fixed shape is not carried.
-  const bent = structuredClone(ls);
-  bent[1].log.entries[5].why = 'changed';
-  assert.ok(!drawnLogs(bent, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
-  // A read carried alarm leaves To review.
-  const alarmRead = new Map([[keyOf(OTHER, other[5]), 'read']]);
-  assert.ok(drawnLogs(ls, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
-  assert.ok(!drawnLogs(ls, SID, alarmRead).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
-  // A flagged carried waiting entry is read, so it leaves To review and shows in Flagged.
-  const fl = new Map([[keyOf(OTHER, waits), 'flagged']]);
-  const flv = drawnLogs(ls, SID, fl);
-  assert.ok(!flv.review.flatMap(l => l.log.entries).some(e => e.work === 'waits'));
-  assert.deepEqual(flaggedRows(flv.flagged, fl, []).map(r => r.entry.work), ['waits']);
-});
-
-test('spec 444 claim 15: the unshown count is the unread entries of other logs the tab does not draw, as a number only', () => {
-  const ls = tabLogsFor();
-  // A plain Lead entry: the one unread entry that is not drawn (a Relayed entry is carried).
-  const e = ls[1].log.entries;
-  assert.equal(drawnLogs(ls, SID, new Map()).unshown, 1);
-  const states = new Map([[keyOf(OTHER, e[3]), 'read']]);
-  assert.equal(drawnLogs(ls, SID, states).unshown, 0, 'the count falls when marked');
-});
-
-test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answers are each carried until read', () => {
-  const ls = tabLogsFor();
-  const [, answered, answer] = ls[1].log.entries;
-  const works = states => drawnLogs(ls, SID, states).review.find(l => l.sid === OTHER).log.entries.map(e => e.work).filter(w => ['answered', 'the answer'].includes(w)).sort();
-  assert.deepEqual(works(new Map()), ['answered', 'the answer']);
-  // The answer read first: the unread question stays, so it cannot fall out of sight.
-  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read']])), ['answered']);
-  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'flagged']])), ['answered']);
-  // Both read: neither shows.
-  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read'], [keyOf(OTHER, answered), 'read']])), []);
-  // The waiting entry read first: the unread answer still shows, alone.
-  assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
+  // The other log holds a waiting entry (answered and not), a Relayed entry, a fixed-shape alarm, a plain Lead entry and an Owner entry.
+  assert.deepEqual(other.map(e => e.source), ['lead', 'lead', 'relayed', 'lead', 'relayed', 'alarm', 'owner']);
+  assert.deepEqual(drawnLogs(ls, SID).map(l => l.sid), [SID]);
+  assert.deepEqual(drawnLogs(ls, SID)[0].log.entries.length, 3);
+  assert.deepEqual(drawnLogs([ls[1]], SID), [], 'with no log of its own, nothing is drawn');
 });
 
 test('spec 444 claim 8: the Mark all as read key matches whole, from 1 to 500', () => {
@@ -874,144 +828,11 @@ test('spec 444 claim 10: a mark dated over two minutes ahead supersedes nothing,
   assert.ok(!next.marks.some(m => m.id === '2'), 'the oldest plain read dropped');
 });
 
-// --- spec 447: ended sessions' claims leave To review, with one line a session ----------------
-//
-// Each test names the acceptance claim of spec 447 (S10) it backs.
+// --- the marks cap and a bulk write -----------------------------------------------------------
 
-const { RECENT_MS, canTell, sessionStates, endedLines, dropsLiveMark } = d;
-const THIRD = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-// The other log's newest entry is NOW - 84, so 31 minutes on it is quiet.
-const LATER = NOW + 31 * 60 * 1000;
-// A complete read that began after the pane opened, holding only this session's file.
-const seenOnly = (ids = [SID], over = {}) => ({ ids, complete: true, fileGone: false, startedAt: LATER - 1000, ...over });
-const live = (over = {}) => ({ seen: seenOnly(), openedAt: LATER - 60_000, now: LATER, ...over });
-const view447 = (ls, states = new Map(), l = live()) => drawnLogs(ls, SID, states, sessionStates(ls, SID, l), canTell(l));
-const works447 = v => v.review.find(r => r.sid === OTHER).log.entries.map(e => e.work).sort();
+const { dropsLiveMark } = d;
 
-test('spec 447 claim 1: with the state ended, a log\'s unread Relayed and answered waiting entries leave the queue; unanswered waiting entries and alarms stay', () => {
-  const ls = tabLogsFor();
-  assert.equal(sessionStates(ls, SID, live()).get(OTHER), 'ended');
-  const v = view447(ls);
-  assert.deepEqual(works447(v), [alarmEntry(3).work, 'waits'].sort());
-  const q = reviewQueue(v.review, new Map(), new Set(), []);
-  assert.ok(!q.order.some(r => r.sid === OTHER && ['answered', 'the answer', 'relayed plain'].includes(r.entry.work)));
-  assert.equal(q.total, 3 + 2, 'the "n of N" counts the three own entries and the two that stay');
-  // Flagged is unchanged: a flagged Relayed entry of an ended log still shows there.
-  const fl = new Map([[keyOf(OTHER, ls[1].log.entries[4]), 'flagged']]);
-  assert.deepEqual(flaggedRows(view447(ls, fl).flagged, fl, []).map(r => r.entry.work), ['relayed plain']);
-});
-
-test('spec 447 claim 2: a running session draws as in 0.89.0, by its session file or by an entry from the last 30 minutes', () => {
-  const ls = tabLogsFor();
-  const old = drawnLogs(ls, SID, new Map());
-  const byFile = live({ seen: seenOnly([SID, OTHER]) });
-  assert.equal(sessionStates(ls, SID, byFile).get(OTHER), 'running');
-  assert.deepEqual(works447(view447(ls, new Map(), byFile)), works447(old));
-  // A file in a read that is not complete still makes its session running.
-  assert.equal(sessionStates(ls, SID, live({ seen: seenOnly([SID, OTHER], { complete: false }) })).get(OTHER), 'running');
-  // No session file, but the newest entry is 30 minutes old to the millisecond: still running.
-  const recent = live({ now: NOW - 84 + RECENT_MS });
-  assert.equal(RECENT_MS, 30 * 60 * 1000);
-  assert.equal(sessionStates(ls, SID, recent).get(OTHER), 'running');
-  assert.deepEqual(works447(view447(ls, new Map(), recent)), works447(old));
-  assert.equal(sessionStates(ls, SID, live({ now: NOW - 84 + RECENT_MS + 1 })).get(OTHER), 'ended');
-  // This session's own log is always running, whatever the read says.
-  assert.equal(sessionStates(ls, SID, live()).get(SID), 'running');
-  // The newest entry is taken from the log as read, so an out-of-shape entry still keeps it running.
-  const odd = structuredClone(ls);
-  odd[1].log.entries.push({ ...odd[1].log.entries[6], id: '8', at: LATER - 1000, why: 'not the fixed words' });
-  odd[1].log.next = 9;
-  assert.equal(sessionStates(odd, SID, live()).get(OTHER), 'running');
-});
-
-test('spec 447 claim 3: with no usable session read the state is unknown, every log draws as in 0.89.0, and the fold cannot tell', () => {
-  const ls = tabLogsFor();
-  const old = works447(drawnLogs(ls, SID, new Map()));
-  for (const [why, l] of [
-    ['no read since the pane opened, or one that returned nothing', live({ seen: undefined })],
-    ['a read that is not complete', live({ seen: seenOnly([SID], { complete: false }) })],
-    ['a file that went after the listing', live({ seen: seenOnly([SID], { fileGone: true }) })],
-    ['a read from before this open', live({ seen: seenOnly([SID], { startedAt: LATER - 60_001 }) })],
-    ['no open time', live({ openedAt: undefined })],
-    ['a clock that is not a whole number', live({ now: LATER + 0.5 })],
-    ['a clock that gave nothing', live({ now: Number.NaN })],
-  ]) {
-    assert.equal(sessionStates(ls, SID, l).get(OTHER), 'unknown', why);
-    const v = view447(ls, new Map(), l);
-    assert.deepEqual(works447(v), old, why);
-    assert.equal(v.canTell, false, why);
-    assert.deepEqual(v.ended, [], why);
-  }
-  assert.equal(view447(ls).canTell, true);
-  // A log with no entries cannot be told ended.
-  const empty = [ls[0], { sid: THIRD, writer: 'an ended session', log: emptyLog(null) }];
-  assert.equal(sessionStates(empty, SID, live()).get(THIRD), 'unknown');
-});
-
-test('spec 447 claim 6: one line for each ended session with an entry S4.1 takes, newest first, its time, at most 3 work values and N', () => {
-  const ls = tabLogsFor();
-  // A third ended log, whose newest such entry is newer than the other's, with five work values.
-  let tl = emptyLog(null);
-  for (const [i, w] of ['one', 'two', 'three', 'four', 'From an ended session'].entries()) {
-    tl = appendEntry(tl, input({ source: 'relayed', work: w }), { at: NOW - 50 + i, level: 1, read: new Map() }).value.log;
-  }
-  ls.push({ sid: THIRD, writer: 'an ended session', log: tl });
-  const v = view447(ls);
-  const lines = endedLines(v.ended, new Map(), []);
-  assert.equal(lines.length, 2);
-  const [first, second] = lines;
-  assert.equal(first.at, NOW - 46);
-  assert.deepEqual(first.works, ['From an ended session', 'four', 'three'], 'the newest three, the writer\'s text as it is');
-  assert.equal(first.more, 2);
-  assert.equal(first.n, 5, 'a work value holding the fixed words leaves N unchanged');
-  // The other log: the answered waiting entry, its answer and the plain Relayed entry.
-  assert.equal(second.at, NOW - 86);
-  assert.equal(second.n, 3);
-  assert.deepEqual(second.works, ['relayed plain', 'the answer', 'answered']);
-  assert.equal(second.more, 0);
-  // Each work value is cleaned as a roster line is and cut to 40 characters.
-  ls[2].log.entries[4].work = `${'x'.repeat(50)}\u{202E}`;
-  assert.equal(endedLines(view447(ls).ended, new Map(), [])[0].works[0], `${'x'.repeat(39)}…`);
-  // Values that draw alike once cleaned count once.
-  for (const [i, e] of ls[2].log.entries.entries()) e.work = ['a  b', 'a b', 'a\nb', 'c', 'c\u{200B}'][i];
-  const alike = endedLines(view447(ls).ended, new Map(), [])[0];
-  assert.deepEqual([alike.works, alike.more, alike.n], [['c', 'a b'], 0, 5]);
-  // A session whose such entries are all read has no line; its unanswered waiting entry is not one of them.
-  const read = new Map(ls[1].log.entries.map(e => [keyOf(OTHER, e), 'read']));
-  read.delete(keyOf(OTHER, ls[1].log.entries[0]));
-  assert.deepEqual(endedLines(view447(ls, read).ended, read, []).map(l => l.n), [5]);
-});
-
-test('spec 447 claim 7: a search hides lines and lowers N', () => {
-  const ls = tabLogsFor();
-  const v = view447(ls);
-  const lines = endedLines(v.ended, new Map(), searchWords('answer'));
-  assert.equal(lines.length, 1);
-  assert.equal(lines[0].n, 2);
-  assert.deepEqual(lines[0].works, ['the answer', 'answered']);
-  assert.equal(lines[0].at, NOW - 88);
-  assert.deepEqual(endedLines(v.ended, new Map(), searchWords('nowhere')), []);
-});
-
-test('spec 447 claim 10: History\'s fold holds every Relayed and answered waiting entry of each ended log, read or not, newest first, under the search', () => {
-  const ls = tabLogsFor();
-  const states = new Map([[keyOf(OTHER, ls[1].log.entries[4]), 'read']]);
-  const v = view447(ls, states);
-  assert.deepEqual(v.ended.map(l => [l.sid, l.writer]), [[OTHER, 'an ended session']]);
-  const fold = historyRows(v.ended, [], 1);
-  assert.deepEqual(fold.rows.map(r => r.entry.work), ['relayed plain', 'the answer', 'answered']);
-  assert.deepEqual(historyRows(v.ended, searchWords('answer'), 1).rows.map(r => r.entry.work), ['the answer', 'answered']);
-  // This session's History rows are unchanged.
-  assert.deepEqual(v.history, drawnLogs(ls, SID, states).history);
-  // 50 a page.
-  let big = emptyLog(null);
-  for (let i = 0; i < 60; i++) big = appendEntry(big, input({ source: 'relayed' }), { at: NOW - 100 + i, level: 1, read: new Map() }).value.log;
-  const bv = view447([ls[0], { sid: OTHER, writer: 'x', log: big }]);
-  assert.equal(historyRows(bv.ended, [], 1).rows.length, HISTORY_PAGE);
-  assert.ok(historyRows(bv.ended, [], 1).more);
-});
-
-test('spec 447 claim 8 (Test round 1, q3 A): a write that pushes out a mark still its entry\'s newest state is caught; one that drops a mark for no log read is not', () => {
+test('spec 447 claim 8 (Test round 1, q3 A), issue 509: a write that pushes out a mark still its entry\'s newest state is caught; one that drops a mark for no log read is not', () => {
   const known = new Set(Array.from({ length: MAX_MARKS }, (_, i) => markKey(OTHER, String(i + 1), NOW)));
   const live = { kind: 'marks', v: 1, marks: Array.from({ length: MAX_MARKS }, (_, i) => mk(OTHER, String(i + 1), NOW, 'read', NOW + i)) };
   const added = [mk(SID, '1', NOW, 'read', NOW + 5000)];
@@ -1050,38 +871,34 @@ const pairLogs = () => {
   return [{ sid: SID, writer: 'lead-a', log: own }, other];
 };
 
-test('spec 448 claims 1 and 5: an own unread waiting entry and its answer are one card at the waiting entry\'s place, counted once; a carried pair stays two cards', () => {
+test('spec 448 claims 1 and 5: an own unread waiting entry and its answer are one card at the waiting entry\'s place, counted once', () => {
   const ls = pairLogs();
-  const v = drawnLogs(ls, SID, new Map());
-  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
+  const v = drawnLogs(ls, SID);
+  const q = reviewCards(v, SID, new Map(), new Set(), []);
   const own = q.cards.filter(c => c.row.sid === SID);
   assert.deepEqual(own.map(c => [c.row.entry.work, c.answer?.entry.work]), [['plain first', undefined], ['mine waits', 'my answer'], ['plain later', undefined]]);
   // The answer has no card of its own, and To review's count counts the pair once.
   assert.ok(!q.cards.some(c => c.row.sid === SID && c.row.entry.work === 'my answer'));
-  const entries = reviewQueue(v.review, new Map(), new Set(), []).total;
+  const entries = reviewQueue(v, new Map(), new Set(), []).total;
   assert.equal(q.total, entries - 1);
   // The shown rows hold every entry, both of the pair included, oldest first.
-  assert.deepEqual(q.shown, reviewQueue(v.review, new Map(), new Set(), []).order);
+  assert.deepEqual(q.shown, reviewQueue(v, new Map(), new Set(), []).order);
   // The card takes the waiting entry's place, not the answer's: with the answer dated after the later plain entry, the pair still comes first.
   const late = structuredClone(ls);
   late[0].log.entries[2].at = NOW + 10;
-  const lateCards = reviewCards(drawnLogs(late, SID, new Map()).review, SID, new Map(), new Set(), []).cards.filter(c => c.row.sid === SID);
+  const lateCards = reviewCards(drawnLogs(late, SID), SID, new Map(), new Set(), []).cards.filter(c => c.row.sid === SID);
   assert.deepEqual(lateCards.map(c => c.row.entry.work), ['plain first', 'mine waits', 'plain later']);
   assert.equal(lateCards[1].answer?.entry.work, 'my answer');
-  // Claim 5: the other log's waiting entry and its answer draw as two cards.
-  const carried = q.cards.filter(c => c.row.sid === OTHER).map(c => c.row.entry.work);
-  assert.ok(carried.includes('answered') && carried.includes('the answer'));
-  assert.ok(q.cards.every(c => c.row.sid === SID || c.answer === undefined));
 });
 
 test('spec 448 claim 3: when only one of the pair is unread it draws alone', () => {
   const ls = pairLogs();
   const [, w, a] = ls[0].log.entries;
-  const v = drawnLogs(ls, SID, new Map());
+  const v = drawnLogs(ls, SID);
   for (const [read, alone] of [[w, a], [a, w]]) {
     for (const state of ['read', 'flagged']) {
       const states = new Map([[keyOf(SID, read), state]]);
-      const own = reviewCards(v.review, SID, states, new Set(), []).cards.filter(c => c.row.sid === SID);
+      const own = reviewCards(v, SID, states, new Set(), []).cards.filter(c => c.row.sid === SID);
       assert.deepEqual(own.map(c => [c.row.entry.id, c.answer]), [['1', undefined], [alone.id, undefined], ['4', undefined]], `${read.work} ${state}`);
     }
   }
@@ -1089,12 +906,12 @@ test('spec 448 claim 3: when only one of the pair is unread it draws alone', () 
 
 test('spec 448 claim 4: a search matching only the answer draws the pair, and one matching neither hides it', () => {
   const ls = pairLogs();
-  const v = drawnLogs(ls, SID, new Map());
-  const only = reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer'));
+  const v = drawnLogs(ls, SID);
+  const only = reviewCards(v, SID, new Map(), new Set(), searchWords('my answer'));
   assert.deepEqual(only.cards.map(c => [c.row.entry.work, c.answer?.entry.work]), [['mine waits', 'my answer']]);
   assert.deepEqual(only.shown.map(r => r.entry.work), ['mine waits', 'my answer'], 'both count as shown');
-  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('mine waits')).shown.map(r => r.entry.work), ['mine waits', 'my answer']);
-  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('plain later')).cards.map(c => c.row.entry.work), ['plain later']);
+  assert.deepEqual(reviewCards(v, SID, new Map(), new Set(), searchWords('mine waits')).shown.map(r => r.entry.work), ['mine waits', 'my answer']);
+  assert.deepEqual(reviewCards(v, SID, new Map(), new Set(), searchWords('plain later')).cards.map(c => c.row.entry.work), ['plain later']);
 });
 
 test('spec 448 claim 2: a pair counts as skipped when its waiting entry is, and the queue wraps by card', () => {
@@ -1121,36 +938,32 @@ test('spec 448 claim 3: a pair key matches whole, naming both entries by id and 
   }
 });
 
-test('issue 466, issue 509: Mark all as read takes everything under To review, of every kind and log, and every ended line, with a hash that moves when the set does', () => {
+test('issue 466, issue 509: Mark all as read takes everything under To review, of every kind of this session\'s log, with a hash that moves when the set does', () => {
   const ls = tabLogsFor();
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '6', at: NOW + 12, source: 'alarm' });
-  const v = view447(ls);
-  const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
-  const lines = endedLines(v.ended, new Map(), []);
-  assert.ok(lines.length > 0, 'an ended line is drawn');
-  const set = markAllSet(cards.cards, lines);
-  const all = [...cards.shown, ...lines.flatMap(l => l.rows)];
-  assert.deepEqual(set.rows, all);
-  // #496: it counts what leaves To review: a card, a pair as one, and an ended line as one (decision 524).
-  assert.equal(set.n, cards.cards.length + lines.length);
-  assert.ok(set.n < all.length - 1, 'the ended line holds more than one entry');
+  const v = drawnLogs(ls, SID);
+  const cards = d.reviewCards(v, SID, new Map(), new Set(), []);
+  const set = markAllSet(cards.cards);
+  assert.deepEqual(set.rows, cards.shown);
+  // #496: it counts what leaves To review: a card, a pair as one.
+  assert.equal(set.n, cards.cards.length);
+  assert.ok(set.n < set.rows.length, 'a pair is drawn');
   assert.equal(set.total, set.n);
   for (const kind of ['lead', 'relayed', 'alarm']) assert.ok(set.rows.some(r => r.entry.source === kind), kind);
   assert.ok(set.rows.some(r => r.entry.waiting), 'a waiting entry');
-  assert.ok(set.rows.some(r => r.sid === OTHER), 'another log\'s entry');
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
-  assert.notEqual(markAllSet(cards.cards.slice(1), lines).hash, set.hash);
-  assert.deepEqual(markAllSet([], []), { rows: [], n: 0, total: 0, hash: '' });
+  assert.notEqual(markAllSet(cards.cards.slice(1)).hash, set.hash);
+  assert.deepEqual(markAllSet([]), { rows: [], n: 0, total: 0, hash: '' });
   // Past 500 entries it takes the first 500, so its key stays in range, and counts the rest as staying.
   const many = Array.from({ length: 501 }, (_, i) => ({ sid: SID, writer: 'w', entry: { ...ls[0].log.entries[0], id: String(i + 1), at: NOW + i } }));
-  const big = markAllSet(many.map(row => ({ row, answer: undefined })), []);
+  const big = markAllSet(many.map(row => ({ row, answer: undefined })));
   assert.deepEqual(big.rows, many.slice(0, 500));
   assert.deepEqual([big.n, big.total], [500, 501]);
   // A pair that would straddle the cap is left whole for the next press, and nothing after it is taken.
   const pair = { row: many[499], answer: many[500] };
-  const straddle = markAllSet([...many.slice(0, 499).map(row => ({ row, answer: undefined })), pair, { row: { ...many[0], entry: { ...many[0].entry, id: '900' } }, answer: undefined }], []);
+  const straddle = markAllSet([...many.slice(0, 499).map(row => ({ row, answer: undefined })), pair, { row: { ...many[0], entry: { ...many[0].entry, id: '900' } }, answer: undefined }]);
   assert.deepEqual([straddle.rows.length, straddle.n, straddle.total], [499, 499, 501]);
 });
 
@@ -1172,22 +985,21 @@ test('issue 509: Mark all as read takes an own unanswered waiting entry too', ()
   const ls = pairLogs();
   const mine = { ...ls[0].log.entries[1], id: '5', at: NOW + 5, work: 'mine still waits' };
   ls[0].log.entries.push(mine);
-  const v = drawnLogs(ls, SID, new Map());
-  const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
-  const set = markAllSet(cards.cards, []);
+  const v = drawnLogs(ls, SID);
+  const cards = d.reviewCards(v, SID, new Map(), new Set(), []);
+  const set = markAllSet(cards.cards);
   assert.ok(cards.shown.some(r => r.entry === mine), 'it is under To review');
   assert.ok(set.rows.some(r => r.entry === mine), 'Mark all as read takes it');
   assert.ok(set.rows.some(r => r.sid === SID && r.entry.work === 'mine waits'), 'an answered own waiting entry is taken');
-  assert.ok(set.rows.some(r => r.sid === OTHER && r.entry.waiting && r.entry.work === 'waits'), 'another log\'s unanswered waiting entry is taken');
   // #496: the count is in cards, a pair as one; every card is taken.
   assert.ok(cards.cards.length < cards.shown.length, 'a pair is drawn');
   assert.deepEqual(set.rows, cards.shown);
   assert.deepEqual([set.n, set.total], [cards.cards.length, cards.cards.length]);
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
   const after = new Map(set.rows.map(r => [keyOf(r.sid, r.entry), 'read']));
-  const left = d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []);
+  const left = d.reviewCards(drawnLogs(ls, SID), SID, after, new Set(), []);
   assert.equal(left.total, 0);
-  assert.deepEqual(markAllSet(left.cards, []), { rows: [], n: 0, total: 0, hash: '' });
+  assert.deepEqual(markAllSet(left.cards), { rows: [], n: 0, total: 0, hash: '' });
 });
 
 // --- issue 459: the lead flags its own unsure decisions ------------------------------
@@ -1232,35 +1044,33 @@ test('issue 459 claim 2: the strict log check takes an entry with or without a f
   }
 });
 
-test('issue 459 claim 3: this lead\'s flagged entry sits in Flagged and never in To review until the owner marks it; another log\'s flag is only counted', () => {
+test('issue 459 claim 3: this lead\'s flagged entry sits in Flagged and never in To review until the owner marks it; another log\'s flag is not drawn', () => {
   const add = (log, over, at) => appendEntry(log, input(over), { at, level: 3, read: new Map() }).value.log;
   const own = add(add(emptyLog(null), { work: 'plain' }, NOW), { work: 'mine flagged', flag: 'Unsure.' }, NOW + 1);
   const other = add(add(emptyLog(null), { source: 'relayed', work: 'claim' }, NOW - 5), { work: 'theirs flagged', flag: 'Unsure too.' }, NOW - 4);
   const ls = [{ sid: SID, writer: 'lead-a', log: own }, { sid: OTHER, writer: 'an ended session', log: other }];
   const view = marks => {
     const states = d.withLeadFlags(marks, ls, SID);
-    const v = drawnLogs(ls, SID, states, new Map([[OTHER, 'ended']]), true);
-    const cards = d.reviewCards(v.review, SID, states, new Set(), []);
+    const v = drawnLogs(ls, SID);
+    const cards = d.reviewCards(v, SID, states, new Set(), []);
     return {
-      review: [...cards.shown, ...d.endedLines(v.ended, states, []).flatMap(l => l.rows)].map(r => r.entry.work).sort(),
-      flagged: flaggedRows(v.flagged, states, []).map(r => r.entry.work),
-      unshown: v.unshown,
+      review: cards.shown.map(r => r.entry.work).sort(),
+      flagged: flaggedRows(v, states, []).map(r => r.entry.work),
     };
   };
-  // To review's shown rows and ended lines are all Mark all as read can take: no flagged entry is there.
-  // Test round 1's q5 A (the owner's word, relayed): another log's flag is not carried, so its
-  // flagged plain pick is counted in the dim line as any plain pick is.
-  assert.deepEqual(view(new Map()), { review: ['claim', 'plain'], flagged: ['mine flagged'], unshown: 1 });
-  assert.deepEqual(flaggedRows(ls, d.withLeadFlags(new Map(), ls, OTHER), searchWords('too')).map(r => r.entry.work), ['theirs flagged'], 'the search reads the reason');
+  // To review's shown rows are all Mark all as read can take: no flagged entry is there.
+  assert.deepEqual(view(new Map()), { review: ['plain'], flagged: ['mine flagged'] });
+  // The search reads the reason.
+  assert.deepEqual(flaggedRows(drawnLogs(ls, SID), d.withLeadFlags(new Map(), ls, SID), searchWords('Unsure')).map(r => r.entry.work), ['mine flagged']);
   // The owner's latest mark wins: Unflag or Dismiss takes it out, and a later Flag keeps it in.
   const k = markKey(SID, own.entries[1].id, own.entries[1].at);
   assert.deepEqual(view(new Map([[k, 'unflagged']])).flagged, []);
   assert.deepEqual(view(new Map([[k, 'read']])).flagged, []);
   assert.deepEqual(view(new Map([[k, 'flagged']])).flagged, ['mine flagged']);
   assert.equal(view(new Map([[k, 'unflagged']])).review.includes('mine flagged'), false, 'an unflagged entry is read');
-  // The owner's own flag on another log's entry still carries it.
+  // The owner's own flag on another log's entry draws nothing.
   const t = markKey(OTHER, other.entries[1].id, other.entries[1].at);
-  assert.deepEqual(view(new Map([[t, 'flagged']])).flagged, ['theirs flagged', 'mine flagged']);
+  assert.deepEqual(view(new Map([[t, 'flagged']])).flagged, ['mine flagged']);
   // The states given are not changed.
   const marks = new Map();
   d.withLeadFlags(marks, ls, SID);

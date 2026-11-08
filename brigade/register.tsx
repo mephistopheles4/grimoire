@@ -95,10 +95,7 @@ import {
   matchesSearch,
   parseMarkAllKey,
   parsePairKey,
-  canTell,
   dropsLiveMark,
-  endedLines,
-  sessionStates,
   reviewCards,
   reviewQueue,
   searchWords,
@@ -113,7 +110,7 @@ import {
   withLeadFlags,
   writerName,
 } from './decisions.ts'
-import type { DecisionEntry, DecisionLog, EndedLine, EntryInput, Handoff, HandoffSections, Level, LiveInput, MarksFile, ReadHandoff, ReadLog, Row, SessionsSeen } from './decisions.ts'
+import type { DecisionEntry, DecisionLog, EntryInput, Handoff, HandoffSections, Level, MarkState, MarksFile, ReadHandoff, ReadLog, Row } from './decisions.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -447,23 +444,9 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // runs no `claude agents --json`, which makes every running session do
     // work at once (#347). A file that fails its check draws no row, and it,
     // or a folder that cannot be read, draws the one fixed line.
-    // The read's start on the engine clock, for the ended rule (spec 447 S3.6).
-    const startedAt = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
     const files = await readSessions(at.config, io)
     if (!open()) return
     const rows = files?.rows ?? []
-    // What the ended rule reads, kept in the module and never stored: a read
-    // that returned nothing leaves no rows, so every state is unknown. When a
-    // log's state moves, the clock passing 30 minutes included, the tab draws again.
-    sessionsSeen =
-      files === undefined
-        ? undefined
-        : { ids: rows.flatMap(r => (r.sessionId === undefined ? [] : [r.sessionId])), complete: files.complete, fileGone: files.fileGone, startedAt }
-    const states = statesKey(await Promise.resolve($.clock.now()).catch(() => Number.NaN))
-    if (states !== lastStates) {
-      lastStates = states
-      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
-    }
     // Each log's writer is named from the same rows, kept in the module and never stored.
     if (files !== undefined) sessionRows = rows.map(r => ({ name: r.name, status: r.status, sessionId: r.sessionId }))
     // Each roster card finds its session by id (a title only when it has no
@@ -565,9 +548,9 @@ async function movesOf($: EngineInterface): Promise<Moves> {
 //
 // While the pane is open, and only then (ADR 0008), the roster timer's tick
 // reads this session's own decision log, marks file and hand-off, and the 20
-// newest other logs, marks files and hand-offs by modification time, from
-// brigade/decisions, brigade/marks and brigade/handoff in the plugin's data
-// folder. Every file is placed by the
+// newest other hand-offs by modification time (since issue 509 no other
+// decision log or marks file), from brigade/decisions, brigade/marks and
+// brigade/handoff in the plugin's data folder. Every file is placed by the
 // roster's path rule before it is read, its size checked against its kind's
 // cap before the read and its length after, and its text held to its kind's
 // strict check (decisions.ts); a file that fails, or is dated more than two
@@ -598,10 +581,9 @@ type TabRead = {
   sid: string
   project: string | null
   skipped: number
-  beyond: number
   tooMany: boolean
 }
-const EMPTY_READ: TabRead = { logs: [], marks: [], handoffs: [], sid: '', project: null, skipped: 0, beyond: 0, tooMany: false }
+const EMPTY_READ: TabRead = { logs: [], marks: [], handoffs: [], sid: '', project: null, skipped: 0, tooMany: false }
 let tabRead: TabRead = EMPTY_READ
 // Each running session's name and id, from the live poll's session files,
 // for each log's writer.
@@ -623,17 +605,6 @@ let markFailed = false
 // Whether the last marks write was refused because the caps would push out a
 // mark that is still an entry's newest state, so the line can say why.
 let marksFull = false
-// History's fold of ended sessions' entries (spec 447 S5.5): open or not, its
-// pages and its opened rows, here and never in plugin state.
-let endedOpen = false
-let endedPages = 1
-const openedEnded = new Set<string>()
-// What the ended rule reads (spec 447 S3.6): the live poll's last session read,
-// the time this pane opened and the last states worked out. A close clears
-// them, so a pane opened again starts unknown.
-let sessionsSeen: SessionsSeen | undefined
-let openedAt: number | undefined
-let lastStates = ''
 let readingDecisions = false
 
 function placeKind($: EngineInterface, at: Where, kind: Kind, sid: string): Promise<Placed> {
@@ -670,17 +641,30 @@ function listedFile(e: unknown): Listed | undefined {
   return typeof f.size === 'number' && typeof f.mtimeMs === 'number' ? { sid, size: f.size, mtimeMs: f.mtimeMs } : undefined
 }
 
-// A kind's folder, as the path rule placed this session's own file: its own
-// file by its own stat, and every other file the listing names, newest first.
-// `refused` when the rule refuses the folder; `tooMany` past 5,000 entries.
-async function listKind($: EngineInterface, at: Where, kind: Kind) {
+// This session's own file of a kind, as the path rule placed it, by its own
+// stat; the folder is not listed. The tab reads its decision log and marks
+// file this way, so no other session's file is named or read (issue 509).
+// `refused` when the rule refuses the path.
+async function ownKind($: EngineInterface, at: Where, kind: Kind) {
   const placed = await placeKind($, at, kind, at.id)
-  if ('refused' in placed) return { refused: true, others: [] as Listed[], tooMany: false }
+  if ('refused' in placed) return { refused: true as const, placed }
   let own: Listed | undefined
   if (placed.existing !== undefined) {
     const s = await $.fs.stat(placed.file, { resolve: true }).catch(() => undefined)
     if (s !== undefined && typeof s.mtimeMs === 'number') own = { sid: at.id, size: s.size, mtimeMs: s.mtimeMs }
   }
+  return { refused: false as const, placed, own }
+}
+
+// A kind's folder, as the path rule placed this session's own file: its own
+// file by its own stat, and every other file the listing names, newest first.
+// `refused` when the rule refuses the folder; `tooMany` past 5,000 entries.
+// Hand-offs read through this; the decision log and
+// marks read do not.
+async function listKind($: EngineInterface, at: Where, kind: Kind) {
+  const o = await ownKind($, at, kind)
+  if (o.refused) return { refused: true, others: [] as Listed[], tooMany: false }
+  const { placed, own } = o
   const folder = placed.file.slice(0, placed.file.length - `${at.id}.json`.length - 1)
   const entries: unknown = await $.fs.list(folder).catch(() => [])
   const list = Array.isArray(entries) ? entries : []
@@ -718,7 +702,9 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
     let changed = false
     const kept = new Set<string>()
     for (const kind of ['decisions', 'marks', 'handoff'] as const) {
-      const l = await listKind($, at, kind)
+      // The tab reads this session's own decision log and marks file alone
+      // (issue 509, ADR 0017); only hand-offs are listed, for the Lead hand-off card.
+      const l = kind === 'handoff' ? await listKind($, at, kind) : { ...(await ownKind($, at, kind)), others: [] as Listed[], tooMany: false }
       if (!live()) return
       if (l.refused) {
         next.skipped++
@@ -727,11 +713,7 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
       next.tooMany ||= l.tooMany
       const fresh = l.others.filter(f => f.mtimeMs <= now + AHEAD_MS)
       next.skipped += l.others.length - fresh.length
-      if (kind === 'decisions') next.beyond = Math.max(fresh.length - MAX_OTHER_FILES, 0)
       const files = [...(l.own !== undefined ? [l.own] : []), ...fresh.slice(0, MAX_OTHER_FILES)]
-      // A marks file the drop scan read stays cached while it is listed, so a
-      // second full-log call reads none of the unchanged ones again.
-      if (kind === 'marks') for (const f of fresh) kept.add(`${kind} ${f.sid}`)
       for (const f of files) {
         kept.add(`${kind} ${f.sid}`)
         if (f.mtimeMs > now + AHEAD_MS) {
@@ -753,7 +735,7 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
         changed = true
       }
     }
-    const counts = (t: TabRead) => `${t.logs.length} ${t.marks.length} ${t.handoffs.length} ${t.project} ${t.skipped} ${t.beyond} ${t.tooMany}`
+    const counts = (t: TabRead) => `${t.logs.length} ${t.marks.length} ${t.handoffs.length} ${t.project} ${t.skipped} ${t.tooMany}`
     changed ||= counts(next) !== counts(tabRead)
     tabRead = next
     if (changed) await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
@@ -764,67 +746,29 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
   }
 }
 
-// The most marks-file bytes one drop scan reads: 32 files at their cap.
-const MAX_SCAN_BYTES = 8 * 1024 * 1024
-
-// The marks files in the folder, up to MAX_SCAN_BYTES, through the same cache, for log_decision's
-// drop rule: an entry with no readable read mark counts as unread.
+// This session's own marks file, for log_decision's drop rule, and for the pane's own
+// append to a full log: an entry with no readable read mark counts as unread. Since
+// issue 509 no other session's marks file is listed or read: no other pane marks this
+// session's entries, so a mark there would only be one the tab cannot show.
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
-  return (await readMarks($, at, now, false)) ?? new Map()
+  return readMarks($, at, now)
 }
 
-// The marks merged from every marks file in the folder. `strict` gives none
-// at all when the listing is refused, a read throws or a file fails its
-// check, so a caller can tell marks it could not read from no marks; the
-// lenient read, the drop scan's, gives none when this session's own file
-// cannot be read.
-async function readMarks($: EngineInterface, at: Where, now: number, strict: boolean) {
+// The marks of this session's own marks file, read by its own path and merged. None at
+// all when the folder is refused or the file is missing, dated more than two minutes
+// ahead, over the marks cap or fails its check, so a flag only it holds never loses to
+// an older read mark (PR 498) and its entries stay unread, which fails safe.
+async function readMarks($: EngineInterface, at: Where, now: number) {
   try {
-    const l = await listKind($, at, 'marks')
-    // Past 5,000 entries the listing gives no other file, but this session's
-    // own marks file is still read by its own path, as the pane reads it.
-    if (l.refused) return strict ? undefined : new Map()
-    const files: MarksFile[] = []
-    let scanned = 0
-    let cutAt: number | undefined
-    for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
-      // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
-      // The strict read counts this session's own file skipped for its date as
-      // unreadable, so it cannot hide the owner's read mark (#436). The drop
-      // scan takes no mark at all when the own file is skipped, so a flag only
-      // it holds never loses to an older read mark elsewhere (PR 498).
-      if (f.mtimeMs > now + AHEAD_MS) {
-        if (f === l.own) return strict ? undefined : new Map()
-        continue
-      }
-      // A file over the marks cap fails its check and is read by no one, so it
-      // takes nothing from the bound.
-      if (f.size > MAX_MARKS_BYTES) {
-        if (strict || f === l.own) return strict ? undefined : new Map()
-        continue
-      }
-      // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes:
-      // this session's own file in full first, then the others newest first.
-      // Past the bound the rest count as unread, which fails safe.
-      scanned += f.size
-      if (f !== l.own && scanned > MAX_SCAN_BYTES) {
-        if (strict) return undefined
-        cutAt = f.mtimeMs
-        break
-      }
-      const got = await heldFile($, at, 'marks', f)
-      if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
-      else if (strict || f === l.own) return strict ? undefined : new Map()
-    }
-    // A mark in a file left unread is no newer than that file's time, so only
-    // marks dated after it (and the clock allowance) can be the newest of their
-    // entry. An older one might be covered by a flag in a file left unread, so
-    // it counts for nothing and its entry stays unread.
-    const cut = cutAt
-    if (cut !== undefined) return mergeMarks(files.map(f => ({ ...f, marks: f.marks.filter(m => m.at > cut + AHEAD_MS) })), now)
-    return mergeMarks(files, now)
+    const o = await ownKind($, at, 'marks')
+    if (o.refused) return new Map<string, MarkState>()
+    const f = o.own
+    if (f === undefined || f.mtimeMs > now + AHEAD_MS || f.size > MAX_MARKS_BYTES) return new Map<string, MarkState>()
+    const got = await heldFile($, at, 'marks', f)
+    if (got.value === undefined || got.value.kind !== 'marks') return new Map<string, MarkState>()
+    return mergeMarks([got.value], now)
   } catch {
-    return strict ? undefined : new Map()
+    return new Map<string, MarkState>()
   }
 }
 
@@ -898,24 +842,15 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
 // and an Owner, Pane or alarm entry out of its fixed shape left out.
 const tabLogs = (): ReadLog[] =>
   tabRead.logs.map(l => ({ ...l, writer: writerName(sessionRows, l.sid), log: { ...l.log, entries: l.log.entries.filter(inFixedShape) } }))
-// What each view of the Decisions tab draws (spec 444): this session's log and
-// the entries carried from the others. The render and every press work from
-// this one set, so a row's place in a key matches its place on screen.
-// A lead's own flag reads as a flagged mark until the owner marks the entry (issue 459).
+// What each view of the Decisions tab draws (issue 509, ADR 0017): this
+// session's own log alone, so no card, row or count comes from another log.
+// The render and every press work from this one set, so a row's place in a key
+// matches its place on screen. A lead's own flag reads as a flagged mark until
+// the owner marks the entry (issue 459).
 function tabView(now: number) {
-  const logs = tabLogs()
+  const logs = drawnLogs(tabLogs(), tabRead.sid)
   const states = withLeadFlags(mergeMarks(tabRead.marks.map(m => m.file), now), logs, tabRead.sid)
-  const live = liveInput(now)
-  return { states, ...drawnLogs(logs, tabRead.sid, states, sessionStates(tabRead.logs, tabRead.sid, live), canTell(live)) }
-}
-// The ended rule's input at a draw. Each log's state comes from its entries as
-// read, before an entry out of its fixed shape is left out, so any recent entry
-// keeps its session running.
-const liveInput = (now: number): LiveInput => ({ seen: sessionsSeen, openedAt, now })
-// The states as one text, to tell when one moved.
-const statesKey = (now: number) => {
-  const live = liveInput(now)
-  return `${canTell(live)} ${[...sessionStates(tabRead.logs, tabRead.sid, live)].map(([sid, state]) => `${sid}=${state}`).join(' ')}`
+  return { states, logs }
 }
 const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
 
@@ -932,7 +867,7 @@ async function pressReview($: EngineInterface, verb: string, id: string, entryAt
   await marksTurn(async () => {
     const now = await $.clock.now()
     const v = tabView(now)
-    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const q = reviewCards(v.logs, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
     const head = q.head
     if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
     const paired = q.answer
@@ -955,7 +890,7 @@ async function pressReview($: EngineInterface, verb: string, id: string, entryAt
 const MARK_ALL_LABEL = '✓ Mark all as read'
 
 // A press on To review's Mark all as read (issue 466, issue 509): everything
-// under To review, its cards and its ended lines, whatever the search is. In
+// under To review, its cards, whatever the search is. In
 // the marks queue's turn, after every earlier write has landed, the set is
 // worked out again from the logs read, the marks as just written and the session
 // states. It acts only when the set's size and hash match the key, then writes
@@ -967,8 +902,8 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
   await marksTurn(async () => {
     const now = await $.clock.now()
     const v = tabView(now)
-    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, [])
-    const set = markAllSet(q.cards, endedLines(v.ended, v.states, []))
+    const q = reviewCards(v.logs, tabRead.sid, v.states, skipped, [])
+    const set = markAllSet(q.cards)
     if (set.n !== n || set.hash !== hash) return
     const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
@@ -982,7 +917,7 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
 async function flaggedNow($: EngineInterface): Promise<Row[]> {
   const now = await $.clock.now()
   const v = tabView(now)
-  return flaggedRows(v.flagged, v.states, searchWords(queryFrom(await read($, query))))
+  return flaggedRows(v.logs, v.states, searchWords(queryFrom(await read($, query))))
 }
 
 // A press on a Flagged row's fold, pick box or Unflag: it acts only when the
@@ -1298,9 +1233,6 @@ async function arm($: EngineInterface) {
       $.clock.every(LIVE_MS, () => void (live() && pollLive($, live))),
       $.clock.every(GH_MS, () => void (live() && askGh($, live, true))),
     ]
-    // The pane's open time: only a session read begun since then can tell ended.
-    const opened = await Promise.resolve($.clock.now()).catch(() => undefined)
-    if (live()) openedAt = opened
     await update($, armed, () => true)
     await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
@@ -1318,9 +1250,6 @@ function disarm() {
   generation++
   for (const t of timers) t.cancel()
   timers = []
-  sessionsSeen = undefined
-  openedAt = undefined
-  lastStates = ''
 }
 
 // The roster timer's tick. The engine drops a pane whose drawing threw
@@ -1601,9 +1530,6 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   flaggedPages = 1
   markFailed = false
   marksFull = false
-  endedOpen = false
-  endedPages = 1
-  openedEnded.clear()
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
   raiseFailed = false
@@ -3200,28 +3126,9 @@ export const register: Register = on => {
       await pressMarkAll($, markAll.n, markAll.hash)
       return { element: e.element }
     }
-    // History's fold of ended sessions' entries: its toggle, Show more and a
-    // row by its place, each kept in this module (spec 447 S5.5).
-    if (e.element === 'dended' || e.element === 'dendedmore') {
-      if (e.element === 'dended') endedOpen = !endedOpen
-      else endedPages = Math.min(endedPages + 1, 1000)
-      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
-      return { element: e.element }
-    }
-    const endedRow = /^deopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
-    if (endedRow !== null) {
-      const r = historyRows(tabView(await $.clock.now()).ended, searchWords(queryFrom(await read($, query))), endedPages).rows[Number(endedRow[1])]
-      if (r !== undefined && r.entry.id === endedRow[2] && r.entry.at === Number(endedRow[3])) {
-        const k = markKey(r.sid, r.entry.id, r.entry.at)
-        if (openedEnded.has(k)) openedEnded.delete(k)
-        else openedEnded.add(k)
-        await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
-      }
-      return { element: e.element }
-    }
     const row = /^dopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (row !== null) {
-      const r = historyRows(tabView(await $.clock.now()).history, searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
+      const r = historyRows(tabView(await $.clock.now()).logs, searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
       if (r !== undefined && r.entry.id === row[2] && r.entry.at === Number(row[3])) {
         const k = markKey(r.sid, r.entry.id, r.entry.at)
         if (openedRows.has(k)) openedRows.delete(k)
@@ -3385,24 +3292,18 @@ export const register: Register = on => {
     const dStates = dView.states
     // To review's cards (spec 448): an own answered pair is one card, so its
     // count and "n of N" count cards; the top line's unread count counts entries.
-    const dQueue = reviewCards(dView.review, tabRead.sid, dStates, skipped, words)
-    // The ended sessions' block (spec 447 S4.2): its lines under the search, and
-    // the entries all its lines count, which the top line's unread count takes.
-    const dLines = endedLines(dView.ended, dStates, words)
-    const dLined = (words.length > 0 ? endedLines(dView.ended, dStates, []) : dLines).reduce((n, l) => n + l.n, 0)
-    const dUnread = reviewQueue(dView.review, dStates, skipped, []).total + dLined
-    const dHistory = historyRows(dView.history, words, historyPages)
-    const dFold = historyRows(dView.ended, words, endedPages)
-    const dFlagged = flaggedRows(dView.flagged, dStates, words)
-    const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
+    const dQueue = reviewCards(dView.logs, tabRead.sid, dStates, skipped, words)
+    const dUnread = reviewQueue(dView.logs, dStates, skipped, []).total
+    const dHistory = historyRows(dView.logs, words, historyPages)
+    const dFlagged = flaggedRows(dView.logs, dStates, words)
+    const dFlaggedAll = words.length > 0 ? flaggedRows(dView.logs, dStates, []).length : dFlagged.length
     // The set ignores the search (issue 509).
-    const dMarkAll = markAllSet(words.length > 0 ? reviewCards(dView.review, tabRead.sid, dStates, skipped, []).cards : dQueue.cards, words.length > 0 ? endedLines(dView.ended, dStates, []) : dLines)
+    const dMarkAll = markAllSet(words.length > 0 ? reviewCards(dView.logs, tabRead.sid, dStates, skipped, []).cards : dQueue.cards)
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
-    // What the tab draws, each entry once: this log's, and the carried ones.
+    // What the tab draws, each entry once: this session's log.
     const dDrawn = new Map<string, Row>()
-    for (const l of [...dView.review, ...dView.history, ...dView.ended]) for (const entry of l.log.entries) dDrawn.set(markKey(l.sid, entry.id, entry.at), { sid: l.sid, writer: l.writer, entry })
-    for (const r of flaggedRows(dView.flagged, dStates, [])) dDrawn.set(markKey(r.sid, r.entry.id, r.entry.at), r)
+    for (const l of dView.logs) for (const entry of l.log.entries) dDrawn.set(markKey(l.sid, entry.id, entry.at), { sid: l.sid, writer: l.writer, entry })
     const dTotal = dDrawn.size
     const dMatching = [...dDrawn.values()].filter(r => matchesSearch(r.entry, r.writer, words)).length
     // Counted on the logs as read, before the entries out of shape are left out.
@@ -3994,9 +3895,6 @@ export const register: Register = on => {
       </Box>
     )
     // An Owner entry draws plain Owner only when this pane wrote it.
-    // A carried card or row says so, by the log's session id, never by name.
-    const FROM_OTHER = 'From another session'
-    const fromOther = (r: Row) => (r.sid !== tabRead.sid ? `${FROM_OTHER} · ` : '')
     const labelOf = (r: Row) => sourceLabel(r.entry, r.writer, r.entry.source === 'owner' && ownerWrote.has(ownerKey(r.sid, r.entry)))
     // A waiting entry's headline names its answer, as the lead records it.
     const answerOf = (r: Row): DecisionEntry | undefined =>
@@ -4026,7 +3924,6 @@ export const register: Register = on => {
               </Text>
             )}
             <Text dimColor>{r.writer}</Text>
-            {fromOther(r) !== '' && <Text dimColor>{FROM_OTHER}</Text>}
           </Box>
           <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
             <Text>{labelOf(r)}</Text>
@@ -4084,22 +3981,20 @@ export const register: Register = on => {
     )
     // A History row: one press holding the fold arrow and the headline, a dim
     // line under it, and the source over the time on the right.
-    // A row of History's fold of ended sessions (spec 447 S5) is drawn the same
-    // way, with keys of its own, and says "Unread" while it is.
-    const historyRow = (r: Row, i: number, fold = false) => {
+    const historyRow = (r: Row, i: number) => {
       const k = markKey(r.sid, r.entry.id, r.entry.at)
-      const isOpen = (fold ? openedEnded : openedRows).has(k)
+      const isOpen = openedRows.has(k)
       const isRead = r.entry.source === 'owner' || r.entry.source === 'pane' || dStates.get(k) !== undefined
       return (
-        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`${fold ? 'derow' : 'drow'}-${i}`)}>
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`drow-${i}`)}>
           <Box flexDirection="row" columnGap={1} alignItems="flex-start">
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-              <Button key={`${fold ? 'deopen' : 'dopen'}-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
+              <Button key={`dopen-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
                 <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
                 {isRead ? <Text dimColor>{headline(r)}</Text> : <Text weight="medium">{headline(r)}</Text>}
               </Button>
               <Text dimColor size="footnote" wrap="truncate-end">
-                {`${r.writer} · ${fromOther(r)}${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>
             <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
@@ -4107,7 +4002,6 @@ export const register: Register = on => {
               <Text dimColor size="footnote" tabular>
                 {stamp(r.entry.at)}
               </Text>
-              {fold && !isRead && <Text size="footnote">Unread</Text>}
             </Box>
           </Box>
           {isOpen && entryCard(r, undefined, [])}
@@ -4153,7 +4047,7 @@ export const register: Register = on => {
                 <Text dimColor>{headline(r)}</Text>
               </Button>
               <Text dimColor size="footnote" wrap="truncate-end">
-                {`${r.writer} · ${fromOther(r)}${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>
             <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
@@ -4206,11 +4100,9 @@ export const register: Register = on => {
     )
     // The dim line: what the read left out, by count, never by name.
     const dimLine = [
-      tabRead.tooMany ? 'A decision, marks or hand-off folder lists over 5,000 entries, so no other session\'s file was read from it' : undefined,
+      tabRead.tooMany ? 'The hand-off folder lists over 5,000 entries, so no other session\'s hand-off was read from it' : undefined,
       tabRead.skipped > 0 ? `${tabRead.skipped} file(s) skipped` : undefined,
-      tabRead.beyond > 0 ? `${tabRead.beyond} older log(s) not read` : undefined,
       dMissing > 0 ? `${dMissing} id(s) missing` : undefined,
-      dView.unshown > 0 ? `${dView.unshown} unread entry(s) in other sessions' logs not shown` : undefined,
       dOdd > 0 ? `${dOdd} Owner, Pane or alarm entry(s) not in their fixed shape` : undefined,
     ].filter(x => x !== undefined)
     // The autonomy slider: the level in force, the track, a stop for each
@@ -4264,69 +4156,6 @@ export const register: Register = on => {
         {raiseFailed && <Text color="error">Not changed: the decision log could not be written</Text>}
       </Box>
     )
-    // One line of the ended sessions' block (spec 447 S4.2), in the dim colour:
-    // fixed words, the time, the writer's work values each in its own element
-    // after the fixed label, the count and the press. It draws no name.
-    const endedLine = (l: EndedLine) => (
-      <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} marginBottom={terminal ? 0 : 'xs'}>
-        <Box flexDirection="row" columnGap={1}>
-          <Text dimColor>From an ended session</Text>
-          <Text dimColor tabular>
-            {stamp(l.at)}
-          </Text>
-        </Box>
-        <Box flexDirection="row" columnGap={1}>
-          <Box flexShrink={0}>
-            <Text dimColor>Work:</Text>
-          </Box>
-          {l.works.map((w, i) => (
-            <Box flexDirection="row" columnGap={1} flexShrink={1} minWidth={0}>
-              {i > 0 && <Text dimColor>·</Text>}
-              <Text dimColor wrap="truncate-end">
-                {w}
-              </Text>
-            </Box>
-          ))}
-          {l.more > 0 && (
-            <Box flexShrink={0}>
-              <Text dimColor>{`and ${l.more} more`}</Text>
-            </Box>
-          )}
-        </Box>
-        <Text dimColor wrap="wrap">{`${l.n} unread ${l.n === 1 ? 'entry' : 'entries'}: claims about your words and the questions they answer`}</Text>
-      </Box>
-    )
-    // History's fold of ended sessions' entries, folded at first, its state in
-    // this module: a row each, newest first, 50 a page; in the unknown state it
-    // says so.
-    const endedFold = (
-      <Box flexDirection="column">
-        <Box marginTop={1}>
-          <Button key="dended" plain onPress={noop}>
-            <Text dimColor>{`${endedOpen ? '▾' : '▸'} `}</Text>
-            <Text weight="medium">From ended sessions</Text>
-            <Text dimColor>{` ${dFold.total}`}</Text>
-          </Button>
-        </Box>
-        {endedOpen &&
-          (!dView.canTell ? (
-            quiet('The pane cannot tell yet which sessions have ended.')
-          ) : dFold.rows.length === 0 ? (
-            quiet(words.length > 0 && historyRows(dView.ended, [], 1).total > 0 ? 'No decision matches the search.' : 'Nothing from an ended session.')
-          ) : (
-            <Box flexDirection="column">
-              {dFold.rows.map((r, i) => historyRow(r, i, true))}
-              {dFold.more && (
-                <Box marginTop={1}>
-                  <Button key="dendedmore" dimColor onPress={noop}>
-                    Show more
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          ))}
-      </Box>
-    )
     const head = dQueue.head
     // A lone card's presses name its entry; a pair card's name both entries (spec 448 S4).
     const headAnswer = dQueue.answer
@@ -4338,7 +4167,7 @@ export const register: Register = on => {
         {terminal ? (
           <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
-            <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
+            <Text dimColor>{` ${dQueue.total}`}</Text>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
@@ -4351,7 +4180,7 @@ export const register: Register = on => {
           <Box paddingX="sm" marginTop="md" marginBottom="xs" flexDirection="row" alignItems="center" {...roundFill}>
             <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row">
               <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
-              <Text dimColor>{` ${dQueue.total + dLines.length}`}</Text>
+              <Text dimColor>{` ${dQueue.total}`}</Text>
             </Box>
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
@@ -4362,7 +4191,6 @@ export const register: Register = on => {
             )}
           </Box>
         )}
-        {dLines.length > 0 && <Box flexDirection="column">{dLines.map(endedLine)}</Box>}
         {(head !== undefined
             ? entryCard(
                 head,
@@ -4380,11 +4208,9 @@ export const register: Register = on => {
                 ],
                 dQueue.answer,
               )
-            : dLines.length > 0
-              ? undefined
-              : words.length > 0 && dUnread > 0
-                ? quiet('No unread decision matches the search.')
-                : hint('d-review'))}
+            : words.length > 0 && dUnread > 0
+              ? quiet('No unread decision matches the search.')
+              : hint('d-review'))}
         {markFailed && <Text color="error">{marksFull ? 'Not saved: your marks file is full of entries you read' : 'Not saved: the mark could not be written'}</Text>}
         {groupHead('d-flagged', dFlagged.length)}
         {!folds.has('d-flagged') &&
@@ -4418,7 +4244,6 @@ export const register: Register = on => {
               )}
             </Box>
           ))}
-        {!folds.has('d-history') && endedFold}
         {groupHead('d-handoff', dHandoff === undefined ? 0 : 1)}
         {!folds.has('d-handoff') && (dHandoff === undefined ? hint('d-handoff') : handoffCard(dHandoff))}
         {dimLine.length > 0 && (
