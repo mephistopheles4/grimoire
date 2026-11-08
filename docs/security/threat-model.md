@@ -394,7 +394,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 - E22. (Issue 312's q2 A added it as a gap sentence and accepted only E21.) A session named like a card, or holding its id, feeds that card from its own summary file (C5).
 - E24. (Issue 312's q2 A, as for E22.) Another plugin reads, plants or hides the pane's refusal lines (C4).
-- 513-T1 (issue 513, a gap of its own; the base did not name it). A pill press runs `gh pr view <number> --web` with no rate limit and no one-at-a-time rule, only the 15-second limit, so another plugin's faked presses, or the owner's fast ones, can start many `gh` runs and browser windows (C4). Another plugin that can fake a press can run a process itself. A to-do link's press (issue 560) is kept to one run at a time per to-do, which the pill's press still is not.
+- 513-T1 (issue 513, a gap of its own; the base did not name it). A pill press runs `gh pr view <number> --web` with no rate limit and no one-at-a-time rule, only the 15-second limit, so another plugin's faked presses, or the owner's fast ones, can start many `gh` runs and browser windows (C4). Another plugin that can fake a press can run a process itself. A to-do link button's press (issue 560, a link with no anchor) is kept to one run at a time per to-do, which the pill's press still is not; a link with an anchor (issue 567) is the engine's Link, which the pane does not limit.
 - E14a. A skill's write scope, and a contract's load beside its agent as a second agent, held by prose (C1). Row 13's only E14 acceptance is the case-only compare (E14b, C2).
 
 **P8. Head-chef 1.0.0 (issue 452, PR 457).** Each line waits for the owner's word as worded below.
