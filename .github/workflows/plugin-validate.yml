@@ -70,7 +70,9 @@ jobs:
       # `npm install` was the first route, and zizmor's `adhoc-packages` audit
       # flags it as an install outside a lockfile — a lockfile being the
       # manifest this tree refuses. The runner image's own npm does the fetch;
-      # no setup-node step.
+      # no setup-node step. It runs from $RUNNER_TEMP, not the checkout, so npm
+      # reads no .npmrc a branch adds there (issue 366; scripts/check.mjs also
+      # refuses one).
       #
       # **How strong the pin is.** npm never re-publishes a version number, so
       # this is close to a content pin and is not one, the same as zizmor's
@@ -78,6 +80,7 @@ jobs:
       - name: Fetch Claude Code
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
           tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
@@ -201,6 +204,7 @@ jobs:
       - name: Fetch Claude Code
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
           tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"

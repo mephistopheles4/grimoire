@@ -150,6 +150,11 @@ test('a package manifest or lockfile in another case fails, as the exact name do
   modFile(only, 'Package.json', '{"athanor":{}}\n');
   assertFails(only, /Package\.json: a dependency manifest or lockfile/);
 });
+test('a package-manager settings file in another case fails, as the exact name does (#366)', () => {
+  const dir = tree();
+  modFile(dir, '.NPMRC', 'registry=https://example.invalid/\n');
+  assertFails(dir, /\.NPMRC: a package-manager settings file/);
+});
 test('a root athanor.json in another case fails, because a folding checkout reads it past the hold on the image build folder', () => {
   // One spelling at a time: on a disk that folds case two would be one file.
   const other = tree();

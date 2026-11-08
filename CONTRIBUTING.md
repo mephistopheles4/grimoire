@@ -371,7 +371,10 @@ too, because athanor follows links, and so does that folder spelled in another
 case, because a checkout that folds case finds it and Linux CI does not, or with
 no plain `tests/container/Dockerfile` in it. `Package.json` and a `package.json`
 in a folder fail, and so does a `binding.gyp` at the root, which npm would
-build. It also fails on any code file importing a bare specifier — an import path that
+build. A package-manager settings file, `.npmrc` or `.yarnrc.yml`, fails
+anywhere and in any case, because npm reads a `.npmrc` in the folder it runs
+from. The check reads untracked files too, so keep your own `.npmrc`, which may
+hold a registry token, outside the checkout. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
 `//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,

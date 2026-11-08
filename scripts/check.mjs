@@ -20,6 +20,7 @@
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile,
+//    no package-manager settings file (.npmrc, .yarnrc.yml),
 //    no root binding.gyp, and no import of a bare specifier. A root
 //    athanor.json is athanor's configuration, not a manifest, and its image
 //    build folder is held to tests/container/. The
@@ -747,6 +748,21 @@ function athanorConfigProblem(f) {
 for (const f of files.filter(f => isManifest(basename(f)))) {
   fail(
     `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. athanor's configuration lives in the root athanor.json, not in a package.json. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+  );
+}
+
+// Package-manager settings files, anywhere and in any case (issue 366). npm
+// reads a .npmrc in the folder it runs from, so a branch's file could point a
+// fetch at another registry; CI's fetches run outside the checkout, and this
+// keeps the file off main. Nothing here runs Yarn: .yarnrc.yml is refused on
+// the issue's ask. .yarnrc, .pnpmfile.cjs and bunfig.toml are not refused;
+// they are candidate P10 in the threat model. The walk reads untracked files
+// too, so the message allows for a contributor's own file holding a token.
+const SETTINGS_FILES = new Set(['.npmrc', '.yarnrc.yml']);
+const isSettingsFile = name => SETTINGS_FILES.has(name) || [...SETTINGS_FILES].some(m => caseTwin(name, m));
+for (const f of files.filter(f => isSettingsFile(basename(f)))) {
+  fail(
+    `${rel(f)}: a package-manager settings file — remove it, or keep it outside the checkout, since it may hold a registry token. This repository has no install step, and a fetch run from a folder that holds the file would read it. See CONTRIBUTING.md, "Do not add a dependency".`,
   );
 }
 

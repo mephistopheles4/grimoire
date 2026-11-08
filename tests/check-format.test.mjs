@@ -208,6 +208,17 @@ test('a lockfile fails on its own, with no manifest beside it', () => {
   assertFails(dir, /pnpm-lock\.yaml: a dependency manifest or lockfile/);
 });
 
+test('a package-manager settings file fails at the root and in a folder, with its own message (#366)', () => {
+  // CI's npm pack reads a .npmrc in the folder it runs from, so a branch's
+  // file could redirect the registry; .yarnrc.yml is refused on the issue's ask.
+  const dir = tree();
+  writeFileSync(join(dir, '.npmrc'), 'registry=https://example.invalid/\n');
+  writeFileSync(join(dir, 'skills', 'eagle-eye', '.yarnrc.yml'), 'npmRegistryServer: "https://example.invalid/"\n');
+  const r = assertFails(dir, /- \.npmrc: a package-manager settings file — remove it, or keep it outside the checkout/);
+  assert.match(r.stderr, /skills\/eagle-eye\/\.yarnrc\.yml: a package-manager settings file/);
+  assert.doesNotMatch(r.stderr, /\.npmrc: a dependency manifest or lockfile/);
+});
+
 test('a bare import fails, naming the file and the specifier', () => {
   // A dependency needs no manifest to be a dependency.
   //
