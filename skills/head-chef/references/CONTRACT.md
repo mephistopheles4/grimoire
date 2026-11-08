@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.16.0
+Version: 1.17.0
 Kind: skill
 Level: Thorough
 
@@ -482,6 +482,21 @@ section that changed it, "504" for the cut.
   business is the log; starting sessions and merges follow the owner's file,
   above, and a merge takes only the reviewed head. It
   logs each decision with its level before acting and shows no blocking card.
+- *Proposed* (issue 541, the owner's words: "if you would ask me to accept
+  your recommendations in one line, then simply take them and log them"; and
+  "In PR 541, we are targeting level 3. And we are leaving out the fact that
+  level 2 should actually do the same thing", relayed by the lead).
+  **Levels 2 and 3, accepting picks.** A decision the lead would put to the
+  owner as one line asking them to accept its recommendations is not put to
+  them: the lead takes its picks and logs each as Lead, before acting. At
+  level 2 such a decision still waits for a security finding and for what the
+  owner's words in the lead's chat or the owner's user-level instructions
+  file keep. At level 3 it waits only for what those words or that file keep;
+  the lead decides a security finding and logs it for the owner to review
+  later (the owner's words, relayed by the lead: at level 2 "you will
+  usually stop at certain conditions, such as security. And at level 3, you
+  wouldn't stop at these, and you would simply log them"). Whatever that
+  file keeps, such as merges, still waits.
 - **Confirmed** (402; 504, S3). **Merging.** It follows one rule: merge only
   the head the member's last review covered, with
   `gh pr merge --match-head-commit`; a head that moved waits for a new

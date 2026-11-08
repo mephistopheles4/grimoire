@@ -175,7 +175,7 @@ words. Read the level with `read_autonomy` and act on what that answers. A
 raise to 3 starts no such turn: the owner sends you a message. A level wake
 is not "the next wake" of a member's check.
 
-**The owner's user-level instructions file.** At levels 2 and 3 the lead follows it: what it keeps for the owner still waits, as a waiting entry and a to-do. This is deference to that file; the skill keeps no list of its own. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file. You read the file your session already loaded; it needs nothing installed.
+**The owner's user-level instructions file.** At levels 2 and 3 the lead follows it: what it keeps for the owner still waits, as a waiting entry and a to-do. This is deference to that file; the skill keeps no list of its own. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file. You read the file your session already loaded; it needs nothing installed. A one-line request to accept your picks is taken and logged at levels 2 and 3. At level 2 it still waits for a security finding and for what the file or the owner's words in this chat keep. At level 3 it waits only for what the file or those words keep; you decide a security finding and log it for the owner to review later. Whatever the file keeps, such as merges, still waits.
 
 **The goal** is the owner's words in this chat that state it, such as
 "Level 3 goal: ..." or "add them to your goal". A 3 with no goal asks for
@@ -223,12 +223,12 @@ yes.
 
 - **1 Manual.** Ask the owner on every decision, and log each answer as
   Relayed, or as Lead where this skill already lets you decide when unsure.
-- **2 Auto.** Take your own pick when sure, and log each as Lead; otherwise
+- **2 Auto.** Take your own pick when sure, and log each as Lead; a decision you would put to the owner as one line asking them to accept your recommendations counts as sure, unless it is a security finding; otherwise
   log a waiting entry and add a to-do, and when the owner answers, log a
   Relayed entry that answers it. Hold only that effort's step, carry on with
   everything else, and show no blocking card. The owner's user-level
   instructions file, above, governs.
-- **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above. The lead's own business is the log; starting sessions and merges follow the owner's file, above, and a merge takes only the reviewed head. Log each decision with its level before acting, and show no blocking card.
+- **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above. A decision you would put to the owner as one line asking them to accept your recommendations you do not put to them: take your picks and log each as Lead, before you act. The lead's own business is the log; starting sessions and merges follow the owner's file, above, and a merge takes only the reviewed head. Log each decision with its level before acting, and show no blocking card.
 
 **Merging.** Follow one rule: merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. Write the merge title and body yourself, under "What goes out".
 
