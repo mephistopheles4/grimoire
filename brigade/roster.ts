@@ -705,7 +705,8 @@ export function sessionRow(text: string): SessionRow | undefined {
   return row
 }
 
-/** A group the poll moves a card to. */
+/** What the poll does to a working card: `waiting` moves it to Waiting on you;
+ *  `idle` keeps it under Working with the idle look. */
 export type Move = 'waiting' | 'idle'
 
 /** Each card's rows at one poll, by card title: a card with a Desktop id takes

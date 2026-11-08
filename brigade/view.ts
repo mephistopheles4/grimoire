@@ -300,7 +300,7 @@ export const STYLE = [
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
   '.ok{fill:#2c84db}.warn{fill:#c27c0e}.hot{fill:#c6413a}',
-  // An idle session: a lighter amber than warn's, so the two segments read as two.
+  // An idle session: a paler amber than warn's in each theme, so the two segments read as two.
   '.idle{fill:#e8c98a}',
   // The usage projection: a faint form of ok's blue.
   '.proj{fill:#a9cdf0}',
@@ -716,7 +716,8 @@ export type StatusLook = {
   group: 'needsYou' | 'working' | 'finished'
 }
 
-/** The four statuses, in display order: needs you, working, done, stopped. */
+/** The four stored statuses: needs you, working, done, stopped. The strip's
+ *  display order is `LOOK_ORDER`. */
 export const STATUS: ReadonlyMap<string, StatusLook> = new Map([
   ['needs-you', { glyph: '●', word: 'needs you', color: 'warning', cls: 'warn', group: 'needsYou' }],
   ['working', { glyph: '◐', word: 'working', color: 'suggestion', cls: 'ok', group: 'working' }],
@@ -1136,7 +1137,7 @@ const TODO_HEIGHT = 12
 // A count as the drawing takes it: a finite number above 0, floored, else 0.
 const whole = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
 
-/** One status's count among the shown cards. */
+/** One look's count among the shown cards. */
 export type StatusCount = { look: StatusLook; count: number }
 
 /** The shown cards' count per look, in `LOOK_ORDER`, with no entry for a
@@ -1511,7 +1512,7 @@ const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread' | 'not-fou
 const WINDOWS = new Set([SHORT_MS, HOUR_MS])
 
 /** One live entry: a roster card's title, its session's live word, the
- *  session's own name and the group the poll moved the card to. */
+ *  session's own name and what the poll did to the card (see `Move`). */
 export type Live = { name: string; value: string; shown?: string; move?: Move }
 
 /** The stored live entries, checked again: a name, value or shown name that

@@ -600,8 +600,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
   }
 }
 
-// The groups the last poll moved cards to, by card title, read through the
-// checked live entries.
+// What the last poll did to cards (a move to Waiting on you, or an idle mark),
+// by card title, read through the checked live entries.
 async function movesOf($: EngineInterface): Promise<Moves> {
   return movesFrom(liveFrom(await read($, live)))
 }

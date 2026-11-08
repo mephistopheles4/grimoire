@@ -80,7 +80,8 @@ function attributes(source) {
 // status strip, the to-do bar and the cache bar, which build them, as
 // threat-model row 15 says. The class `proj` is admitted for the usage
 // image's projection (#275). The `tint-` and `ink-` classes are admitted for
-// the PR pill (#339).
+// the PR pill (#339). The class `idle` is admitted for the status strip's idle
+// count (#561).
 const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'idle', 'proj', 'rule', 'tint-open', 'tint-draft', 'tint-merged', 'tint-closed', 'ink-open', 'ink-draft', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
@@ -2520,13 +2521,12 @@ test('a roster whose titles and to-do texts hold hostile text draws, and none of
   assert.equal(bar.svg.alt, 'To-dos 1 of 2 done');
 });
 
-test('liveFrom keeps a stored move only when it is waiting or idle, and statusOf gives idle no look', () => {
+test('liveFrom keeps a stored move only when it is waiting or idle', () => {
   const { liveFrom } = view;
   const mv = move => liveFrom([{ name: 'a', value: 'v', move }])[0]?.move;
   assert.equal(mv('waiting'), 'waiting');
   assert.equal(mv('idle'), 'idle');
   for (const bad of ['finished', 'busy', 'Idle', '', 5, null, {}]) assert.equal(mv(bad), undefined, String(bad));
-  assert.equal(statusOf('idle'), undefined);
 });
 
 test('an idle move counts as idle between working and done, in the Working group, and a stored idle status counts nowhere', () => {
@@ -2538,6 +2538,7 @@ test('an idle move counts as idle between working and done, in the Working group
   assert.deepEqual(v.legend.map(l => l.text), ['◐ 1 working', '○ 1 idle', '✓ 1 done', '– 1 stopped']);
   assert.equal(v.svg.alt, 'Status: 1 working, 1 idle, 1 done, 1 stopped');
   assert.match(v.svg.source, /class="idle"/);
+  assertAllowlisted(v.svg.source);
 });
 
 test('the idle fill differs from the warn fill in light and in dark', () => {

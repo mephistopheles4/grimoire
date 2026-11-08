@@ -146,9 +146,9 @@ the pane opens on Sessions each time. Sessions keeps three foldable groups: Wait
 on you, Working, and Done · stopped, which starts folded and counts the reports
 its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
-state (a session that waits on you moves its row under Waiting on you, an idle
-member's row is marked idle and counted apart in the status strip, and a row
-shows the session's own title) and how long the session has been in its status. Model and
+state (a session that waits on you moves its row under Waiting on you; a working
+session that is idle keeps its row under Working, marked idle, and the status
+strip above the groups counts it apart; and a row shows the session's own title) and how long the session has been in its status. Model and
 effort show as the settings line the lead wrote, at the right of the pull request pill on Desktop. Pressing it opens a small
 popover with the same words, and a `⋯` on each row holds Open, Split and
 Dismiss, each only where it applies; in the terminal Open and Dismiss are always shown. A pull request

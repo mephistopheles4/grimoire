@@ -795,6 +795,7 @@ const refusals: [string, Record<string, unknown>, RegExp][] = [
   ['constructor at the top level', { ...GOOD, constructor: { a: 1 } }, /shape: .*constructor/],
   ['constructor nested', { cards: [{ ...card('a'), constructor: 1 }], todos: [] }, /shape: card 1 .*constructor/],
   ['a fifth status', { cards: [card('a', { status: 'paused' })], todos: [] }, /shape: card 1 status/],
+  ['the pane-only status idle', { cards: [card('a', { status: 'idle' })], todos: [] }, /shape: card 1 status/],
   ['a repeated title', { cards: [card('a'), card('a')], todos: [] }, /shape: card 2 repeats the title/],
   ['over 50 cards', { cards: Array.from({ length: 51 }, (_, i) => card(`c${i}`)), todos: [] }, /shape: the roster has over 50 cards/],
   ['a missing cards', { todos: [] }, /malformed input: "cards" is missing/],
@@ -5431,7 +5432,10 @@ test('561 C3: a waiting session still marks its card needs-you', async ($, on) =
   const w = await pane(on, $, 'terminal', w => liveRows(w, [idRow()]))
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
   await poll(w)
-  expect(legendOf(await drawnOf(mounted))).toBe('● 1 needs you  ◐ 3 working')
+  const nodes = await drawnOf(mounted)
+  expect(legendOf(nodes)).toBe('● 1 needs you  ◐ 3 working')
+  // The card's own mark stays the head chef's: working's glyph, on all four cards.
+  expect(nodes.filter(n => n.type === 'Text' && n.text === '◐').length).toBe(4)
 })
 
 for (const [status, word] of [['needs-you', 'needs you'], ['done', 'done'], ['stopped', 'stopped']] as const) {
@@ -5454,9 +5458,10 @@ test('561 C4: a card with no session file, or with two sessions sharing its name
 })
 
 test('561 C5: a stored card with status idle, planted by another plugin, draws no idle look and counts nowhere', async ($, on) => {
-  await grouped(on, $, { cards: [card('alpha')], todos: [] }, (key, value) =>
+  const w = await grouped(on, $, { cards: [card('alpha')], todos: [] }, (key, value) =>
     key === 'roster' ? { ...value, cards: [card('alpha', { status: 'idle' }), card('beta')] } : value,
   )
+  expect((w.roster.at(-1) as any).cards.length).toBe(2)
   const nodes = await drawnOf(await mountOn($, 'terminal'))
   expect(legendOf(nodes)).toBe('◐ 1 working')
   expect(warnMarks(nodes)).toBe(0)
