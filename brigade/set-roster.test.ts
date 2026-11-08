@@ -22,7 +22,9 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
+import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
+let otherContext: string | undefined
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const SID = '11111111-2222-3333-4444-555555555555'
@@ -520,7 +522,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     if (e.key === 'files') w.files.push(String(e.value?.current ?? ''))
     return next(e)
   })
-  on('classic.SessionStart', () => ({}))
+  // The engine's own answer; a test sets `otherContext` to stand for the added
+  // context another plugin's hook below the module's would return (issue 533).
+  on('classic.SessionStart', () => (otherContext === undefined ? {} : ({ additionalContext: [otherContext] } as any)))
   // A reload the test raises: the session's own answers for session.start and
   // the command it registers again.
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
@@ -8121,10 +8125,12 @@ test("claim 27: the compaction hook returns the engine's result unchanged, and n
   const got = await $.session.compact({ trigger: 'manual', instructions: `keep ${SENTINEL}`, messages: [{ role: 'user', text: `hello ${SENTINEL}`, toolUses: [] }] })
   expect(got).toEqual(result)
   expect(w.compactSeen.instructions).toBe(`keep ${SENTINEL}`)
-  await compactStart($)
+  const started: any = await compactStart($)
+  await turnEnd($)
   await w.clock.advance(15000)
   const answers = [(await readLevel($)).text, (await decide($)).text, (await setHandoff($)).text]
-  for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers]) expect(text.includes(SENTINEL)).toBe(false)
+  // The issue 533 sinks too: the SessionStart result and the notes appended to the conversation.
+  for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers, JSON.stringify(started ?? {}), ...w.notes]) expect(text.includes(SENTINEL)).toBe(false)
   expect(ownEntries(w).slice(0, 1)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
   expect(ownEntries(w).includes(COMPACTED)).toBe(false)
 })
@@ -9701,4 +9707,170 @@ test('532: the reminder is said once, and a refused set_roster does not clear th
   await turnEnd($)
   await turnEnd($)
   expect(reminders(w).length).toBe(1)
+})
+
+// --- the compaction nudges (issue 533) -------------------------------------------
+//
+// Two fixed lines around a compaction. Before it, a lead turn's end near the
+// engine's auto-compact threshold adds one note, once per cycle. After it, the
+// classic SessionStart (source compact) adds the other to its result; where the
+// engine skips that hook, the next turn's end adds it. The two signs of one
+// compaction deliver it once. The rules themselves are tested in
+// tests/brigade-reminder.test.mjs; these cases drive them through the engine.
+
+const NUDGE = (line: string) => `${NOTE_PREFIX}${line}`
+const nudges = (w: World) => w.notes.filter(n => n.startsWith(`${NOTE_PREFIX}Your context`))
+// A usage reading whose breakdown carries the threshold, as the local summary does.
+const NEAR = (tokens: number | undefined, threshold: number | null = 1000): any => ({
+  rateLimits: [],
+  context: { percent: 50, tokens, window: 1000, breakdown: { autoCompactThreshold: threshold, categories: [{ name: 'Messages', kind: 'used', tokens: 900 }] } },
+})
+const nudgeWorld = async (on: On, $: any, setup: (w: World) => void = () => {}, open = true) => {
+  const w = world(on)
+  on('tool.call', { tool: 'SendMessage' }, () => ({ text: 'sent' }) as any)
+  setup(w)
+  await start($)
+  if (open) await brigade($)
+  await w.clock.settle()
+  return w
+}
+const compactStartAs = ($: any, over: Record<string, unknown> = {}) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT, ...over })
+
+test('533: a compaction seen by the classic SessionStart adds the after-line once to its result, with the stale clause, and the turn end adds nothing more', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: where the classic hook is skipped, session.compact alone gets the after-line at the next turn end, once', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  await turnEnd($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(afterLine(false))])
+})
+
+test("533: both signs of one compaction, in the engine's order, deliver the after-line once", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await compactNow($)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: near the threshold a lead turn end adds the before-line once; a compaction after it carries no stale clause', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  expect(nudges(w)).toEqual([NUDGE(BEFORE_LINE)])
+  await turnEnd($)
+  expect(nudges(w).length).toBe(1)
+  await compactNow($)
+  const r: any = await compactStart($)
+  expect(r.additionalContext).toEqual([NUDGE(afterLine(true))])
+})
+
+for (const [what, reading] of [
+  ['below the margin', NEAR(899)],
+  ['no threshold', NEAR(950, null)],
+  ['no token count', NEAR(undefined)],
+] as const) {
+  test(`533: ${what} adds no before-line`, async ($, on) => {
+    const w = await nudgeWorld(on, $, w => {
+      w.usage = reading
+    })
+    await turnEnd($)
+    expect(nudges(w)).toEqual([])
+  })
+}
+
+test("533: a compaction clears the reading, so the old figure cannot fire the before-line after it", async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await compactNow($)
+  await compactStart($)
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test('533: with the pane closed nothing is added and no usage call is made', async ($, on) => {
+  const closed = await nudgeWorld(on, $, () => {}, false)
+  expect(((await compactStart($)) as any).additionalContext ?? []).toEqual([])
+  await compactNow($)
+  await turnEnd($)
+  expect(nudges(closed)).toEqual([])
+  expect(closed.usageCalls).toBe(0)
+})
+
+test('533: a subagent, and a source other than compact, add nothing', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  expect(((await compactStartAs($, { agent_id: 'a1' })) as any).additionalContext ?? []).toEqual([])
+  for (const source of ['startup', 'clear', 'resume']) {
+    expect(((await compactStartAs($, { source })) as any).additionalContext ?? []).toEqual([])
+  }
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+})
+
+test("533: another plugin's added context is kept beside the after-line, untouched", async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  otherContext = 'other plugin text'
+  try {
+    const r: any = await compactStart($)
+    expect(r.additionalContext).toEqual(['other plugin text', NUDGE(afterLine(false))])
+    expect(w.notes.some(n => n.includes('other plugin text'))).toBe(false)
+  } finally {
+    otherContext = undefined
+  }
+})
+
+test('533: a turn that owes the hand-off line and the roster note gets one note, the hand-off line first', async ($, on) => {
+  const w = await nudgeWorld(on, $)
+  await sendTo($, { message: 'go on', summary: 'go' })
+  await compactNow($)
+  await turnEnd($)
+  expect(w.notes.filter(n => n.startsWith(NOTE_PREFIX))).toEqual([`${NOTE_PREFIX}${afterLine(false)}\n${REMINDER_LINE}`])
+})
+
+test('533: a failed usage read leaves the turn unchanged and adds no line', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = 'fail'
+  })
+  await turnEnd($)
+  expect(nudges(w)).toEqual([])
+  await w.clock.settle()
+})
+
+test('533: on the terminal the reading is read for the threshold and the stored snapshot gains no categories', async ($, on) => {
+  const terminal = await nudgeWorld(on, $, w => {
+    w.surfaces = ['terminal']
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  expect(nudges(terminal)).toEqual([NUDGE(BEFORE_LINE)])
+  const stored = JSON.parse(terminal.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
+  expect(stored.categories).toBeUndefined()
+  expect(stored.context.tokens).toBe(950)
+})
+
+test('533: on Desktop the stored snapshot keeps its categories, as before', async ($, on) => {
+  const desktop = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  const stored = JSON.parse(desktop.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
+  expect(stored.categories?.length).toBe(1)
+})
+
+test('533: the exception is in every variant the lead can be handed', async ($, on) => {
+  const w = await nudgeWorld(on, $, w => {
+    w.usage = NEAR(950)
+  })
+  await turnEnd($)
+  const r: any = await compactStart($)
+  for (const text of [...nudges(w), ...r.additionalContext]) expect(text.includes(EXCEPTION)).toBe(true)
 })

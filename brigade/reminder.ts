@@ -99,6 +99,18 @@ export type Cycle = {
 
 export const newCycle = (): Cycle => ({ tokens: undefined, threshold: undefined, said: false, open: false, beforeWentOut: false, owed: false })
 
+const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
+/** The two numbers in a `$.session.usage` reading: the token count of the last
+ *  response and the auto-compact threshold in the context breakdown. Nothing
+ *  else of the reading is taken, and a field of the wrong shape reads as
+ *  absent (`setFigures` drops it). */
+export const figuresOf = (reading: unknown): { tokens: unknown; threshold: unknown } => {
+  const context = record(reading) ? reading.context : undefined
+  const breakdown = record(context) ? context.breakdown : undefined
+  return { tokens: record(context) ? context.tokens : undefined, threshold: record(breakdown) ? breakdown.autoCompactThreshold : undefined }
+}
+
 /** Keeps the last reading's two numbers; a bad one is dropped. */
 export const setFigures = (c: Cycle, tokens: unknown, threshold: unknown): void => {
   c.tokens = count(tokens) ? tokens : undefined

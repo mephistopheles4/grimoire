@@ -195,7 +195,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { endTurn, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
+import { compactSign, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -1240,9 +1240,17 @@ async function readUsage($: EngineInterface) {
   try {
     const surfaces = await $.session.surfaces()
     const image = surfaces.some(s => s !== 'terminal')
-    const reading = await $.session.usage(image ? LOCAL_BREAKDOWN : undefined)
+    // Every reading asks for the local summary, which sends no request: the
+    // before-compaction line (issue 533) needs the engine's auto-compact
+    // threshold, and it sits in the breakdown. Only the two numbers are kept
+    // for it. Where the pane draws no image, the stored snapshot keeps no
+    // breakdown rows, as before.
+    const reading = await $.session.usage(LOCAL_BREAKDOWN)
     if (generation !== mine) return
+    const figures = figuresOf(reading)
+    setFigures(cycle, figures.tokens, figures.threshold)
     const snapshot = snapshotFrom(reading)
+    if (!image) delete snapshot.categories
     await update($, usage, () => snapshot)
     const now = await $.clock.now()
     if (generation === mine) await update($, samples, list => addSample(list, snapshot, now))
@@ -2949,11 +2957,17 @@ const HANDOFF_CAUGHT = {
 const owedRoster = { owed: false }
 const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' in r)
 
+// The compaction nudges (issue 533): the lead's last reading of its context
+// (tokens and the engine's auto-compact threshold) and where the cycle stands.
+// Module memory only; it holds two numbers and flags, no text, and no tool
+// reads it.
+const cycle = newCycle()
+
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
   registerWriter(on, e => {
     if (e.agentId !== undefined) return undefined
-    const line = endTurn(owedRoster)
+    const line = turnEnd(cycle, owedRoster)
     return timers.length > 0 ? line : undefined
   })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
@@ -3032,7 +3046,15 @@ export const register: Register = on => {
     // A Pane entry still waiting for this id is logged by the level poll, with
     // the pane open or closed.
     await ensureLevelPoll($)
-    return next(e)
+    const result = await next(e)
+    // The after-compaction line (issue 533): the lead's main conversation, the
+    // pane open, source compact. The line is fixed text; the other plugins'
+    // added context is kept, and none of it is copied.
+    if (e.source !== 'compact' || (e as { agent_id?: unknown }).agent_id !== undefined || timers.length === 0) return result
+    compactSign(cycle)
+    const line = takeAfter(cycle)
+    if (line === undefined) return result
+    return { ...result, additionalContext: [...(result?.additionalContext ?? []), `${NOTE_PREFIX}${line}`] }
   })
 
   // A compaction of the lead's main conversation keeps the level (issue 504,
@@ -3044,7 +3066,11 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     try {
-      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) await compacted($)
+      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
+        // The first sign of a compaction (issue 533); the classic SessionStart is the second.
+        if (timers.length > 0) compactSign(cycle)
+        await compacted($)
+      }
     } catch {
       // The result goes back as it came.
     }
