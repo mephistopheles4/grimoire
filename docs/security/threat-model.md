@@ -360,8 +360,9 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - Item 8. The hidden-loss classes bear on every force and every `-D` (C10). Closed by E81: no force and no `-D` since 0.110.0.
 - Item 9. The lead writes merge text at level 3 (C6). Accepted with the merge itself as E85.
 - Items 10 and 11 are issue 438's. They are not row 16 pending items, and row 16's own list ends at (9).
-- Item 10. At levels 2 and 3 the lead starts sessions as its own pick where the owner's user-level instructions file allows it (504 S3); at level 3 for work the goal names. Each start spends plan usage. At level 2, and outside the goal at level 3, the owner's file alone bounds the work and the count; inside a level-3 goal the goal's wording bounds them too (C5). Pending the owner's word.
-- Item 11. The lead's own-pick posts at levels 2 and 3 reach members under the owner's account. It widens C6, which accepts own-pick acts at a confirmed level 3, to own-pick posts at level 2. Each opens with a fixed line naming it as the lead's pick, which shows agent authorship on possibly public records, in notification emails and, for a squash body, in main's history (C6). The line also shows, by its presence and time, that level 2 or 3 was in force. It is a claim, not a check: anything posting as the owner can add it, a misled lead can omit it, and its absence proves nothing. Members' own rules decide what they take from it. Pending the owner's word.
+- Item 10. At levels 2 and 3 the lead starts sessions as its own pick where the owner's user-level instructions file allows it (504 S3); at level 3 for work the goal names. Each start spends plan usage. At level 2, and outside the goal at level 3, the owner's file alone bounds the work and the count; inside a level-3 goal the goal's wording bounds them too (C5). Accepted by the lead at level 3 under the owner's standing goal (decisions 469 and 479), flagged big.
+- Item 11. The lead's own-pick posts at levels 2 and 3 reach members under the owner's account. It widens C6, which accepts own-pick acts at a confirmed level 3, to own-pick posts at level 2. Each opens with a fixed line naming it as the lead's pick, which shows agent authorship on possibly public records, in notification emails and, for a squash body, in main's history (C6). The line also shows, by its presence and time, that level 2 or 3 was in force. It is a claim, not a check: anything posting as the owner can add it, a misled lead can omit it, and its absence proves nothing. Members' own rules decide what they take from it. Accepted by the lead at level 3 under the owner's standing goal (decisions 469 and 479), flagged big.
+- Item 12. At level 2 the lead's own-pick merge, close, edit, label and delete follow the owner's user-level instructions file (504 S3), and none but a post carries the fixed line (C6, which accepts own-pick acts at a confirmed level 3 and never a delete). Candidate from issue 438's Test round 2; not in force. Flagged big (decision 479).
 - 0.9.0. Session-list reads land in transcripts (C7).
 - D3c. Each turn's status-file fields enter the lead's transcript (C7).
 
@@ -402,7 +403,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
-Open: P5 items 10 and 11 (issue 438); the lead took them as its own pick at level 3 on 2026-11-08 (decision 469), flagged big; P5 keeps them pending the owner's word. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
+Issue 438: the lead accepted P5 items 10 and 11 at level 3 on 2026-11-08 (decisions 469 and 479), flagged big, because the owner's words at level 3 hand risk acceptance to the lead; item 12 is a candidate line. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
 
 </details>
 
