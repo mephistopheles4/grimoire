@@ -9498,16 +9498,24 @@ const startTool = ($: any, over: Record<string, unknown> = {}) => toolAnswer($, 
 const refusedStart = (rule: string) => `start_background_session refused: ${rule}. Nothing was started.`
 const wtFolder = (name: string) => `${REPO_DIR}${SEP}.claude${SEP}worktrees${SEP}${name}`
 const folders = ($: any, args: string, kind: string | null = 'composer') => typedBrigade($, `folders ${args}`.trimEnd(), kind)
+// Lets the events run until the condition holds (a pending start has reached its run).
+const settleUntil = async (cond: () => boolean) => {
+  for (let i = 0; i < 1000 && !cond(); i++) await new Promise<void>(res => setTimeout(res, 0))
+  expect(cond()).toBe(true)
+}
 
 type Out = { origin: unknown; start: (argv: string[]) => unknown; hold?: Promise<void> }
 // A world with a main checkout, the two programs on PATH, the lead's own session file, the owner's list in
 // the store and a recording git and claude. `list` is what the store holds under startFolders.
-async function startWorld(on: On, $: any, list: unknown = [REPO_DIR]) {
+async function startWorld(on: On, $: any, list: unknown = [REPO_DIR], offer = true) {
   const store = new Map<string, unknown>()
   if (list !== undefined) store.set(FOLDERS_KEY, list)
   const sets: [string, unknown][] = []
-  const fail = { set: false }
-  on('store.get', ($, e: any) => ({ value: store.get(e.key) }) as any)
+  const fail = { set: false, get: false }
+  on('store.get', ($, e: any) => {
+    if (fail.get) throw new Error('store gone: C:\\secret')
+    return { value: store.get(e.key) } as any
+  })
   on('store.set', ($, e: any) => {
     if (fail.set) throw new Error('disk full: C:\\secret')
     sets.push([String(e.key), e.value])
@@ -9533,7 +9541,7 @@ async function startWorld(on: On, $: any, list: unknown = [REPO_DIR]) {
     return undefined
   }
   await start($)
-  await brigade($)
+  if (offer) await brigade($)
   const runs = () => w.procs.filter(a => a[0] === exe('git') || a[0] === exe('claude'))
   return { w, store, sets, out, runs, fail }
 }
@@ -9611,7 +9619,7 @@ test('543 C15: a folder not on the list, an empty or unreadable list and a list 
   const { w, store, runs } = await startWorld(on, $)
   const reason = refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>")
   expect((await startTool($, { folder: ON_WINDOWS ? 'C:\\src\\other' : '/src/other' })).text).toBe(reason)
-  for (const bad of [[], undefined, 'not-a-list', [5], Array.from({ length: 9 }, (_, i) => `${REPO_DIR}${i}`), { 0: REPO_DIR }]) {
+  for (const bad of [[], undefined, 'not-a-list', [REPO_DIR, 5], Array.from({ length: 9 }, (_, i) => (i === 0 ? REPO_DIR : `${REPO_DIR}${i}`)), { 0: REPO_DIR }]) {
     if (bad === undefined) store.delete(FOLDERS_KEY)
     else store.set(FOLDERS_KEY, bad)
     expect((await startTool($)).text).toBe(reason)
@@ -9622,6 +9630,15 @@ test('543 C15: a folder not on the list, an empty or unreadable list and a list 
   const unc = ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo'
   expect((await startTool($, { folder: unc })).text).toBe(reason)
   expect(w.log.filter(l => l.includes('host'))).toEqual([])
+  expect(runs()).toEqual([])
+})
+
+test('543 C15: a store whose read throws refuses as an unreadable list and runs nothing', async ($, on) => {
+  const { fail, runs } = await startWorld(on, $)
+  fail.get = true
+  const r = await startTool($)
+  expect(r.text).toBe(refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>"))
+  expect(r.text).not.toContain('secret')
   expect(runs()).toEqual([])
 })
 
@@ -9694,7 +9711,8 @@ test('543 C5/C13: two concurrent calls with one name start one, and set_roster a
   out.hold = new Promise<void>(res => (release = res))
   const first = startTool($)
   const second = startTool($)
-  // The pending start holds no roster write.
+  await settleUntil(() => runs().some(a => a[0] === exe('claude')))
+  // The pending start, held at its run with a second call queued behind it, holds no roster write.
   expect((await call($, { cards: [card('alpha')], todos: [] })).ok).toBe(true)
   release()
   const [a, b] = await Promise.all([first, second])
@@ -9814,8 +9832,14 @@ withJunction('543 C14: an alias between the typed path and the directory is refu
 })
 
 test('543 C14: remove drops exactly the entry the path equals, folding case as the start does; list draws the home folder as ~', async ($, on) => {
-  const { store } = await startWorld(on, $, [REPO_DIR])
+  const { w, store } = await startWorld(on, $, [REPO_DIR])
   expect((await folders($, 'list')).text).toBe(`~${SEP}grimoire`)
+  // With no home to draw (empty or the root) every path shows in full, with no ~ (decision 366).
+  for (const home of ['', '/']) {
+    w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: home } : { PATH: BIN, HOME: home }
+    expect((await folders($, 'list')).text).toBe(REPO_DIR)
+  }
+  w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: 'C:\\src' } : { PATH: BIN, HOME: '/src' }
   expect((await folders($, 'remove nothing')).text).toBe(FOLDERS_REPLIES.notOnList)
   if (ON_WINDOWS) {
     expect((await folders($, 'remove c:\\src\\GRIMOIRE')).text).toBe(FOLDERS_REPLIES.removed)
@@ -9854,6 +9878,100 @@ test('543 C14: a damaged stored list answers one fixed line to add, remove and l
   const r = await folders($, `add ${REPO_DIR}`)
   expect(r.text).toBe(FOLDERS_REPLIES.failed)
   expect(r.text).not.toContain('secret')
+})
+
+// --- 543, Test round 1: the gaps the three lenses found ------------------------------
+
+test('543 C8: a call made before the pane has offered the tool refuses with the offer rule and runs nothing', async ($, on) => {
+  const { runs } = await startWorld(on, $, [REPO_DIR], false)
+  expect((await startTool($)).text).toBe(refusedStart('offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'))
+  expect(runs()).toEqual([])
+})
+
+test("543 C8: the lead must be the caller's own session name, not the name of another live session", async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  // The other session's row comes first, so a lead taken from the first row, or from any live name, would pass it.
+  liveRows(w, [
+    { name: 'Taken', status: 'idle', sessionId: '99999999-8888-7777-6666-555555555555', cwd: 'C:\\work' },
+    { name: LEAD_NAME, status: 'idle', sessionId: SID, cwd: 'C:\\work' },
+  ])
+  expect((await startTool($, { lead: 'Taken' })).text).toBe(refusedStart('lead: must be your own session name, exactly'))
+  expect(runs()).toEqual([])
+})
+
+const QUEUED: [string, (w: World) => void, string][] = [
+  ['a deny rule', w => void (w.verdict = { decision: 'deny', reason: 'SECRET rule' }), "the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool"],
+  ['a closed pane', w => void (w.open = false), 'pane closed: the owner opens it with /brigade'],
+]
+for (const [label, change, rule] of QUEUED) {
+  test(`543 C8: ${label} that comes while a start waits its turn stops it; the start ahead of it still finishes`, async ($, on) => {
+    const { w, out, runs } = await startWorld(on, $)
+    let release = () => {}
+    out.hold = new Promise<void>(res => (release = res))
+    const first = startTool($, { name: 'one' })
+    await settleUntil(() => runs().some(a => a[0] === exe('claude')))
+    const second = startTool($, { name: 'two' })
+    // Long enough for a call that checks before it queues to have checked.
+    await new Promise<void>(res => setTimeout(res, 20))
+    change(w)
+    release()
+    const [a, b] = await Promise.all([first, second])
+    expect(a.ok).toBe(true)
+    expect(b.text).toBe(refusedStart(rule))
+    expect(b.text).not.toContain('SECRET')
+    expect(runs().filter(r => r[0] === exe('claude')).length).toBe(1)
+  })
+}
+
+test("543 C8: a program whose real path is spelled otherwise than the folder's is not trusted: an odd spelling refuses, and a case that differs still counts as inside", async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  const base = w.stat
+  const claudeBin = exe('claude')
+  const cases: [string, string][] = [
+    [ON_WINDOWS ? `\\\\?\\${claudeBin}` : `${BIN}/../bin/claude`, 'program: not found on PATH'],
+    [`${REPO_DIR.toUpperCase()}${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`, 'program: found inside the folder'],
+  ]
+  for (const [real, why] of cases) {
+    w.stat = (p: string) => {
+      const s = base(p)
+      return s !== undefined && p === claudeBin ? { ...s, realPath: real } : s
+    }
+    expect((await startTool($)).text).toBe(refusedStart(why))
+  }
+  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
+})
+
+test('543 C5: a checkout that keeps its branches in a reftable holds every name, as the branch half cannot be read', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  w.dirs(`${REPO_DIR}${SEP}.git${SEP}reftable`)
+  expect((await startTool($, { name: 'rt' })).text).toBe(refusedStart(NAME_REASONS.branch))
+  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
+})
+
+test('543 C6: a .git at the root of the disk above the checkout refuses it, as one in any other folder above', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  w.dirs(`${ON_WINDOWS ? 'C:' : ''}${SEP}.git`)
+  expect((await startTool($)).text).toBe(refusedStart(NOT_MAIN))
+  expect(runs()).toEqual([])
+})
+
+test('543 C10: a refused start leaves no roster reminder', async ($, on) => {
+  const { w } = await startWorld(on, $)
+  expect((await startTool($, { effort: 'turbo' })).ok).toBe(false)
+  await turnEnd($)
+  expect(reminders(w).length).toBe(0)
+})
+
+test('543 C14: add stores the directory in the spelling the file system gives, not the one typed', async ($, on) => {
+  if (!ON_WINDOWS) return
+  const { w, store } = await startWorld(on, $, [])
+  const base = w.stat
+  w.stat = (p: string) => {
+    const s = base(p)
+    return s !== undefined && p.toLowerCase() === REPO_DIR.toLowerCase() ? { ...s, realPath: REPO_DIR } : s
+  }
+  expect((await folders($, `add ${REPO_DIR.toLowerCase()}`)).text).toBe(FOLDERS_REPLIES.added)
+  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
 })
 
 // --- read_context (issue 492, spec v3 S2.1) ------------------------------------

@@ -125,6 +125,44 @@ test('C2: the stop tool refuses a subagent or another plugin, reads the files li
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'stop_background_session refused: /);
 });
 
+test('543 C8: the start tool refuses a subagent or another plugin before anything, runs every other guard in its own turn, and the folders command checks its origin before it reads an argument', () => {
+  const start = between('async function startBackground', '// end startBackground');
+  const lines = live(start.slice(0, start.indexOf('async function startRun'))).map(l => l.replace(/return refuseStart\(.*\)$/, 'return refuseStart(…)'));
+  // Every live line, in order: the two cheap refusals, then one queued turn that holds each guard.
+  assert.deepEqual(lines, [
+    'async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, progress: { ran: boolean }) {',
+    'if (e.agentId !== undefined) return refuseStart(…)',
+    'if (!fromEngine(origin)) return refuseStart(…)',
+    'const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))',
+    'return startTurn(async () => {',
+    'if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(…)',
+    'if (!(await offered($))) return refuseStart(…)',
+    'if (!(await paneOpen($))) return refuseStart(…)',
+    'const at = await where($)',
+    "const sessions = 'error' in at ? undefined : await readSessions(at.config, sessionIo($))",
+    "const own = 'error' in at ? undefined : sessions?.rows.find(r => r.sessionId === at.id)",
+    'const checked = checkInputs(input, own === undefined ? undefined : oneLine(own.name, 80))',
+    "if ('why' in checked) return refuseStart(…)",
+    'return startRun($, checked.value, sessions, progress)',
+    '})',
+    '}',
+  ]);
+  for (const l of live(start.slice(0, start.indexOf('async function startRun')))) if (l.includes('refuseStart(')) assert.match(l, /return refuseStart\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE|checked\.why)\)$/, l);
+  // The run's steps, in the order of S2.2: the cap, the spelling and the list, the folder, the name, the host, the programs, the origin, then the start.
+  const run = start.slice(start.indexOf('async function startRun'));
+  const order = ['capOpen(startTimes, now)', 'hostPlatform($)', '$.store.get(FOLDERS_KEY)', 'folderSpelling(i.folder', 'listed(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'ghFindable($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'capRecord(startTimes', 'progress.ran = true', 'startArgv(i, claude.value'];
+  const at = order.map(s => run.indexOf(s));
+  assert.ok(at.every(n => n >= 0), `a step is missing: ${order.filter((s, k) => at[k] < 0)}`);
+  assert.deepEqual(at, [...at].sort((a, b) => a - b), 'the steps are out of order');
+  // The folders command: the origin gate is its first act, and a throw answers the fixed line.
+  const folders = between('async function foldersCommand', 'const sessionIo');
+  const gate = live(folders);
+  assert.equal(gate[1], 'try {');
+  assert.equal(gate[2], 'if (!levelOriginAllowed(origin)) return FOLDERS_REPLIES.notTyped');
+  assert.ok(folders.indexOf('levelOriginAllowed(origin)') < folders.indexOf('parseFolders(args)'));
+  assert.match(register, /if \(isFoldersCommand\(e\.args\)\) return \{ text: FOLDERS_REPLIES\.failed \}/);
+});
+
 test('C1, C2: the mod holds no window, no cleaner, no archive hook and no typed cleanup command', () => {
   for (const gone of ['doneWindow', 'pinnedCleaner', 'cleanupTargets', 'ARCHIVE_TOOL', 'archive_session', 'clean_up', 'CLEAN_TOOL', 'isDoneCommand', 'isCleanerCommand', 'cleaner-path', 'CLEANER_KEY', 'bindJoined']) {
     assert.ok(!register.includes(gone), `register.tsx still holds ${gone}`);

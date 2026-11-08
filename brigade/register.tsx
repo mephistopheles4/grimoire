@@ -25,7 +25,6 @@ import {
   checkRoster,
   dataFolder,
   dataPlace,
-  foldsCase,
   pathKey,
   ghRun,
   ghViewRun,
@@ -2981,6 +2980,12 @@ async function checkoutFacts($: EngineInterface, folder: string, platform: Platf
     if ('failed' in above) return { reply: 'unreadable' }
     if ('found' in above) ancestorHasGit = true
   }
+  // The walk stops short of the root on a POSIX path: its `.git` counts too.
+  if (platform !== 'win32') {
+    const top = await statPath($, '/.git')
+    if ('failed' in top) return { reply: 'unreadable' }
+    if ('found' in top) ancestorHasGit = true
+  }
   if ('why' in mainCheckout(folder, { gitKind, ancestorHasGit }, platform)) return { reply: 'notMain' }
   return { resolved: dir.found.realPath }
 }
@@ -2993,6 +2998,9 @@ async function nameHeld($: EngineInterface, folder: string, name: string, platfo
   const wt = await statPath($, worktreeFolder(folder, name, platform))
   const loose = await statPath($, `${folder}${sep}.git${sep}refs${sep}heads${sep}${worktreeBranch(name)}`)
   let branchExists = !('missing' in loose)
+  // A reftable keeps its branches outside the two places read here, so it holds every name.
+  const reftable = await statPath($, `${folder}${sep}.git${sep}reftable`)
+  if (!('missing' in reftable)) branchExists = true
   if (!branchExists) {
     const packed = await statPath($, `${folder}${sep}.git${sep}packed-refs`)
     if ('failed' in packed) branchExists = true
@@ -3032,8 +3040,10 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
   // the file's real path must lie outside it too.
   const real = await statPath($, hit.value)
   if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
-  const fold = platform === 'win32' || foldsCase(folder)
-  if (pathKey(real.found.realPath, fold).startsWith(`${pathKey(folder, fold)}/`)) return { why: 'program: found inside the folder' }
+  // A real path that is not itself a plain spelling is not trusted, and the compare folds case on
+  // every host: folding can only refuse more.
+  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: not found on PATH' }
+  if (pathKey(real.found.realPath, true).startsWith(`${pathKey(folder, true)}/`)) return { why: 'program: found inside the folder' }
   return hit
 }
 
@@ -3042,17 +3052,20 @@ async function startBackground($: EngineInterface, e: Record<string, unknown>, o
   if (e.agentId !== undefined) return refuseStart("subagent: only the lead session's own turns start a session")
   if (!fromEngine(origin)) return refuseStart("caller: only the model's own call starts a session, never another plugin's")
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
-  if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(RULES_RULE)
-  if (!(await offered($))) return refuseStart(OFFER_RULE)
-  if (!(await paneOpen($))) return refuseStart('pane closed: the owner opens it with /brigade')
-  // The caller's own name is the session file's for this session id; with none, no lead name is right.
-  const at = await where($)
-  const sessions = 'error' in at ? undefined : await readSessions(at.config, sessionIo($))
-  const own = 'error' in at ? undefined : sessions?.rows.find(r => r.sessionId === at.id)
-  const checked = checkInputs(input, own === undefined ? undefined : oneLine(own.name, 80))
-  if ('why' in checked) return refuseStart(checked.why)
-  const i: StartInputs = checked.value
-  return startTurn(() => startRun($, i, sessions, progress))
+  // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
+  // pane that comes while a start waits behind another one stops it.
+  return startTurn(async () => {
+    if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(RULES_RULE)
+    if (!(await offered($))) return refuseStart(OFFER_RULE)
+    if (!(await paneOpen($))) return refuseStart('pane closed: the owner opens it with /brigade')
+    // The caller's own name is the session file's for this session id; with none, no lead name is right.
+    const at = await where($)
+    const sessions = 'error' in at ? undefined : await readSessions(at.config, sessionIo($))
+    const own = 'error' in at ? undefined : sessions?.rows.find(r => r.sessionId === at.id)
+    const checked = checkInputs(input, own === undefined ? undefined : oneLine(own.name, 80))
+    if ('why' in checked) return refuseStart(checked.why)
+    return startRun($, checked.value, sessions, progress)
+  })
 }
 
 async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<ReturnType<typeof readSessions>>, progress: { ran: boolean }) {
