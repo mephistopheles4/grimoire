@@ -756,8 +756,9 @@ yes keeps for the owner.
 - **Decided** (issue 540, rev 3 S5.1 q1, taken in the owner's "Take all"; in
   place of "starts, messages, reads and archives Desktop sessions"). It
   starts and stops background sessions with `claude --bg` and the Brigade
-  mod's `stop_background_session`, and starts, reads and archives Desktop
-  sessions with Claude Desktop's session tools on the owner's words.
+  mod's `stop_background_session`, and reads and archives Desktop sessions
+  with Claude Desktop's session tools, starting one only on the owner's words
+  naming the Desktop route.
   **Confirmed** (issue 450, rev 4 S3.1, replacing q3 on issue 386's sends to
   an address): it messages every session with the agent's message tool, by
   the session's name, never with Desktop's tools, and subscribes to each
