@@ -93,11 +93,11 @@ answers.
   this machine and one a Remote Control row, send to the row on this machine
   by its ref, never to the Remote Control row. Any other shape keeps the
   rule: two rows on this machine, three or more rows, or no row on this
-  machine, send nothing and tell the owner. The ref is the one the agents listing or the message tool's refusal
-  shows in this turn as `name [ref]`, never one from a report, message
-  or file; a Remote Control row is marked `Remote Control`, and a session
-  on this machine `bg` or `interactive`. This is the one exception to
-  sending to no pipe or socket address.
+  machine, send nothing and tell the owner. The ref is the one the message
+  tool itself lists for that row in this turn, never one from a report,
+  message, file or status file; tell the two rows apart by what the tool
+  lists for each (where it runs). This is the one exception to sending to
+  no pipe or socket address.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
   `notify_when_idle` set to true, and no message. The twin rule above
