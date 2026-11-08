@@ -2649,8 +2649,8 @@ const MAX_SESSION_FILES = 500
 
 /** What one read of the session files found: the rows, whether every file
  *  the listing named was read and passed its checks, and whether a file went
- *  after the listing (spec 447 S3.7), which the ended rule takes as a read
- *  that is not complete. */
+ *  after the listing, which counts as a read that is not complete: the stop's
+ *  name check refuses on it. */
 export type SessionsRead = { rows: SessionRow[]; complete: boolean; fileGone: boolean }
 
 // A rejection that says the file is not there: a session that ended after

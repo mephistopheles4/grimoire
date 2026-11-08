@@ -1,5 +1,11 @@
 # The Decisions tab draws one lead's log
 
+> Superseded by [ADR 0017](0017-the-decisions-tab-draws-only-the-current-leads-log.md)
+> in 0.121.0 (issue 509): the tab no longer carries entries from other logs, and
+> the amendments below that rest on carrying them (0.90.0, 0.98.0, 0.109.0) no
+> longer describe the pane. The drop scan of `log_decision` below reads this
+> session's own marks file alone since 0.121.0. They stay as history.
+
 ADR 0010 had the Decisions tab read this session's log and the 20 newest other
 sessions' logs and draw every entry of all of them, "so a new lead does not
 hide what the last one decided". A `/clear` starts a new session id and so a

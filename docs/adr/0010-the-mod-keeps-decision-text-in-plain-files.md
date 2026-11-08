@@ -13,7 +13,9 @@ owner's Read marks go into a marks file of the pane's own session,
 `brigade/marks/<session id>.json`. The pane's new Decisions tab reads both, for
 this session and for the 20 newest other sessions, so a new lead does not hide
 what the last one decided. (Partly superseded by
-[ADR 0011](0011-the-decisions-tab-draws-one-leads-log.md) on that sentence.) Ticket 3 of spec 402 adds a third kind, the lead
+[ADR 0011](0011-the-decisions-tab-draws-one-leads-log.md) on that sentence,
+and by [ADR 0017](0017-the-decisions-tab-draws-only-the-current-leads-log.md):
+the tab reads this session's log only.) Ticket 3 of spec 402 adds a third kind, the lead
 hand-off, in `brigade/handoff/`. The owner chose this on issue 402, in the
 grilling round's q1 (A: each lead session writes its own files in the plugin's
 data folder, beside its roster, through tools built like `set_roster`),
