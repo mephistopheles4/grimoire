@@ -3165,6 +3165,36 @@ for (const surface of SURFACES) {
     expect(shown[0]?.props.dimColor).toBe(true)
   })
 
+  test(`${surface}: issue 545 row 8: the trend tab is the outlook; the owner's autoCompactWindow is the tick once the poll has read it; the sawtooth shows after a compaction`, async ($, on) => {
+    const roster = { cards: [card('grow', { status: 'working' }), card('saw', { status: 'working' })], todos: [] }
+    const meters = (now: number) => [
+      { name: 'grow', at: now, window: 1000000, burn: burnOf(), context: [290000, 295000, 300000, 305000] },
+      { name: 'saw', at: now, window: 1000000, burn: burnOf(), context: [800000, 100000, 120000, 140000] },
+    ]
+    const warmth = (now: number) => [warmCall('grow', 10 * MINUTE, now), warmCall('saw', 10 * MINUTE, now)]
+    const w = await tabbed(on, $, roster, meters, warmth, { grow: 'busy', saw: 'busy' })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-grow-trend' })
+    let all = await nodes(m)
+    expect(texts(all, '305k of 1M · compacts at ~967k').length).toBe(1)
+    expect(texts(all, 'about 133 turns to compaction').length).toBe(1)
+    expect(texts(all, 'large turns: +20k').length).toBe(0)
+    // No sawtooth before a compaction: the trend's own text is gone, and the bar's alone is drawn.
+    expect(texts(all, '305k now · 0 compactions').length).toBe(0)
+    // The owner's setting is read on the next poll and moves the tick, with no tilde.
+    w.put(`${CONFIG}${SEP}settings.json`, { type: 'file', data: { text: '{"autoCompactWindow":400000}' } })
+    await w.clock.advance(10000)
+    await w.clock.settle()
+    await m.redraw?.()
+    all = await nodes(m)
+    expect(texts(all, '305k of 1M · compacts at 400k').length).toBe(1)
+    expect(texts(all, 'about 19 turns to compaction').length).toBe(1)
+    // After a compaction the sawtooth draws, as the trend's own words.
+    await m.press({ key: 'tab-1-saw-trend' })
+    all = await nodes(m)
+    expect(texts(all, '140k now · 1 compaction').length).toBe(1)
+  })
+
   test(`${surface}: two cards whose titles share a slug, in different groups: a tab press acts on its own card only`, async ($, on) => {
     const roster = { cards: [card('A-b', { status: 'needs-you' }), card('a b', { status: 'working' })], todos: [] }
     const meters = (now: number) => [
@@ -3184,7 +3214,7 @@ for (const surface of SURFACES) {
     all = await nodes(m)
     expect(await labelOf(m, 'tab-0-ab-burn')).toBe(chosenLabel(surface, 'burn'))
     expect(await labelOf(m, 'tab-1-ab-trend')).toBe(chosenLabel(surface, 'trend'))
-    expect(texts(all, '200k now · 0 compactions').length).toBe(1)
+    expect(texts(all, '200k of 1M · compacts at ~967k').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     // Each choice is kept under its own card's title. The engine presses only
     // a drawn key, so a key whose place, slug or view word matches no card

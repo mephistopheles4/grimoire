@@ -1639,7 +1639,7 @@ export function cacheBarSvg(b: CacheBar): Extract<UsageView, { kind: 'svg' }> {
 
 // The thin bar the cache bar and the context meter share, from a fraction, a
 // class and an alt text alone.
-function thinBar(fraction: number, cls: string, alt: string): Extract<UsageView, { kind: 'svg' }> {
+function thinBar(fraction: number, cls: string, alt: string, over = ''): Extract<UsageView, { kind: 'svg' }> {
   const f = unit(fraction)
   const y = num(CACHE_Y)
   const h = num(CACHE_THICKNESS)
@@ -1652,7 +1652,7 @@ function thinBar(fraction: number, cls: string, alt: string): Extract<UsageView,
     : ''
   const source =
     `<svg xmlns="${XMLNS}" width="100%" height="${num(CACHE_HEIGHT)}"><style>${STYLE}</style>` +
-    `<rect class="track" x="0" y="${y}" width="100%" height="${h}" rx="${r}"/>${fill}</svg>`
+    `<rect class="track" x="0" y="${y}" width="100%" height="${h}" rx="${r}"/>${fill}${over}</svg>`
   return { kind: 'svg', source, alt: oneLine(alt, 80), height: CACHE_HEIGHT }
 }
 
@@ -1866,6 +1866,125 @@ export function contextTrend(m: Meter | undefined): (Spark & { compactions: numb
     text: `${now} now · ${counted}`,
     alt: `Context trend ${now} now, ${counted} in the last ${values.length} calls`,
   }
+}
+
+// --- The context outlook (issue 545, row 8) --------------------------------------
+//
+// The context trend scaled to a 0 to 1M window drew a flat line with an odd
+// bump, since a session grows a few thousand tokens a turn. The outlook is a
+// bar of context against the window with a tick where auto-compaction fires,
+// an estimate of the turns left, the large turns as dots, and the sawtooth
+// only once the session has compacted. Drawn from the meter's numbers and the
+// owner's one `autoCompactWindow` figure alone.
+
+/** Where auto-compaction fires when the owner has set no `autoCompactWindow`:
+ *  the window less this buffer, never under half the window. An estimate. */
+export const COMPACT_BUFFER = 33000
+/** A turn that adds more than this is a large one. */
+export const LARGE_TURN = 20000
+const MAX_DOTS = 5
+const MAX_SETTINGS_CHARS = 1024 * 1024
+const LEAST_COMPACT_WINDOW = 50000
+
+/** The owner's `autoCompactWindow` out of their settings text, or undefined:
+ *  text of at most 1 MiB holding a JSON object with that own key as a whole
+ *  number from 50,000 to the stored cap. Nothing else of the file is read or
+ *  kept, and it never throws. */
+export function compactWindowFrom(text: unknown): number | undefined {
+  if (typeof text !== 'string' || text.length > MAX_SETTINGS_CHARS) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(parsed) || !Object.prototype.hasOwnProperty.call(parsed, 'autoCompactWindow')) return undefined
+  const v = parsed.autoCompactWindow
+  return typeof v === 'number' && Number.isInteger(v) && v >= LEAST_COMPACT_WINDOW && v <= MAX_SERIES ? v : undefined
+}
+
+/** The owner's `autoCompactWindow`, read from `<config>/settings.json` through
+ *  the poll's own reads: a regular file of at most 1 MiB, else undefined. Only
+ *  the one figure leaves `compactWindowFrom`; the text is kept nowhere. Never
+ *  rejects. */
+export async function readCompactWindow(config: string, io: { stat: (p: string) => Promise<unknown>; read: (p: string) => Promise<string> }): Promise<number | undefined> {
+  const path = `${config}${sepOf(config)}settings.json`
+  const s = await io.stat(path).catch(() => undefined)
+  if (!isRecord(s) || s.kind !== 'file' || typeof s.size !== 'number' || s.size > MAX_SETTINGS_CHARS) return undefined
+  return compactWindowFrom(await io.read(path).catch(() => undefined))
+}
+
+/** A card's context outlook. `tick` and the dots' `at` are fractions of the
+ *  window; `turns` and `dotsText` are fixed words and numbers. */
+export type ContextOutlook = {
+  fraction: number
+  tick: number
+  cls: 'done' | 'warn' | 'hot'
+  dots: { at: number; added: number }[]
+  text: string
+  alt: string
+  turns?: string
+  dotsText?: string
+  sawtooth?: Spark & { compactions: number }
+}
+
+/** One card's outlook, or undefined with no window or fewer than 2 calls.
+ *  `compactAt` is the owner's `autoCompactWindow` when set: used as the tick
+ *  only if a whole number from 50,000 up and under the window, else the
+ *  estimate stands. Turns left: the average growth per turn since the last
+ *  compaction, over the tokens still to the tick, rounded up; none when the
+ *  stretch is flat, shrinking or one call long. */
+export function contextOutlook(m: Meter | undefined, compactAt?: unknown): ContextOutlook | undefined {
+  if (m === undefined || !Array.isArray(m.context) || m.context.length < 2) return undefined
+  const window = m.window
+  if (window === undefined || !Number.isFinite(window) || window <= 0) return undefined
+  const values = m.context.slice(-SPARK_COLUMNS).map(seriesValue)
+  const used = values[values.length - 1] ?? 0
+  const set = typeof compactAt === 'number' && Number.isInteger(compactAt) && compactAt >= LEAST_COMPACT_WINDOW && compactAt < window
+  const line = set ? (compactAt as number) : Math.max(window - COMPACT_BUFFER, window / 2)
+  const marks = values.map((v, i) => i > 0 && v < (values[i - 1] ?? 0) / 2)
+  const start = marks.lastIndexOf(true) === -1 ? 0 : marks.lastIndexOf(true)
+  const dots: { at: number; added: number }[] = []
+  for (let i = start + 1; i < values.length; i++) {
+    const added = (values[i] ?? 0) - (values[i - 1] ?? 0)
+    if (added > LARGE_TURN) dots.push({ at: unit((values[i] ?? 0) / window), added })
+  }
+  const shown = dots.slice(-MAX_DOTS)
+  const since = values.slice(start)
+  const growth = since.length < 2 ? 0 : ((since[since.length - 1] ?? 0) - (since[0] ?? 0)) / (since.length - 1)
+  const left = Math.ceil((line - used) / growth)
+  const turns = used >= line ? 'at the compaction line' : growth > 0 && Number.isFinite(left) ? `about ${left} ${left === 1 ? 'turn' : 'turns'} to compaction` : undefined
+  const share = used / line
+  const compactions = marks.filter(Boolean).length
+  const at = `${sizeText(line)}`
+  const out: ContextOutlook = {
+    fraction: unit(used / window),
+    tick: unit(line / window),
+    cls: share >= 0.9 ? 'hot' : share >= 0.7 ? 'warn' : 'done',
+    dots: shown,
+    text: `${sizeText(used)} of ${sizeText(window)} · compacts at ${set ? '' : '~'}${at}`,
+    alt: `Context ${sizeText(used)} of ${sizeText(window)}, compacts at ${set ? '' : 'about '}${at}`,
+  }
+  if (turns !== undefined) out.turns = turns
+  if (shown.length > 0) out.dotsText = `large turns: ${shown.map(d => `+${sizeText(d.added)}`).join(', ')}`
+  if (compactions > 0) {
+    const saw = contextTrend(m)
+    if (saw !== undefined) out.sawtooth = saw
+  }
+  return out
+}
+
+/** The outlook as an image: the context bar, a tick where compaction fires
+ *  and one circle per large turn. Only the fraction, the tick, the dots' `at`
+ *  and the class are read, each checked again, so a value of the wrong shape
+ *  draws as far as it checks and never throws. */
+export function contextOutlookSvg(o: Partial<ContextOutlook>): Extract<UsageView, { kind: 'svg' }> {
+  const tick = `<rect class="muted" x="${pct(unit(o.tick ?? Number.NaN) * 100)}" y="${num(3)}" width="${num(2)}" height="${num(CACHE_HEIGHT - 6)}"/>`
+  const dots = (Array.isArray(o.dots) ? o.dots : [])
+    .slice(0, MAX_DOTS)
+    .flatMap(d => (isRecord(d) && typeof d.at === 'number' ? [`<circle class="warn" cx="${pct(unit(d.at) * 100)}" cy="${num(CACHE_Y + CACHE_THICKNESS / 2)}" r="${num(3)}"/>`] : []))
+  const bar = thinBar(o.fraction ?? Number.NaN, typeof o.cls === 'string' ? o.cls : '', typeof o.alt === 'string' ? o.alt : '', tick + dots.join(''))
+  return bar
 }
 
 // The columns and marks a sparkline builder draws: the newest 30, each column

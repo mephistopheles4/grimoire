@@ -3162,6 +3162,99 @@ test('the context trend: the last calls\' context scaled to the window, each dro
   assert.equal(contextTrend(meterOf({ context: [5000, 412000] })).text, '412k now · 0 compactions');
 });
 
+// Issue 545, row 8: the context view is a bar against the window with a tick where
+// auto-compaction fires, an estimate of the turns left, the large turns as dots, and
+// the sawtooth only once the session has compacted.
+const { contextOutlook, contextOutlookSvg, compactWindowFrom } = view;
+
+test('545 row 8: the outlook is a bar of context over the window, its tick at window less 33k, and the words say both', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] }));
+  assert.equal(o.fraction, 0.305);
+  assert.equal(o.tick, 0.967);
+  assert.equal(o.text, '305k of 1M · compacts at ~967k');
+  assert.equal(o.alt, 'Context 305k of 1M, compacts at about 967k');
+  const small = contextOutlook(meterOf({ window: 200000, context: [100000, 110000] }));
+  assert.equal(small.tick, 0.835);
+  assert.equal(small.text, '110k of 200k · compacts at ~167k');
+  // Past the window the bar is full.
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [100000, 300000] })).fraction, 1);
+});
+
+test('545 row 8: the owner\'s autoCompactWindow, when set and below the window, is the tick, and the words drop the tilde', () => {
+  const m = meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] });
+  const o = contextOutlook(m, 400000);
+  assert.equal(o.tick, 0.4);
+  assert.equal(o.text, '305k of 1M · compacts at 400k');
+  assert.equal(o.alt, 'Context 305k of 1M, compacts at 400k');
+  assert.equal(o.turns, 'about 19 turns to compaction');
+  // Not below the window, not a whole number or not a number: the estimate stands.
+  for (const bad of [1000000, 2000000, 0, -1, 1.5, Number.NaN, '400000', null, undefined, 10]) assert.equal(contextOutlook(m, bad).tick, 0.967, String(bad));
+});
+
+test('545 row 8: autoCompactWindow is read from the settings text as a whole number from 50,000, else none', () => {
+  assert.equal(compactWindowFrom('{"autoCompactWindow":400000}'), 400000);
+  assert.equal(compactWindowFrom('{"model":"opus","autoCompactWindow":50000,"permissions":{"deny":["x"]}}'), 50000);
+  assert.equal(compactWindowFrom('{"autoCompactWindow":4e5}'), 400000);
+  for (const bad of ['{"autoCompactWindow":49999}', '{"autoCompactWindow":"400000"}', '{"autoCompactWindow":1.5}', '{"autoCompactWindow":null}', '{}', '[]', 'null', 'not json', '', '{"autoCompactWindow":30000001}', '{"__proto__":{"autoCompactWindow":400000}}', 5, undefined]) {
+    assert.equal(compactWindowFrom(bad), undefined, String(bad));
+  }
+  assert.equal(compactWindowFrom(`{"a":"${'x'.repeat(1100000)}","autoCompactWindow":400000}`), undefined, 'over 1 MiB');
+});
+
+test('545 row 8: the turns left come from the average growth per turn since the last compaction, rounded up', () => {
+  // 5k a turn from 305k to the line at 967k: 662k / 5k = 132.4, so 133.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] })).turns, 'about 133 turns to compaction');
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [150000, 157000, 164000] })).turns, 'about 1 turn to compaction');
+  // At or past the line.
+  assert.equal(contextOutlook(meterOf({ window: 200000, context: [160000, 170000] })).turns, 'at the compaction line');
+  // A flat or shrinking stretch gives no estimate.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [300000, 300000] })).turns, undefined);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [300000, 290000] })).turns, undefined);
+  // The growth is read only after the last compaction: a drop from 800k to 50k, then +10k a turn.
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [700000, 800000, 50000, 60000, 70000] })).turns, 'about 90 turns to compaction');
+});
+
+test('545 row 8: a turn that adds more than 20k is a dot with how much it added, after the last compaction only', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000, 142000, 170000] }));
+  assert.deepEqual(o.dots, [{ at: 0.14, added: 35000 }, { at: 0.17, added: 28000 }]);
+  assert.equal(o.dotsText, 'large turns: +35k, +28k');
+  // Exactly 20k is not large.
+  assert.deepEqual(contextOutlook(meterOf({ window: 1000000, context: [100000, 120000] })).dots, []);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000, 120000] })).dotsText, undefined);
+  // A turn before the last compaction is not drawn on the bar.
+  assert.deepEqual(contextOutlook(meterOf({ window: 1000000, context: [100000, 400000, 20000, 25000] })).dots, []);
+  // At most the newest five.
+  const many = contextOutlook(meterOf({ window: 1000000, context: Array.from({ length: 10 }, (_, i) => 30000 * (i + 1)) }));
+  assert.equal(many.dots.length, 5);
+  assert.equal(many.dots[4].at, 0.3);
+});
+
+test('545 row 8: the sawtooth shows only once the session has compacted', () => {
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000, 200000, 300000] })).sawtooth, undefined);
+  const saw = contextOutlook(meterOf({ window: 1000000, context: [800000, 100000, 120000] })).sawtooth;
+  assert.deepEqual(saw.marks, [false, true, false]);
+  assert.equal(saw.compactions, 1);
+});
+
+test('545 row 8: no window, one call or no meter gives no outlook, and a hostile value never throws', () => {
+  const { window, ...noWindow } = meterOf();
+  assert.equal(contextOutlook({ ...noWindow, context: [100000, 200000] }), undefined);
+  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000] })), undefined);
+  assert.equal(contextOutlook(undefined), undefined);
+  for (const v of [Number.NaN, -5, 1e99, 'x', null]) assert.doesNotThrow(() => contextOutlook(meterOf({ window: 1000000, context: [100000, v] })));
+});
+
+test('545 row 8: the outlook image keeps to the allowlist: a track, a fill, a tick, one circle per dot, fixed alt, no NaN', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000, 142000, 170000] }));
+  const svg = contextOutlookSvg(o);
+  assertAllowlisted(svg.source);
+  assert.equal(svg.source.match(/<circle /g).length, 2);
+  assert.match(svg.source, /<rect class="muted" x="96\.7%"/);
+  assert.match(svg.source, /<rect class="done" x="0" y="[0-9.]+" width="17%"/);
+  assert.equal(svg.alt, o.alt);
+  assertAllowlisted(contextOutlookSvg({ fraction: Number.NaN, tick: 5, dots: [{ at: -1, added: 1 }, 'x'], cls: 'evil', alt: 'x' }).source);
+});
+
 test('the context trend scales to the largest value with no window, and clamps a value past the window to full', () => {
   const { window, ...noWindow } = meterOf();
   assert.deepEqual(contextTrend({ ...noWindow, context: [100000, 400000, 200000] }).columns, [0.25, 1, 0.5]);

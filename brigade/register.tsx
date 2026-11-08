@@ -142,6 +142,9 @@ import {
   compactSettings,
   settingsPopover,
   contextTrend,
+  contextOutlook,
+  contextOutlookSvg,
+  readCompactWindow,
   drawnTitle,
   foldedFrom,
   groupCards,
@@ -190,7 +193,7 @@ import {
   warmthLine,
   withoutSize,
 } from './view.ts'
-import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
+import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
@@ -526,6 +529,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       const found = await readCalls(retitled, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
+      compactWindow = await readCompactWindow(config, io)
+      if (!open()) return
       await update($, meters, () => found.meters)
       // read_context reads this copy, never the `meters` plugin state another
       // plugin can rewrite (issue 492, spec v3 S2.1).
@@ -2749,6 +2754,9 @@ const refuseContext = (rule: string) => ({ deny: `read_context refused: ${rule}.
 // passed, kept only in this module: plugin state is the engine's, and another
 // plugin can rewrite it.
 let polledMeters: Meter[] = []
+// The owner's autoCompactWindow, read each poll from their settings file (issue
+// 545, row 8). Only the figure is kept, here and never in plugin state.
+let compactWindow: number | undefined
 let loadedCards: Card[] = []
 
 async function readContext($: EngineInterface, e: Record<string, unknown>) {
@@ -3666,6 +3674,48 @@ export const register: Register = on => {
     }
     const rows = (list: JSX.Element[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
 
+    // The context outlook (issue 545, row 8): the bar against the window with its
+    // compaction tick and large-turn dots, its text, the turns left and the large
+    // turns in dim lines, and the sawtooth only once the session has compacted.
+    const outlookRows = (o: ContextOutlook) => {
+      const image = Image !== undefined ? contextOutlookSvg(o) : undefined
+      return (
+        <Box flexDirection="column">
+          <Box flexDirection="row" columnGap={1}>
+            {Image !== undefined && image !== undefined ? (
+              <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                <Image source={image.source} alt={image.alt} height={image.height} />
+              </Box>
+            ) : (
+              <Box flexShrink={0}>
+                <Text>
+                  <Text dimColor>▕</Text>
+                  <Text color={o.cls === 'hot' ? 'error' : o.cls === 'warn' ? 'warning' : 'success'}>{contextCells(o)}</Text>
+                  <Text dimColor>▏</Text>
+                </Text>
+              </Box>
+            )}
+            <Box flexShrink={1} minWidth={0}>
+              <Text dimColor wrap="truncate-end">
+                {o.text}
+              </Text>
+            </Box>
+          </Box>
+          {o.turns !== undefined && (
+            <Text dimColor wrap="truncate-end">
+              {o.turns}
+            </Text>
+          )}
+          {o.dotsText !== undefined && (
+            <Text dimColor wrap="truncate-end">
+              {o.dotsText}
+            </Text>
+          )}
+          {o.sawtooth !== undefined && sparkRow(o.sawtooth)}
+        </Box>
+      )
+    }
+
     // A sparkline row: on Desktop the image in a column Box that grows, on
     // the terminal its cells between dim end marks, each run in its colour;
     // then its text, which does not shrink.
@@ -3726,7 +3776,8 @@ export const register: Register = on => {
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
       const reason = chosen === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = chosen === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
-      const trend = chosen === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
+      const outlook = chosen === 'trend' ? contextOutlook(meterOf.get(c.title), compactWindow) : undefined
+      const trend = chosen === 'trend' && outlook === undefined ? contextTrend(meterOf.get(c.title)) : undefined
       const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
@@ -3950,7 +4001,7 @@ export const register: Register = on => {
             {/* The burn rate or the context trend, or the burn view's reason
                 line, then the nudge, which shows under every view (owner
                 decision q1 B on #272), then one row before the next. */}
-            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || warmLine?.nudge !== undefined) && (
+            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || outlook !== undefined || warmLine?.nudge !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {reason !== undefined && (
                   <Text dimColor wrap="truncate-end">
@@ -3959,6 +4010,7 @@ export const register: Register = on => {
                 )}
                 {burn !== undefined && sparkRow(burn)}
                 {trend !== undefined && sparkRow(trend)}
+                {outlook !== undefined && outlookRows(outlook)}
                 {warmLine?.nudge !== undefined && (
                   <Text color="warning" wrap="wrap">
                     {warmLine.nudge}
