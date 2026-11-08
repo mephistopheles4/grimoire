@@ -41,7 +41,7 @@ updates the head-chef contract and its `SKILL.md`, and its
 
 ## Threat model
 
-This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md), which `SECURITY.md` also links. Hand it to any security review. A change to its scope, its accepted risks (except one a level-3 lead takes under E80 as the owner accepted it on 2026-10-31) or this line is the owner's decision.
+This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md), which `SECURITY.md` also links. Hand it to any security review. A change to its scope, its accepted risks or this line is the owner's decision.
 
 ## Agent skills
 

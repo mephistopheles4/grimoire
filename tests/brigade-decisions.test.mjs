@@ -694,7 +694,7 @@ test('claim 12: the hand-off chosen is this session\'s own, else the newest by s
   assert.equal(chooseHandoff(own, others, null, NOW), own);
 });
 
-// --- spec 444: one lead's log, carried entries, Mark all read, the marks cap order ------------
+// --- spec 444: one lead's log, carried entries, Mark all as read, the marks cap order ------------
 
 const mk = (sid, id, at, state, when) => ({ log: sid, id, entryAt: at, state, at: when });
 // This session's log (3 plain leads) and another's: two waiting entries (one answered), the answer, a plain lead, a relayed, an alarm and an Owner entry.
@@ -774,7 +774,7 @@ test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answer
   assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
 });
 
-test('spec 444 claim 8: the Mark all read key matches whole, from 1 to 500', () => {
+test('spec 444 claim 8: the Mark all as read key matches whole, from 1 to 500', () => {
   const h = 'abcdef0123456789';
   assert.deepEqual(parseMarkAllKey(`dmarkall-3-${h}`), { n: 3, hash: h });
   assert.deepEqual(parseMarkAllKey(`dmarkall-500-${h}`), { n: 500, hash: h });
@@ -1121,7 +1121,7 @@ test('spec 448 claim 3: a pair key matches whole, naming both entries by id and 
   }
 });
 
-test('issue 466: Mark all read takes everything under To review, of every kind and log, and every ended line, with a hash that moves when the set does', () => {
+test('issue 466, issue 509: Mark all as read takes everything under To review, of every kind and log, and every ended line, with a hash that moves when the set does', () => {
   const ls = tabLogsFor();
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
@@ -1165,36 +1165,36 @@ test('issue 486 claims 3 and 5: each written tool\'s catch answers a fresh copy 
   assert.deepEqual(descriptions, [' Plain text only, with no error text.', ' Plain text only, with no error text.']);
 });
 
-// Issue 486 (decision 382): a review entry stays shown as open until the owner
-// answers it, in the pane session's own log only.
-test('issue 486 claim 5b: Mark all read leaves an own unanswered waiting entry, one Read closes it, and another log\'s waiting entry is taken as today', () => {
+// Issue 509 (the owner's words, 2026-11-05 and 2026-11-07): Mark all as read
+// does them all. It replaces issue 486's claim 5b, which left this session's
+// unanswered waiting entries under To review.
+test('issue 509: Mark all as read takes an own unanswered waiting entry too', () => {
   const ls = pairLogs();
   const mine = { ...ls[0].log.entries[1], id: '5', at: NOW + 5, work: 'mine still waits' };
   ls[0].log.entries.push(mine);
   const v = drawnLogs(ls, SID, new Map());
   const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
-  const set = markAllSet(cards.cards, [], d.openWaiting(v.review, SID));
+  const set = markAllSet(cards.cards, []);
   assert.ok(cards.shown.some(r => r.entry === mine), 'it is under To review');
-  assert.ok(!set.rows.some(r => r.entry === mine), 'Mark all read leaves it');
+  assert.ok(set.rows.some(r => r.entry === mine), 'Mark all as read takes it');
   assert.ok(set.rows.some(r => r.sid === SID && r.entry.work === 'mine waits'), 'an answered own waiting entry is taken');
   assert.ok(set.rows.some(r => r.sid === OTHER && r.entry.waiting && r.entry.work === 'waits'), 'another log\'s unanswered waiting entry is taken');
-  // #496: the count is in cards, a pair as one, and names the card that stays.
+  // #496: the count is in cards, a pair as one; every card is taken.
   assert.ok(cards.cards.length < cards.shown.length, 'a pair is drawn');
-  assert.deepEqual([set.n, set.total], [cards.cards.length - 1, cards.cards.length]);
+  assert.deepEqual(set.rows, cards.shown);
+  assert.deepEqual([set.n, set.total], [cards.cards.length, cards.cards.length]);
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
   const after = new Map(set.rows.map(r => [keyOf(r.sid, r.entry), 'read']));
   const left = d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []);
-  assert.deepEqual(left.cards.map(c => c.row.entry.work), ['mine still waits']);
-  assert.deepEqual(markAllSet(left.cards, [], d.openWaiting(v.review, SID)), { rows: [], n: 0, total: 1, hash: '' });
-  after.set(keyOf(SID, mine), 'read');
-  assert.equal(d.reviewCards(drawnLogs(ls, SID, after).review, SID, after, new Set(), []).total, 0);
+  assert.equal(left.total, 0);
+  assert.deepEqual(markAllSet(left.cards, []), { rows: [], n: 0, total: 0, hash: '' });
 });
 
 // --- issue 459: the lead flags its own unsure decisions ------------------------------
 //
 // A `flag` on log_decision is a one-line reason. A flagged Lead entry reads as
 // flagged until the owner marks it, so it sits in Flagged to revisit and never
-// in To review, where Mark all read takes from; the owner's latest mark wins.
+// in To review, where Mark all as read takes from; the owner's latest mark wins.
 
 test('issue 459 claim 1: a flag is one line of 1 to 300 characters on a Lead entry that does not wait, kept only when sent', () => {
   assert.equal(checkInput(input({ flag: 'Unsure: the tier may be too low.' })).value?.flag, 'Unsure: the tier may be too low.');
@@ -1247,7 +1247,7 @@ test('issue 459 claim 3: this lead\'s flagged entry sits in Flagged and never in
       unshown: v.unshown,
     };
   };
-  // To review's shown rows and ended lines are all Mark all read can take: no flagged entry is there.
+  // To review's shown rows and ended lines are all Mark all as read can take: no flagged entry is there.
   // Test round 1's q5 A (the owner's word, relayed): another log's flag is not carried, so its
   // flagged plain pick is counted in the dim line as any plain pick is.
   assert.deepEqual(view(new Map()), { review: ['claim', 'plain'], flagged: ['mine flagged'], unshown: 1 });

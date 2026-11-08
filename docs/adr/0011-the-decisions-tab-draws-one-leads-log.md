@@ -77,6 +77,20 @@ or a single Read press closes it. Entries in other logs drop on read as before.
 
 Amended in 0.113.0 (issue 496, lead decision 510, the owner's words relayed): the button's N counts the cards a press clears, a question and its answer as one and an ended session's line as one, so it matches what leaves To review; when cards stay behind it reads "Mark N of M read", M all under To review. To review's heading counts the same way (lead decision 524, the lead's own pick under level 3).
 
+Amended in 0.120.0 (issue 509, ticket 1, the owner's words relayed by the lead).
+On 2026-11-05 the owner said "we really need a simple mark all as read that does
+them all", and on 2026-11-07 (decision 50): "I want mark all as read to simply
+mark all as read". The button reads "✓ Mark all as read" whatever the count, and
+"Mark N of M read" goes. It takes every card and every ended session's line under
+To review, this session's own unanswered waiting entries included, which the
+0.109.0 amendment (issue 486) had left, and it ignores the search, at the draw
+and at the press. A waiting entry that a press marks read stays in History as
+"Waits for you", and a Relayed answer logged later with `answers` set to its id
+is still accepted. The key `dmarkall-<n>-<hash>` is unchanged, a press on a set
+that has changed writes nothing, and while other logs are carried, a press past
+500 entries leaves the button drawn for a second press. This amendment replaces
+the 0.109.0 one and the "Mark N of M read" label of the 0.113.0 one.
+
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside

@@ -50,7 +50,7 @@ export type MarksFile = { kind: 'marks'; v: 1; marks: Mark[] }
 export const MAX_ENTRIES = 500
 export const MAX_LOG_BYTES = 256 * 1024
 export const MAX_MARKS = 2000
-// 256 KiB since 0.89.0 (spec 444 q14): one Mark all read press adds up to 500
+// 256 KiB since 0.89.0 (spec 444 q14): one Mark all as read press adds up to 500
 // marks, and the 2,000-mark count fits beside them for the entry ids that
 // occur (ids run in sequence, so a mark is about 115 to 122 bytes). At the
 // widest id the format allows, a mark is 133 bytes and the cap holds fewer old
@@ -391,7 +391,7 @@ export function mergeMarks(files: readonly MarksFile[], now: number): Map<string
  *  `addMarks`'s order. The new mark never drops. */
 export const addMark = (file: MarksFile | undefined, mark: Mark, known: ReadonlySet<string>): MarksFile => addMarks(file, [mark], known)
 
-/** The file with several marks added at once, as Dismiss and Mark all read
+/** The file with several marks added at once, as Dismiss and Mark all as read
  *  write them. None of the new marks drops. Past the caps, the old marks drop
  *  one at a time in this order (spec 444 S4), until the file fits:
  *  1. a mark for an entry in no log the pane read (not in `known`);
@@ -454,7 +454,7 @@ export function addMarks(
  *  an entry in a log read (`known`) other than the entries the write marks
  *  (`marked`): that is, whether the caps pushed out a mark that was still its
  *  entry's newest counted state, so the entry would read as it did before
- *  that mark. Mark all read writes nothing when this holds (spec 447,
+ *  that mark. Mark all as read writes nothing when this holds (spec 447,
  *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
 export function dropsLiveMark(
   before: MarksFile | undefined,
@@ -687,29 +687,16 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
   return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
 }
 
-/** The mark keys of this session's own waiting entries that no Relayed
- *  entry answers (issue 486). Mark all read leaves them, so each stays in To
- *  review until the owner's answer or a single Read press closes it. */
-export function openWaiting(logs: readonly ReadLog[], sid: string): Set<string> {
-  const out = new Set<string>()
-  for (const l of logs) {
-    if (l.sid !== sid) continue
-    const answered = new Set(l.log.entries.filter(e => e.source === 'relayed' && e.answers !== '').map(e => e.answers))
-    for (const e of l.log.entries) if (e.source === 'lead' && e.waiting && !answered.has(e.id)) out.add(markKey(l.sid, e.id, e.at))
-  }
-  return out
-}
-
-/** The entries Mark all read takes (issue 466): everything under To review,
- *  its cards and every ended session's line, of every kind and log, but the
- *  cards whose entry is one of the `open` keys `openWaiting` gives (issue
- *  486), taken whole up to 500 entries, so its key stays in range and a second
- *  press takes the rest. `n` counts what leaves To review and `total` all
- *  that is under it, as To review's heading counts it: each card once, a
- *  pair as one, and each ended line as one (issue 496). `hash` is the first 16 hex digits of SHA-256 over the
- *  set's mark keys, sorted and joined by line breaks: a staleness check on the
- *  press, not a secret. */
-export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLine[], open: ReadonlySet<string> = new Set()) {
+/** The entries Mark all as read takes (issue 466, issue 509): everything under
+ *  To review, its cards and every ended session's line, of every kind and log,
+ *  whatever the search is, taken whole up to 500 entries, so its key stays in
+ *  range and, while other logs are carried, a second press takes the rest.
+ *  `n` counts what leaves To review and `total` all that is under it, as To
+ *  review's heading counts it: each card once, a pair as one, and each ended
+ *  line as one (issue 496). `hash` is the first 16 hex digits of SHA-256 over
+ *  the set's mark keys, sorted and joined by line breaks: a staleness check on
+ *  the press, not a secret. */
+export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLine[]) {
   const fromCards = cards.map(c => (c.answer === undefined ? [c.row] : [c.row, c.answer]))
   const fromLines = lines.map(l => [...l.rows])
   const total = fromCards.length + fromLines.length
@@ -718,7 +705,6 @@ export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLi
   const take = (units: Row[][]) => {
     const out: Row[] = []
     for (const u of units) {
-      if (u.some(r => open.has(rowKey(r)))) continue
       // A unit over the cap on its own, a line past 500 entries, is taken in part.
       const part = size === 0 ? u.slice(0, MAX_ENTRIES) : u
       if (size + part.length > MAX_ENTRIES) break
@@ -738,7 +724,7 @@ export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLi
 const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
 
 const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
-/** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
+/** A Mark all as read button's key, matched whole: its count (1 to 500) and hash. */
 export function parseMarkAllKey(key: string): { n: number; hash: string } | undefined {
   const m = MARK_ALL_KEY.exec(key)
   const n = Number(m?.[1])
@@ -758,7 +744,7 @@ export type EndedLine = { rows: Row[]; n: number; at: number; works: string[]; m
 
 /** To review's block: one line for each ended log in `ended` with an unread
  *  entry that matches the search, the line with the newest such entry first.
- *  Mark all read takes every line's rows. */
+ *  Mark all as read takes every line's rows. */
 export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
   const lines: (EndedLine & { sid: string })[] = []
   for (const l of ended) {
