@@ -5450,13 +5450,13 @@ test('claim 6: Read, next marks the shown entry read in this session\'s marks fi
   expect(writesTo(w, OWN_MARKS)).toBe(marks)
 })
 
-// --- spec 444: one lead's log, carried entries and Mark all read ---------------------------------
+// --- spec 444: one lead's log, carried entries and Mark all as read ---------------------------------
 
 const markAllKeys = async () => (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key)).filter(k => k.startsWith('dmarkall-'))
-// #496: N counts the cards a press clears, a pair as one, and "N of M" names the cards that stay.
-const markAllLabel = async (label: string) => {
+// Issue 509: the label is the same whatever the count; the key's N counts the cards a press clears, a pair as one.
+const markAllLabel = async () => {
   const [key] = await markAllKeys()
-  return key !== undefined && JSON.stringify((await mounted.find({ key }))?.props).includes(`✓ Mark ${label} read`)
+  return key !== undefined && JSON.stringify((await mounted.find({ key }))?.props).includes('"✓ Mark all as read"')
 }
 const ALARM_444 = { source: 'alarm', work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Turbo'], pick: '3 Turbo', why: 'Changed, not from a press', undo: 'Move the slider in the pane' }
 const markAllSeed = (w: World) => {
@@ -5471,12 +5471,12 @@ const markAllSeed = (w: World) => {
 }
 
 for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
-  test(`issue 466, #496: To review's heading shows one Mark N of M read, N the cards it clears and M every card under To review (${surface})`, async ($, on) => {
+  test(`issue 466, #496: To review's heading shows one Mark all as read, whose key's N counts the cards it clears (${surface})`, async ($, on) => {
     await decisionsPane(on, $, surface, markAllSeed)
-    // This log's entries but its unanswered waiting one, which stays open (issue 486), and the
-    // peer's waiting and Relayed entries; its plain entry is not drawn.
-    expect(await markAllLabel('6 of 7')).toBe(true)
-    expect((await markAllKeys()).length).toBe(1)
+    // Seven cards: this log's five entries, a pair as one, and the peer's waiting and Relayed
+    // entries; its plain entry is not drawn. The label does not carry the count (issue 509).
+    expect(await markAllLabel()).toBe(true)
+    expect(await markAllKeys()).toEqual([expect.stringMatching(/^dmarkall-7-[0-9a-f]{16}$/)])
   })
 }
 
@@ -5506,14 +5506,40 @@ test('issue 466: no button when To review is empty; one press marks everything u
   expect(await shows(/· decision 1$/)).toBe(true)
 })
 
-test('spec 444 claim 7: a search narrows the set, and a press marks only what the search shows', async ($, on) => {
+test('issue 509: a search does not narrow the set, and a press marks everything under To review', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', markAllSeed)
+  const [whole] = await markAllKeys()
   await mounted.input({ key: 'dsearch', text: 'two', kind: 'change' })
-  expect(await markAllLabel('all 1')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
   const [key] = await markAllKeys()
+  expect(key).toBe(whole)
   await press($, key as string)
-  expect(parsed(w, OWN_MARKS).marks.map((m: any) => m.id)).toEqual(['2'])
+  const marks = parsed(w, OWN_MARKS).marks.map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()
+  expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 3 read', 'own 4 read', 'own 5 read', 'peer 1 read', 'peer 3 read'])
+  // The search is cleared: To review is empty.
+  await mounted.input({ key: 'dsearch', text: '', kind: 'change' })
+  expect(await markAllKeys()).toEqual([])
+  expect(await shows(/^All caught up/)).toBe(true)
 })
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`issue 509 claims 1 and 4: a lone card holding this session's unanswered waiting entry gets Mark all as read; after a press To review is empty, History says it waits, and a later answer pairs with it (${surface})`, async ($, on) => {
+    const w = await decisionsPane(on, $, surface, w => seed(w, LOG, logText([kept(1, 200, { question: 'Mine waits?', waiting: true, pick: '' })])))
+    expect(await markAllLabel()).toBe(true)
+    const [key] = await markAllKeys()
+    expect(key).toMatch(/^dmarkall-1-[0-9a-f]{16}$/)
+    await press($, key as string)
+    expect(ownMarks(w).map((m: any) => [m.id, m.state])).toEqual([['1', 'read']])
+    expect(await markAllKeys()).toEqual([])
+    expect(await shows(/^All caught up/)).toBe(true)
+    await press($, 'grp-d-history')
+    expect(await shows(/^Waits for you$/)).toBe(true)
+    // The lead's later answer, naming it, is accepted and History shows it answered.
+    seed(w, LOG, logText([kept(1, 200, { question: 'Mine waits?', waiting: true, pick: '' }), kept(2, 300, { question: 'Answer?', source: 'relayed', answers: '1' })]), 9)
+    await w.clock.advance(5000)
+    expect(await shows(/^Answered, as the lead records it: decision 2$/)).toBe(true)
+  })
+}
 
 test('spec 444 claim 8: a press whose set has moved marks nothing: the same key pressed twice marks once', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', markAllSeed)
@@ -5521,8 +5547,8 @@ test('spec 444 claim 8: a press whose set has moved marks nothing: the same key 
   const before = writesTo(w, OWN_MARKS)
   await Promise.all([press($, key as string), press($, key as string)])
   expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  // This log's unanswered waiting entry stays open (issue 486).
-  expect(parsed(w, OWN_MARKS).marks.length).toBe(6)
+  // This log's unanswered waiting entry is taken too (issue 509).
+  expect(parsed(w, OWN_MARKS).marks.length).toBe(7)
   expect(await markAllKeys()).toEqual([])
   // An entry that arrives later gets a key of its own, and the new press marks it alone.
   seed(w, LOG, logText([kept(1, 200), kept(2, 300), kept(3, 400, { waiting: true, pick: '' }), kept(4, 500, { source: 'relayed' }), kept(5, 600, ALARM_444), kept(6, 700, { question: 'New plain?' })]), 9)
@@ -5532,7 +5558,7 @@ test('spec 444 claim 8: a press whose set has moved marks nothing: the same key 
   expect(fresh).not.toBe(key)
   await press($, fresh as string)
   const marks = parsed(w, OWN_MARKS).marks.map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()
-  expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 4 read', 'own 5 read', 'own 6 read', 'peer 1 read', 'peer 3 read'])
+  expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 3 read', 'own 4 read', 'own 5 read', 'own 6 read', 'peer 1 read', 'peer 3 read'])
 })
 
 test('spec 444 claim 7: a press adds no plugin-state key, and the hash never reaches a state value', async ($, on) => {
@@ -5745,7 +5771,7 @@ test('spec 444: when the drop scan is cut, a read mark a skipped file may cover 
   expect(w.text(LOG)).toBe(before)
 })
 
-test('spec 444 claim 9: a Mark all read whose marks cannot be written changes nothing and says so', async ($, on) => {
+test('spec 444 claim 9: a Mark all as read whose marks cannot be written changes nothing and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     markAllSeed(w)
     seed(w, OWN_MARKS, '{"cards":[],"todos":[]}')
@@ -5754,11 +5780,11 @@ test('spec 444 claim 9: a Mark all read whose marks cannot be written changes no
   await press($, key as string)
   expect(w.text(OWN_MARKS)).toBe('{"cards":[],"todos":[]}')
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
-  expect(await markAllLabel('6 of 7')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
 })
 
 for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
-  test(`spec 444 claim 6: Mark all read sits last in To review's heading row, at its right (${surface})`, async ($, on) => {
+  test(`spec 444 claim 6: Mark all as read sits last in To review's heading row, at its right (${surface})`, async ($, on) => {
     await decisionsPane(on, $, surface, markAllSeed)
     const rows = (await mounted.findAll({ type: 'Box' })).filter((b: any) => (b.children?.length ?? 0) >= 2 && JSON.stringify(b.children[b.children.length - 1]).includes('dmarkall-'))
     const row: any = rows.sort((a: any, b: any) => JSON.stringify(a).length - JSON.stringify(b).length)[0]
@@ -5770,7 +5796,7 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-test('spec 444 claim 9: a Mark all read whose marks file write fails changes nothing and says so', async ($, on) => {
+test('spec 444 claim 9: a Mark all as read whose marks file write fails changes nothing and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     markAllSeed(w)
     seed(w, OWN_MARKS, marksText([]))
@@ -5781,7 +5807,7 @@ test('spec 444 claim 9: a Mark all read whose marks file write fails changes not
   expect(w.failWriteOnce).toBeUndefined()
   expect(parsed(w, OWN_MARKS).marks).toEqual([])
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
-  expect(await markAllLabel('6 of 7')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
 })
 
 test('spec 444 claim 3: Read, next works from the drawn set, not from an older undrawn entry of another log', async ($, on) => {
@@ -5865,7 +5891,7 @@ test('spec 444 claim 3: a History row opens from the drawn set, not from an unre
 test('spec 444 claim 7: a skipped entry still counts as shown, so the label counts it and the press marks it', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'One?' }), kept(2, 300, { question: 'Two?' })])))
   await press($, 'dskip-1-200')
-  expect(await markAllLabel('all 2')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
   const [key] = await markAllKeys()
   await press($, key as string)
   expect(ownMarks(w).map((m: any) => m.id).sort()).toEqual(['1', '2'])
@@ -5909,8 +5935,8 @@ test('spec 444 claims 4, 13, 14 and 15: another log draws only its waiting, Rela
   await press($, 'dnext-3-120')
   expect(await shows(/^Autonomy level$/)).toBe(true)
   expect(await shows(/^From another session$/)).toBe(true)
-  // Mark all read takes the carried alarm too, the one entry left unread.
-  expect(await markAllLabel('all 1')).toBe(true)
+  // Mark all as read takes the carried alarm too, the one entry left unread.
+  expect(await markAllLabel()).toBe(true)
   await press($, 'grp-d-history')
   expect(await shows(/· decision 1$/)).toBe(false)
 })
@@ -8045,7 +8071,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shows(/^issue 9$/)).toBe(false)
     expect(await shows(/^3 unread entries: claims about your words and the questions they answer$/)).toBe(true)
     expect((await endedKeys()).length).toBe(1)
-    // Issue 466: the line has no button of its own; Mark all read takes it.
+    // Issue 466: the line has no button of its own; Mark all as read takes it.
     expect((await mounted.findAll({ type: 'Button' })).some((b: any) => String(b.key).startsWith('dmarkended-'))).toBe(false)
   })
 }
@@ -8156,10 +8182,10 @@ test('spec 447 claim 5: a log first seen after the session read began, with a re
   expect(await shows(/^3 unread entries: claims about your words and the questions they answer$/)).toBe(true)
 })
 
-test('issue 466: Mark all read takes an ended session\'s line too', async ($, on) => {
+test('issue 466: Mark all as read takes an ended session\'s line too', async ($, on) => {
   const w = await endedPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'Plain one?' }), kept(2, 300, { question: 'Plain two?' })])))
   // This log's two, the peer's unanswered waiting entry and alarm, and the line, one unit for its three entries (#496, decision 524).
-  expect(await markAllLabel('all 5')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
   // To review's heading counts the same five.
   expect(await shows(/^ 5$/)).toBe(true)
   const [key] = await markAllKeys()
@@ -8169,15 +8195,16 @@ test('issue 466: Mark all read takes an ended session\'s line too', async ($, on
   expect((await markAllKeys()).length).toBe(0)
 })
 
-test('spec 447 claim 7, issue 466: under a search the line counts, and Mark all read marks, only the line\'s entries that match', async ($, on) => {
+test('spec 447 claim 7, issue 509: under a search the line counts only its matching entries, and Mark all as read marks every one', async ($, on) => {
   const w = await endedPane(on, $)
   await mounted.input({ key: 'dsearch', text: 'issue 8', kind: 'change' })
   expect(await shows(/^1 unread entry: claims about your words and the questions they answer$/)).toBe(true)
   expect(await shows(/^issue 7$/)).toBe(false)
-  expect(await markAllLabel('all 1')).toBe(true)
+  expect(await markAllLabel()).toBe(true)
   const [key] = await markAllKeys()
   await press($, key as string)
-  expect(ownMarks(w).map((m: any) => [m.log, m.id])).toEqual([[PEER, '4']])
+  // The set ignores the search: the line's other entries are marked too.
+  expect(ownMarks(w).map((m: any) => [m.log, m.id]).sort()).toEqual([1, 2, 3, 4, 6].map(id => [PEER, String(id)]))
 })
 
 test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read or not, says which are unread, and keeps its state out of plugin state', async ($, on) => {
@@ -8196,7 +8223,7 @@ test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read
   expect(await shows(/^Peer relayed\?$/)).toBe(true)
   expect(w.states.slice(from).map(([k]) => k).filter(k => !seen.has(k))).toEqual([])
   expect(w.states.filter(([k]) => k === 'folded').length).toBe(folded)
-  // After a Mark all read the rows stay, read.
+  // After a Mark all as read the rows stay, read.
   const [key] = await markAllKeys()
   await press($, key as string)
   expect((await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('deopen-')).length).toBe(3)
@@ -8241,7 +8268,7 @@ test('spec 447 claim 4 (S3.9): a session whose newest entry passes 30 minutes en
   expect(anyWrites(w)).toBe(writes)
 })
 
-test('spec 447 claim 8 (Test round 1, q3 A), issue 466: a Mark all read that would push out the owner\'s own live read marks writes nothing and says so; one that drops only marks for no log read writes', async ($, on) => {
+test('spec 447 claim 8 (Test round 1, q3 A), issue 466: a Mark all as read that would push out the owner\'s own live read marks writes nothing and says so; one that drops only marks for no log read writes', async ($, on) => {
   const big = (n: number) => logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, 500 + i, { work: `log ${n}` })))
   const LOGS = ['bbbbbbbb-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000004']
   // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
@@ -8371,7 +8398,7 @@ test('spec 448 claim 3: an answer that arrives after the draw takes the lone key
   expect(await shows(/^Mine asks\?$/)).toBe(true)
 })
 
-test('issue 466: a Mark all read that would push out a live mark writes nothing and says so; a failed write changes nothing', async ($, on) => {
+test('issue 466: a Mark all as read that would push out a live mark writes nothing and says so; a failed write changes nothing', async ($, on) => {
   const big = (n: number) => logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, 500 + i, { work: `log ${n}` })))
   const LOGS = ['bbbbbbbb-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000004']
   // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
