@@ -353,12 +353,13 @@ Each write and delete it makes is an action. Tell the person first:
 - **The scratch folder** (`--new-folder`): where it is, that its files hold
   the answers unencrypted until deleted, and that a folder they name is as
   private as that folder. Their yes to the notice is the go.
-- **The draft and the pasted block:** write them with your file-write tool,
-  never through a shell. Write the block verbatim, fence and all, as the
+- **The draft and the pasted block:** tell the person you are writing them in
+  the scratch folder. Their yes to the notice is the go. Write them with your
+  file-write tool, never through a shell. Write the block verbatim, fence and all, as the
   answers file in the scratch folder, before the check.
 - **The page** (`--out`): that it keeps answers in the browser until Reset,
   unencrypted, and that other pages opened from disk in the same browser may
-  read them.
+  read them. Their yes to the notice is the go.
 - **Deleting the page and the answers file** (`--clean`), after asking for
   Reset: say "I will delete the page and the answers file". The person's yes
   in chat is the go.

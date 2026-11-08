@@ -54,7 +54,8 @@ refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Make one new folder for each interview:
+Give the notice in `SKILL.md`'s "The way in" first, and wait for the yes.
+Then make one new folder for each interview:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --new-folder

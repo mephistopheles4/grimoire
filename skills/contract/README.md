@@ -111,14 +111,15 @@ which way you want.
 4. You copy one answer block from the page and paste it in chat. The skill
    checks it with its script, which prints what changed, and asks you about
    each term that can do damage, in your own words. Then it writes the
-   contract and builds, as in the chat way. Before the go to build, it
-   shows you the whole contract in one message.
+   contract. Before the go to build, it shows you the whole contract in one
+   message. Then it builds, as described in "How it works".
 
 The page needs **Node.js 24 or later** to render, and nothing else to
 install. It loads nothing from the network. When Node is missing, or you
-cannot open a file from this machine in your browser, when the limits refuse
-a draft, when a path holds a character the script refuses, or when you ask
-for chat in your own words, the skill uses chat and says which case applies.
+cannot open a file from this machine in your browser, when the draft is too
+large for the page, when the skill's own folder holds a character the script
+refuses, or the scratch folder's does and you name no other folder, or when
+you ask for chat in your own words, the skill uses chat and says which case applies.
 It never recommends chat for its own ease. [An example page](https://mephistopheles4.github.io/grimoire/skills-contract-examples-release-notes.html)
 shows a made-up skill's interview; it keeps nothing.
 
@@ -163,14 +164,15 @@ contract and the built file. It then hands back:
 
 ## Changes in 0.14.0
 
-**The hiring page is the default way in** for every interview, a rewrite and
-stop 6 included. The skill no longer asks which way you want. Before the
+**The hiring page is the default way in** for every interview, a rewrite, and an
+existing skill or agent you hand it, included. The skill no longer asks which way you want. Before the
 first write it gives one notice, naming the scratch folder, the browser store
 and the routes that can carry your answers off the machine, and waits for
 your yes; a no means chat. Chat is used only when Node is missing or older
 than 24.0.0, when you cannot open a file from this machine in your browser,
-when the limits refuse a draft, when a path holds a character the script
-refuses, or when you ask for chat in your own words. The skill names the case.
+when the draft is too large for the page, when the skill's own folder holds a
+character the script refuses, or the scratch folder's does and you name no
+other folder, or when you ask for chat in your own words. The skill names the case.
 Either way in, it shows you the whole contract in one message before the go to
 build, and calls nothing ready until you have seen the contract and the built
 file.
