@@ -52,6 +52,8 @@ This repository's threat model is [`docs/security/threat-model.md`](docs/securit
 
 GitHub issues on `mephistopheles4/grimoire`, driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+Before the first edit to a file, assign the issue you take to yourself with `gh issue edit <n> --add-assignee @me`. If you stop without finishing, unassign yourself with a comment on where you got to. An assignee is a signal, not a lock: the doc says what that means.
+
 ### Triage labels
 
 The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
