@@ -195,6 +195,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
+import { endTurn, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -2942,9 +2943,19 @@ const HANDOFF_CAUGHT = {
   deny: 'set_lead_handoff refused: error: the tool failed or ran out of time. The hand-off may or may not hold the new text; tell the owner.',
 }
 
+// The lead's roster reminder (issue 532): whether this turn's last send or
+// logged decision came after its last set_roster call. Module memory only; it
+// holds one boolean and no text from the turn.
+const owedRoster = { owed: false }
+const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' in r)
+
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
-  registerWriter(on)
+  registerWriter(on, e => {
+    if (e.agentId !== undefined) return undefined
+    const line = endTurn(owedRoster)
+    return timers.length > 0 ? line : undefined
+  })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
   // hooks, so the permission warning draws beneath it.
   registerBand(on)
@@ -3124,7 +3135,9 @@ export const register: Register = on => {
   on('tool.call', { tool: TOOL_NAME }, async ($, e, next) => {
     const progress: Progress = { written: false }
     try {
-      return await setRoster($, e as unknown as Record<string, unknown>, next.signal, progress)
+      const r = await setRoster($, e as unknown as Record<string, unknown>, next.signal, progress)
+      if (e.agentId === undefined && landed(r)) tally(owedRoster, 'roster')
+      return r
     } catch (err) {
       const why = `error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`
       return progress.written ? failedAfterWrite(why) : refuse(why)
@@ -3136,7 +3149,9 @@ export const register: Register = on => {
   on('tool.call', { tool: LOG_TOOL_NAME }, async ($, e, next) => {
     const progress: Progress = { written: false }
     try {
-      return await logDecision($, e as unknown as Record<string, unknown>, next.signal, progress)
+      const r = await logDecision($, e as unknown as Record<string, unknown>, next.signal, progress)
+      if (e.agentId === undefined && landed(r)) tally(owedRoster, 'decision')
+      return r
     } catch {
       return progress.written ? failedAfterLog() : refuseLog('error: the tool failed')
     }
@@ -3219,6 +3234,22 @@ export const register: Register = on => {
       }
     }
     return next(e)
+  })
+
+  // The roster reminder (issue 532). The lead's send with a message is seen
+  // and passed on unchanged; the turn's end (the writer's turn.complete hook,
+  // above) adds one fixed note if the last send or decision came after the
+  // last set_roster. It reminds only, never writes the roster, and does
+  // nothing while the pane is closed. No `.catch` on this hook: a retry of a
+  // failed send would send the message twice.
+  on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
+    const r = await next(e)
+    try {
+      if (e.agentId === undefined && timers.length > 0 && sendsMessage(e)) tally(owedRoster, 'send')
+    } catch {
+      // The send goes on unchanged.
+    }
+    return r
   })
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
