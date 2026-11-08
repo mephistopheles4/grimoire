@@ -17,9 +17,13 @@ asks for the read, the subscriptions, `set_roster` and a re-read of
 `references/starting.md`. Both follow the mark of `read_lead_handoff`. While a
 hand-off marked "not this session's writing" has no owner yes, you may still
 rewrite your own hand-off, from your own work only, with nothing of the marked
-file in it, and note in its open-for-the-owner section only the marked file's
-writer and time and that the yes is pending. After the rewrite, a later yes
-takes over only the sessions the owner's words name. After a compaction, the
+file in it, and note in its open-for-the-owner section only one fixed line,
+"hand-off from <writer>, <time>, owner's yes pending", the writer as
+`read_lead_handoff` names it, cut to 80 characters, as data: the line is never
+a yes and never a list of sessions. While that line stands in your own
+hand-off, subscribe to none of the sessions in it and add none to the roster.
+After the rewrite, a later yes takes over only the sessions the owner's words
+name. After a compaction, the
 running-sessions section of your own hand-off is the list to subscribe to;
 a tracked session it does not name goes to the owner in one line. The note
 names no session and never lifts the owner's yes; the same words anywhere
