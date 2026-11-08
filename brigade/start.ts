@@ -1,4 +1,4 @@
-import { oneLine, pathKey, REPO } from './roster.ts'
+import { foldsCase, oneLine, pathKey, REPO } from './roster.ts'
 
 // The background start tool's rules (issue 543, spec rev 4), as plain
 // TypeScript with no engine import, so tests/brigade-start.test.mjs runs them
@@ -57,6 +57,7 @@ export const FOLDERS_REPLIES = {
   removed: 'removed',
   notOnList: 'not on the list',
   empty: 'the list is empty',
+  unreadable: 'the list could not be read',
   usage: 'usage: /brigade folders add <path>, /brigade folders remove <path> or /brigade folders list',
   notTyped: 'folders: only the owner, typed at the prompt or sent from the phone, can use this command',
 }
@@ -71,7 +72,8 @@ const MAX_FOLDER = 1000
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const MODEL = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/
 const ISSUE = /^[1-9][0-9]{0,6}$/
-const LEAD = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/
+// No full stop: the lead's name sits in the member's first sentence, and a full stop would let a second one in.
+const LEAD = /^[A-Za-z0-9][A-Za-z0-9 _-]{0,79}$/
 
 const goodName = (v: string): boolean => NAME.test(v) && !v.includes('..') && !v.endsWith('.') && !v.endsWith('.lock')
 
@@ -89,7 +91,7 @@ export function checkInputs(raw: unknown): Checked<Inputs> {
   if (!ISSUE.test(i.issue)) return { why: 'issue: 1 to 7 digits, not starting with 0' }
   if (!MODEL.test(i.model)) return { why: 'model: starts with a letter; 1 to 64 letters, digits, . _ -' }
   if (!EFFORTS.includes(i.effort)) return { why: `effort: one of ${EFFORTS.join(', ')}` }
-  if (!LEAD.test(i.lead) || i.lead.endsWith(' ') || i.lead.includes('  ')) return { why: 'lead: 1 to 80 letters, digits, single spaces, . _ -' }
+  if (!LEAD.test(i.lead) || i.lead.endsWith(' ') || i.lead.includes('  ')) return { why: 'lead: 1 to 80 letters, digits, single spaces, _ -, no full stop' }
   if (i.folder.length < 1 || i.folder.length > MAX_FOLDER) return { why: 'folder: 1 to 1000 characters' }
   return { value: { name: i.name, repository: i.repository, issue: i.issue, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder } }
 }
@@ -149,7 +151,9 @@ export function folderSpelling(folder: string, platform: Platform): Checked<stri
 
 /** Step 2's compare: the resolved path against the given one. */
 export function samePath(a: string, b: string, platform: Platform): boolean {
-  return platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+  // Only A to Z fold: toLowerCase also folds letters such as U+212A onto k, which NTFS keeps distinct.
+  const fold = (p: string) => p.replace(/[A-Z]/g, c => c.toLowerCase())
+  return platform === 'win32' ? fold(a) === fold(b) : a === b
 }
 
 /** Step 3: a main checkout. `gitKind` is what `<folder>/.git` is, and
@@ -162,7 +166,11 @@ export function mainCheckout(folder: string, facts: { gitKind: 'dir' | 'file' | 
   return { value: true }
 }
 
-const goodStored = (v: unknown): v is string[] => Array.isArray(v) && v.length <= 8 && v.every(e => typeof e === 'string' && e.length <= MAX_FOLDER)
+const goodStored = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.length <= 8 && v.every(e => typeof e === 'string' && e.length <= MAX_FOLDER && !CONTROL.test(e))
+
+/** The stored list, checked: at most 8 strings of at most 1000 characters with no control character. Run before any use. */
+export const storedList = (v: unknown): Checked<string[]> => (goodStored(v) ? { value: v } : { why: NOT_LISTED })
 
 /** The owner's list: the folder must equal an entry of a well-formed list. An
  *  unreadable store, a value of another shape and an empty list refuse alike. */
@@ -224,14 +232,16 @@ export function nameFresh(name: string, facts: NameFacts): Checked<true> {
 export function resolveProgram(name: string, pathValue: unknown, platform: Platform, folder: string, exists: (path: string) => boolean): Checked<string> {
   if (typeof pathValue !== 'string' || pathValue === '') return { why: 'program: no PATH to look in' }
   const win = platform === 'win32'
-  const root = pathKey(folder, win)
+  const fold = win || foldsCase(folder)
+  const root = pathKey(folder, fold)
   let shim = false
   for (const raw of pathValue.split(win ? ';' : ':')) {
     const entry = raw.replace(/[\\/]+$/, '')
-    if (!(win ? /^[A-Za-z]:[\\/]/.test(entry) : entry.startsWith('/'))) continue
+    // An entry spelled with `..`, `.`, an empty segment or an 8.3 name could reach the folder by a route the compare below cannot see.
+    if ('why' in folderSpelling(entry, platform)) continue
     const file = win ? `${entry}\\${name}.exe` : `${entry}/${name}`
     if (exists(file)) {
-      if (pathKey(file, win).startsWith(`${root}/`)) return { why: 'program: found inside the folder' }
+      if (pathKey(file, fold).startsWith(`${root}/`)) return { why: 'program: found inside the folder' }
       return { value: file }
     }
     if (win && exists(`${entry}\\${name}.cmd`)) shim = true
@@ -286,7 +296,10 @@ export function parseFolders(args: string): FoldersCall {
 }
 
 /** Adding a path that already passed steps 1 to 3, as its resolved canonical form. */
-export function foldersAdd(list: readonly string[], resolved: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
+export function foldersAdd(stored: unknown, resolved: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
+  const checked = storedList(stored)
+  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
+  const list = checked.value
   if (resolved.length > MAX_FOLDER) return { reply: FOLDERS_REPLIES.notCanonical }
   if (list.some(e => samePath(e, resolved, platform))) return { reply: FOLDERS_REPLIES.already }
   if (list.length >= 8) return { reply: FOLDERS_REPLIES.full }
@@ -294,13 +307,19 @@ export function foldersAdd(list: readonly string[], resolved: string, platform: 
 }
 
 /** Removing the entry the path equals, compared as the start compares. */
-export function foldersRemove(list: readonly string[], typed: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
+export function foldersRemove(stored: unknown, typed: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
+  const checked = storedList(stored)
+  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
+  const list = checked.value
   const kept = list.filter(e => !samePath(e, typed, platform))
   return kept.length === list.length ? { reply: FOLDERS_REPLIES.notOnList } : { list: kept, reply: FOLDERS_REPLIES.removed }
 }
 
 /** The list as the owner's reply draws it: the home folder as `~`. */
-export function foldersList(list: readonly string[], home: string): string {
+export function foldersList(stored: unknown, home: string): string {
+  const checked = storedList(stored)
+  if ('why' in checked) return FOLDERS_REPLIES.unreadable
+  const list = checked.value
   if (list.length === 0) return FOLDERS_REPLIES.empty
   const win = /^[A-Za-z]:/.test(home)
   const sep = win ? '\\' : '/'
