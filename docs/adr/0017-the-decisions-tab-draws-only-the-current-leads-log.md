@@ -57,3 +57,15 @@ An earlier lead's waiting entries, Relayed entries, alarms and flags that were
 not carried across a hand-off no longer reach the owner's pane. The owner chose
 that. Marks the caps prune for entries of logs no longer read do not come
 back.
+
+This also settles issue 451, which the owner widened on 2026-11-05 ("i dont
+want to see other sessions in there"): an ended session's unanswered waiting
+entry no longer reaches To review, and neither does any entry in a member's
+log. Since ADR 0011 (issue 444) the tab carried a member's claims about the
+owner's words so that none went unseen; that is what this rule gives up. A
+member's act on the owner's words now reaches the owner only through the lead,
+and only when the member reports it. The lead tells the owner at once when the
+report names a decision the lead never sent. A decision the lead takes on the
+report is logged in this session's log as the lead's own, with the member's
+account quoted as the member's and never as Relayed, and the tab draws that
+entry like any other. A member that acts and does not report leaves no card.
