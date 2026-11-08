@@ -66,6 +66,16 @@ test('C2: lead may hold single inner spaces and nothing else odd', () => {
   }
 });
 
+test('C2: the longest allowed value of each field passes, and one more or a wrong start fails', () => {
+  ok(S.checkInputs({ ...GOOD, issue: '1234567', model: 'a'.repeat(64), lead: 'a'.repeat(80), folder: `C:\\${'a'.repeat(997)}` }));
+  refused(S.checkInputs({ ...GOOD, issue: '12345678' }));
+  refused(S.checkInputs({ ...GOOD, model: 'a'.repeat(65) }));
+  refused(S.checkInputs({ ...GOOD, model: '1abc' }));
+  refused(S.checkInputs({ ...GOOD, lead: 'a'.repeat(81) }));
+  refused(S.checkInputs({ ...GOOD, folder: '' }));
+  refused(S.checkInputs({ ...GOOD, folder: 'x'.repeat(1001) }));
+});
+
 test('C3: the prompt is exactly the fixed sentence and one line', () => {
   assert.equal(S.startPrompt(GOOD), 'Your work is issue 543 on mephistopheles4/grimoire. Send your questions and reports to Head chef handoff.');
   assert.ok(!/[\r\n]/.test(S.startPrompt(GOOD)));
@@ -198,10 +208,11 @@ test('C6 step 4: a non-zero exit, truncated stdout, no output and a URL over 300
   refused(S.originMatch({ exitCode: 1, stdout: url, isStdoutTruncated: false }, repo));
   refused(S.originMatch({ exitCode: 0, stdout: url, isStdoutTruncated: true }, repo));
   refused(S.originMatch({ exitCode: 0, stdout: '', isStdoutTruncated: false }, repo));
-  refused(S.originMatch({ exitCode: 0, stdout: `https://github.com/mephistopheles4/${'g'.repeat(300)}.git\n`, isStdoutTruncated: false }, repo));
+  assert.equal(refused(S.originMatch({ exitCode: 0, stdout: `https://github.com/mephistopheles4/${'g'.repeat(300)}.git\n`, isStdoutTruncated: false }, repo)), S.NOT_READ);
   refused(S.originMatch(undefined, repo));
   refused(S.originMatch({ exitCode: '0', stdout: url, isStdoutTruncated: false }, repo));
-  refused(S.originMatch(RUN('https://github.com/mephistopheles4/grimoire.git\u0000\n'), repo));
+  assert.equal(refused(S.originMatch(RUN('https://github.com/mephistopheles4/grimoire.git\u0000\n'), repo)), S.NOT_READ);
+  refused(S.originMatch({ exitCode: 0, stdout: url }, repo));
 });
 
 test('C6: no refusal holds a path, a URL or userinfo', () => {
@@ -268,6 +279,9 @@ test('C14: list draws the home folder as ~ and says when it is empty; no reply h
   assert.equal(S.foldersList(['C:\\Users\\o\\src\\r', 'D:\\x'], 'C:\\Users\\o'), '~\\src\\r\nD:\\x');
   assert.equal(S.foldersList(['C:\\Users\\other\\r'], 'C:\\Users\\o'), 'C:\\Users\\other\\r');
   assert.equal(S.foldersList(['/home/ox/r'], '/home/o'), '/home/ox/r');
+  assert.equal(S.foldersList(['/home/o'], '/home/o'), '~');
+  assert.equal(S.foldersList(['C:\\Users\\O\\r', 'C:\\Users\\o'], 'C:\\Users\\o'), '~\\r\n~');
+  assert.equal(S.foldersList(['/home/o/r'], ''), '/home/o/r');
   for (const line of Object.values(S.FOLDERS_REPLIES)) assert.ok(!/[\\/:]\w/.test(line.replaceAll('/brigade folders', '')), line);
 });
 
@@ -276,13 +290,14 @@ test('C14: list draws the home folder as ~ and says when it is empty; no reply h
 test('C5: a name clashes with a card title, a live session name, a name already attempted, a worktree folder or a branch', () => {
   const none = { titles: [], sessionNames: [], attempted: new Set(), worktreeExists: false, branchExists: false, sessionsComplete: true };
   assert.deepEqual(S.nameFresh('Build-1', none), { value: true });
-  assert.match(refused(S.nameFresh('build-1', { ...none, titles: ['Build-1'] })), /^name: /);
-  assert.match(refused(S.nameFresh('build-1', { ...none, sessionNames: ['BUILD-1'] })), /^name: /);
-  assert.match(refused(S.nameFresh('build-1', { ...none, attempted: new Set(['build-1']) })), /^name: /);
-  assert.match(refused(S.nameFresh('Build-1', { ...none, attempted: new Set(['build-1']) })), /^name: /);
-  assert.match(refused(S.nameFresh('build-1', { ...none, worktreeExists: true })), /^name: /);
-  assert.match(refused(S.nameFresh('build-1', { ...none, branchExists: true })), /^name: /);
-  assert.match(refused(S.nameFresh('build-1', { ...none, sessionsComplete: false })), /^name: /);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, titles: ['Build-1'] })), S.NAME_REASONS.card);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, titles: [' Build-1\n'] })), S.NAME_REASONS.card);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, sessionNames: ['BUILD-1'] })), S.NAME_REASONS.session);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, attempted: new Set(['build-1']) })), S.NAME_REASONS.attempted);
+  assert.equal(refused(S.nameFresh('Build-1', { ...none, attempted: new Set(['build-1']) })), S.NAME_REASONS.attempted);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, worktreeExists: true })), S.NAME_REASONS.worktree);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, branchExists: true })), S.NAME_REASONS.branch);
+  assert.equal(refused(S.nameFresh('build-1', { ...none, sessionsComplete: false })), S.NAME_REASONS.incomplete);
   for (const why of [S.NAME_REASONS.card, S.NAME_REASONS.session, S.NAME_REASONS.attempted, S.NAME_REASONS.worktree, S.NAME_REASONS.branch, S.NAME_REASONS.incomplete]) assert.ok(!/[\\/]/.test(why), why);
 });
 
@@ -308,11 +323,13 @@ test('programs: absolute PATH entries only, first hit wins, never inside the fol
 });
 
 test('programs: POSIX uses colon and the bare file name', () => {
-  const have = new Set(['/usr/bin/git', '/home/o/r/claude']);
+  const have = new Set(['/usr/bin/git', '/home/o/r/claude', '/home/o/r2/claude', 'rel/git']);
   const exists = p => have.has(p);
   assert.deepEqual(S.resolveProgram('git', 'rel:/usr/bin', 'posix', '/home/o/r', exists), { value: '/usr/bin/git' });
+  assert.match(refused(S.resolveProgram('git', 'rel', 'posix', '/home/o/r', exists)), /^program: not found on PATH$/);
   assert.match(refused(S.resolveProgram('claude', '/home/o/r:/usr/bin', 'posix', '/home/o/r', exists)), /^program: /);
-  assert.match(refused(S.resolveProgram('claude', '/home/o/r2:/home/o/r', 'posix', '/home/o/r', exists)), /^program: /);
+  assert.deepEqual(S.resolveProgram('claude', '/home/o/r2:/home/o/r', 'posix', '/home/o/r', exists), { value: '/home/o/r2/claude' }, 'a sibling folder sharing the prefix is not inside');
+  assert.match(refused(S.resolveProgram('claude', '/home/o/r:/home/o/r2', 'posix', '/home/o/r', exists)), /^program: /);
 });
 
 // --- C7, C9: the answer ------------------------------------------------------------
@@ -327,6 +344,14 @@ test('C7: the measured output gives the fixed Started words, with the folder and
     `Started build-543: job ${ID}. Folder: C:\\src\\grimoire\\.claude\\worktrees\\build-543. Branch: worktree-build-543. Write its card with set_roster; the tool wrote none.`,
   );
   assert.equal(started(OUT.replace(/\n/g, '\r\n')), started(OUT));
+});
+
+test('C7: on POSIX the folder and branch use slashes', () => {
+  const ran = { exitCode: 0, stdout: OUT, isStdoutTruncated: false };
+  assert.equal(
+    S.startAnswer(ran, { ...GOOD, folder: '/src/grimoire' }, 'posix'),
+    `Started build-543: job ${ID}. Folder: /src/grimoire/.claude/worktrees/build-543. Branch: worktree-build-543. Write its card with set_roster; the tool wrote none.`,
+  );
 });
 
 test('C7: a Remote Control link, extra lines and control characters never reach the answer', () => {
@@ -353,6 +378,7 @@ test('C7, C9: anything else is the fixed Not started words, whatever the run pri
     { exitCode: 0, stdout: OUT.replace('backgrounded', 'started'), isStdoutTruncated: false },
     { exitCode: 0, stdout: OUT.replace(' · ', ' - '), isStdoutTruncated: false },
     { exitCode: '0', stdout: OUT, isStdoutTruncated: false },
+    { exitCode: 0, stdout: OUT },
   ]) {
     assert.equal(S.startAnswer(ran, GOOD), NOT, JSON.stringify(ran)?.slice(0, 60));
   }
@@ -386,15 +412,15 @@ test('C16: a clock that goes back or a non-number never opens more than the cap'
   assert.equal(S.capOpen([10, 11, 12, 13], 5), false);
   assert.equal(S.capOpen([], Number.NaN), false);
   assert.equal(S.capOpen([], undefined), false);
+  assert.equal(S.capOpen([], Infinity), false);
 });
 
 // --- C11: the description ---------------------------------------------------------
 
-test('C11: the description says it is the only start, takes no permission mode, writes no card and refuses with the rule', () => {
-  const d = S.DESCRIPTION;
-  assert.match(d, /^The only way to start a background member: never type `claude --bg`\./);
-  assert.match(d, /no permission mode/);
-  assert.match(d, /call set_roster after it/);
-  assert.match(d, /\/brigade folders add/);
-  assert.ok(!/\n/.test(d));
+test('C11: the description is exactly the spec S2.0 text, on one line', () => {
+  assert.equal(
+    S.DESCRIPTION,
+    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository that the owner listed with /brigade folders add). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.',
+  );
+  assert.ok(!/\n/.test(S.DESCRIPTION));
 });
