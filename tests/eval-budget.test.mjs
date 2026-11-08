@@ -34,7 +34,7 @@ function counts(evalsDir) {
 function faults(found, budget) {
   const out = [];
   for (const [skill, n] of Object.entries(found)) {
-    if (!(skill in budget)) out.push(`evals/${skill}/ holds ${n} cases and has no budget; add it to BUDGET in tests/eval-budget.test.mjs, which is a spec change (CONTRIBUTING.md, "Eval cases")`);
+    if (!(skill in budget)) out.push(`evals/${skill}/ holds ${n} ${n === 1 ? 'case' : 'cases'} and has no budget; add it to BUDGET in tests/eval-budget.test.mjs, which is a spec change (CONTRIBUTING.md, "Eval cases")`);
     else if (n > budget[skill]) out.push(`evals/${skill}/ holds ${n} cases, over its budget of ${budget[skill]}; merge or cut a case, or ask the owner to raise the budget (CONTRIBUTING.md, "Eval cases")`);
   }
   return out;
@@ -52,12 +52,17 @@ test('the counter fails a skill over budget or without one, and ignores a folder
     mk('b', ['one']);
     mkdirSync(join(dir, 'results', 'run-1'), { recursive: true });
     writeFileSync(join(dir, 'results', 'run-1', 'report.json'), '{}');
-    mkdirSync(join(dir, 'a', 'not-a-case'));
+    mkdirSync(join(dir, 'a', 'not-a-case', 'deep'), { recursive: true });
+    writeFileSync(join(dir, 'a', 'not-a-case', 'deep', 'prompt.md'), 'x');
     const found = counts(dir);
     assert.deepEqual(found, { a: 2, b: 1 });
     assert.deepEqual(faults(found, { a: 2, b: 1 }), [], 'at budget passes, with results/ beside it');
-    assert.equal(faults(found, { a: 1, b: 1 }).length, 1, 'over budget fails');
-    assert.equal(faults(found, { a: 2 }).length, 1, 'a skill with no budget fails');
+    const over = faults(found, { a: 1, b: 1 });
+    assert.equal(over.length, 1, 'over budget fails');
+    assert.match(over[0], /evals\/a\/.*2 cases.*budget of 1/, 'the message names the skill, count and budget');
+    const none = faults(found, { a: 2 });
+    assert.equal(none.length, 1, 'a skill with no budget fails');
+    assert.match(none[0], /evals\/b\/.*1 case and has no budget/, 'the message names the skill and count');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
