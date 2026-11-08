@@ -142,6 +142,9 @@ import {
   compactSettings,
   settingsPopover,
   contextTrend,
+  contextOutlook,
+  contextOutlookSvg,
+  readCompactWindow,
   drawnTitle,
   foldedFrom,
   groupCards,
@@ -190,7 +193,7 @@ import {
   warmthLine,
   withoutSize,
 } from './view.ts'
-import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
+import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
@@ -287,6 +290,14 @@ const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefi
   const m = typeof v === 'string' ? POPOVER.exec(v) : null
   return m === null ? undefined : { kind: m[1] === 'set' ? 'set' : 'menu', place: Number(m[2]) }
 }
+// The approved #513 prototype's menu look: a clear ink for the press layers, one soft hover for
+// a menu item, and the menu's faint round border on the user-message background.
+// The clear spaces a press layer holds: the pane draws at most about 100000 characters of text, and
+// the prototype's 600 per layer put a pane of a few dozen cards past that.
+const PRESS_CELLS = 200
+const CLEAR_INK = '#00000000'
+const MENU_HOVER = '#8080801a'
+const MENU_LOOK = { borderStyle: 'round', borderColor: '#8080802e', backgroundColor: 'userMessageBackground' } as const
 // The groups that start folded each time the pane opens.
 const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 // The line under the autonomy slider: what each level lets the lead do, in
@@ -526,6 +537,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       const found = await readCalls(retitled, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
+      ownerCompactAt = await readCompactWindow(config, io)
+      if (!open()) return
       await update($, meters, () => found.meters)
       // read_context reads this copy, never the `meters` plugin state another
       // plugin can rewrite (issue 492, spec v3 S2.1).
@@ -1506,7 +1519,7 @@ async function openPill($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -2749,6 +2762,9 @@ const refuseContext = (rule: string) => ({ deny: `read_context refused: ${rule}.
 // passed, kept only in this module: plugin state is the engine's, and another
 // plugin can rewrite it.
 let polledMeters: Meter[] = []
+// The owner's autoCompactWindow, read each poll from their settings file (issue
+// 545, row 8). Only the figure is kept, here and never in plugin state.
+let ownerCompactAt: number | undefined
 let loadedCards: Card[] = []
 
 async function readContext($: EngineInterface, e: Record<string, unknown>) {
@@ -3528,7 +3544,10 @@ export const register: Register = on => {
     const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
-    const waiting = waitingCount(needsYou.length, todos, done, ticks)
+    // Issue 545, row 11: a needs-you card stays in the group it belongs to, Working, in roster
+    // order; Waiting on you holds the owner's to-dos alone, so it never claims a reason it lacks.
+    const inWorking = [...needsYou, ...working].sort((a, b) => a.i - b.i)
+    const waiting = waitingCount(0, todos, done, ticks)
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
@@ -3543,7 +3562,7 @@ export const register: Register = on => {
     const named = namedAnswers()
     const prs = prRows(cards, hidden, ghAnswers, now, moves, named, waitHidden)
     const unavailable = unavailableLine(ghDown, [...ghNamed.values()].filter(b => b.down).length)
-    const prCount = prs.open.length + prs.merged.length + prs.closed.length
+    const prCount = prs.open.length + prs.draft.length + prs.merged.length + prs.closed.length
 
     // A pointer over a scope lights every element drawn with it. Desktop only:
     // the terminal has no pointer. At rest a round border in the pane's own
@@ -3596,13 +3615,18 @@ export const register: Register = on => {
     // pill, an absolute Box in a clipping Box holding a plain Button with a
     // transparent Text of non-breaking spaces and no label. Drawn only for a
     // pill `gh` answered for; the key carries the card's place and title.
-    const pillLayer = (key: string, pillEl: JSX.Element) => (
-      <Box position="relative" overflow="hidden">
-        {pillEl}
-        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Button key={key} plain onPress={noop}>
-            <Text color="transparent">{' '.repeat(12)}</Text>
-          </Button>
+    // Desktop's pill press (issue 513, S1; the approved prototype): an absolute press layer past
+    // the pill's right edge inside a clipping Box, a plain Button of 600 clear spaces. Drawn only
+    // for a pill `gh` answered for; the key carries the card's place and title.
+    const pillLayer = (key: string, n: string, state: string) => (
+      <Box position="relative">
+        <Box overflow="hidden">
+          {pill(n, state)}
+          <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
+            <Button key={key} plain onPress={noop}>
+              <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
+            </Button>
+          </Box>
         </Box>
       </Box>
     )
@@ -3666,6 +3690,48 @@ export const register: Register = on => {
     }
     const rows = (list: JSX.Element[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
 
+    // The context outlook (issue 545, row 8): the bar against the window with its
+    // compaction tick and large-turn dots, its text, the turns left and the large
+    // turns in dim lines, and the sawtooth only once the session has compacted.
+    const outlookRows = (o: ContextOutlook) => {
+      const image = Image !== undefined ? contextOutlookSvg(o) : undefined
+      return (
+        <Box flexDirection="column">
+          <Box flexDirection="row" columnGap={1}>
+            {Image !== undefined && image !== undefined ? (
+              <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                <Image source={image.source} alt={image.alt} height={image.height} />
+              </Box>
+            ) : (
+              <Box flexShrink={0}>
+                <Text>
+                  <Text dimColor>▕</Text>
+                  <Text color={o.cls === 'hot' ? 'error' : o.cls === 'warn' ? 'warning' : 'success'}>{contextCells(o)}</Text>
+                  <Text dimColor>▏</Text>
+                </Text>
+              </Box>
+            )}
+            <Box flexShrink={1} minWidth={0}>
+              <Text dimColor wrap="truncate-end">
+                {o.text}
+              </Text>
+            </Box>
+          </Box>
+          {o.turns !== undefined && (
+            <Text dimColor wrap="truncate-end">
+              {o.turns}
+            </Text>
+          )}
+          {o.dotsText !== undefined && (
+            <Text dimColor wrap="truncate-end">
+              {o.dotsText}
+            </Text>
+          )}
+          {o.sawtooth !== undefined && sparkRow(o.sawtooth)}
+        </Box>
+      )
+    }
+
     // A sparkline row: on Desktop the image in a column Box that grows, on
     // the terminal its cells between dim end marks, each run in its colour;
     // then its text, which does not shrink.
@@ -3697,16 +3763,21 @@ export const register: Register = on => {
 
     // One card, a compact row: its checkbox (none on a card that waits on the
     // owner, whose dot is full size and title bold); the status dot, title, hover
-    // actions (always shown in the terminal), PR pill, live state and age;
-    // the settings in short on the right (the full line under
-    // it in the terminal); and the latest report since the pane opened. Then,
+    // actions (always shown in the terminal), live state and age, and on
+    // Desktop `⋯`; on Desktop a second line with the PR pill and, at the right,
+    // the settings line as the card holds it (in the terminal the pill sits on
+    // the first line and the settings line under it); and the latest report
+    // since the pane opened. Then,
     // on a needs-you or working card, the view icons (words in the terminal)
     // and the chosen view: the ◆ cache bar with its short text and the dim
     // line under it, or the ◆ warmth line, dim, when there is no bar; the ◆
     // context meter, in the cache bar's form, when the card's model has a
     // known window; and the nudge, which wraps. Burn rate: its sparkline and
     // rate, or the cache line's reason when the transcript is too large,
-    // shared or not found. Context trend: its sparkline and the context now.
+    // shared or not found. Context (the `trend` view): the outlook, a bar against
+    // the window with a compaction tick, turns left and large-turn dots, and its
+    // sawtooth only once the session has compacted; with no window, the old
+    // sparkline and the context now.
     // The nudge shows under whichever view is chosen, so a sticky choice never
     // hides it. A done or stopped card draws no views, ◆ line, bar, meter,
     // sparkline or nudge: a finished session's cache and context mean nothing.
@@ -3726,7 +3797,11 @@ export const register: Register = on => {
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
       const reason = chosen === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = chosen === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
-      const trend = chosen === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
+      const outlook = chosen === 'trend' ? contextOutlook(meterOf.get(c.title), ownerCompactAt) : undefined
+      // With no window the outlook has none to draw against; the old sparkline then
+      // shows only once the session has compacted, as the outlook's does.
+      const oldTrend = chosen === 'trend' && outlook === undefined ? contextTrend(meterOf.get(c.title)) : undefined
+      const trend = oldTrend !== undefined && oldTrend.compactions > 0 ? oldTrend : undefined
       const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
@@ -3747,34 +3822,44 @@ export const register: Register = on => {
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
       const short = compactSettings(c.settings)
+      // The settings mark on the Desktop second line's right (issue 545, row 9): the compact
+      // mark at rest (`S·M`), the full line in the popover; `?` when the card holds none.
+      const settingsLine = short.text
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
-      // pill, on every surface (Desktop has no hover titles, so issue 513, S3,
-      // draws it there too, and the Pull requests tab names it as well). gh's
-      // spelling once it answered, else the card's.
+      // pill; on Desktop the second line is the settings label, the pill, then
+      // the repository, left-aligned (#513 S7, PR 537's amendment). gh's spelling
+      // once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
       // each opens upward from its opener, one at a time.
       const canSplit = toolSession(c) !== undefined
       const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
-      const widest = Math.max(...items.map(([, label]) => label.length)) + 4
-      const popRows = (rowItems: readonly (readonly [string, string])[], width: number) => (
-        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} width={width}>
-          {rowItems.map(([verb, label]) => (
-            <Box key={`row-${verb}-${i}`} hover={{ scope: `row-${verb}-${i}`, backgroundColor: DARK_FILLS.hover }} paddingX="sm">
-              <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
-                <Text size="footnote">{label}</Text>
-              </Button>
-            </Box>
-          ))}
+      // One menu item (#513 S5; the approved prototype): a round clear border, one soft hover on
+      // the item and no other, and a press layer over the whole row.
+      const menuItem = (verb: string, label: string) => (
+        <Box key={`item-${keyFor(verb, i, c.title)}`} borderStyle="round" borderColor={CLEAR_INK} paddingX={1} paddingY={0} overflow="hidden" hover={{ backgroundColor: MENU_HOVER }}>
+          <Text size="footnote">{label}</Text>
+          <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
+            <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
+              <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
+            </Button>
+          </Box>
+        </Box>
+      )
+      const popRows = () => (
+        <Box position="absolute" bottom={1} right={0} width={13} flexDirection="column" alignItems="stretch" {...MENU_LOOK} paddingX="xs" paddingY="xs">
+          {items.map(([verb, label]) => menuItem(verb, label))}
         </Box>
       )
       const popText = (text: string) => (
-        <Box position="absolute" bottom={1} left={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
-          <Text size="footnote">{text}</Text>
+        <Box position="absolute" bottom={1} right={0} width={Math.min(36, short.full.length + 6)} {...MENU_LOOK} paddingX="sm" paddingY="xs">
+          <Text size="footnote" wrap="truncate-end">
+            {text}
+          </Text>
         </Box>
       )
       const menuOpen = popLive && popped?.kind === 'menu' && popped.place === i
@@ -3784,7 +3869,7 @@ export const register: Register = on => {
           <Button key={keyFor('menu', i, c.title)} plain dimColor onPress={noop}>
             ⋯
           </Button>
-          {menuOpen && popRows(items, widest)}
+          {menuOpen && popRows()}
         </Box>
       )
       const pillBlock =
@@ -3793,7 +3878,7 @@ export const register: Register = on => {
             {answer === undefined ? (
               pill(number, pillState(undefined, c.prState))
             ) : href !== undefined && pointer ? (
-              pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
+              pillLayer(keyFor('pill', i, c.title), number, pillState(answer.state, c.prState))
             ) : href !== undefined && Image === undefined ? (
               linkedNumber(number, pillState(answer.state, c.prState), href)
             ) : (
@@ -3894,36 +3979,39 @@ export const register: Register = on => {
                 )}
                 {pointer && menuButton}
               </Box>
-              {pointer && (
-                <Box flexDirection="row" columnGap={1} alignItems="center">
-                  <Box position="relative" flexShrink={0}>
-                    <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
-                      <Text dimColor mono>
-                        {short.text}
-                      </Text>
-                    </Button>
-                    {setOpen && popText(settingsPopover(c.settings))}
-                  </Box>
-                  {pillBlock}
-                  {namedRepo !== undefined && number !== undefined && (
-                    <Box flexShrink={1} minWidth={0}>
-                      <Text dimColor wrap="truncate-end">
-                        {namedRepo}
-                      </Text>
-                    </Box>
-                  )}
-                </Box>
-              )}
               {!pointer && (
                 <Text dimColor wrap="truncate-end">
                   {short.full}
                 </Text>
               )}
-              {report !== undefined && (
-                <Text dimColor size="footnote" wrap="truncate-end">
-                  {report.at} → {report.line}
-                </Text>
-              )}
+              {/* Desktop's second block (#513 S7, the owner's layout): the work line and the report at
+                  the left; at the right, under the `⋯`, the settings label and under it the PR pill. */}
+              <Box flexDirection="row" columnGap={1}>
+                <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+                  {/* The card's work line, which carries the reason a session needs the owner (issue 545, row 11). */}
+                  {pointer && typeof c.work === 'string' && c.work !== '' && (
+                    <Text dimColor wrap="truncate-end">
+                      {oneLine(c.work, 200)}
+                    </Text>
+                  )}
+                  {report !== undefined && (
+                    <Text dimColor size="footnote" wrap="truncate-end">
+                      {report.at} → {report.line}
+                    </Text>
+                  )}
+                </Box>
+                {pointer && (
+                  <Box flexDirection="column" alignItems="flex-end" flexShrink={0}>
+                    <Box position="relative">
+                      <Button key={keyFor('set', i, c.title)} plain dimColor onPress={noop}>
+                        <Text mono>{settingsLine}</Text>
+                      </Button>
+                      {setOpen && popText(settingsPopover(c.settings))}
+                    </Box>
+                    {views.length < 2 && pillBlock}
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
           <Box flexDirection="column" marginTop={1}>
@@ -3948,12 +4036,15 @@ export const register: Register = on => {
                     VIEW_LABELS.get(v) ?? '',
                   ),
                 )}
+                {/* On Desktop the PR pill sits at the right of this row, level with the view buttons. */}
+                {pointer && <Box flexGrow={1} flexShrink={1} minWidth={0} />}
+                {pointer && pillBlock}
               </Box>
             )}
-            {/* The burn rate or the context trend, or the burn view's reason
+            {/* The burn rate, the context outlook or the old trend, or the burn view's reason
                 line, then the nudge, which shows under every view (owner
                 decision q1 B on #272), then one row before the next. */}
-            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || warmLine?.nudge !== undefined) && (
+            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || outlook !== undefined || warmLine?.nudge !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {reason !== undefined && (
                   <Text dimColor wrap="truncate-end">
@@ -3962,6 +4053,7 @@ export const register: Register = on => {
                 )}
                 {burn !== undefined && sparkRow(burn)}
                 {trend !== undefined && sparkRow(trend)}
+                {outlook !== undefined && outlookRows(outlook)}
                 {warmLine?.nudge !== undefined && (
                   <Text color="warning" wrap="wrap">
                     {warmLine.nudge}
@@ -4125,7 +4217,7 @@ export const register: Register = on => {
             {r.title}
           </Text>
           <Box flexDirection="row" columnGap={1} alignItems="center">
-            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state)) : pill(r.number, r.state)}</Box>
+            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), r.number, r.state) : pill(r.number, r.state)}</Box>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text dimColor size="footnote" wrap="truncate-end">
                 {[r.detail.repo, r.detail.cardTitle, r.detail.age].filter(x => x !== undefined).join(' · ')}
@@ -4201,10 +4293,42 @@ export const register: Register = on => {
     // A card's fields, in order: the headline, the writer, the source, time and
     // level, the lead's flag, the question, the options, why, to undo, revisit
     // and the id.
-    const cardFields = (r: Row, top: JSX.Element | undefined): JSX.Element[] => {
+    const cardFields = (r: Row, top: JSX.Element | undefined, stacked = false): JSX.Element[] => {
       const d = r.entry
       const alarm = d.source === 'alarm'
+      // The option the entry's pick names: its own once answered, the answer's for a waiting entry (issue 545, row 10).
+      const chosen = d.waiting ? answerOf(r)?.pick : d.pick
+      const headlineText = alarm ? (
+        <Text color="warning" weight="semibold" wrap="wrap">
+          {headline(r)}
+        </Text>
+      ) : (
+        <Text weight="semibold" wrap="wrap">
+          {headline(r)}
+        </Text>
+      )
       return [
+        stacked ? (
+          // A nested answer: the title on its own full-width line, then the meta line.
+          <Box flexDirection="column">
+            {top}
+            {headlineText}
+            <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+              <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                <Text dimColor wrap="truncate-end">
+                  {r.writer}
+                </Text>
+              </Box>
+              <Box flexShrink={0} flexDirection="row" columnGap={1}>
+                <Text>{labelOf(r)}</Text>
+                <Text dimColor tabular>
+                  {stamp(d.at)}
+                </Text>
+                <Text dimColor>{`at level ${d.level}`}</Text>
+              </Box>
+            </Box>
+          </Box>
+        ) : (
         <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             {top}
@@ -4226,7 +4350,8 @@ export const register: Register = on => {
             </Text>
             <Text dimColor>{`at level ${d.level}`}</Text>
           </Box>
-        </Box>,
+        </Box>
+        ),
         ...(d.flag !== undefined ? [part('Flagged by the lead', lines(d.flag))] : []),
         part('Question', lines(d.question)),
         part(
@@ -4234,7 +4359,7 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {d.options.map(o => (
               <Box flexDirection="row" columnGap={1}>
-                <Box flexShrink={0}>{!d.waiting && o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
+                <Box flexShrink={0}>{chosen !== undefined && chosen !== '' && o === chosen ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
                 <Box flexShrink={1} minWidth={0}>
                   <Text wrap="wrap">{oneLine(o, 300)}</Text>
                 </Box>
@@ -4256,7 +4381,7 @@ export const register: Register = on => {
         {cardFields(r, top)}
         {answer !== undefined && (
           <Box flexDirection="column" marginTop={terminal ? 1 : 'xs'} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: DARK_FILLS.bar })}>
-            {cardFields(answer, undefined)}
+            {cardFields(answer, undefined, true)}
           </Box>
         )}
         {buttons.length > 0 && (
@@ -4595,14 +4720,16 @@ export const register: Register = on => {
             A press on it closes the popover; later elements paint over it, so
             a press on any other control reaches that control. */}
         {popLive && (
-          <Box position="absolute" top={0} left={0} right={0} flexDirection="column">
-            {Array.from({ length: outsideRows }, (_, k) => (
-              <Box key={`outside-box-${k}`} hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
-                <Button key={`outside-${k}`} plain onPress={noop}>
-                  <Text>{' '.repeat(200)}</Text>
-                </Button>
-              </Box>
-            ))}
+          <Box position="absolute" top={0} left={0} right={0} bottom={0} overflow="hidden">
+            <Box width={500} flexDirection="column">
+              {Array.from({ length: outsideRows }, (_, k) => (
+                <Box key={`outside-box-${k}`}>
+                  <Button key={`outside-${k}`} plain hover={{ backgroundColor: CLEAR_INK }} onPress={noop}>
+                    <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
+                  </Button>
+                </Box>
+              ))}
+            </Box>
           </Box>
         )}
         {/* The top row: what the chosen view holds, on the left; the switch on
@@ -4654,6 +4781,7 @@ export const register: Register = on => {
             {(
               [
                 ['pr-open', prs.open],
+                ['pr-draft', prs.draft],
                 ['pr-merged', prs.merged],
                 ['pr-closed', prs.closed],
               ] as const
@@ -4724,22 +4852,21 @@ export const register: Register = on => {
                 row apart with no hairline and a row below its bar, as the
                 prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
-            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.flatMap(({ c }) => senders(c.title)), inbox)))}
+            {groupHead('waiting', waiting, undefined)}
             {!folds.has('waiting') &&
-              (needsYou.length + open.length > 0 ? (
+              (open.length > 0 ? (
                 terminal ? (
-                  <Box flexDirection="column">{rows([...needsYou.map(card), ...open.map(todoRow)], 'waiting')}</Box>
+                  <Box flexDirection="column">{rows(open.map(todoRow), 'waiting')}</Box>
                 ) : (
                   <Box flexDirection="column" rowGap={1} marginTop={1}>
-                    {needsYou.map(card)}
                     {open.map(todoRow)}
                   </Box>
                 )
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length, reportNote(reportCount(working.flatMap(({ c }) => senders(c.title)), inbox)))}
-            {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
+            {groupHead('working', inWorking.length, reportNote(reportCount(inWorking.flatMap(({ c }) => senders(c.title)), inbox)))}
+            {!folds.has('working') && (inWorking.length > 0 ? rows(inWorking.map(card), 'working') : hint('working'))}
             {groupHead('finished', finished.length, reportNote(reportCount(finished.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (

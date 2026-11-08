@@ -69,7 +69,7 @@ function text(where: string, v: unknown, max: number, required: boolean): Checke
 export type Source = 'file' | 'tool'
 
 /** The three states a card's PR can be in, as the card keeps them. */
-export const PR_STATES: readonly PrState[] = ['open', 'merged', 'closed']
+export const PR_STATES: readonly PrState[] = ['open', 'draft', 'merged', 'closed']
 
 /** A PR number as text: 1 to 7 digits. The tool's schema and the view module take this one pattern. */
 export const PR_NUMBER = /^[0-9]{1,7}$/
@@ -270,7 +270,7 @@ export const GH_ARGV: readonly string[] = [
   '--limit',
   '100',
   '--json',
-  'number,title,state,additions,deletions,updatedAt,url,isCrossRepository',
+  'number,title,state,isDraft,additions,deletions,updatedAt,url,isCrossRepository',
 ]
 
 /** A `gh` run: the fixed argument list and its options, the 15-second limit
@@ -326,7 +326,9 @@ export function parsePrList(stdout: string): Checked<Map<number, GhPr>> {
   const out = new Map<number, GhPr>()
   for (const e of parsed.slice(0, MAX_GH_ENTRIES)) {
     if (!isRecord(e)) continue
-    const state = typeof e.state === 'string' ? GH_STATES.get(e.state) : undefined
+    const listed = typeof e.state === 'string' ? GH_STATES.get(e.state) : undefined
+    // Only an open pull request can be a draft; `isDraft` must be exactly true.
+    const state = listed === 'open' && e.isDraft === true ? 'draft' : listed
     const url = typeof e.url === 'string' ? GH_URL.exec(e.url) : null
     if (
       !wholeBetween(e.number, 1, MAX_PR) ||

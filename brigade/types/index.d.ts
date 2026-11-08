@@ -26,7 +26,7 @@ export type Card = {
 }
 
 /** A PR's state, as the card keeps it and as `gh`'s answer is read. */
-export type PrState = 'open' | 'merged' | 'closed'
+export type PrState = 'open' | 'draft' | 'merged' | 'closed'
 
 /** Something waiting on the owner that no card already shows. */
 export type Todo = { id: string; text: string; session?: string }
