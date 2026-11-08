@@ -652,7 +652,8 @@ The realistic risks:
   does not read the mod.
 - **A dependency.** The renderers import Node built-in modules only, so there is
   no dependency tree to poison. That is true now, not a promise about later.
-  `scripts/check.mjs` fails on a lockfile and on any `package.json`. The root
+  `scripts/check.mjs` fails on a lockfile, on any `package.json`, and on a
+  `.npmrc` or `.yarnrc.yml`, which npm and Yarn read as settings. The root
   `athanor.json`, which athanor reads to run the check in a container, is not
   a manifest and carries no dependency. Its build folder is held to `tests/container/` with no `inputs` and no
   symbolic link there, because the image build has network access. The check
