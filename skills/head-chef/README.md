@@ -67,7 +67,7 @@ or type `/brigade` to open it.
   retries neither on its own. Over Remote Control from the phone, both routes
   are blocked while the lead runs in auto mode: the start waits until you are
   at the desk, or until you change the lead's permission mode in the app.
-- **Starts a fresh session when the model changes** (since 1.21.0). It never
+- **Starts a fresh session when the model changes** (since 1.22.0). It never
   switches a running session's model: a switch drops the prompt cache, and the
   new model would carry the old session's whole context. It starts a new
   session from the record on the issue, names it as the one carrying the

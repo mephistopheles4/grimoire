@@ -155,8 +155,10 @@ the cost, which q2 puts to the owner.
 
 A waiting entry in a log past the 20 newest, or a mark in a marks file past the
 20 newest, stops counting; that limit belongs to the reads and is unchanged. A
-new lead's answer to an older waiting entry is logged without `answers`, so the
-carried entry stays until the owner marks it read.
+new lead's answer to an older waiting entry is logged without `answers`. Until
+0.121.0 (issue 509) the carried entry then stayed until the owner marked it
+read; the tab no longer carries it (ADR 0017), and an open decision travels in
+the hand-off instead.
 
 ## Supersedes
 
