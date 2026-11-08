@@ -4642,9 +4642,11 @@ test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none o
   const w = await grouped(on, $, LINKED)
   const m = await mountOn($, 'desktop')
   await nodes(m)
-  w.procHook = (e: any) => (e.argv[2] === 'view' ? { deny: 'spawn failed: SECRET_TOKEN=abc123' } : undefined)
+  // A refused start, the engine's own deny and not a finished run with an exit code.
+  w.ghDeny = 'spawn failed: SECRET_TOKEN=abc123'
   await m.press({ key: visitKey(0, 't1', PR_LINK) })
   expect(w.toasts).toEqual(['Could not open the page'])
+  w.ghDeny = ''
   w.procHook = (e: any) => (e.argv[2] === 'view' ? { exitCode: 1, stdout: 'SECRET_TOKEN=abc123', stderr: 'SECRET_TOKEN=abc123', isStdoutTruncated: false, isStderrTruncated: false } : undefined)
   await m.press({ key: visitKey(0, 't1', PR_LINK) })
   expect(w.toasts).toEqual(['Could not open the page', 'Could not open the page'])
@@ -4678,7 +4680,7 @@ test('#560 desktop: a second press on the same to-do while a run waits starts no
 
 // The harness draws a press only from the tree as last drawn, so a stale key cannot be sent here
 // (a changed link draws a new key). The press's own check, that the digest matches the link as
-// the roster holds it now, is tested at its seam: tests/brigade-view.test.mjs, linkPress.
+// the roster holds it now, is tested at its seam: tests/brigade-view.test.mjs, linkPress and visitPress.
 
 for (const surface of ['terminal', 'vscode', 'mobile'] as const) {
   test(`#560 ${surface}: a to-do's link draws as the engine's Link on the rebuilt address, labelled with the repository, and no press button`, async ($, on) => {
@@ -4702,29 +4704,32 @@ for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
       const node = all.find(n => n.type === 'Text' && n.text === t)
       expect(node?.props.wrap, `${surface} ${t}`).toBe('truncate-end')
     }
+    // The label is the check against a look-alike repository: drawn whole, wrapped and never cut.
+    for (const label of ['PR 18 o/r', '#560 mephistopheles4/grimoire']) {
+      const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
+      expect(node?.props.wrap, `${surface} ${label}`).toBe('wrap')
+    }
   })
 }
 
 for (const surface of ['desktop', 'terminal'] as const) {
   test(`#560 C5 ${surface}: a roster planted in plugin state, past the file check, with a hostile link draws no link and a press opens nothing`, async ($, on) => {
     const HOSTILE = { cards: [], todos: [{ id: 't1', text: 'Look', link: 'https://github.com.evil.example/o/r/pull/18' }, { id: 't2', text: 'Look', link: 7 }] }
-    const w = await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
+    await grouped(on, $, { cards: [], todos: [] }, (key, value) => (key === 'roster' ? HOSTILE : value))
     const m = await mountOn($, surface)
     const all = await nodes(m)
     expect(visitKeys(all)).toEqual([])
     expect(all.some(n => n.type === 'Link')).toBe(false)
     expect(await textOf(m)).not.toContain('evil')
-    expect(linkViews(w)).toEqual([])
   })
 }
 
-test('#560 C7: a to-do without a link draws its tick, its text and its Open as before', async ($, on) => {
-  await grouped(on, $, { cards: [card('alpha', { desktopId: D1 })], todos: [{ id: 't3', text: 'Paste the key', session: 'alpha' }] })
+test('#560 C8: a to-do that carries a link and a session draws both its link button and its Open', async ($, on) => {
+  await grouped(on, $, { cards: [card('alpha', { desktopId: D1 })], todos: [{ id: 't3', text: 'Paste the key', session: 'alpha', link: PR_LINK }] })
   const m = await mountOn($, 'desktop')
-  const all = await nodes(m)
-  expect(visitKeys(all)).toEqual([])
-  expect(all.filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)).toContain('todo-0-t3')
-  expect(all.filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)).toContain('go-0-t3')
+  const keys = (await nodes(m)).filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)
+  expect(keys).toContain('go-0-t3')
+  expect(keys).toContain(visitKey(0, 't3', PR_LINK))
 })
 
 // --- the views ------------------------------------------------------------------

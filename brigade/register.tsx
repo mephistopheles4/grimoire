@@ -171,7 +171,8 @@ import {
   pillState,
   prAnswer,
   linkDigest,
-  linkPress,
+  slug,
+  visitPress,
   prUrl,
   prNumber,
   prRows,
@@ -334,7 +335,6 @@ const LABEL_CELLS = 9
 
 // A button's key: the verb, the card's place, and its title folded to letters
 // and digits, so a press finds the card it was drawn for or nothing.
-const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 40)
 const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(title)}`
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
@@ -3454,7 +3454,7 @@ export const register: Register = on => {
       if (verb === 'visit') {
         // The link is parsed again from the roster as it is now, and the press
         // goes only if the address matches the one the button was drawn for.
-        const parts = linkPress(item.link, word)
+        const parts = visitPress(current.todos, i, slugged, word)
         if (parts !== undefined) await openTodoLink($, item.id, parts)
         return { element: e.element }
       }
@@ -4234,8 +4234,8 @@ export const register: Register = on => {
       const isTicked = crossed.has(t.id)
       // A to-do's link (issue 560), parsed again at each draw from the roster as read: what is
       // drawn and keyed is the address rebuilt from the parse, never the stored string, and a
-      // string the pattern refuses draws nothing. The label names the repository and does not
-      // shrink; the text above it gives way first.
+      // string the pattern refuses draws nothing. The label names the repository and wraps
+      // whole, never cut; the text above it is the one that is cut.
       const linkParts = parseLink(t.link)
       const linkHref = linkParts === undefined ? undefined : linkUrl(linkParts)
       return (

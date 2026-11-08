@@ -939,6 +939,19 @@ export function linkPress(link: unknown, word: unknown): LinkParts | undefined {
   return parts !== undefined && word === linkDigest(linkUrl(parts)) ? parts : undefined
 }
 
+/** A button's key part: a title or id folded to letters and digits. */
+export const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 40)
+
+/** A link button's whole press: the to-do at the pressed place, found only if
+ *  its id still folds to the slug the button was drawn with, and its link
+ *  still matching the digest the button carries. A to-do that moved, was
+ *  renamed or was relinked gives undefined. */
+export function visitPress(todos: ReadonlyArray<{ id: string; link?: unknown }>, place: number, slugged: string, word: unknown): LinkParts | undefined {
+  const item = todos[place]
+  if (item === undefined || slug(item.id) !== slugged) return undefined
+  return linkPress(item.link, word)
+}
+
 /** A pull request row: the card it comes from, its place in the roster, its
  *  number, the state it is grouped by, its title and the dim line's parts. */
 export type PrRow = {

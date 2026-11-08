@@ -1097,6 +1097,14 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.match(await read('references/CONTRACT.md'), rule);
 });
 
+test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {
+  const todo = n => JSON.stringify({ cards: [], todos: [{ id: 't1', text: 'x'.repeat(n) }] });
+  for (const source of ['file', 'tool']) {
+    assert.equal(checkRoster(todo(300), true, source).value?.todos[0].text.length, 300, source);
+    assert.equal(checkRoster(todo(301), true, source).error, 'to-do 1 text is over 300 characters', source);
+  }
+});
+
 test('#560 C3: a to-do may carry link from the file and from the tool; any other value is refused in fixed words that never echo it', () => {
   const todo = over => JSON.stringify({ cards: [], todos: [{ id: 't1', text: 'Review PR 18', ...over }] });
   for (const link of GOOD_LINKS) {
