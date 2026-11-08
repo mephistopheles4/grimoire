@@ -796,6 +796,7 @@ const refusals: [string, Record<string, unknown>, RegExp][] = [
   ['constructor at the top level', { ...GOOD, constructor: { a: 1 } }, /shape: .*constructor/],
   ['constructor nested', { cards: [{ ...card('a'), constructor: 1 }], todos: [] }, /shape: card 1 .*constructor/],
   ['a fifth status', { cards: [card('a', { status: 'paused' })], todos: [] }, /shape: card 1 status/],
+  ['the pane-only status idle', { cards: [card('a', { status: 'idle' })], todos: [] }, /shape: card 1 status/],
   ['a repeated title', { cards: [card('a'), card('a')], todos: [] }, /shape: card 2 repeats the title/],
   ['over 50 cards', { cards: Array.from({ length: 51 }, (_, i) => card(`c${i}`)), todos: [] }, /shape: the roster has over 50 cards/],
   ['a missing cards', { todos: [] }, /malformed input: "cards" is missing/],
@@ -5251,7 +5252,7 @@ test('the live state follows the session files at every poll, and the pane never
   liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle', shown: 'alpha' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle', shown: 'alpha', move: 'idle' }])
   w.shown = false
   await w.clock.advance(300000)
   w.shown = true
@@ -5284,7 +5285,7 @@ test('a session file that fails its check draws the one fixed line and no row fr
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLiveError(w)).toBe('')
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }, { name: 'beta', value: 'idle', shown: 'beta' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }, { name: 'beta', value: 'idle', shown: 'beta', move: 'idle' }])
 })
 
 test('a sessions folder that cannot be read draws the fixed line and no rows, and keeps the cards\' last cache and meter values', async ($, on) => {
@@ -5395,6 +5396,78 @@ test('a session waiting on a prompt marks its card needs-you with the reason and
   expect((await groupText(mounted, 'Working')).includes(FULL)).toBe(true)
 })
 
+// --- #561: an idle session marks its working card idle ------------------------------
+
+const warnMarks = (nodes: Drawn[]) => nodes.filter(n => n.type === 'Text' && n.text === '○' && n.props.color === 'warning').length
+const legendOf = (nodes: Drawn[]) => nodes.map(n => (n.type === 'Text' ? (n.text ?? '') : '')).filter(t => /^[●◐○✓–] \d+ [a-z ]+(  [●◐○✓–] \d+ [a-z ]+)*$/.test(t)).sort((x, y) => y.length - x.length)[0]
+
+for (const surface of SURFACES) {
+  test(`561 C1 and C2, ${surface}: a working card whose one session is idle counts as idle with an amber mark under Working, and goes back to working on busy or shell`, async ($, on) => {
+    const w = await pane(on, $, surface, w => liveRows(w, [idRow()]))
+    let nodes = await drawnOf(mounted)
+    expect(legendOf(nodes)).toBe('◐ 4 working')
+    expect(warnMarks(nodes)).toBe(0)
+    liveRows(w, [idRow({ status: 'idle' })])
+    await poll(w)
+    expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle', shown: FULL, move: 'idle' }])
+    nodes = await drawnOf(mounted)
+    expect(legendOf(nodes)).toBe('◐ 3 working  ○ 1 idle')
+    expect(warnMarks(nodes)).toBe(1)
+    expect((await groupText(mounted, 'Working')).includes(FULL)).toBe(true)
+    expect(await groupsOf(mounted)).toContain('▾ Working 4')
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 3 working, 1 idle')
+    else expect(nodes.filter(n => n.type === 'Text' && n.text === '◐').length).toBe(3)
+    for (const status of ['busy', 'shell']) {
+      liveRows(w, [idRow({ status: 'idle' })])
+      await poll(w)
+      liveRows(w, [idRow({ status })])
+      await poll(w)
+      nodes = await drawnOf(mounted)
+      expect(legendOf(nodes)).toBe('◐ 4 working')
+      expect(warnMarks(nodes)).toBe(0)
+    }
+  })
+}
+
+test('561 C3: a waiting session still marks its card needs-you', async ($, on) => {
+  const w = await pane(on, $, 'terminal', w => liveRows(w, [idRow()]))
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
+  await poll(w)
+  const nodes = await drawnOf(mounted)
+  expect(legendOf(nodes)).toBe('● 1 needs you  ◐ 3 working')
+  // The card's own mark stays the head chef's: working's glyph, on all four cards.
+  expect(nodes.filter(n => n.type === 'Text' && n.text === '◐').length).toBe(4)
+})
+
+for (const [status, word] of [['needs-you', 'needs you'], ['done', 'done'], ['stopped', 'stopped']] as const) {
+  test(`561 C3: a ${status} card whose session is idle keeps its own look`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('alpha', { status, desktopId: DESKTOP })], todos: [] })
+    liveRows(w, [idRow({ status: 'idle' })])
+    await poll(w)
+    expect(lastLive(w)[0].move).toBeUndefined()
+    expect(legendOf(await drawnOf(await mountOn($, 'terminal')))?.endsWith(word)).toBe(true)
+  })
+}
+
+test('561 C4: a card with no session file, or with two sessions sharing its name, is not marked idle', async ($, on) => {
+  const w = await pane(on, $, 'terminal', w => liveRows(w, []))
+  expect(lastLive(w)).toEqual([])
+  liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }, { name: 'alpha', status: 'idle', sessionId: S2, cwd: 'C:\\work' }])
+  await poll(w)
+  expect(lastLive(w).every((e: any) => e.move === undefined)).toBe(true)
+  expect(legendOf(await drawnOf(mounted))).toBe('◐ 4 working')
+})
+
+test('561 C5: a stored card with status idle, planted by another plugin, draws no idle look and counts nowhere', async ($, on) => {
+  const w = await grouped(on, $, { cards: [card('alpha')], todos: [] }, (key, value) =>
+    key === 'roster' ? { ...value, cards: [card('alpha', { status: 'idle' }), card('beta')] } : value,
+  )
+  expect((w.roster.at(-1) as any).cards.length).toBe(2)
+  const nodes = await drawnOf(await mountOn($, 'terminal'))
+  expect(legendOf(nodes)).toBe('◐ 1 working')
+  expect(warnMarks(nodes)).toBe(0)
+})
+
 test('a card the head chef marked done stays where it is whatever its session file says', async ($, on) => {
   const w = await grouped(on, $, { cards: [card('alpha', { status: 'done', desktopId: DESKTOP })], todos: [] })
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'input needed' })])
@@ -5419,7 +5492,7 @@ test('live holds entries only for roster cards and no id from a session file; a 
 
 test('a background card is found by its job id and shows the session\'s name, live word and link source', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'a bg job', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }]))
-  expect(lastLive(w)).toEqual([{ name: 'gamma', value: 'idle', shown: 'a bg job' }])
+  expect(lastLive(w)).toEqual([{ name: 'gamma', value: 'idle', shown: 'a bg job', move: 'idle' }])
 })
 
 // --- the pane opens when the head-chef skill loads (#376) ----------------------
