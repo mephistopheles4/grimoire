@@ -3536,7 +3536,10 @@ export const register: Register = on => {
     const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
-    const waiting = waitingCount(needsYou.length, todos, done, ticks)
+    // Issue 545, row 11: a needs-you card stays in the group it belongs to, Working, in roster
+    // order; Waiting on you holds the owner's to-dos alone, so it never claims a reason it lacks.
+    const inWorking = [...needsYou, ...working].sort((a, b) => a.i - b.i)
+    const waiting = waitingCount(0, todos, done, ticks)
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
@@ -3978,6 +3981,12 @@ export const register: Register = on => {
               {!pointer && (
                 <Text dimColor wrap="truncate-end">
                   {short.full}
+                </Text>
+              )}
+              {/* The card's work line, which carries the reason a session needs the owner (issue 545, row 11). */}
+              {pointer && typeof c.work === 'string' && c.work !== '' && (
+                <Text dimColor wrap="truncate-end">
+                  {oneLine(c.work, 200)}
                 </Text>
               )}
               {report !== undefined && (
@@ -4820,22 +4829,21 @@ export const register: Register = on => {
                 row apart with no hairline and a row below its bar, as the
                 prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
-            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.flatMap(({ c }) => senders(c.title)), inbox)))}
+            {groupHead('waiting', waiting, undefined)}
             {!folds.has('waiting') &&
-              (needsYou.length + open.length > 0 ? (
+              (open.length > 0 ? (
                 terminal ? (
-                  <Box flexDirection="column">{rows([...needsYou.map(card), ...open.map(todoRow)], 'waiting')}</Box>
+                  <Box flexDirection="column">{rows(open.map(todoRow), 'waiting')}</Box>
                 ) : (
                   <Box flexDirection="column" rowGap={1} marginTop={1}>
-                    {needsYou.map(card)}
                     {open.map(todoRow)}
                   </Box>
                 )
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length, reportNote(reportCount(working.flatMap(({ c }) => senders(c.title)), inbox)))}
-            {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
+            {groupHead('working', inWorking.length, reportNote(reportCount(inWorking.flatMap(({ c }) => senders(c.title)), inbox)))}
+            {!folds.has('working') && (inWorking.length > 0 ? rows(inWorking.map(card), 'working') : hint('working'))}
             {groupHead('finished', finished.length, reportNote(reportCount(finished.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (

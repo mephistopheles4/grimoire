@@ -1828,6 +1828,31 @@ const ALL = {
   ],
   todos: [],
 }
+// --- issue 545, row 11: a needs-you card stays in its normal group --------------------------------------
+for (const surface of SURFACES) {
+  test(`545 row 11, ${surface}: needs-you cards draw under Working in roster order, and Waiting on you holds to-dos only`, async ($, on) => {
+    await grouped(on, $, { ...ALL, todos: [{ id: 't1', text: 'look at it' }] })
+    const m = await mountOn($, surface)
+    const text = await groupsOf(m)
+    const at = (s: string) => text.indexOf(s)
+    // Working holds work-one, need-one and need-two (3), in roster order; Waiting on you counts the one to-do.
+    expect(text.includes('▾ Working 3')).toBe(true)
+    expect(text.includes('▾ Waiting on you 1')).toBe(true)
+    expect(at('▾ Working 3')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('need-one'))
+    expect(at('need-one')).toBeLessThan(at('need-two'))
+    expect(at('▾ Waiting on you 1')).toBeLessThan(at('look at it'))
+    expect(at('look at it')).toBeLessThan(at('▾ Working 3'))
+    expect((await groupText(m, 'Waiting on you')).includes('need-one')).toBe(false)
+  })
+}
+
+test('545 row 11: the Desktop card draws its work line, the reason a session needs the owner', async ($, on) => {
+  await grouped(on, $, { cards: [card('need-one', { status: 'needs-you', work: 'Plan 3 needs your yes before the merge' })], todos: [] })
+  const m = await mountOn($, 'desktop')
+  expect((await textOf(m)).includes('Plan 3 needs your yes before the merge')).toBe(true)
+})
+
 // Three titles that fold to one slug, `ab`, one in NEEDS YOU and two in
 // DONE · STOPPED: a group-local index would give the first done or stopped card
 // index 0, which is the needs-you card's place in the roster.
@@ -1867,18 +1892,18 @@ const groupsOf = async (m: any): Promise<string> => {
   return text.slice(Math.max(0, text.search(/[▾▸] Waiting on you/)))
 }
 for (const surface of SURFACES) {
-  test(`${surface}: cards sit under Waiting on you, Working, then a folded Done · stopped bar, in roster order`, async ($, on) => {
+  test(`${surface}: cards sit under Working in roster order, then a folded Done · stopped bar, after an empty Waiting on you`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     const text = await groupsOf(m)
     // The tree was drawn, not refused: its section bars are there, in order.
     const at = (s: string) => text.indexOf(s)
-    expect(text.startsWith('▾ Waiting on you 2')).toBe(true)
-    expect(at('▾ Waiting on you 2')).toBeLessThan(at('need-one'))
+    expect(text.startsWith('▾ Waiting on you 0')).toBe(true)
+    expect(at('▾ Waiting on you 0')).toBeLessThan(at('▾ Working 3'))
+    expect(at('▾ Working 3')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('need-one'))
     expect(at('need-one')).toBeLessThan(at('need-two'))
-    expect(at('need-two')).toBeLessThan(at('▾ Working 1'))
-    expect(at('▾ Working 1')).toBeLessThan(at('work-one'))
-    expect(at('work-one')).toBeLessThan(at('▸ Done · stopped 2'))
+    expect(at('need-two')).toBeLessThan(at('▸ Done · stopped 2'))
     // Closed on open: the done and stopped cards are not drawn.
     expect(text.includes('done-one')).toBe(false)
     expect(text.includes('stop-one')).toBe(false)
@@ -1959,13 +1984,14 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-working' })
     const text = await groupsOf(m)
-    expect(text.includes('▸ Working 1')).toBe(true)
+    expect(text.includes('▸ Working 3')).toBe(true)
     expect(text.includes('work-one')).toBe(false)
-    expect(text.includes('need-one')).toBe(true)
+    expect(text.includes('need-one')).toBe(false)
+    expect(text.includes('▾ Waiting on you 0')).toBe(true)
     await m.press({ key: 'grp-waiting' })
     const both = await groupsOf(m)
-    expect(both.includes('▸ Waiting on you 2')).toBe(true)
-    expect(both.includes('need-one')).toBe(false)
+    expect(both.includes('▸ Waiting on you 0')).toBe(true)
+    expect(both.includes('▸ Working 3')).toBe(true)
   })
 
   test(`${surface}: Done · stopped starts folded each time the pane opens`, async ($, on) => {
@@ -1982,7 +2008,7 @@ for (const surface of SURFACES) {
     await w.clock.settle()
     const text = await groupsOf(m)
     expect(text.includes('▸ Done · stopped 2')).toBe(true)
-    expect(text.includes('▾ Working 1')).toBe(true)
+    expect(text.includes('▾ Working 3')).toBe(true)
   })
 
   test(`${surface}: a second /brigade while the pane is open folds Done · stopped too`, async ($, on) => {
@@ -2035,8 +2061,8 @@ for (const surface of SURFACES) {
     // place 0 is the waiting card's, which has Open, and Dismiss on Desktop only (issue 513, S9).
     expect((await has(m, surface, 'dismiss-0-ab')) !== undefined).toBe(surface === 'desktop')
     expect(await has(m, surface, 'open-0-ab')).toBeDefined()
-    // No working card: the Working bar shows its hint.
-    expect((await groupsOf(m)).includes('No session is working.')).toBe(true)
+    // The waiting card draws under Working (issue 545, row 11), so the Working bar shows no hint.
+    expect((await groupsOf(m)).includes('No session is working.')).toBe(false)
     // Desktop's menu splits (the tool route alone); the terminal's Open tries the split, then the link.
     await act(m, surface, surface === 'desktop' ? 'split-1-ab' : 'open-1-ab')
     await act(m, surface, surface === 'desktop' ? 'split-0-ab' : 'open-0-ab')
@@ -2064,7 +2090,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     const text = await textOf(m)
-    expect(text.includes('▾ Waiting on you 2')).toBe(true)
+    expect(text.includes('▾ Working 3')).toBe(true)
     expect(text.includes('▾ Done · stopped 2')).toBe(true)
     expect(text.includes('odd-')).toBe(false)
     expect(text.includes('__proto__')).toBe(false)
@@ -2412,11 +2438,11 @@ for (const surface of SURFACES) {
   test(`${surface}: a ticked to-do counts as done in the bar at once, and Waiting on you agrees`, async ($, on) => {
     const w = await grouped(on, $, { ...ALL, todos: TODOS })
     const m = await mountOn($, surface)
-    expect((await textOf(m)).includes('Waiting on you 5')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 3')).toBe(true)
     await m.press({ key: 'todo-0-t1' })
     let nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
-    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 2')).toBe(true)
     if (surface === 'desktop') expect(imageBy(nodes, /^To-dos/)?.props.alt).toBe('To-dos 1 of 3 done')
     else expect(nodes.some(n => n.type === 'Text' && n.props.color === 'success' && n.text === `██████▋${' '.repeat(13)}`)).toBe(true)
     // Past the grace period the sweep moves it to done: still one of three.
@@ -2424,7 +2450,7 @@ for (const surface of SURFACES) {
     await w.clock.settle()
     nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
-    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 2')).toBe(true)
   })
 
   test(`${surface}: with no cards and no to-dos the heading says so, and there is no strip or bar`, async ($, on) => {
@@ -4370,7 +4396,7 @@ test('desktop, C8: counts, the strip and the heading agree with what a waiting d
   await act(m, 'desktop', 'dismiss-0-asker')
   const text = await textOf(m)
   expect(text.startsWith('2 sessions')).toBe(true)
-  expect(text.includes('▾ Waiting on you 1')).toBe(true)
+  expect(text.includes('▾ Working 2')).toBe(true)
   expect(text.includes('● 1 needs you  ◐ 1 working')).toBe(true)
 })
 
@@ -4685,14 +4711,14 @@ for (const surface of SURFACES) {
   })
 
   test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
-    // A waiting card and a to-do as well: Waiting on you parts its rows with a
-    // row gap, not a hairline.
+    // A waiting card and a to-do as well: the card draws under Working with the others, a hairline
+    // between each; Waiting on you holds the to-do alone, with a row gap.
     await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' }), card('wait', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
     const all = await nodes(m)
     const lines = all.filter(n => n.type === 'Svg' && n.props.alt === 'divider')
-    // The Box that holds the waiting card and the to-do, and no other card.
-    const waitingRows = all.find(n => n.type === 'Box' && spoken(n).includes('wait') && spoken(n).includes('look') && !spoken(n).includes('two') && n.children.length > 1)
+    // The smallest Box that holds the to-do and no card.
+    const waitingRows = all.filter(n => n.type === 'Box' && spoken(n).includes('look') && !spoken(n).includes('two') && !spoken(n).includes('wait')).sort((a, b) => spoken(a).length - spoken(b).length)[0]
     // A hover is not in the drawn tree; what it reveals is: a Box hidden at rest.
     const hidden = all.filter(n => n.type === 'Box' && n.props.display === 'none')
     const actions = all.filter(n => n.type === 'Box' && ['Dismiss', 'OpenDismiss'].includes(spoken(n)))
@@ -4701,8 +4727,8 @@ for (const surface of SURFACES) {
     const rounded = all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === '#1a1a19')
     expect(rounded.length).toBe(surface === 'desktop' ? 3 : 0)
     if (surface === 'desktop') {
-      expect(lines.length).toBe(1)
-      expect(waitingRows?.props.rowGap).toBe(1)
+      expect(lines.length).toBe(2)
+      expect(waitingRows).toBeDefined()
       expect(hidden.length).toBeGreaterThan(0)
       // A tooltip is a square fill, as in the prototype.
       for (const h of hidden.filter(n => n.props.position === 'absolute')) {
@@ -4714,8 +4740,8 @@ for (const surface of SURFACES) {
       expect(all.filter(n => n.type === 'Button' && String(n.props.key).startsWith('menu-')).length).toBe(3)
       expect(String(lines[0]?.props.source)).toContain('class="rule"')
     } else {
-      // A blank row parts the waiting card from the to-do, as it parts cards.
-      expect(waitingRows?.children.map(spoken)).toContain(' ')
+      // A blank row parts the cards under Working (issue 545, row 11).
+      expect(all.some(n => n.type === 'Box' && n.children.map(spoken).includes(' ') && spoken(n).includes('wait'))).toBe(true)
       expect(lines.length).toBe(0)
       expect(hidden.length).toBe(0)
       expect(actions.length).toBeGreaterThan(0)
@@ -4814,7 +4840,7 @@ for (const surface of SURFACES) {
     expect(back.includes('▸ Done · stopped 2')).toBe(true)
   })
 
-  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows in Waiting on you when it turns needs-you`, async ($, on) => {
+  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows again, under Working, when it turns needs-you`, async ($, on) => {
     const w = await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
@@ -4829,12 +4855,12 @@ for (const surface of SURFACES) {
     expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
     await act(m, surface, 'dismiss-1-workone')
     expect((await textOf(m)).includes('work-one')).toBe(false)
-    // The head chef turns the dismissed card to needs-you: it shows again, in Waiting on you.
+    // The head chef turns the dismissed card to needs-you: it shows again, under Working (issue 545, row 11).
     await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'needs-you' } : c)), todos: [] })
     await w.clock.settle()
     const text = await textOf(m)
-    expect(text.includes('▾ Waiting on you 3')).toBe(true)
-    expect(text.indexOf('work-one')).toBeLessThan(text.indexOf('▾ Working'))
+    expect(text.includes('▾ Working 3')).toBe(true)
+    expect(text.indexOf('▾ Working')).toBeLessThan(text.indexOf('work-one'))
   })
 
   test(`${surface}: a planted view or selection is checked again and changes nothing it should not`, async ($, on) => {
@@ -4990,8 +5016,9 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-working' })
     const text = await textOf(m)
-    expect(text.includes('▸ Working 1 · 2 reports')).toBe(true)
-    expect(text.includes('▾ Waiting on you 2 · 1 report')).toBe(true)
+    expect(text.includes('▸ Working 3 · 3 reports')).toBe(true)
+    expect(text.includes('▾ Waiting on you 0')).toBe(true)
+    expect(text.includes('Waiting on you 0 ·')).toBe(false)
   })
 
   test(`${surface}: the icon-only buttons draw their icon, carry no label, and a tooltip or a word names each`, async ($, on) => {
@@ -5167,14 +5194,15 @@ test('a card finds its session by Desktop id whatever the head chef titled it, a
   expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
 })
 
-test('a session waiting on a prompt moves its working card under Waiting on you with the reason, and back when it goes busy', async ($, on) => {
+test('a session waiting on a prompt marks its card needs-you with the reason and keeps it under Working, and back when it goes busy', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
   expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
   await poll(w)
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'waiting · permission prompt', shown: FULL, move: 'waiting' }])
-  const waiting = await groupText(mounted, 'Waiting on you')
+  const waiting = await groupText(mounted, 'Working')
   expect(waiting.includes(FULL)).toBe(true)
+  expect((await groupText(mounted, 'Waiting on you')).includes(FULL)).toBe(false)
   expect(waiting.includes('waiting · permission prompt')).toBe(true)
   // A waiting card has Dismiss in the menu now (issue 513, S9; C4).
   expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
