@@ -482,12 +482,15 @@ files you ask for:
   others' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Nine calls skip the permission prompt:** the `set_roster` tool, which
+- **Ten calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file, the
   `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
   write and read the lead's hand-off, the `read_autonomy` tool, which reads
   the lead's autonomy level, the
+  `start_background_session` tool (since 0.140.0), which starts one background
+  session with a fixed command in a main checkout you listed with
+  `/brigade folders add`, the
   `stop_background_session` tool, which runs `claude stop` for a background
   session your words in the lead's chat named, the `read_context` tool, which reads each
   card's context figure from the meters the pane's last poll kept, the
@@ -499,12 +502,12 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `start_background_session`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. Since 0.140.0, `/brigade folders add <path>`, `remove <path>` and `list` keep the list of main checkouts the start tool may start a session in, only when you typed the command at the prompt or sent it from your phone (a command typed in the terminal is refused). The list is plugin state that other plugins can read, and `list` shows its paths with `~` for your home folder. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `stop_background_session`, `read_context` and `show_permission_warning` | Answers for the mod's own eight tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `start_background_session`, `stop_background_session`, `read_context` and `show_permission_warning` | Answers for the mod's own nine tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |

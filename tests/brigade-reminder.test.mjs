@@ -31,6 +31,16 @@ test('a send after the last set_roster gets the reminder, so the order counts', 
   assert.equal(endTurn(t), REMINDER_LINE);
 });
 
+test('a background start after the last set_roster gets the reminder too, and set_roster clears it', () => {
+  const t = { owed: false };
+  tally(t, 'start');
+  assert.equal(endTurn(t), REMINDER_LINE);
+  assert.match(REMINDER_LINE, /started a background session after your last set_roster/);
+  tally(t, 'start');
+  tally(t, 'roster');
+  assert.equal(endTurn(t), undefined);
+});
+
 test('only a send that carries a message owes an update', () => {
   assert.equal(sendsMessage({ to: 'x' }), false);
   assert.equal(sendsMessage({ to: 'x', message: '' }), false);

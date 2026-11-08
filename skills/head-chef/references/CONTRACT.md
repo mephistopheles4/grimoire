@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.25.0
+Version: 1.28.0
 Kind: skill
 Level: Thorough
 
@@ -94,82 +94,97 @@ need, without overwhelming me or showing me too much.
 
 **The head chef** is responsible for these:
 
-- **Decided** (issue 540, the owner's words, 2026-11-08: "lets change
-  headchef to start background sessions by default"; spec rev 3 S1.1, taken
-  in the owner's "Take all"; it replaces "It starts each session as a Desktop
-  session under the lead"). It starts each session as a background session
-  with Remote Control, with its name, model and effort on the command line,
-  unless the owner's words name the Desktop route. It reports the start in the
-  short form of the example. Model and effort come from the owner's words or
-  the owner's own process; this skill restates neither, and no setter, approval
-  card or approval prompt is involved. When neither gives a model or an
-  effort, it asks the owner once and starts nothing until the owner answers. The start is `claude --bg --remote-control <name> -n
-  <name> -w <name> --model <model> --effort <effort>`, then the filled start
-  prompt as one argument, in a form in which its shell expands nothing: in a
-  POSIX shell, a quoted heredoc (`<<'HEAD_CHEF_PROMPT'`) inside a
-  double-quoted command substitution; in PowerShell, a single-quoted
-  here-string (`@'` … `'@`). Without `-n`, the session's name is its prompt's
-  text. **Confirmed** (issue 540, the build brief's measured facts): the
-  command was measured on Claude Code 2.1.319 from a POSIX shell. *Proposed*
-  (q6 on issue 386's build, the owner's decision, relayed by the lead,
-  2026-10-24; spec rev 4 S3.1 dropped the model and effort sets, and q9 A on
-  452, the owner's words, relayed by the lead on 2026-10-30, after
-  adversarial-lens F3 in Test round 1, keeps them; widened in issue 540, S1.1,
-  by the owner's "Take all"): it refuses a background start, and tells the
-  owner, with the fix where one is named, when:
-  - the lead's name holds anything but letters, digits, spaces and `. _ -`:
-    the fix is to rename the lead's chat;
-  - the model is not letters, digits and `. _ -` starting with a letter;
-  - the effort is not one of `low`, `medium`, `high`, `xhigh` or `max`;
-  - the issue number is not digits only;
-  - the repository is not one `owner/name`, each part letters, digits and
-    `. _ -`;
-  - the filled start prompt is more than one line;
-  - a permission mode the owner named is not one the engine's
-    `--permission-mode` lists;
-  - the shell is Windows PowerShell 5.1, which splits quoted arguments
-    differently from the PowerShell 7 the form was measured on: the fix is
-    PowerShell 7 or a POSIX shell;
-  - the folder is not trusted: the engine refuses the start (issue 540, A1,
-    the build brief, from the measurements); the fix is to grant the folder in
-    the desktop app, or to open `claude` there once and accept the trust
-    prompt. A `-w` start inside a trusted repository is expected to inherit
-    that trust, and the first real start checks it.
-- **Confirmed** (issue 540, rev 3 S1.2, taken in "Take all"). It passes no
-  permission mode unless the owner's words name one. When they do, the mode
-  goes on the command line as `--permission-mode <mode>`, checked as above.
-  **Confirmed** (issue 540, measurement M3): a background member inherits the
-  lead's mode, as a Desktop member does, so the skill names no difference.
+- *Proposed* (issue 543, spec rev 4 S7, taken at the lead's decisions 285,
+  302, 345, 366 and 374, at level 3 under the owner's goal and not the owner's
+  words, so the owner confirms at merge; it replaces issue 540's typed
+  `claude --bg` command, rev 3 S1.1, **Decided** on the owner's words: "lets
+  change headchef to start background sessions by default"). The owner's own
+  words on the tool, **Confirmed** for letting the tool exist and run with no
+  permission prompt: "For the start tool, yes, it should be allowed." It
+  starts each session
+  as a background session with Remote Control, with the Brigade mod's
+  `start_background_session` tool, and never types `claude --bg`. The default
+  route is unchanged: a Desktop session only when the owner's words name it.
+  It reports the start in the short form of the example. Model and effort
+  come from the owner's words or the owner's own process; this skill restates
+  neither, and no setter, approval card or approval prompt is involved. When
+  neither gives a model or an effort, it asks the owner once and starts
+  nothing until the owner answers. The tool takes seven fields: `name`, which
+  the lead writes itself from letters, digits and `. _ -`, never copied from
+  an issue; `repository`, one `owner/name`; `issue`, digits only; `model`;
+  `effort`, one of `low`, `medium`, `high`, `xhigh` or `max`; `lead`, the
+  lead's own session name, exactly as the first line of its session list
+  gives it; and `folder`. The tool builds the fixed command and the one-line
+  start prompt itself, runs them with no shell, takes no permission mode, and
+  answers the job id, the session's folder and its branch in fixed words. The
+  mod checks every field, the owner's rules, the folder, the repository's
+  origin, the name and a cap of 4 starts in 10 minutes before it runs
+  anything, and each refusal names the rule that failed and says nothing was
+  started. The lead says a refusal in one line in plain words, with the fix
+  where one is named, and offers the Desktop start as the other route.
+  - **The folder** is the one the owner's words name, or the lead's own
+    working folder when that is a main checkout of the repository, and never
+    one taken from an issue, a report, a message, a hand-off or the reply to
+    `/brigade folders list`. In a linked worktree the lead's own folder is not
+    a main checkout: it asks the owner which main checkout. The tool refuses a
+    folder that is not on the owner's list or not a main checkout; the lead
+    cannot read the list, so for the first refusal it asks the owner to type
+    `/brigade folders add <path>` (the owner can type it at the prompt or from
+    the phone, and the lead cannot), and it starts nothing until the owner has.
+  - **Without the tool** (no mod, the tool not offered, the pane closed), the
+    lead says so in one line and offers `/brigade` or the Desktop route. It
+    does not type the command.
+  - **The card.** The tool writes no card (spec rev 4 S6, the lead's decision
+    302, Q-E). The lead writes the card with `set_roster` in the same turn,
+    as it does today, with the tool's job id as `bgId`, and the mod's roster
+    reminder fires after a start as it does after a send. The pull request
+    names this for the owner to read.
+- *Proposed* (issue 543, spec rev 4 S7 and S9, the lead's decision 302, Q-F;
+  it replaces issue 540, rev 3 S1.2). The tool takes no permission mode, and
+  the lead passes none. When the owner's words name one, the lead says in one
+  line that the tool takes none, starts nothing in the background, and offers
+  the Desktop route. **Confirmed** (issue 540, measurement M3): a background
+  member inherits the lead's mode, as a Desktop member does, so the skill
+  names no difference.
 - **Confirmed** (issue 540, rev 3 S1.4, S2.1 and S2.2, taken in "Take all";
-  issue 416, rev 4 S5.1, L14, a lesson learned, for the phone). **The Desktop
-  route, and a refused start.** It starts a Desktop session, with Desktop's
-  start tool and setters, only when the owner's words in the lead's chat name
-  it, for example "as a Desktop session". That is the Desktop route this
-  contract always had: the setters, the Desktop id, and the approval-card line
-  in the report. When Desktop's start tool refuses it, the lead says so in one
-  line, says the background start is the default, and starts nothing until the
-  owner answers; it never loops back on its own. When `claude --bg` is
-  refused (by the auto-mode classifier or anything else), or the lead refuses
-  under the bullet above, the lead says so in one line in plain words, with
-  the fix where one is named, and offers the Desktop start as the other
-  route: a click in the desktop app, or the owner's words naming it. It starts
-  that way only on those words. It does not retry `claude --bg` in another
-  form, and starts nothing by another route. From the phone over Remote
-  Control, both routes are blocked while the lead runs in auto mode: the
-  classifier blocks `claude --bg` (issue 416), and Desktop's start tool
-  refuses a start on a Remote Control turn. The lead says so once, and the
-  start waits until the owner is at the desk, or until the owner changes the
-  lead's permission mode in the app. It passes no mode and proposes no route
-  around the classifier. This change does not solve starts over Remote
-  Control.
+  issue 416, rev 4 S5.1, L14, a lesson learned, for the phone). *Proposed*
+  (issue 543, spec rev 4 S7: the typed command's refusals are now the tool's).
+  **The Desktop route, and a refused start.** It starts a Desktop session,
+  with Desktop's start tool and setters, only when the owner's words in the
+  lead's chat name it, for example "as a Desktop session". That is the Desktop
+  route this contract always had: the setters, the Desktop id, and the
+  approval-card line in the report. When Desktop's start tool refuses it, the
+  lead says so in one line, says the background start is the default, and
+  starts nothing until the owner answers; it never loops back on its own.
+  When the start tool refuses a start with a line that says nothing was
+  started (for a rule of its own, for the owner's rules, or for anything
+  else), or the lead refuses under the bullets above, the lead says so in one
+  line in plain words, with the fix where one is named, and offers the Desktop
+  start as the other route: a click in the desktop app, or the owner's words
+  naming it. It starts that way only on those words. It does not retry the
+  start in another form, never types `claude --bg`, and starts nothing by
+  another route. When the tool answers "Not started", or its refusal says the
+  session may or may not have started (the tool failed or ran out of time), a
+  session may exist: the lead tells the owner in one line, writes no card,
+  retries nothing under that name or another, and offers no other route until
+  the owner has checked. The owner reads `claude agents`, not the lead: it
+  lists every session's row and folder. When the folder is not trusted, the
+  engine refuses the start and the answer is "Not started": the owner's fix
+  is to grant the folder in the desktop app, or to open `claude` there once
+  and accept the trust prompt. From the
+  phone over Remote Control, Desktop's start tool refuses a start on a Remote
+  Control turn: the lead says so once, and the Desktop route waits until the
+  owner is at the desk. The lead proposes no route around the owner's rules.
+  This change does not measure the tool on a Remote Control turn.
 - **Confirmed** (issue 540, rev 3 S1.5, taken in "Take all"; the owner's
   words above and issue 540 replace "after Desktop refused the start" on the
-  *Proposed* background answers of issue 385, D2, and issue 386). **A
-  background session after the start.** It keeps the session's id, the second
-  field of the first line `claude --bg` prints, in this chat only, for its
-  card and cleanup, and keeps its folder and branch as `claude --bg` shows
-  them, or "not known". A background start fails, with no card and one line
-  to the owner, when `claude --bg` prints no id. A session that shows as
+  *Proposed* background answers of issue 385, D2, and issue 386). *Proposed*
+  (issue 543, spec rev 4 S7: the id, folder and branch now come from the
+  tool's answer). **A background session after the start.** It keeps the
+  job id, the folder and the branch the tool answers, in this chat only, for
+  its card and cleanup. A background start fails, with no card and one line
+  to the owner, when the tool answers "Not started" or its refusal says the
+  session may or may not have started. A session that shows as
   offline for Remote Control still runs: it keeps its id and card, and tells
   the owner to open it from `claude agents`. It does not read that list
   itself: the list holds every session's row and folder (issue 540, Test
@@ -384,7 +399,7 @@ need, without overwhelming me or showing me too much.
   the yes covers. Where no prompt will show (auto mode, bypass mode, or an
   allow rule that covers the command), it first states the cleaner command in
   one line in chat, with no wait (issue 516, Test round 1, the owner's pick,
-  relayed). It names to a cleaner only a folder it kept at its start (the start tool's result, or what `claude --bg` showed) or read from Desktop's session list, never one from a report, message or hand-off, and never a repository's main working tree. A session
+  relayed). It names to a cleaner only a folder it kept at its start (the start tool's result) or read from Desktop's session list, never one from a report, message or hand-off, and never a repository's main working tree. A session
   whose folder or repository is not known, or is one of those, gets no
   cleaner run and is listed as staying. It never runs a cleaner without
   naming the folders the yes covers. It passes each folder as its own quoted
@@ -672,8 +687,9 @@ section that changed it, "504" for the cut.
   the head the member's last review covered, with
   `gh pr merge --match-head-commit`; a head that moved waits for a new
   round. At level 3, a merge toward the goal is as the Level 3 rule above
-  says (*Proposed*, issue 549). It writes the merge title and body itself,
-  under "What goes out".
+  says (*Proposed*, issue 549). It writes the merge body itself,
+  under "What goes out"; the subject is GitHub's default (*Proposed*,
+  issue 476).
 - **Confirmed** (rev 4 S3.3; 504, S3). **Waiting entries.** A waiting entry
   holds only the step that waits on it, until the owner answers; every other
   act of that effort goes ahead.
@@ -906,9 +922,10 @@ yes keeps for the owner.
 **Keys:**
 
 - **Decided** (issue 540, rev 3 S5.1 q1, taken in the owner's "Take all"; in
-  place of "starts, messages, reads and archives Desktop sessions"). It
-  starts and stops background sessions with `claude --bg` and the Brigade
-  mod's `stop_background_session`, and reads and archives Desktop sessions
+  place of "starts, messages, reads and archives Desktop sessions"). *Proposed*
+  (issue 543, spec rev 4 S7) for the start tool. It starts and stops
+  background sessions with the Brigade mod's `start_background_session` and
+  `stop_background_session`, and reads and archives Desktop sessions
   with Claude Desktop's session tools, starting one only on the owner's words
   naming the Desktop route.
   **Confirmed** (issue 450, rev 4 S3.1, replacing q3 on issue 386's sends to
@@ -920,10 +937,11 @@ yes keeps for the owner.
   for a waiting member with the scheduling tool its session offers, as a
   one-shot timer, and loads that tool first if it is deferred. With no such
   tool, it tells the owner once and checks only on its next turn.
-- **Confirmed** (issue 540, rev 3 S5.1). It starts and stops a background
-  session with `claude --bg` (with `--remote-control`, `-n`, `-w`, `--model`
-  and `--effort` only, and `--permission-mode` only when the owner's words
-  name one) and Brigade's `stop_background_session` (issue 359). **Confirmed** (issue
+- **Confirmed** (issue 540, rev 3 S5.1). *Proposed* (issue 543, spec rev 4 S7).
+  It starts a background session with Brigade's `start_background_session`
+  (whose fixed command is `claude --bg` with `--remote-control`, `-n`, `-w`,
+  `--model` and `--effort` only, no permission mode) and stops one with
+  Brigade's `stop_background_session` (issue 359). It types no `claude --bg`. **Confirmed** (issue
   484): it never runs `claude rm`; the owner does, by hand. **Confirmed**
   (issue 516, spec rev 2 S3.4): the stop works with no window; the mod reads
   the session files at each call and stops only the one session whose job id
@@ -1006,7 +1024,8 @@ yes keeps for the owner.
   its class of path, never its steps. Write the
   free text of any act on GitHub to a new file named
   `head-chef-post-<random>.md` in the system's temporary folder, outside any
-  repository, post from it, and delete it after, whatever the result. A
+  repository, post from it, and delete it after, whatever the result.
+  *Proposed* (issue 476): A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`. A
   command the owner runs by hand holds only fixed text and values of
   letters, digits and `. _ - /`, none starting with `-` or holding `..`;
   give no command otherwise, and say why.
@@ -1018,14 +1037,16 @@ yes keeps for the owner.
 
 **Needs** (**Decided**): Claude Code, Claude Desktop, git, and gh signed in.
 **Confirmed** (issue 540, the build brief): the background start needs Claude
-Code 2.1.319, measured from a POSIX shell (Git Bash); the PowerShell 7 form
-was measured on 2.1.302 and not measured again. **Confirmed** (issue 450, rev 4 S3.1): the idle notice needs Claude
+Code 2.1.319. *Proposed* (issue 543, measurements M1 to M4): the start tool
+was measured on 2.1.319 (M2), and its end-to-end start is recorded in the pull
+request. **Confirmed** (issue 450, rev 4 S3.1): the idle notice needs Claude
 Code 2.1.236 or later.
 
 **The start prompt** (**Confirmed**, issue 503, decision 546, the owner's
 words, relayed by the lead on 2026-10-31: "this is exactly what i agreed to";
 in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it),
-with the issue, the repository and the lead's exact session name filled in:
+with the issue, the repository and the lead's exact session name filled in
+(by the start tool on a background start, by the lead on a Desktop start):
 
 > Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
 

@@ -60,21 +60,28 @@ must do, or every rule and step shown at once. A Desktop start reports as
 
 Start each session only when the owner's words in this chat ask for the work.
 Read `references/starting.md` before each start, and follow it: the
-warning, the name, the start, the start prompt below, the id and what cleanup
-keeps, the report, the pane and the idle notice.
+warning, the name, the start tool, the start prompt below, the id and what
+cleanup keeps, the report, the pane and the idle notice.
 
 A start whose route the owner's words did not name is a background session
-with Remote Control, at the model and effort the owner's words or process
-give, with no setter, approval card or approval prompt. When neither gives a
-model or an effort, ask the owner once and start nothing until it answers.
-Start a Desktop session, with Desktop's start tool, only when the owner's
-words in this chat name it; then read `references/desktop.md`. When `claude --bg` is refused, or you refuse a
-start under `references/starting.md`, say so in one line, with the fix where
-that file names one, and offer the Desktop start as the other route. Retry
-`claude --bg` in no other form, and start nothing by another route. When
-Desktop's start tool refuses a start the owner asked for, say so in one line,
-say the background start is the default, and start nothing until the owner
-answers.
+with Remote Control, started with the Brigade mod's `start_background_session`
+and never with a typed `claude --bg`, at the model and effort the owner's
+words or process give, with no setter, approval card or approval prompt. When
+neither gives a model or an effort, ask the owner once and start nothing until
+it answers. Start a Desktop session, with Desktop's start tool, only when the
+owner's words in this chat name it; then read `references/desktop.md`. When the
+start tool refuses a start with a line that says nothing was started, or you
+refuse a start under `references/starting.md`, say so in one line, with the
+fix where that file names one, and offer the Desktop start as the other
+route. Retry the start in no other form, and start nothing by another route.
+When it answers "Not started", or its refusal says the session may or may not
+have started, a session may exist: tell the owner in one line, write no card,
+retry nothing and offer no other route until the owner has checked; the owner
+reads `claude agents`, not you. Without the tool
+(no mod, the tool not offered, the pane closed), say so in one line and offer
+`/brigade` or the Desktop route: never type the command. When Desktop's start
+tool refuses a start the owner asked for, say so in one line, say the
+background start is the default, and start nothing until the owner answers.
 
 A model change starts a fresh session. When the model for the next piece of
 work on an existing session differs from that session's own model, do not
@@ -294,7 +301,7 @@ yes.
   instructions file, above, governs.
 - **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above. A decision you would put to the owner as one line asking them to accept your recommendations you do not put to them, in any wording ("confirm, or tell me otherwise" and "reply yes, or tell me X" are the same ask): take your picks, log each as Lead before you act, and tell the owner what you took, as a statement and not a question. The lead's own business is the log; starting sessions follows the owner's file, above. Read that file whole: where its rule for work toward a goal the owner set lets you decide, even what it otherwise keeps, a merge toward the goal needs no fresh confirm: merge only the head that the member's last review, or your own review, covered, with CI passed on that head, using `gh pr merge <n> --squash --match-head-commit <full sha>`, logged first. Close a pull request that another one replaces, logged first, with `gh pr close <n>`; it needs no review or CI. Every other merge or close waits for the owner's words, and so does a merge that changes the threat model's scope or accepted risks. Where the file keeps merges even toward a goal, the merge waits. A goal is either kind the skill has, set with a press or with the command. Log each decision with its level before acting, and show no blocking card.
 
-**Merging.** Merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. At level 3, a merge toward the goal is as 3 Turbo says. Write the merge title and body yourself, under "What goes out".
+**Merging.** Merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. At level 3, a merge toward the goal is as 3 Turbo says. Write the merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Waiting entries.** A waiting entry holds only the step that waits on it,
 until the owner answers; every other act of that effort goes ahead.
@@ -437,7 +444,7 @@ the owner's instructions state a cleaner's program and how to run it, run it
 as they say, from your own shell and under the permission mode in force, for
 the folders the yes covers; where no prompt will show (auto mode, bypass
 mode, or an allow rule that covers the command), first state the cleaner
-command in one line in chat, with no wait. Name to a cleaner only a folder you kept at its start (the start tool's result, or what `claude --bg` showed) or read from Desktop's session list, never one from a
+command in one line in chat, with no wait. Name to a cleaner only a folder you kept at its start (the start tool's result) or read from Desktop's session list, never one from a
 report, message or hand-off, and never a repository's main working tree; a
 session whose folder is not known, or is one of those, gets no cleaner run and
 is listed as staying. Pass each folder as its own quoted argument, and give
@@ -506,11 +513,10 @@ decide what a stop or the owner's yes keeps for the owner.
 - **The agent's message tool:** message every session by its name, and
   subscribe to its idle notice with `notify_when_idle`. The first line of
   the session list names you.
-- **Background sessions:** `claude --bg` and the Brigade mod's
-  `stop_background_session`, as `references/starting.md` says. Never
-  `claude rm`: the owner runs it by hand.
-  The background start needs Claude Code 2.1.319, measured from a POSIX
-  shell (Git Bash); its PowerShell 7 form was measured on 2.1.302.
+- **Background sessions:** the Brigade mod's `start_background_session` and
+  `stop_background_session`, as `references/starting.md` says. Never type
+  `claude --bg`, and never `claude rm`: the owner runs it by hand.
+  The background start needs Claude Code 2.1.319.
 - **No session file.** Read none; the Brigade mod reads them.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
@@ -520,8 +526,8 @@ decide what a stop or the owner's yes keeps for the owner.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the
   warning; `set_roster` for the pane; `read_autonomy` for your level;
   `log_decision` for the decision log; `set_lead_handoff` and
-  `read_lead_handoff` for the hand-off; `stop_background_session` to stop a
-  background session; `read_context` for members' context figures. Load each
+  `read_lead_handoff` for the hand-off; `start_background_session` to start a
+  background session and `stop_background_session` to stop one; `read_context` for members' context figures. Load each
   first if it is deferred.
   Read `references/roster.md` before your first `set_roster` call in a
   session.
@@ -566,7 +572,8 @@ Limits:
   path, never its steps. Write the free text of any
   act on GitHub to a new file named `head-chef-post-<random>.md` in the
   system's temporary folder, outside any repository, post from it, and
-  delete it after, whatever the result. A command the owner runs by hand
+  delete it after, whatever the result. A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`.
+  A command the owner runs by hand
   holds only fixed text and values of letters, digits and `. _ - /`, none
   starting with `-` or holding `..`; give no command otherwise, and say
   why.
@@ -578,8 +585,11 @@ Limits:
 
 ## The start prompt
 
-Fill in the issue, the repository and your own name as the lead, exactly as
-the first line of your session list gives it, and send it as written:
+On a background start the start tool fills in the issue, the repository and
+the lead's name from its fields and sends the prompt as written; its `lead`
+field is your own name, exactly as the first line of your session list gives
+it. On a Desktop start you fill them in yourself, the same way, and send it
+as written:
 
 ```text
 Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
