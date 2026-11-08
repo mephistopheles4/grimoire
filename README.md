@@ -148,10 +148,14 @@ its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
 state (a session that waits on you moves its row under Waiting on you, and a row
 shows the session's own title) and how long the session has been in its status. Model and
-effort show as one character each, with the full settings in a tooltip. Open and
-Dismiss appear when you point at a row; in the terminal they are always shown.
+effort show as one character each. On Desktop, pressing them opens a small
+popover with the full settings, and a `⋯` on each row holds Open, Split and
+Dismiss, each only where it applies; elsewhere the full settings stay in a
+tooltip, and in the terminal Open and Dismiss are always shown. A pull request
+pill opens the pull request in your browser.
 Tick several rows and a bar at the foot dismisses them together. A session that
-waits on you has no Dismiss and is never hidden. Reopening the pane brings
+waits on you can be dismissed for that one wait; it comes back when the
+session waits again. Reopening the pane brings
 dismissed rows back. The pane's section bars, hover and selection bar are drawn
 for Desktop's dark theme, so in a light theme they look darker than the rest of
 the app.
@@ -164,7 +168,7 @@ and age. While the pane is open and a row carries a pull request, the pane asks
 a session's pull request is in another repository than the lead's own, the lead
 can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
 that repository too, at most 6 runs a minute in all, the repositories taking
-turns past five, and the pane names it beside the pill (where there is no pointer) and on the Pull
+turns past five, and the pane names it beside the pill and on the Pull
 requests row. **The
 details need `gh` installed, signed in, and run from a github.com repository.** On
 macOS and Linux the pane also asks only when every folder on PATH is an absolute
@@ -251,7 +255,7 @@ instructions file decides it; a hand-off request or a fresh session a context
 figure prompts waits for you at every level.
 Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
-the level in force is drawn on every view, 3 in the warning colour; a 3 the
+the level in force is drawn on every view (on Desktop, at the pane's foot), 3 in the warning colour; a lowering or a 2 you type also gives the lead one turn, so it reads the new level at once (a 3 does not: tell the lead yourself); a 3 the
 command set shows its goal under the slider. Each move
 is logged as your own decision ("Owner"). The level is the last one set, held
 in the mod's memory; a stored copy in plugin state serves one job, a reload,
@@ -412,7 +416,8 @@ files you ask for:
   usage log only after you say yes. contract's page keeps your answers in the
   browser's storage until you press Reset.
 - **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
-  pull requests its rows carry, and once a minute for each other repository a
+  pull requests its rows carry (and `gh pr view <number> --web` when you press a
+  pull request pill), and once a minute for each other repository a
   row names, at most 6 runs a minute, the repositories taking turns past five,
   which uses your GitHub sign-in. It reads Claude Code's own session files and
   the transcripts of the sessions the lead started. It writes a roster file and
@@ -517,7 +522,7 @@ it:
 
 What the pane draws, decision text included, reaches the Desktop and mobile
 apps through Claude Code's own channel. Beyond that, nothing the mod reads
-leaves the machine except the `gh pr list` requests above and Open in app's
+leaves the machine except the `gh` requests above and Open in app's
 two routes: the call to the Desktop app carries the
 session's id and the fixed target `split`, and the fallback hands a checked
 `claude://` link to your system's opener.

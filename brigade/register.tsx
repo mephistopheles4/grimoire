@@ -24,6 +24,7 @@ import {
   dataFolder,
   dataPlace,
   ghRun,
+  ghViewRun,
   listsOpenTool,
   liveWord,
   listedAsOurs,
@@ -139,6 +140,7 @@ import {
   contextMeter,
   contextMeterSvg,
   compactSettings,
+  settingsPopover,
   contextTrend,
   drawnTitle,
   foldedFrom,
@@ -249,6 +251,42 @@ const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 const viewAtom = atom({ plugin: 'grimoire', key: 'view' } as const, 'sessions')
 const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
 const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
+// The open popover (issue 513, S5): `menu-<place>` or `set-<place>`, else
+// closed. Read again through POPOVER before use; a bad value draws nothing.
+// The group its card was in when it opened is kept in this module, so a card
+// that changed group closes it. The lead cannot read either.
+const popover = atom({ plugin: 'grimoire', key: 'popover' } as const, '')
+const POPOVER = /^(menu|set)-([0-9]{1,3})$/
+let popoverGroup: string | undefined
+// The title of the card the popover opened on, kept with its group, so a card
+// that goes and another that takes its place closes it.
+let popoverTitle: string | undefined
+// Closing forgets the group and the title, so a value another plugin plants
+// afterwards draws nothing until a press of the owner's opens one.
+async function closePopover($: EngineInterface) {
+  popoverGroup = undefined
+  popoverTitle = undefined
+  await update($, popover, () => '')
+}
+// Waiting cards the owner dismissed, for one wait (issue 513, S9): title to
+// the card's `since` at the dismissal. Module memory, so the lead cannot read
+// it and another plugin cannot plant it; the `dismissed` atom keeps its rule
+// of never hiding a waiting card. A pane open and a reload clear it.
+const waitDismissed = new Map<string, number | undefined>()
+// The titles it hides now: the card's `since` must still be the one dismissed.
+const waitHiddenOf = (cards: readonly { title: string; since?: number }[]): ReadonlySet<string> =>
+  new Set(cards.filter(c => waitDismissed.has(c.title) && waitDismissed.get(c.title) === c.since).map(c => c.title))
+// A dismissal ends when the card is read as not waiting or its `since` changed.
+function pruneWaitDismissed(cards: readonly Card[], moves: Moves) {
+  for (const [title, since] of [...waitDismissed]) {
+    const c = cards.find(x => x.title === title)
+    if (c === undefined || c.since !== since || !(c.status === 'needs-you' || movedLook(c, moves)?.group === 'needsYou')) waitDismissed.delete(title)
+  }
+}
+const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefined => {
+  const m = typeof v === 'string' ? POPOVER.exec(v) : null
+  return m === null ? undefined : { kind: m[1] === 'set' ? 'set' : 'menu', place: Number(m[2]) }
+}
 // The groups that start folded each time the pane opens.
 const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history', 'd-handoff']
 // The line under the autonomy slider: what each level lets the lead do, in
@@ -473,6 +511,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // With no session read at all, the cards keep the cache and meter values
     // they had: no rows would only redraw every card as not found.
     if (files === undefined) return
+    // A read that came back ends a waiting card's dismissal when the card no longer waits (S9).
+    pruneWaitDismissed((await read($, roster)).cards, await movesOf($))
     try {
       // Transcripts are found under the config folder.
       const config = at.config
@@ -968,7 +1008,9 @@ async function dismissFlagged($: EngineInterface) {
 // fixed `gh pr list` a minute for the cards that name no repository, and the
 // same argument list for the repositories the cards name, taking turns (issue 408), with that
 // checked owner/name as GH_REPO in the run's environment, so no roster text,
-// number or title reaches the command line. The answers, and the numbers known
+// number or title reaches the poll's command line. A pill press runs the other
+// list, `gh pr view <number> --web` (issue 513, S2), whose number is the one
+// checked value on its command line. The answers, and the numbers known
 // to be merged, stay in the module for the session and never enter plugin
 // state; a reload starts them over. `gh`'s error text is never read, shown or stored.
 
@@ -1002,7 +1044,7 @@ const MAX_NAMED_ROWS = 100
 // repository, and, by repository, the numbers of those that name one. A card
 // whose `repo` fails the check is in neither.
 const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: Moves): { base: number[]; named: Map<string, number[]> } => {
-  const g = groupCards(cards, hidden, moves)
+  const g = groupCards(cards, hidden, moves, waitHiddenOf(cards))
   const base: number[] = []
   const named = new Map<string, number[]>()
   for (const { c } of [...g.needsYou, ...g.working, ...g.finished]) {
@@ -1291,13 +1333,20 @@ const opening = new Set<string>()
 // on the engine's clock, from the tool list to the answer, ends the route, and
 // the press goes on to the link. Resolves true when the app said it opened
 // the session.
+type ToolRoute = { opened: boolean; shown: boolean }
 async function viaTool($: EngineInterface, session: string): Promise<boolean> {
+  return (await viaToolRoute($, session)).opened
+}
+
+// The same route, saying also whether it showed the app's own reason, so the
+// Desktop menu's Split can add its fixed line only when none was shown (S13).
+async function viaToolRoute($: EngineInterface, session: string): Promise<ToolRoute> {
   let over = false
   let timer: Timer | undefined
-  const waited = new Promise<false>(res => {
+  const waited = new Promise<ToolRoute>(res => {
     timer = $.clock.after(OPEN_WAIT_MS, () => {
       over = true
-      res(false)
+      res({ opened: false, shown: false })
     })
   })
   const route = askTool($, session, () => over)
@@ -1313,23 +1362,27 @@ async function viaTool($: EngineInterface, session: string): Promise<boolean> {
 // The tool route itself. After the wait is over it makes no call and shows
 // nothing; a call already made may still show the split after the link route
 // ran.
-async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
+async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<ToolRoute> {
+  const no = { opened: false, shown: false }
   // Only where the Desktop app draws this session: elsewhere its server is
   // absent, and a server of the same name would be the only one to answer.
   const surfaces = await $.session.surfaces()
-  if (!surfaces.includes('desktop')) return false
-  if (!listsOpenTool(await $.tool.list())) return false
+  if (!surfaces.includes('desktop')) return no
+  if (!listsOpenTool(await $.tool.list())) return no
   const args = { session_id: session, target: OPEN_TARGET }
-  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
-  if (over()) return false
+  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return no
+  if (over()) return no
   const outcome = readOpenAnswer(await $.mcp.call(OPEN_SERVER, OPEN_NAME, args))
-  if (over()) return false
+  if (over()) return no
   if (outcome.opened) {
     $.ui.toast(outcome.toast)
-    return true
+    return { opened: true, shown: true }
   }
-  if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
-  return false
+  if (outcome.reason !== undefined) {
+    $.ui.toast(outcome.reason)
+    return { opened: false, shown: true }
+  }
+  return no
 }
 
 // The links with a link-route press in progress, from host detection through
@@ -1358,6 +1411,35 @@ async function openInApp($: EngineInterface, c: Card) {
       opening.delete(session)
     }
   }
+  await viaLink($, c, app)
+}
+
+// The Desktop menu's Open (issue 513, S13): the link route alone, never the
+// tool, for a card that has a link.
+async function openLink($: EngineInterface, c: Card) {
+  const app = appLink(c, lookup(await read($, links)).get(c.title))
+  if (app === undefined) return
+  await viaLink($, c, app)
+}
+
+// The Desktop menu's Split: the tool route alone, for a card with a Desktop
+// session id, one press at a time. A route that opened nothing and showed no
+// reason says so in one fixed line; it never goes on to the link.
+const SPLIT_NONE = "Split isn't available here. Use Open."
+async function openSplit($: EngineInterface, c: Card) {
+  const session = toolSession(c)
+  if (session === undefined || opening.has(session)) return
+  opening.add(session)
+  try {
+    const route = await viaToolRoute($, session).catch(() => ({ opened: false, shown: false }))
+    if (!route.opened && !route.shown) $.ui.toast(SPLIT_NONE)
+  } finally {
+    opening.delete(session)
+  }
+}
+
+// The link route: the host's opener, one press per link at a time.
+async function viaLink($: EngineInterface, c: Card, app: string) {
   if (linking.has(app)) return
   linking.add(app)
   try {
@@ -1387,6 +1469,26 @@ async function openInApp($: EngineInterface, c: Card) {
     $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${ran.exitCode})`)
   } finally {
     linking.delete(app)
+  }
+}
+
+// A pill press (issue 513, S2): `gh pr view <number> --web`, built by
+// `ghViewRun` from the card's number and the repository `gh` answered with,
+// after the same PATH check the poll takes. The card is found again by place
+// and title; one that moved, or has no answer, does nothing. Any failure shows
+// the one fixed toast, with none of `gh`'s text.
+const PILL_FAILED = 'Could not open the pull request'
+async function openPill($: EngineInterface, c: Card) {
+  const number = prNumber(c)
+  const answer = prAnswer(c, ghAnswers, namedAnswers())
+  if (number === undefined || answer === undefined) return
+  const run = ghViewRun(number, answer.repo)
+  try {
+    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    const ran = await $.process.run([...run.argv], run.init)
+    if (ran.exitCode !== 0) throw new Error('failed')
+  } catch {
+    $.ui.toast(PILL_FAILED)
   }
 }
 
@@ -1518,6 +1620,10 @@ type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false) {
   await update($, viewAtom, () => 'sessions')
   await update($, dismissed, () => [])
+  await update($, popover, () => '')
+  popoverGroup = undefined
+  popoverTitle = undefined
+  waitDismissed.clear()
   await update($, picked, () => [])
   await update($, reports, () => [])
   // The Decisions tab starts over too: no search, nothing skipped or opened.
@@ -1559,13 +1665,23 @@ const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with
 const READY_UNLISTED_LINE = `The Brigade pane is opening but not ready yet, so a \`${TOOL}\` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.`
 // The turn the owner's bare /brigade hands the lead: fixed words, never typed ones (issue 478).
 const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
-// At most one wake a minute, whatever stamps the runs; the time of the last
-// one is held by the module alone, so a reload starts it over.
+// At most one bare wake and one level wake a minute, two in all, whatever
+// stamps the runs; the time of the last of each is held by the module alone, so
+// a reload starts them over.
 const WAKE_GAP_MS = 60_000
 // The engine refuses a submit from inside the command's own hook, which holds
 // the turn the submit would wait on, so a short timer sends it after the reply.
 const WAKE_DELAY_MS = 500
 let lastWake: number | undefined
+// The level wake (issue 513, S14): one lead turn of fixed words, with no level,
+// goal or argument in them, after a level command lands as a lowering or a 2.
+// Its own stamp and the same gap, so a bare /brigade and a level command never
+// stop each other: at most one of each a minute, two in all. It is the
+// plugin's, not the owner's word; the level and goal are read only through
+// read_autonomy.
+const LEVEL_WAKE = 'The autonomy level was changed with /brigade level. Call read_autonomy for the level in force and any goal.'
+const LEVEL_NOT_WOKEN = 'The lead was not woken: send it a message.'
+let lastLevelWake: number | undefined
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
 const NOT_SHOWN_TOAST = 'The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'
@@ -1784,6 +1900,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // stays the reader for changes made elsewhere.
     await update($, roster, () => value)
     await update($, rosterError, () => '')
+    pruneWaitDismissed(value.cards, await movesOf($))
     return { result: `Roster kept: ${value.cards.length} card(s), ${value.todos.length} to-do(s).` }
   })
 }
@@ -2368,11 +2485,14 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
 // above the level in force, are logged first and land only when nothing came
 // in between; a 3 always takes this path, over a 3 too, with a new time and
 // goal. Answers the reply's line.
-async function commandLevel($: EngineInterface, l: Level, goal: string | undefined): Promise<string> {
+// The level command's answer and whether it landed: the level in force
+// changed, by a lowering or by a raise that was logged and set (issue 513, S14).
+type LevelAnswer = { line: string; landed: boolean }
+async function commandLevel($: EngineInterface, l: Level, goal: string | undefined): Promise<LevelAnswer> {
   await landWaitingReset($)
-  if (resetWaits !== undefined) return LEVEL_REPLIES.failed
+  if (resetWaits !== undefined) return { line: LEVEL_REPLIES.failed, landed: false }
   const sid = await levelSid($)
-  if (sid === undefined) return LEVEL_REPLIES.failed
+  if (sid === undefined) return { line: LEVEL_REPLIES.failed, landed: false }
   const now = await $.clock.now()
   const voided = commandsVoided
   const step = await levelTurn(async () => {
@@ -2388,12 +2508,14 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
     return { kind: 'raise' as const, turn, from: inForce }
   })
   // A 3's goal comes last, after a fixed fence, as in read_autonomy's answer.
-  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}). It lasts through compactions; a slider press, another level command, a reload, a clear or a resume ends it. The goal, as it landed, is everything after this colon: ${goal ?? ''}` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
-  if (step.kind === 'none') return `Autonomy is already ${l} (${LEVEL_NAMES[l]}).`
+  // A raise to 3 never wakes the lead, so its reply says so before the sentence
+  // that ends with the goal: nothing follows the goal (issue 513, S14).
+  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}). It lasts through compactions; a slider press, another level command, a reload, a clear or a resume ends it. ${LEVEL_NOT_WOKEN} The goal, as it landed, is everything after this colon: ${goal ?? ''}` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
+  if (step.kind === 'none') return { line: `Autonomy is already ${l} (${LEVEL_NAMES[l]}).`, landed: false }
   if (step.kind === 'lower') {
     await appendFixed($, sid, commandEntry(l), l)
     await redraw($)
-    return set
+    return { line: set, landed: true }
   }
   // What waits to be logged goes first, as for a raise from the slider.
   await flushPane($, sid)
@@ -2414,24 +2536,28 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
   })
   await ensureLevelPoll($)
   await redraw($)
-  return entry === undefined ? LEVEL_REPLIES.notLogged : landed ? set : LEVEL_REPLIES.overtaken
+  return { line: entry === undefined ? LEVEL_REPLIES.notLogged : landed ? set : LEVEL_REPLIES.overtaken, landed }
 }
 
 // The level command's answer: the origin gate first, before anything of the
 // args beyond the word `level` is read; then the grammar; then the level. It
 // never calls the hooks beneath, so its args reach none, and a throw answers
 // one fixed line holding no args and no error text.
-async function levelCommand($: EngineInterface, origin: unknown, args: string): Promise<{ text: string }> {
+// Its answer also says whether the lead should be woken (S14): the command
+// landed as a lowering or a 2, and read_autonomy is offered.
+type LevelReply = { text: string; wake: boolean }
+async function levelCommand($: EngineInterface, origin: unknown, args: string): Promise<LevelReply> {
   try {
-    if (!levelOriginAllowed(origin)) return { text: LEVEL_REPLIES.notTyped }
+    if (!levelOriginAllowed(origin)) return { text: LEVEL_REPLIES.notTyped, wake: false }
     const parsed = parseLevelCommand(args)
-    if (parsed === undefined) return { text: LEVEL_REPLIES.usage }
-    if ('refused' in parsed) return { text: parsed.refused }
-    const line = await commandLevel($, parsed.level, parsed.goal)
-    const tail = line.startsWith('Autonomy') && !(await offered($)) ? LEVEL_REPLIES.notOffered : ''
-    return { text: `${line}${tail}` }
+    if (parsed === undefined) return { text: LEVEL_REPLIES.usage, wake: false }
+    if ('refused' in parsed) return { text: parsed.refused, wake: false }
+    const { line, landed } = await commandLevel($, parsed.level, parsed.goal)
+    const ready = line.startsWith('Autonomy') && (await offered($))
+    const tail = line.startsWith('Autonomy') && !ready ? LEVEL_REPLIES.notOffered : ''
+    return { text: `${line}${tail}`, wake: landed && ready && parsed.level !== 3 }
   } catch {
-    return { text: LEVEL_REPLIES.failed }
+    return { text: LEVEL_REPLIES.failed, wake: false }
   }
 }
 
@@ -2836,6 +2962,7 @@ export const register: Register = on => {
     resetWaits = undefined
     toolsOfferedFor = undefined
     lastWake = undefined
+    lastLevelWake = undefined
     stopLevelPoll()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
@@ -2900,7 +3027,31 @@ export const register: Register = on => {
   on('command.run', { command: 'brigade' }, async ($, e, next) => {
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
-    if (isLevelCommand(e.args)) return levelCommand($, e.origin, e.args)
+    if (isLevelCommand(e.args)) {
+      // Armed only after a landed reply, and only if no overrun voided the
+      // command meanwhile: a throw or an overrun answers the failed line and
+      // submits nothing, with `lastLevelWake` as it was.
+      const voided = commandsVoided
+      const reply = await levelCommand($, e.origin, e.args)
+      if (!reply.wake) return { text: reply.text }
+      if (commandsVoided !== voided) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
+      try {
+        const now = await $.clock.now()
+        // An overrun can land during the clock read: check again before the stamp.
+        if (commandsVoided !== voided) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
+        if (lastLevelWake !== undefined && now - lastLevelWake < WAKE_GAP_MS) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
+        const earlier = lastLevelWake
+        lastLevelWake = now
+        $.clock.after(WAKE_DELAY_MS, () => {
+          if (commandsVoided === voided) return void $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined)
+          // A void inside the delay sends nothing, so it also gives the gap back.
+          if (lastLevelWake === now) lastLevelWake = earlier
+        })
+      } catch {
+        // No turn this time: the reply stands as it is.
+      }
+      return { text: reply.text }
+    }
     lateOffer = false
     const { opened, offer } = await openPane($, true, { open: false }, false)
     let ready = ''
@@ -3090,6 +3241,9 @@ export const register: Register = on => {
   // The switch, group (`grp-`) and selection-bar keys are matched whole, before
   // the split below; only card and to-do keys are split on a hyphen.
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
+    // A press on any control but a popover's opener or its outside layer
+    // closes the popover and then acts (issue 513, S6).
+    if (!/^(menu|set|outside)-/.test(e.element) && (await read($, popover)) !== '') await closePopover($)
     // The switch, a group's fold and the selection bar: fixed words, read
     // through fixed sets.
     if (e.element === 'view-sessions' || e.element === 'view-prs' || e.element === 'view-decisions') {
@@ -3192,6 +3346,31 @@ export const register: Register = on => {
     const i = Number(place)
     const current = await read($, roster)
 
+    // A popover's opener toggles it, and one is open at a time. An outside
+    // press closes it; so does a press on any other control, which also acts
+    // (issue 513, S5 and S6).
+    const opened = popoverOf(await read($, popover))
+    if ((verb === 'menu' || verb === 'set') && word === undefined) {
+      const c = current.cards[i]
+      if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
+      const value = `${verb}-${i}`
+      // A value left by a card that has gone or changed group is closed.
+      const old = opened === undefined ? undefined : current.cards[opened.place]
+      const live = old !== undefined && old.title === popoverTitle && (movedLook(old, await movesOf($))?.group ?? statusOf(old.status)?.group) === popoverGroup
+      if (opened !== undefined && live && `${opened.kind}-${opened.place}` === value) {
+        await closePopover($)
+      } else {
+        popoverGroup = movedLook(c, await movesOf($))?.group ?? statusOf(c.status)?.group
+        popoverTitle = c.title
+        await update($, popover, () => value)
+      }
+      return { element: e.element }
+    }
+    if (verb === 'outside') {
+      await closePopover($)
+      return { element: e.element }
+    }
+
     if (verb === 'todo' || verb === 'go') {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
@@ -3208,10 +3387,22 @@ export const register: Register = on => {
 
     const c = current.cards[i]
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
+    if (verb === 'pill') {
+      if (word === undefined) await openPill($, c)
+      return { element: e.element }
+    }
     if (verb === 'open') await openInApp($, c)
-    // A card that waits on the owner has no Dismiss, and a press cannot add one.
-    if (verb === 'dismiss' && c.status !== 'needs-you' && movedLook(c, await movesOf($))?.group !== 'needsYou') {
-      await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+    if (verb === 'openlink') await openLink($, c)
+    if (verb === 'split') await openSplit($, c)
+    if (verb === 'dismiss') {
+      if (c.status === 'needs-you' || movedLook(c, await movesOf($))?.group === 'needsYou') {
+        // A waiting card is dismissed for this one wait, in module memory
+        // only; the `dismissed` atom never hides one (issue 513, S9).
+        waitDismissed.set(c.title, c.since)
+        await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      } else {
+        await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+      }
       // A dismissed card leaves the selection too.
       await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))
     }
@@ -3320,7 +3511,17 @@ export const register: Register = on => {
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
-    const { needsYou, working, finished } = groupCards(cards, hidden, moves)
+    const waitHidden = waitHiddenOf(cards)
+    const { needsYou, working, finished } = groupCards(cards, hidden, moves, waitHidden)
+    // The open popover, read again through its fixed shape. It draws only for
+    // a card still drawn in the group it opened in (issue 513, S5).
+    const popped = pointer && view === 'sessions' ? popoverOf(await read($, popover)) : undefined
+    const rowsOf = (n: unknown) => (typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : undefined)
+    const bodyRows = rowsOf(e.props.scroll?.bodyRows)
+    const outsideRows = bodyRows === undefined ? 60 : Math.min(400, bodyRows + (rowsOf(e.props.scroll?.offset) ?? 0))
+    const popLive =
+      popped !== undefined &&
+      ([['needsYou', needsYou], ['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place && x.c.title === popoverTitle))
     // The bar counts only picks a checkbox shows: a card that waits on the
     // owner has none, and a title no shown card holds is no pick.
     const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
@@ -3331,7 +3532,7 @@ export const register: Register = on => {
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
-    const strip = statusStrip(cards, hidden, moves)
+    const strip = statusStrip(cards, hidden, moves, waitHidden)
     const progress = todoBar(todos, done, ticks)
     const sessionsCount =
       shown > 0 || progress !== undefined
@@ -3340,7 +3541,7 @@ export const register: Register = on => {
           ? 'No cards in the roster yet.'
           : undefined
     const named = namedAnswers()
-    const prs = prRows(cards, hidden, ghAnswers, now, moves, named)
+    const prs = prRows(cards, hidden, ghAnswers, now, moves, named, waitHidden)
     const unavailable = unavailableLine(ghDown, [...ghNamed.values()].filter(b => b.down).length)
     const prCount = prs.open.length + prs.merged.length + prs.closed.length
 
@@ -3390,6 +3591,20 @@ export const register: Register = on => {
       <Text color={pillColor(state)}>
         <Link href={href}>{`#${n}`}</Link>
       </Text>
+    )
+    // Desktop's pill press (issue 513, S1): a transparent layer over the
+    // pill, an absolute Box in a clipping Box holding a plain Button with a
+    // transparent Text of non-breaking spaces and no label. Drawn only for a
+    // pill `gh` answered for; the key carries the card's place and title.
+    const pillLayer = (key: string, pillEl: JSX.Element) => (
+      <Box position="relative" overflow="hidden">
+        {pillEl}
+        <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+          <Button key={key} plain onPress={noop}>
+            <Text color="transparent">{' '.repeat(12)}</Text>
+          </Button>
+        </Box>
+      </Box>
     )
     const linkArrow = (href: string) => (
       <Box flexShrink={0}>
@@ -3537,15 +3752,60 @@ export const register: Register = on => {
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
-      // pill where there is no pointer (Desktop's hover titles never show, so
-      // the Pull requests tab names it there). gh's spelling once it answered,
-      // else the card's.
+      // pill, on every surface (Desktop has no hover titles, so issue 513, S3,
+      // draws it there too, and the Pull requests tab names it as well). gh's
+      // spelling once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
-      // The actions: on Desktop hidden until the pointer is on the row, in the
-      // terminal always shown. A card that waits on the owner has no Dismiss.
+      // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
+      // each opens upward from its opener, one at a time.
+      const canSplit = toolSession(c) !== undefined
+      const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
+      const widest = Math.max(...items.map(([, label]) => label.length)) + 4
+      const popRows = (rowItems: readonly (readonly [string, string])[], width: number) => (
+        <Box position="absolute" bottom={1} right={0} flexDirection="column" borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} width={width}>
+          {rowItems.map(([verb, label]) => (
+            <Box key={`row-${verb}-${i}`} hover={{ scope: `row-${verb}-${i}`, backgroundColor: DARK_FILLS.hover }} paddingX="sm">
+              <Button key={keyFor(verb, i, c.title)} plain onPress={noop}>
+                <Text size="footnote">{label}</Text>
+              </Button>
+            </Box>
+          ))}
+        </Box>
+      )
+      const popText = (text: string) => (
+        <Box position="absolute" bottom={1} left={0} borderStyle="round" borderColor={DARK_FILLS.pane} backgroundColor={DARK_FILLS.tip} paddingX="sm">
+          <Text size="footnote">{text}</Text>
+        </Box>
+      )
+      const menuOpen = popLive && popped?.kind === 'menu' && popped.place === i
+      const setOpen = popLive && popped?.kind === 'set' && popped.place === i
+      const menuButton = (
+        <Box position="relative" flexShrink={0}>
+          <Button key={keyFor('menu', i, c.title)} plain dimColor onPress={noop}>
+            ⋯
+          </Button>
+          {menuOpen && popRows(items, widest)}
+        </Box>
+      )
+      const pillBlock =
+        number === undefined ? null : (
+          <Box flexShrink={0}>
+            {answer === undefined ? (
+              pill(number, pillState(undefined, c.prState))
+            ) : href !== undefined && pointer ? (
+              pillLayer(keyFor('pill', i, c.title), pill(number, pillState(answer.state, c.prState)))
+            ) : href !== undefined && Image === undefined ? (
+              linkedNumber(number, pillState(answer.state, c.prState), href)
+            ) : (
+              pill(number, pillState(answer.state, c.prState))
+            )}
+          </Box>
+        )
+      // The actions: in the terminal always shown; a card that waits on the
+      // owner has no Dismiss there. Desktop has the menu instead.
       const actions =
-        canOpen || !needs ? (
-          <Box flexShrink={0} flexDirection="row" columnGap={1} {...(!pointer ? {} : { display: 'none' as const, hover: { scope, display: 'flex' as const } })}>
+        pointer ? null : canOpen || !needs ? (
+          <Box flexShrink={0} flexDirection="row" columnGap={1}>
             {canOpen && (
               <Button key={keyFor('open', i, c.title)} plain dimColor onPress={noop}>
                 Open
@@ -3607,23 +3867,13 @@ export const register: Register = on => {
                   </Text>
                 </Box>
                 {actions}
-                {number !== undefined && (
-                  <Box flexShrink={0}>
-                    {answer === undefined ? (
-                      pill(number, pillState(undefined, c.prState))
-                    ) : href !== undefined && Image === undefined ? (
-                      linkedNumber(number, pillState(answer.state, c.prState), href)
-                    ) : (
-                      pill(number, pillState(answer.state, c.prState))
-                    )}
-                  </Box>
-                )}
+                {!pointer && pillBlock}
                 {namedRepo !== undefined && number !== undefined && !pointer && (
                   <Box flexShrink={0}>
                     <Text dimColor>{namedRepo}</Text>
                   </Box>
                 )}
-                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(href)}
+                {href !== undefined && Image !== undefined && !pointer && number !== undefined && linkArrow(href)}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -3642,11 +3892,26 @@ export const register: Register = on => {
                     </Text>
                   </Box>
                 )}
+                {pointer && menuButton}
               </Box>
               {pointer && (
-                <Box flexDirection="row" columnGap={1}>
-                  <Box flexGrow={1} flexShrink={1} minWidth={0} />
-                  <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>
+                <Box flexDirection="row" columnGap={1} alignItems="center">
+                  <Box position="relative" flexShrink={0}>
+                    <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
+                      <Text dimColor mono>
+                        {short.text}
+                      </Text>
+                    </Button>
+                    {setOpen && popText(settingsPopover(c.settings))}
+                  </Box>
+                  {pillBlock}
+                  {namedRepo !== undefined && number !== undefined && (
+                    <Box flexShrink={1} minWidth={0}>
+                      <Text dimColor wrap="truncate-end">
+                        {namedRepo}
+                      </Text>
+                    </Box>
+                  )}
                 </Box>
               )}
               {!pointer && (
@@ -3849,22 +4114,51 @@ export const register: Register = on => {
     // mobile rows sit a small step apart with no hairline; the editor, where
     // that step is nothing, and the terminal part them as `rows` does.
     const rowHref = (r: PrRow) => r.href
-    const prRow = (r: PrRow) => (
-      <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
-        <Box flexDirection="row" columnGap={1} alignItems="center">
-          <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
-          {rowHref(r) !== undefined && Image !== undefined && linkArrow(rowHref(r) ?? '')}
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text weight="semibold" wrap="truncate-end">
-              {r.title}
-            </Text>
+    const prRow = (r: PrRow) =>
+      pointer ? (
+        // Desktop (issue 513, S10): the title on the first line; on the
+        // second the pill, the dim repository, card title and age, then the
+        // additions and deletions at the far right. A row `gh` did not answer
+        // for has no counts.
+        <Box flexDirection="column" paddingX="md" paddingY="sm" marginBottom="xs" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+          <Text weight="semibold" wrap="truncate-end">
+            {r.title}
+          </Text>
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexShrink={0}>{rowHref(r) !== undefined ? pillLayer(keyFor('pill', r.i, String(r.c.title)), pill(r.number, r.state)) : pill(r.number, r.state)}</Box>
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text dimColor size="footnote" wrap="truncate-end">
+                {[r.detail.repo, r.detail.cardTitle, r.detail.age].filter(x => x !== undefined).join(' · ')}
+              </Text>
+            </Box>
+            {r.detail.counts !== undefined && (
+              <Box flexShrink={0} flexDirection="row" columnGap={1}>
+                <Text color="success" size="footnote">
+                  {r.detail.counts.split(' ')[0] ?? ''}
+                </Text>
+                <Text color="error" size="footnote">
+                  {r.detail.counts.split(' ')[1] ?? ''}
+                </Text>
+              </Box>
+            )}
           </Box>
         </Box>
-        <Text dimColor size="footnote" wrap="truncate-end">
-          {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
-        </Text>
-      </Box>
-    )
+      ) : (
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
+            {rowHref(r) !== undefined && Image !== undefined && linkArrow(rowHref(r) ?? '')}
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text weight="semibold" wrap="truncate-end">
+                {r.title}
+              </Text>
+            </Box>
+          </Box>
+          <Text dimColor size="footnote" wrap="truncate-end">
+            {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
+          </Text>
+        </Box>
+      )
 
     // --- the Decisions tab (spec 402, S5.4) ---
     //
@@ -4290,8 +4584,27 @@ export const register: Register = on => {
         tipText,
       )
 
+    // The level in force, by name with no number (issue 496): in the top row,
+    // or on Desktop alone at the pane's last line, centred under Usage (issue 513, S11).
+    const levelLabel = <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
     return (
-      <Box flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+      <Box position="relative" flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+        {/* While a popover is open, a transparent layer under it (issue 513,
+            S6): a stack of one-line plain Buttons, each in a keyed Box with a
+            hover, as many rows as the body shows and has scrolled, else 60.
+            A press on it closes the popover; later elements paint over it, so
+            a press on any other control reaches that control. */}
+        {popLive && (
+          <Box position="absolute" top={0} left={0} right={0} flexDirection="column">
+            {Array.from({ length: outsideRows }, (_, k) => (
+              <Box key={`outside-box-${k}`} hover={{ scope: `outside-${k}`, backgroundColor: DARK_FILLS.pane }}>
+                <Button key={`outside-${k}`} plain onPress={noop}>
+                  <Text>{' '.repeat(200)}</Text>
+                </Button>
+              </Box>
+            ))}
+          </Box>
+        )}
         {/* The top row: what the chosen view holds, on the left; the switch on
             the right. The pane's own title names the pane, and the roster's
             file is not named here. */}
@@ -4310,7 +4623,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {/* The level in force, on every tab, by name with no number (issue 496). */}
-          <Box flexShrink={0}>{level === 3 ? <Text color="warning">{`Autonomy · ${LEVEL_NAMES[level]}`}</Text> : <Text>{`Autonomy · ${LEVEL_NAMES[level]}`}</Text>}</Box>
+          {!pointer && levelLabel}
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
           {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}
@@ -4479,6 +4792,11 @@ export const register: Register = on => {
             </Box>
           )}
         </Box>
+        {pointer && (
+          <Box flexDirection="row" justifyContent="center" marginTop={1}>
+            {levelLabel}
+          </Box>
+        )}
       </Box>
     )
   })

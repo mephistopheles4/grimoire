@@ -149,6 +149,10 @@ declare module 'claude-code' {
        *  hand-off each time the pane opens, and flipped by a press.
        *  Checked again before use. */
       folded: string[]
+      /** The open popover (issue 513): `menu-<place>` or `set-<place>`, else
+       *  an empty string. Read again through a fixed pattern before use; any
+       *  other value draws nothing. */
+      popover: string
       /** The permission warning is shown in this session: set by its tool. */
       warningShown: boolean
       /** "I understand" hid the permission warning for this session. */
