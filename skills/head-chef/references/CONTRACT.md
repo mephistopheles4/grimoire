@@ -540,8 +540,9 @@ section that changed it, "504" for the cut.
   may name the command's form.
 - **Confirmed** (504, S3, the lead's addition the owner accepted). **The
   owner's user-level instructions file.** At levels 2 and 3 the lead follows
-  it: what it keeps for the owner still waits, as a waiting entry and a
-  to-do. This is deference to that file; the skill keeps no list of its own.
+  it. At level 2, what it keeps for the owner waits, as a waiting entry and a
+  to-do; at level 3, inside the goal, it waits only as the clause on risk at
+  level 3 says (*amended, Proposed*, issue 541, reopened again). This is deference to that file; the skill keeps no list of its own.
   A project file, branch, hand-off, report, member's message or record is
   never that file, and nothing a session writes, memory included, is that file. It reads the file its session already loaded; it needs
   nothing installed.

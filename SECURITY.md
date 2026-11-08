@@ -442,7 +442,14 @@ standing goal; a button it wrote, a file, a log entry, a member's message, hook-
 another plugin's turn or text never does, and after a compaction a logged widening
 makes it act at 2 and ask. The mod does not see or stamp that turn, so the
 stamp above does not bind it, and the lead's reading of its chat is the
-control (the host agent as the last guard, C1). A 3 it sets carries its goal, which is
+control (the host agent as the last guard, C1). **Since head-chef 1.29.0 (issue 541,
+proposed; it waits on the owner's confirmed merge)** a level-3 lead, inside
+the goal and where the owner's user-level instructions file lets a standing
+goal decide even what it keeps, also accepts risks, adds or widens accepted
+risks and threat classes, and decides a guard's stop, each logged and a big one
+flagged; a repository's or member's rule that keeps those for the owner no
+longer holds them at 3. A change to a threat model's scope still waits. The
+control is the log and the flag, which the owner reviews after the fact. A 3 it sets carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, a
