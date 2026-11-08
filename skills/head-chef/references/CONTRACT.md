@@ -204,9 +204,9 @@ need, without overwhelming me or showing me too much.
   for only a new effort on one, it says so in one line and the owner sets it
   in that session. When the approved record is not yet on the issue, or the
   issue does not mark which revision was approved, it asks the old session to
-  post it, naming the approved revision, through the old session's own posting
-  checkpoint; it starts nothing until the record is on the issue, and tells
-  the owner in one line and waits when no post lands.
+  post it, naming the approved revision; the old session's own rules govern
+  the post. It starts nothing until the record is on the issue, and tells the
+  owner in one line and waits when no post lands.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
 - **Decided.** It never relies on a card to start work the owner asked for.
