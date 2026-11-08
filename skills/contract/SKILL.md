@@ -126,13 +126,16 @@ Use the hiring page for every interview, a rewrite and stop 6 included. Do
 not first ask which way the person wants. Read `references/hiring.md` first.
 Before drafting, run the interview script's version check.
 
-Before the first write, tell the person once: where the scratch folder will
-be; that the draft and their answers sit there unencrypted until deleted;
-that a folder they name is as private as that folder; that the page keeps the
-answers in this browser, unencrypted, until Reset, where other pages opened
-from disk can read them; that copying the answer block, the browser's online
-spell check, dictation and synced browser history can carry what they type off
-the machine; and that the page must be opened in a browser on this machine.
+Before the script's first write (`--new-folder`), tell the person once: where
+the scratch folder will be made, the per-user temporary folder or the parent
+they name; that the draft and their answers sit there unencrypted until
+deleted; that a folder they name is as private as that folder; that the page
+keeps the answers in this browser, unencrypted, until Reset, where other pages
+opened from disk can read them, that browser extensions, programs they run and
+profile backups can read them too, and that the browser may keep a copy after
+Reset; that copying the answer block, the browser's online spell check,
+dictation and synced browser history can carry what they type off the machine;
+and that the page must be opened in a browser on this machine.
 Wait for their yes. A no means the person asked for chat.
 
 Use chat only in these cases, and name the one that applies:
@@ -140,16 +143,15 @@ Use chat only in these cases, and name the one that applies:
 - Node is missing, or older than 24.0.0.
 - The person cannot open a file from this machine in their own browser. A
   remote session is one such case.
-- The limits refuse a draft.
+- The draft is too large for the page.
 - The skill base directory's path holds a character the script refuses.
 - The scratch folder's path holds one, and the person names no other parent
   folder.
 - The person asks for chat in their own words.
 
 When the person says, after the page is rendered, that they cannot open it,
-name that case, keep every answer already given, and go on by chat. When the
-page was never opened, say nothing is in the browser, skip the Reset wait, and
-offer the deletes.
+name that case, keep every answer already given, and go on by chat. Ask for
+Reset and offer the deletes at the hand-back, as on every path.
 
 Never recommend chat for your own ease.
 
@@ -163,7 +165,7 @@ quote and the four curly ones.
 
 At the hand-back of a hiring interview, ask the person to press Reset on the
 page. Before any delete of the page, wait for their word that the page says
-the answers are cleared, except for a page the person says was never opened. When they decline, say the answers stay in the
+the answers are cleared. When they decline, say the answers stay in the
 browser. While the draft is kept, rendering the page again and pressing Reset
 removes them. Once the draft is deleted, clearing the browser's stored data
 for pages opened from disk is the one way left. Name what you deleted.
@@ -217,9 +219,8 @@ Neither opens with frontmatter.
 
 ## Hand back
 
-Either way in, before the go to build, show the whole contract in one
-message, after any push-back, each answer with its mark. Call nothing ready
-until the person has seen the contract and the built file in this hand-back.
+Call nothing ready until the person has seen the contract and the built file
+in this hand-back.
 
 Hand back these parts, in this order:
 
@@ -256,7 +257,8 @@ mode skips this step.
 ## Build
 
 Build only after the person's go. Confirm first: `why` has the person's own
-answer, and good output is agreed. For an agent or a CLAUDE.md, the contract
+answer, good output is agreed, and the person has seen the whole contract in
+one message, after any push-back, each answer with its mark. For an agent or a CLAUDE.md, the contract
 names its tool in plain words in `tools`, such as "Built for Codex". Read that
 tool's binding, and build from the contract and the binding only:
 `references/binding-claude.md`, `references/binding-codex.md` or
@@ -361,7 +363,7 @@ Each write and delete it makes is an action. Tell the person first:
   unencrypted, and that other pages opened from disk in the same browser may
   read them. Their yes to the notice is the go.
 - **Deleting the page and the answers file** (`--clean`), after asking for
-  Reset (not for a page the person says was never opened): say "I will delete the page and the answers file". The person's yes
+  Reset: say "I will delete the page and the answers file". The person's yes
   in chat is the go.
 - **Deleting the draft** (`--clean --draft`): only on the person's yes to
   that offer.

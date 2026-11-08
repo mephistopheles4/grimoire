@@ -140,32 +140,34 @@ not show this skill finds them in a contract it helped write.
   them only after the person's yes in chat each time.
 - **Confirmed.** It uses the hiring page for every interview, a rewrite and
   stop 6 included, without first asking which way the person wants.
-- **Confirmed.** Before the first write, it tells the person once: where the
-  scratch folder will be; that the draft and their answers sit there
+- **Decided.** Before the script's first write (`--new-folder`), it tells the
+  person once: where the scratch folder will be made, the per-user temporary
+  folder or the parent they name; that the draft and their answers sit there
   unencrypted until deleted; that a folder they name is as private as that
   folder; that the page keeps the answers in this browser, unencrypted, until
-  Reset, where other pages opened from disk can read them; that copying the
-  answer block, the browser's online spell check, dictation and synced
-  browser history can carry what they type off the machine; and that the page
-  must be opened in a browser on this machine. It waits for their yes. A no
+  Reset, where other pages opened from disk can read them, that browser
+  extensions, programs they run and profile backups can read them too, and
+  that the browser may keep a copy after Reset; that copying the answer
+  block, the browser's online spell check, dictation and synced browser
+  history can carry what they type off the machine; and that the page must be
+  opened in a browser on this machine. It waits for their yes. A no
   means the person asked for chat.
 - **Confirmed.** Before drafting, it runs the interview script's version check.
   It uses chat only when Node is missing or older than 24.0.0; when the
   person cannot open a file from this machine in their own browser (a remote
-  session is one such case); when the limits refuse a draft; when the skill
+  session is one such case); when the draft is too large for the page; when the skill
   base directory's path holds a character the script refuses; when the
   scratch folder's path holds one and the person names no other parent
   folder; or when the person asks for chat in their own words. It names the
   case that applies.
 - **Confirmed.** When the person says, after the page is rendered, that they
   cannot open it, it names that case, keeps every answer already given, and
-  goes on by chat. When the page was never opened, it says nothing is in the
-  browser, skips the Reset wait, and offers the deletes.
+  goes on by chat. It asks for Reset and offers the deletes at the hand-back,
+  as on every path.
 - **Confirmed.** It never recommends chat for its own ease.
 - **Decided.** At the hand-back of a hiring interview, it asks the person to
   press Reset on the page. Before any delete of the page, it waits for their
-  word that the page says the answers are cleared, except for a page the
-  person says was never opened. When they decline, it says
+  word that the page says the answers are cleared. When they decline, it says
   the answers stay in the browser. While the draft is kept, rendering the
   page again and pressing Reset removes them. Once the draft is deleted,
   clearing the browser's stored data for pages opened from disk is the one
@@ -241,10 +243,8 @@ time. It can tell when it does not know your intent, you can answer, and a
 wrong contract costs a rebuild. Between questions it drafts, and marks each
 draft *Proposed*.
 
-**What it hands back** (**Confirmed**). Either
-way in, before the go to build, it shows the whole contract in one message,
-after any push-back, each answer with its mark. Nothing is called ready until
-the person has seen the contract and the built file in this hand-back. In this
+**What it hands back** (**Confirmed**). Nothing is called ready until the
+person has seen the contract and the built file in this hand-back. In this
 order:
 
 1. **The contract** and its change log, each answer with its mark.
@@ -321,7 +321,11 @@ interview script, behind the frontmatter line `compatibility: Needs Node.js
 24 or later to run its interview script. No install and no other
 dependencies.` It is exempt from the own-words rule, and low-stakes.
 
-**The hiring interview's actions** (**Decided**; the yes column **Confirmed**),
+**Before the go to build** (**Confirmed**). Either way in, it shows the whole
+contract in one message, after any push-back, each answer with its mark. The
+go to build waits for that.
+
+**The hiring interview's actions** (**Decided**),
 each told first and done on the person's yes:
 
 | Action | What the skill tells you first | Your yes |
@@ -329,7 +333,7 @@ each told first and done on the person's yes:
 | Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your yes to the notice |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your yes to the notice |
 | Write the page with the script (`--out`) | That the page keeps answers in the browser until Reset, unencrypted, and that other pages opened from disk in the same browser may read them | Your yes to the notice |
-| Delete the page and the answers file (`--clean`), after asking for Reset (not for a page the person says was never opened) | That it will now remove the page and the answers file | Your yes in chat |
+| Delete the page and the answers file (`--clean`), after asking for Reset | That it will now remove the page and the answers file | Your yes in chat |
 | Delete the draft (`--clean --draft`) | The offer to delete it | Your yes to that offer |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:
@@ -387,7 +391,7 @@ change-log row.
 | Run evals only after a yes in chat each time, capped and not published | Spending the person's usage without asking | potential | fixed |
 | An answer for an action, a stop or the tools (except what it needs to run), drafted from a file or by the skill, needs the person's own words, marked **Decided** | A file or the skill's own draft widening what the built file may do without the person's words | potential | |
 | Refuse a quote or control character in a path before any command | A path that breaks out of its quotes in a shell | potential | fixed |
-| Ask for Reset before any delete of the hiring page, on every path, except for a page the person says was never opened | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
+| Ask for Reset before any delete of the hiring page, on every path | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
 | Use the page unless a named fallback applies; show the whole contract before the go | Terms confirmed from a chat summary, the contract never seen whole | potential | |
 | | Crying wolf: firing until the person dismisses it | potential | |
 
