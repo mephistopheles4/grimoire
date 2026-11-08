@@ -481,10 +481,10 @@ section that changed it, "504" for the cut.
   under the owner's user-level instructions file, above. The lead's own
   business is the log; starting sessions follows the owner's file, above. It
   logs each decision with its level before acting and shows no blocking card.
-- *Proposed* (issue 549). **Level 3, a merge toward the goal.** Where the
-  owner's file lets the lead decide work toward a goal the owner set, and does
-  not keep merges even toward a goal, a merge toward the goal needs no fresh
-  confirm: the lead merges only the head that the member's last review, or its
+- *Proposed* (issue 549). **Level 3, a merge toward the goal.** The lead
+  reads the owner's file whole: where its rule for work toward a goal the owner
+  set lets the lead decide, even what it otherwise keeps, a merge toward the
+  goal needs no fresh confirm: the lead merges only the head that the member's last review, or its
   own review, covered, with CI passed on that head, using `gh pr merge <n>
   --squash --match-head-commit <full sha>`, logged first. It closes a pull
   request that another one replaces, logged first, with `gh pr close <n>`; the
