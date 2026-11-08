@@ -261,6 +261,16 @@ const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
 const popover = atom({ plugin: 'grimoire', key: 'popover' } as const, '')
 const POPOVER = /^(menu|set)-([0-9]{1,3})$/
 let popoverGroup: string | undefined
+// The title of the card the popover opened on, kept with its group, so a card
+// that goes and another that takes its place closes it.
+let popoverTitle: string | undefined
+// Closing forgets the group and the title, so a value another plugin plants
+// afterwards draws nothing until a press of the owner's opens one.
+async function closePopover($: EngineInterface) {
+  popoverGroup = undefined
+  popoverTitle = undefined
+  await update($, popover, () => '')
+}
 // Waiting cards the owner dismissed, for one wait (issue 513, S9): title to
 // the card's `since` at the dismissal. Module memory, so the lead cannot read
 // it and another plugin cannot plant it; the `dismissed` atom keeps its rule
@@ -1683,6 +1693,7 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   await update($, dismissed, () => [])
   await update($, popover, () => '')
   popoverGroup = undefined
+  popoverTitle = undefined
   waitDismissed.clear()
   await update($, picked, () => [])
   await update($, reports, () => [])
@@ -3099,9 +3110,11 @@ export const register: Register = on => {
       if (!reply.wake || commandsVoided !== voided) return { text: reply.text }
       try {
         const now = await $.clock.now()
+        // An overrun can land during the clock read: check again before the stamp.
+        if (commandsVoided !== voided) return { text: reply.text }
         if (lastLevelWake !== undefined && now - lastLevelWake < WAKE_GAP_MS) return { text: `${reply.text} ${LEVEL_NOT_WOKEN}` }
         lastLevelWake = now
-        $.clock.after(WAKE_DELAY_MS, () => void $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined))
+        $.clock.after(WAKE_DELAY_MS, () => void (commandsVoided === voided ? $.prompt.submit({ text: LEVEL_WAKE }).catch(() => undefined) : undefined))
       } catch {
         // No turn this time: the reply stands as it is.
       }
@@ -3298,7 +3311,7 @@ export const register: Register = on => {
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
     // A press on any control but a popover's opener or its outside layer
     // closes the popover and then acts (issue 513, S6).
-    if (!/^(menu|set|outside)-/.test(e.element) && (await read($, popover)) !== '') await update($, popover, () => '')
+    if (!/^(menu|set|outside)-/.test(e.element) && (await read($, popover)) !== '') await closePopover($)
     // The switch, a group's fold and the selection bar: fixed words, read
     // through fixed sets.
     if (e.element === 'view-sessions' || e.element === 'view-prs' || e.element === 'view-decisions') {
@@ -3430,17 +3443,18 @@ export const register: Register = on => {
       const value = `${verb}-${i}`
       // A value left by a card that has gone or changed group is closed.
       const old = opened === undefined ? undefined : current.cards[opened.place]
-      const live = old !== undefined && (movedLook(old, await movesOf($))?.group ?? statusOf(old.status)?.group) === popoverGroup
+      const live = old !== undefined && old.title === popoverTitle && (movedLook(old, await movesOf($))?.group ?? statusOf(old.status)?.group) === popoverGroup
       if (opened !== undefined && live && `${opened.kind}-${opened.place}` === value) {
-        await update($, popover, () => '')
+        await closePopover($)
       } else {
         popoverGroup = movedLook(c, await movesOf($))?.group ?? statusOf(c.status)?.group
+        popoverTitle = c.title
         await update($, popover, () => value)
       }
       return { element: e.element }
     }
     if (verb === 'outside') {
-      await update($, popover, () => '')
+      await closePopover($)
       return { element: e.element }
     }
 
@@ -3600,7 +3614,7 @@ export const register: Register = on => {
     const outsideRows = bodyRows === undefined ? 60 : Math.min(400, bodyRows + (rowsOf(e.props.scroll?.offset) ?? 0))
     const popLive =
       popped !== undefined &&
-      ([['needsYou', needsYou], ['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place))
+      ([['needsYou', needsYou], ['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place && x.c.title === popoverTitle))
     // The bar counts only picks a checkbox shows: a card that waits on the
     // owner has none, and a title no shown card holds is no pick.
     const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
@@ -3831,9 +3845,9 @@ export const register: Register = on => {
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
-      // pill where there is no pointer (Desktop's hover titles never show, so
-      // the Pull requests tab names it there). gh's spelling once it answered,
-      // else the card's.
+      // pill, on every surface (Desktop has no hover titles, so issue 513, S3,
+      // draws it there too, and the Pull requests tab names it as well). gh's
+      // spelling once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
       // each opens upward from its opener, one at a time.

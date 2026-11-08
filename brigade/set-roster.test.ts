@@ -4018,6 +4018,8 @@ for (const surface of SURFACES) {
       expect(links).toEqual([])
       expect((await textOf(m)).includes('Open pull request')).toBe(false)
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
+      // A merged row gh answered for has its press layer too; the fork's has none.
+      expect(all.filter(n => n.type === 'Button' && String(n.props.key).startsWith('pill-')).length).toBe(2)
     } else {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
       // The linked number keeps its state's colour.
@@ -9889,4 +9891,57 @@ test("504 S1: a subagent's compaction, a precompute and a compaction that was sk
   expect((await readLevel($)).text).toBe(PRESSED_3(at))
   await compactNow($)
   expect(await bandTexts(b)).toEqual([BAND_3(at)])
+})
+
+// --- issue 513, Test round 1: tests the lenses asked for ------------------------------------
+
+test('desktop, C6: a card that goes while another takes its place in the same group closes the popover', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  expect((await itemKeys(m)).length).toBe(3)
+  // `worker` is gone and `stranger` sits at its place, still working.
+  const r = await call($, { cards: MENU_CARDS.cards.map(c => (c.title === 'worker' ? { ...c, title: 'stranger' } : c)), todos: [] })
+  expect(r.ok).toBe(true)
+  expect(await itemKeys(m)).toEqual([])
+  expect(await layerRows(m)).toBe(0)
+})
+
+test('desktop, C6: a popover value planted after the owner closed one draws nothing', async ($, on) => {
+  let plant: unknown
+  await grouped(on, $, MENU_CARDS, (key, value) => (key === 'popover' && plant !== undefined ? plant : value))
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'menu-1-worker' })
+  await m.press({ key: 'outside-3' })
+  plant = 'menu-1'
+  await m.redraw({ ...PANE_PROPS })
+  expect(await itemKeys(m)).toEqual([])
+  expect(await layerRows(m)).toBe(0)
+})
+
+test('desktop, C8: a card that keeps waiting with a new `since` is a new wait and shows', async ($, on) => {
+  const w = await grouped(on, $, WAITING)
+  expect((await call($, WAITING)).ok).toBe(true)
+  const m = await mountOn($, 'desktop')
+  await act(m, 'desktop', 'dismiss-0-asker')
+  expect(await isShown(m, 'asker')).toBe(false)
+  w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: WAITING.cards.map(c => ({ ...c, since: c.title === 'asker' ? 777 : 0 })), todos: [] }) } })
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(await isShown(m, 'asker')).toBe(true)
+})
+
+test('desktop, C12: a gh pr view that exits non-zero shows the fixed toast and none of its output', async ($, on) => {
+  const w = await prPane(on, $)
+  const m = await mountOn($, 'desktop')
+  w.procHook = (e: any) => (e.argv[2] === 'view' ? { exitCode: 1, stdout: 'SECRET_TOKEN=abc123', stderr: 'SECRET_TOKEN=abc123', isStdoutTruncated: false, isStderrTruncated: false } : undefined)
+  await m.press({ key: 'pill-0-alpha' })
+  expect(w.toasts).toEqual(['Could not open the pull request'])
+})
+
+test('C17: on the terminal, a card with only a url makes no tool list and no call', async ($, on) => {
+  const w = await pane(on, $, 'terminal')
+  await press($, 'open-1-beta')
+  expect(w.lists).toBe(0)
+  expect(w.mcpCalls).toEqual([])
 })
