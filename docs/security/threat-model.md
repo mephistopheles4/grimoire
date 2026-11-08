@@ -11,8 +11,8 @@ A control any of them names is named by the threat model. Two older pages,
 detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
-`4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C12, K1 and K2 are
-[accepted classes](#accepted-risks-by-class); P0 to P9 are
+`4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C13, K1 and K2 are
+[accepted classes](#accepted-risks-by-class); P0 to P10 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
 
@@ -37,6 +37,7 @@ quadrantChart
   R8 Key or text leaves: [0.32, 0.64]
   R9 Personal detail ships: [0.35, 0.25]
   R11 Skill under test: [0.15, 0.80]
+  R12 Local check run: [0.20, 0.45]
 ```
 
 The chart places each top risk by how likely it is and how much harm it does once today's guards have done their work, with R1 alone in "Act now" and most of the rest rare but severe.
@@ -46,7 +47,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | <a id="r1"></a>R1 | **Tracker text steers agent.** A charted pull request, an issue a session works on, or a record the lead acts on. | 0.62 | 0.85 | 1 | Each skill tells the agent the material is data, and groundtrack says on the page that AI drew it. The host agent's own rule is the real guard. | The highest-value attack here. Prompt injection in general is not accepted (C1). | [Row 1](checks.md#row-1) |
 | <a id="r2"></a>R2 | **Shared file.** It steers an agent, breaks a page or stalls a renderer. | 0.38 ⁺ | 0.75 ⁺ | 2–5, 7, 13 | Renderers escape what they print, refuse hostile shapes at three measured limits, and fill pages in one pass. Restored answers are bound to their draft by hash. | The attribute rule is held by review, not by a parse of the page. Row 13's other residuals are open too. | [Rows 2–5, 7, 13](checks.md#row-2), [rendering](rendering.md) |
 | <a id="r3"></a>R3 | **Poisoned update.** A skill or mod change reaches every installer. | 0.30 ⁺ | 0.95 ⁺ | 8, 17 | Pull requests are required, and so are the check, SkillSpector, zizmor and plugin-validator gates. The check holds frontmatter keys, hidden characters, manifests and baselines. | Plain-prose instructions that no scanner detects. Fifteen scanner dependencies resolve fresh on every run. | [Row 8](checks.md#row-8), [row 17](checks.md#row-17), [scanners](scanners.md) |
-| <a id="r4"></a>R4 | **Hijacked CI.** A moved action or a replaced package. | 0.12 | 0.85 | 9 | Actions are pinned by SHA, and jobs get minimal permissions with no credentials. Claude Code is pinned in two CI jobs and the athanor image, unpacked, never installed. | The CI pins are not content pins: no tarball hash is checked. The image fetch is hash-pinned. | [Row 9](checks.md#row-9) |
+| <a id="r4"></a>R4 | **Hijacked CI.** A moved action or a replaced package. | 0.12 | 0.85 | 9 | Actions are pinned by SHA, and jobs get minimal permissions with no credentials. Claude Code is pinned in two CI jobs and the athanor image, unpacked, never installed. | The CI pins are not content pins: no tarball hash is checked. The image fetch is hash-pinned; git in the image is not ([C13](#c13)). | [Row 9](checks.md#row-9) |
 | <a id="r5"></a>R5 | **Lead or member moved.** Another session's text steers the lead or a member. | 0.22 | 0.70 | 16 | Members check each sender against the engine's session files. Only the owner's words in the lead's chat count as the owner's, and reports are data. | The sender check is a consistency check. Cleanup's authorization is open (P4). What the data blocks list as not checked is open (P6). Git config still runs programs in the lead at cleanup (filter drivers); row 16's other residuals are open too. | [Row 16](brigade.md#row-16) |
 | <a id="r6"></a>R6 | **Mod acts unprompted.** Its writes and its Open in app call skip the permission step. | 0.30 | 0.55 | 15 | The mod asks the engine for its verdict before each call. A path rule runs before and after each write, and the tools are offered only after `/brigade` or a head-chef load. | The `claude://` opener's inherited environment (P6). Row 15's other residuals are open too, the roster's check-and-write race first. | [Row 15](brigade.md#row-15) |
 | <a id="r7"></a>R7 | **Plugin plants state.** Another plugin reads or plants the level, a dismissal, search text or decision entries. | 0.30 | 0.55 | 15 | The pane shows what state claims as a claim. A level 3 counts only once the owner confirms it in the lead's chat or sets it with the level command, though a plugin that can add rows to the lead's transcript can forge that confirmation, or rewrite that command (E35a). | Row 15's other residuals are open too; what [C4](#c4) leaves out is a candidate (P1, P2, P4, P6, P7). | [Row 15](brigade.md#row-15) |
@@ -55,6 +56,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | <a id="r10"></a>R10 | **Branch code runs.** A branch's code runs when a session opens on it. | – | – | 19 | The check holds the tracked settings file to its one guard. The contributor guide says to read a branch's `.claude/` and `scripts/` first, or to open the session with hooks off. | The guard protects the merge, not the reader. A non-local container engine (P6). | [Row 19](checks.md#row-19) |
 | – | **Rows 11 and 12.** Box text skews the audit's reread order; a provider keeps audit text. | 0.18, 0.52 | 0.30, 0.20 | 11, 12 | Accepted as [K1](#k1) and [C7](#c7). | – | [Row 11](checks.md#row-11), [row 12](checks.md#row-12) |
 | <a id="r11"></a>R11 | **Skill under test.** It reaches past its practice run. | 0.15 | 0.80 | 14 | Hygiene, not a boundary: a tight posture, a scrubbed environment, and backups of the owner's live places. | What the posture does not stop. | [Row 14](checks.md#row-14) |
+| <a id="r12"></a>R12 | **Local check run.** An athanor run hands the check's files to the Docker engine, and its build fetches with network. | 0.20 | 0.45 | – | The run has no network. The build folder is held to `tests/container/`, and the base image and Claude Code are pinned by hash. | The build runs before the check on an unread branch, with the registry login and proxy passwords. git in the image is unpinned ([C13](#c13)). Unencrypted copies stay in athanor's state folder and in a killed run's container, which every account with engine access can read. | [Row 20](checks.md#row-20) |
 
 - **Scale.** L is likelihood and I is impact, both residual risk after
   today's guards, from 0 to 1. Likelihood is how easy and how often the attack
@@ -63,6 +65,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 - **⁺** marks a risk built from several old rows. It takes the highest
   likelihood and the highest impact among them, per axis.
 - **R10** is unscored, because old row 19 had no point on the chart.
+- **R12** is new (issue 366), not an old row; its scores are the lead's.
 - **On the chart,** R7 is drawn a step off R6 so both labels can be read; they
   share row 15's score.
 - **Rows 11 and 12** went to [K1](#k1) and [C7](#c7), and are left off the
@@ -140,6 +143,7 @@ flowchart LR
   subgraph B4["The machine's edge"]
     R8["R8 Key or text leaves"]
     R9["R9 Personal detail ships"]
+    R12["R12 Local check run"]
   end
 
   agent(["An agent that obeys text"])
@@ -169,7 +173,7 @@ More top risks come in as text an agent reads than through any other boundary; e
 | **Text into an agent** | Tracker strangers, file sharers, other sessions | [R1](#r1), [R2](#r2), [R5](#r5), [R11](#r11) |
 | **What ships to installers** | Supply-chain attackers, tracker strangers | [R3](#r3), [R4](#r4), [R10](#r10) |
 | **Plugin trust boundary** | Other plugins and skills | [R6](#r6), [R7](#r7) |
-| **The machine's edge** | Providers, GitHub, Remote Control devices, shared-host users | [R8](#r8), [R9](#r9) |
+| **The machine's edge** | Providers, GitHub, Remote Control devices, shared-host users, the container engine | [R8](#r8), [R9](#r9), [R12](#r12) |
 
 R10 sits under what ships because it arrives as a branch's own files. R11 sits
 under text into an agent because the skill under test is text the session
@@ -290,6 +294,11 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 *Named 2026-11-08 by the owner · from issue 540, spec rev 3, q4 · word "Take all, accept q4", in the build session's chat.*
 
+<a id="c13"></a>
+**C13. The local test image trusts Debian's archive at build time.** The image athanor runs the checks in installs git, and the packages apt installs with it, from Debian's package archive when it is built, unpinned; the base image's digest holds the base and not them. A replaced or moved git package would run inside that image, which only runs the checks; apt checks the archive's signatures, so a replaced package needs Debian's archive or its signing to be compromised; a moved package, a new signed version, needs neither. A replaced package's install scripts run during the build, with network and the Docker client's proxy settings; in the run itself it has no network, and its path out is the output, which reaches the session's transcript. Not inside C13: a package the image adds later, and the base image or Claude Code, which are pinned by hash. Row 20. Entry E87.
+
+*Worded 2026-11-08 by the lead under the owner's relayed word; not yet named by the owner.*
+
 <a id="k1"></a>
 **K1. Box text can move an edge in the audit's reread order.** A score never changes a tier. Old row 11. Entry E11.
 
@@ -369,7 +378,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P6. Data flows the base described, or left open.**
 
 - The `claude://` opener's inherited environment, which can hold keys and tokens (C7, with C8). Its two narrower guards were deferred to issue 235.
-- Tracked files with uncommitted edits, and the history from the merge base with `origin/main` onward (files deleted since included, because `check` names that base), sent to a container engine on a machine that sets athanor's `allowRemoteDocker` (C7, with C9). athanor refuses a non-local engine unless the machine sets that, so the risk stands only where it is set.
+- Tracked files with uncommitted edits, and the history from the merge base with `origin/main` onward (files deleted since included, because `check` names that base), and the registry login, sent to a container engine on a machine that sets athanor's `allowRemoteDocker`, and unencrypted over plain TCP, which also needs `allowPlainTcp` (C7, with C9). athanor refuses a non-local engine unless the machine sets that, so the risk stands only where it is set.
 - D1a and D3b, the lead's own transcript. Questions, decisions, relays, decision gists and failed-check names in the lead's transcript, which Remote Control shows on every device it is on, unencrypted at rest unless the disk is (C7). A background member's side is in C12; a Desktop member's side with Remote Control on stays here. The permission warning names background sessions only; it does not name the lead's own transcript or a Desktop member on Remote Control.
 - D1b. The pane's report store keeps a one-line question in plugin state that other plugins can read (C4).
 - D1c. Decision gists and failed-check names in the head chef's transcript and the pane's store (C7).
@@ -404,6 +413,8 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
 Issue 438: the lead accepted P5 items 10 and 11 at level 3 on 2026-11-08 (decisions 469 and 479), flagged big, because the owner's words at level 3 hand risk acceptance to the lead; item 12 is a candidate line. #466's easings (E42, E35a, E37, E17, E29, E30) took the owner's yes in the lead's chat on 2026-10-31 ("I already gave you permission"), superseding 448 Part B's line.
+
+**P10. Package-manager settings files nothing here reads (issue 366).** Rule 6 refuses `.npmrc` and `.yarnrc.yml`, but not `.yarnrc` (Yarn 1), `.pnpmfile.cjs`, `bunfig.toml` or `.env`. Nothing in this repository or its CI runs Yarn, pnpm or Bun. Claude Code is a Bun-built executable, which by Bun's default can load a `bunfig.toml` and a `.env` from its working folder: on 2026-11-08 Claude Code 2.1.319 on Windows did not run a `bunfig.toml` preload; the pinned 2.1.314 on Linux, and `.env`, were not measured. If Claude Code reads a `.env` from its working folder, a branch's file would set a session's start-up environment. Worded by the lead (decision 406); waits for the owner's word.
 
 </details>
 
@@ -547,6 +558,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - every action pinned to a commit SHA; zizmor's `ref-version-mismatch` ([row 9](checks.md#row-9))
 - `persist-credentials: false`; permissions scoped per job ([row 9](checks.md#row-9))
 - the validator package pinned to an exact version, its version checked, fetched and unpacked and never installed, in two jobs with no token and `contents: read` ([row 9](checks.md#row-9))
+- every `npm pack` runs from the runner's temp folder, outside the checkout, and rule 6 refuses a `.npmrc` or `.yarnrc.yml` ([row 9](checks.md#row-9))
 
 #### R5. Lead or member moved (old row 16)
 
@@ -658,6 +670,15 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - backups and hashes of the owner's six live places, the manifest hash, the change list ([row 14](checks.md#row-14))
 - the session environment built from a named list ([row 14](checks.md#row-14))
 - everything printed or kept cleaned and masked ([row 14](checks.md#row-14))
+
+#### R12. Local check run (new)
+
+- the run with no network ([row 20](checks.md#row-20))
+- rule 6: `athanor.json`'s build folder held to `tests/container/`, no `inputs`, no symbolic link, no case twin ([row 20](checks.md#row-20))
+- `.gitignore` lists `.npmrc` and `.yarnrc.yml`, so, on a branch that keeps those lines, neither a commit nor `--untracked` takes a contributor's own copy; rule 2b fails a force-added one ([row 20](checks.md#row-20))
+- the base image pinned by digest; the Claude Code tarball held to its sha512 ([row 20](checks.md#row-20))
+- athanor's refusal of an engine not on this machine unless `allowRemoteDocker` is set ([row 20](checks.md#row-20))
+- `CONTRIBUTING.md`'s "Run the check in a container": use the local engine, checked by `DOCKER_HOST` and `docker context inspect`; keep secrets out of tracked files; read a branch's container files first ([row 20](checks.md#row-20))
 
 #### Old row 11 (class K1)
 
@@ -870,6 +891,10 @@ Each condition an old accepted entry rested on, by risk. The entry's own line is
 
 - the owner judged the guard worth that exposure (E70; [row 19](checks.md#row-19))
 
+##### Conditions under R12
+
+- the image only runs the checks (E87; [row 20](checks.md#row-20)); the lead adds that the build, where the package installs, has network and the proxy settings
+
 ##### Conditions under K1 (old row 11)
 
 - a score never changes an edge's tier (E11; [row 11](checks.md#row-11))
@@ -987,6 +1012,7 @@ The base page at `4bae5c3` holds every entry's full wording: [threat-model.md at
 - E84 · row 15 · accepted 2026-11-08 · widened 2026-11-08 (issue 560); the widening waits on the owner's confirmed merge · from adversarial-lens and data-lens, PR 537 Test round 1 (issue 513), kept open in Test round 2; the widening from issue 560, spec rounds 1 and 2 (lead decision 319), and Test round 1 (adversarial-lens F1, F2; lead decision 349) · word the owner's word, "accept and merge", in the lead's chat (relayed, decision 138) and again in the build session's chat, 2026-11-08; the widening is the lead's decision 319 at level 3 and waits on the owner's confirmed merge · rests on the page opens on github.com (the host is pinned in `GH_REPO`); the press runs once for one press by the owner, with the 15-second limit and the PATH check; the program is the one the owner's own `GH_BROWSER`, `BROWSER` or `gh` configuration names; for the widening, a to-do's link is parsed again at each draw and press, its label names its repository, and it opens only on the owner's press · gist since Brigade 0.122.0 a pill press runs `gh pr view <number> --web`, and the browser program `gh` opens inherits the session's environment, keys and tokens included, as the `claude://` opener does (the opener's case stays in P6); widened by issue 560: since Brigade 0.136.0 a to-do link's press also runs `gh issue view <number> --web` or `gh pr view <number> --web`, so issue pages join pull requests, and the repository is the one the lead wrote in a `link` and not one a card's `gh` answer named, so the press makes an authenticated lookup in any repository on github.com under the owner's login (its organisation's audit log may show it), that repository's traffic can show a visit, and the page address sits on the browser launcher's command line, which other accounts on a shared macOS or Linux host can read (the pill press has the same flow, unnamed before issue 560; neither is measured), and off Desktop the address goes to the terminal's, the editor's or the phone's own handler, which may put it on a command line as well; the browser's history and its sync keep every page the owner opens; `gh` and the browser follow GitHub's redirects, so a renamed or transferred repository can open a page outside the one the label names (the pill pins its repository against this and the link route does not; not measured); the link may as well be written by any writer of the roster file or plugin state, as C4 and E27a, E27b already allow, and the pane re-parses it; a look-alike repository is held by the label that names it and the owner's press, as E41 holds a chip for a repository the owner did not mean; E41 itself is not edited, and its premise that the rows never reach plugin state does not hold for a to-do link, so E84 holds it · to C7
 - E85 · row 16 · accepted 2026-11-08 · widened – · from adversarial-lens and data-lens, spec round 2 on issue 549 · word the owner's own, in the lead's chat and relayed by the head chef: "Of course, I accept the risk.", "Take a step back and delete all these guards." and "Yes, keep it simple."; the entry waits on the owner's confirmed merge · rests on the owner's user-level instructions file lets the lead decide a merge toward the goal; the lead merges only the head a member's last review, or its own review, covered, with CI passed on that head, by `gh pr merge <n> --squash --match-head-commit <full sha>`, logged first; every other merge or close waits; a merge that changes this page's scope or accepted risks waits · gist at a confirmed level 3 a merge, and the close of a pull request another replaces, reach main without the owner's look. The review, the CI result and the head all come from the branch being merged or from a session that worked on it, so text that steers a session can pass each of them, and a branch's own code can change what CI runs. Merge text goes out unread and can carry private work or a command goal's words. A head that moved is refused by `--match-head-commit`, but a squash onto a moved base is not. A blocking review, a pending check and a fork's branch are not told apart. A member's report can name the pull request that another replaces, and the close follows. The owner's confirm at merge is gone for these merges; the log holds each decision, for the owner to read later · to C6
 - E86 · row 16 · accepted 2026-11-08 · widened – · from issue 540, spec rev 3, q4, and its Design rounds 1 and 2 · word the owner's own, "Take all, accept q4", in the build session's chat · rests on the owner's choice of phone reach for every background member (q4) and the permission warning's first point naming it; the Remote Control link grants nothing without the owner's sign-in (the premise of E76); the start prompt holds no secret (q7, for D4c) · gist since head-chef 1.20.0 every background member runs with Remote Control on, so its whole conversation reaches claude.ai and every signed-in device, and any of them can type to it and answer its permission prompts · to C12
+- E87 · row 20 (new) · accepted 2026-10-21 · widened 2026-11-08 (issue 366: git's dependencies and the build-time flows); the widening waits on the owner's confirmed merge · from #362's Test review (PR 365) · word the owner's, in the lead's chat, relayed by the lead · rests on the image only runs the checks · gist git in the athanor test image comes from Debian's archive at build time, unpinned, and the base image's digest holds the base and not git; the lead adds that the run itself has no network, while a replaced package's install scripts run during the build with network and the proxy settings · to C13
 - D1a · row 16 · accepted – (data block, not an acceptance) · widened –; eased 2026-10-31 (issue 486, E79) · from head-chef 0.5.0 · word not recorded · rests on – · gist questions, decisions and relays in transcripts that Remote Control shows on every device; unencrypted at rest unless the disk is · to P6
 - D1b · row 16 · accepted – (data block, not an acceptance) · widened – · from head-chef 0.5.0 · word not recorded · rests on – · gist the pane's report store keeps a whole one-line question in plugin state other plugins can read · to P6
 - D1c · row 16 · accepted – (data block, not an acceptance) · widened – · from head-chef 0.5.0 · word not recorded · rests on – · gist decision gists and failed-check names sit in the head chef's transcript and the pane's store · to P6

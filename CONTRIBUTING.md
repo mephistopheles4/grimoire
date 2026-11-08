@@ -128,9 +128,14 @@ such a package without asking when no one is at a terminal.
   `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
   address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
+  `.gitignore` lists `.npmrc` and `.yarnrc.yml`, so `--untracked` never takes
+  your own copy on a branch that keeps those lines; read a branch's
+  `.gitignore` before you run it with `--untracked`.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, and with a base also a pack of that
-  history, until the run has streamed it (up to a day after a run killed hard).
+  history, until the run ends. A run killed hard leaves them until an athanor
+  run or prune started a day or more later clears them; with no later run, they
+  stay.
   The folder is safe to delete.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
@@ -371,7 +376,11 @@ too, because athanor follows links, and so does that folder spelled in another
 case, because a checkout that folds case finds it and Linux CI does not, or with
 no plain `tests/container/Dockerfile` in it. `Package.json` and a `package.json`
 in a folder fail, and so does a `binding.gyp` at the root, which npm would
-build. It also fails on any code file importing a bare specifier — an import path that
+build. A package-manager settings file, `.npmrc` or `.yarnrc.yml`, fails
+anywhere and in any case, because npm reads a `.npmrc` in the folder it runs
+from. `.gitignore` lists both, so your own `.npmrc`, which may hold a registry
+token, is never committed or read; a branch that drops those lines, or
+force-adds one, fails. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
 `//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
