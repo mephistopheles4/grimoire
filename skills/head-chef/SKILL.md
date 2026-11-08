@@ -70,10 +70,14 @@ words or process give, with no setter, approval card or approval prompt. When
 neither gives a model or an effort, ask the owner once and start nothing until
 it answers. Start a Desktop session, with Desktop's start tool, only when the
 owner's words in this chat name it; then read `references/desktop.md`. When the
-start tool refuses a start or answers "Not started", or you refuse a start
-under `references/starting.md`, say so in one line, with the fix where that
-file names one, and offer the Desktop start as the other route. Retry the
-start in no other form, and start nothing by another route. Without the tool
+start tool refuses a start with a line that says nothing was started, or you
+refuse a start under `references/starting.md`, say so in one line, with the
+fix where that file names one, and offer the Desktop start as the other
+route. Retry the start in no other form, and start nothing by another route.
+When it answers "Not started", or its refusal says the session may or may not
+have started, a session may exist: tell the owner in one line, write no card,
+retry nothing and offer no other route until the owner has checked; the owner
+reads `claude agents`, not you. Without the tool
 (no mod, the tool not offered, the pane closed), say so in one line and offer
 `/brigade` or the Desktop route: never type the command. When Desktop's start
 tool refuses a start the owner asked for, say so in one line, say the
@@ -580,9 +584,11 @@ Limits:
 
 ## The start prompt
 
-The start tool fills in the issue, the repository and the lead's name from
-its fields, and sends it as written; you type none of it. The `lead` field is
-your own name, exactly as the first line of your session list gives it:
+On a background start the start tool fills in the issue, the repository and
+the lead's name from its fields and sends the prompt as written; its `lead`
+field is your own name, exactly as the first line of your session list gives
+it. On a Desktop start you fill them in yourself, the same way, and send it
+as written:
 
 ```text
 Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.

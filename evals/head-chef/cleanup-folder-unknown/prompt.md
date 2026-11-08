@@ -5,7 +5,7 @@ allowed_tools: [Read, Glob, Grep, Skill]
 
 /head-chef
 
-Earlier in this lead, at level 1, you started build-9 as a background session with Remote Control, on the owner's words choosing that route. You kept the job id the start tool answered. Its answer gave no folder or branch, and you know neither. The owner's instructions name a cleaner, with its program and how to run it. Build-9's work is merged.
+Earlier in this lead, at level 1, you started build-9 as a background session with Remote Control, on the owner's words choosing that route. You kept the job id the start tool answered. You no longer know its folder or branch. The owner's instructions name a cleaner, with its program and how to run it. Build-9's work is merged.
 
 The owner writes: "Clean up build-9."
 

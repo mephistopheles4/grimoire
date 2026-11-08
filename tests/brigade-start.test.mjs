@@ -415,7 +415,7 @@ test('C7: a Remote Control link, extra lines and control characters never reach 
 
 test('C7, C9: anything else is the fixed Not started words, whatever the run printed', () => {
   const NOT = S.NOT_STARTED;
-  assert.equal(NOT, 'Not started: claude did not run, did not exit 0, or printed no job id. It may have started: check `claude agents` before any retry. Tell the owner.');
+  assert.equal(NOT, 'Not started: claude did not run, did not exit 0, or printed no job id. It may have started: tell the owner, who can check `claude agents`, and retry nothing.');
   for (const ran of [
     undefined, null, 'x', {},
     { exitCode: 1, stdout: OUT, isStdoutTruncated: false },

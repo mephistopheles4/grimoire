@@ -37,13 +37,17 @@ claude plugin install grimoire@mephistopheles4
 ```
 
 An `npx skills` install copies skill folders only. It gives you `head-chef`
-but not `/brigade` or the warning band: the skill then works without a pane,
-and says the warning once in chat instead.
+but not `/brigade` or the warning band: the skill then says the warning once
+in chat instead, and it cannot start a background session, because the start
+tool is part of the plugin. It offers the Desktop start then.
 
 It needs Claude Code, Claude Desktop, git, and the GitHub command line (`gh`)
-installed and signed in. The background start needs Claude Code 2.1.319,
-measured from a POSIX shell (Git Bash); its PowerShell 7 form was measured
-on 2.1.302.
+installed and signed in. The background start needs Claude Code 2.1.319.
+
+Before the first background start, type `/brigade folders add <path>` at the
+prompt (or send it from your phone) once for each main checkout you want
+sessions started in. Only you can add a folder; a command typed in the
+terminal is refused.
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
@@ -53,8 +57,8 @@ or type `/brigade` to open it.
 ## What it does
 
 - **Starts sessions in the background.** Each one is a background session
-  with Remote Control by default, with its name, model and effort on the
-  command line, so there is no approval card to accept. The model and effort
+  with Remote Control by default, started with the Brigade start tool, with its name, model and effort as
+  fields, so there is no approval card to accept. The model and effort
   come from your words or your own process. Its start prompt is one sentence
   pair: the issue, which holds the brief, and the lead to send questions and
   reports to. You open it from its card in the Brigade pane, from the

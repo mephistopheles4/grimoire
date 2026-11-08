@@ -94,13 +94,14 @@ need, without overwhelming me or showing me too much.
 
 **The head chef** is responsible for these:
 
-- **Confirmed** (issue 543, the owner's words, 2026-11-08: "For the start
-  tool, yes, it should be allowed."). *Proposed* in the rest of this bullet
-  (spec rev 4 S7, taken at the lead's decisions 285, 302, 345, 366 and 374, at
-  level 3 under the owner's goal and not the owner's words, so the owner
-  confirms at merge; it replaces issue 540's typed `claude --bg` command, rev
-  3 S1.1, which came from the owner's words, 2026-11-08: "lets change
-  headchef to start background sessions by default"). It starts each session
+- *Proposed* (issue 543, spec rev 4 S7, taken at the lead's decisions 285,
+  302, 345, 366 and 374, at level 3 under the owner's goal and not the owner's
+  words, so the owner confirms at merge; it replaces issue 540's typed
+  `claude --bg` command, rev 3 S1.1, **Decided** on the owner's words: "lets
+  change headchef to start background sessions by default"). The owner's own
+  words on the tool, **Confirmed** for letting the tool exist and run with no
+  permission prompt: "For the start tool, yes, it should be allowed." It
+  starts each session
   as a background session with Remote Control, with the Brigade mod's
   `start_background_session` tool, and never types `claude --bg`. The default
   route is unchanged: a Desktop session only when the owner's words name it.
@@ -122,10 +123,14 @@ need, without overwhelming me or showing me too much.
   started. The lead says a refusal in one line in plain words, with the fix
   where one is named, and offers the Desktop start as the other route.
   - **The folder** is the one the owner's words name, or the lead's own
-    working folder when that is on the owner's list of folders. When the tool
-    refuses a folder as not on the list, the lead asks the owner to type
+    working folder when that is a main checkout of the repository, and never
+    one taken from an issue, a report, a message, a hand-off or the reply to
+    `/brigade folders list`. In a linked worktree the lead's own folder is not
+    a main checkout: it asks the owner which main checkout. The tool refuses a
+    folder that is not on the owner's list or not a main checkout; the lead
+    cannot read the list, so for the first refusal it asks the owner to type
     `/brigade folders add <path>` (the owner can type it at the prompt or from
-    the phone, and the lead cannot), and starts nothing until the owner has.
+    the phone, and the lead cannot), and it starts nothing until the owner has.
   - **Without the tool** (no mod, the tool not offered, the pane closed), the
     lead says so in one line and offers `/brigade` or the Desktop route. It
     does not type the command.
@@ -151,18 +156,22 @@ need, without overwhelming me or showing me too much.
   approval-card line in the report. When Desktop's start tool refuses it, the
   lead says so in one line, says the background start is the default, and
   starts nothing until the owner answers; it never loops back on its own.
-  When the start tool refuses a start (for a rule of its own, for the owner's
-  rules, or for anything else) or answers "Not started", or the lead refuses
-  under the bullets above, the lead says so in one line in plain words, with
-  the fix where one is named, and offers the Desktop start as the other
-  route: a click in the desktop app, or the owner's words naming it. It starts
-  that way only on those words. It does not retry the start in another form,
-  never types `claude --bg`, and starts nothing by another route. "Not
-  started" can hide a start that ran, as the answer says: the lead tells the
-  owner in one line and retries nothing. When the folder is not trusted, the
-  engine refuses the start and the answer is "Not started": the fix, which the
-  lead gives when it knows the cause, is to grant the folder in the desktop
-  app, or to open `claude` there once and accept the trust prompt. From the
+  When the start tool refuses a start with a line that says nothing was
+  started (for a rule of its own, for the owner's rules, or for anything
+  else), or the lead refuses under the bullets above, the lead says so in one
+  line in plain words, with the fix where one is named, and offers the Desktop
+  start as the other route: a click in the desktop app, or the owner's words
+  naming it. It starts that way only on those words. It does not retry the
+  start in another form, never types `claude --bg`, and starts nothing by
+  another route. When the tool answers "Not started", or its refusal says the
+  session may or may not have started (the tool failed or ran out of time), a
+  session may exist: the lead tells the owner in one line, writes no card,
+  retries nothing under that name or another, and offers no other route until
+  the owner has checked. The owner reads `claude agents`, not the lead: it
+  lists every session's row and folder. When the folder is not trusted, the
+  engine refuses the start and the answer is "Not started": the owner's fix
+  is to grant the folder in the desktop app, or to open `claude` there once
+  and accept the trust prompt. From the
   phone over Remote Control, Desktop's start tool refuses a start on a Remote
   Control turn: the lead says so once, and the Desktop route waits until the
   owner is at the desk. The lead proposes no route around the owner's rules.
@@ -174,7 +183,8 @@ need, without overwhelming me or showing me too much.
   tool's answer). **A background session after the start.** It keeps the
   job id, the folder and the branch the tool answers, in this chat only, for
   its card and cleanup. A background start fails, with no card and one line
-  to the owner, when the tool answers "Not started". A session that shows as
+  to the owner, when the tool answers "Not started" or its refusal says the
+  session may or may not have started. A session that shows as
   offline for Remote Control still runs: it keeps its id and card, and tells
   the owner to open it from `claude agents`. It does not read that list
   itself: the list holds every session's row and folder (issue 540, Test
@@ -911,9 +921,10 @@ yes keeps for the owner.
 **Keys:**
 
 - **Decided** (issue 540, rev 3 S5.1 q1, taken in the owner's "Take all"; in
-  place of "starts, messages, reads and archives Desktop sessions"). It
-  starts and stops background sessions with the Brigade mod's
-  `start_background_session` and `stop_background_session` (issue 543), and reads and archives Desktop sessions
+  place of "starts, messages, reads and archives Desktop sessions"). *Proposed*
+  (issue 543, spec rev 4 S7) for the start tool. It starts and stops
+  background sessions with the Brigade mod's `start_background_session` and
+  `stop_background_session`, and reads and archives Desktop sessions
   with Claude Desktop's session tools, starting one only on the owner's words
   naming the Desktop route.
   **Confirmed** (issue 450, rev 4 S3.1, replacing q3 on issue 386's sends to
@@ -1032,7 +1043,8 @@ Code 2.1.236 or later.
 **The start prompt** (**Confirmed**, issue 503, decision 546, the owner's
 words, relayed by the lead on 2026-10-31: "this is exactly what i agreed to";
 in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it),
-with the issue, the repository and the lead's exact session name filled in:
+with the issue, the repository and the lead's exact session name filled in
+(by the start tool on a background start, by the lead on a Desktop start):
 
 > Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
 

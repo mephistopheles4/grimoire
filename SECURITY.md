@@ -420,10 +420,11 @@ the same stamps as the level command below, so a run stamped otherwise, a
 command typed in the terminal included, is refused. The list is plugin state:
 other plugins can read, rewrite or plant it (a candidate widening of class
 [C4](docs/security/threat-model.md#c4), proposed for the owner's merge decision),
-the head chef has no tool that reads it, and `list` shows its paths, with `~` for
+the head chef has no tool that reads it (the start tool's refusal does say whether one named folder is on it), and `list` shows its paths, with `~` for
 the home folder, in the lead's transcript, so they reach the model provider and
-Remote Control devices. The start tool re-checks the folder and the repository's
-origin at every start. Rows are in the [row 15 section](docs/security/brigade.md#row-15).
+Remote Control devices. The start tool re-checks, at every start, that the folder is a
+main checkout whose own configuration names the repository: a consistency
+check, not a binding. Rows are in the [row 15 section](docs/security/brigade.md#row-15).
 
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
@@ -552,7 +553,7 @@ starts every session as a background session with Remote Control, and since
 head-chef 1.26.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
 in a main checkout you listed with `/brigade folders add`, takes no permission
-mode and writes no card, and a Desktop session only on the owner's words naming that
+mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's
 [class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a

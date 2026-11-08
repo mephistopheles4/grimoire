@@ -23,7 +23,7 @@ export const NOT_MAIN = 'folder: not a main checkout of this repository'
 export const NOT_READ = 'folder: the checkout could not be read'
 
 export const NOT_STARTED =
-  'Not started: claude did not run, did not exit 0, or printed no job id. It may have started: check `claude agents` before any retry. Tell the owner.'
+  'Not started: claude did not run, did not exit 0, or printed no job id. It may have started: tell the owner, who can check `claude agents`, and retry nothing.'
 
 export const CAP_MAX = 4
 export const CAP_WINDOW_MS = 10 * 60 * 1000

@@ -2924,7 +2924,7 @@ const START_SCHEMA = {
 }
 const FOLDERS_KEY = 'startFolders'
 const START_CAUGHT = {
-  deny: 'start_background_session refused: error: the tool failed or ran out of time. It may or may not have started: check `claude agents` and tell the owner.',
+  deny: 'start_background_session refused: error: the tool failed or ran out of time. It may or may not have started: tell the owner, who can check `claude agents`, and retry nothing.',
 }
 const refuseStart = (rule: string) => ({
   deny: `start_background_session refused: ${rule}${rule.endsWith('Nothing was started.') ? '' : '. Nothing was started.'}`,
