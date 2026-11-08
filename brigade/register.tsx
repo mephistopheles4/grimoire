@@ -4172,17 +4172,13 @@ export const register: Register = on => {
                 {[r.detail.repo, r.detail.cardTitle, r.detail.age].filter(x => x !== undefined).join(' · ')}
               </Text>
             </Box>
-            {r.detail.added !== undefined && (
-              <Box flexShrink={0}>
+            {r.detail.counts !== undefined && (
+              <Box flexShrink={0} flexDirection="row" columnGap={1}>
                 <Text color="success" size="footnote">
-                  {r.detail.added}
+                  {r.detail.counts.split(' ')[0] ?? ''}
                 </Text>
-              </Box>
-            )}
-            {r.detail.removed !== undefined && (
-              <Box flexShrink={0}>
                 <Text color="error" size="footnote">
-                  {r.detail.removed}
+                  {r.detail.counts.split(' ')[1] ?? ''}
                 </Text>
               </Box>
             )}

@@ -928,7 +928,7 @@ export type PrRow = {
   number: string
   state: string
   title: string
-  detail: { cardTitle: string; counts?: string; added?: string; removed?: string; repo?: string; age?: string }
+  detail: { cardTitle: string; counts?: string; repo?: string; age?: string }
   /** The PR's page, built only from `gh`'s answer; absent without one. */
   href?: string
 }
@@ -980,8 +980,6 @@ export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: Re
     const detail: PrRow['detail'] = { cardTitle }
     if (answer !== undefined) {
       detail.counts = `+${num(answer.additions)} −${num(answer.deletions)}`
-      detail.added = `+${num(answer.additions)}`
-      detail.removed = `−${num(answer.deletions)}`
       detail.repo = answer.repo
       const age = ageText(answer.updatedAt, now)
       if (age !== undefined) detail.age = age
