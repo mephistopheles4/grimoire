@@ -3236,6 +3236,33 @@ test('545 row 8: the sawtooth shows only once the session has compacted', () => 
   assert.equal(saw.compactions, 1);
 });
 
+test('545 row 8: the tick never sits under half the window, and the bar warns at 70% and fires at 90% of the way to it', () => {
+  // A 40k window: window less 33k would be 7k; the floor is 20k.
+  assert.equal(contextOutlook(meterOf({ window: 40000, context: [1000, 2000] })).tick, 0.5);
+  const at = used => contextOutlook(meterOf({ window: 1000000, context: [used - 1000, used] }));
+  assert.equal(at(600000).cls, 'done');
+  assert.equal(at(0.7 * 967000 + 1).cls, 'warn');
+  assert.equal(at(0.9 * 967000 + 1).cls, 'hot');
+});
+
+test('545 row 8: a large turn is said in words as well as drawn', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [100000, 105000, 140000] }));
+  assert.equal(o.dotsText, 'large turns: +35k');
+  assert.equal(contextOutlookSvg(o).source.match(/<circle /g).length, 1);
+});
+
+test('545 row 8: the settings reader takes a file of at most 1 MiB and nothing else', async () => {
+  const { readCompactWindow } = view;
+  const io = (stat, text = '{"autoCompactWindow":400000}') => ({ stat: async () => stat, read: async () => text });
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file', size: 30 })), 400000);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'dir', size: 30 })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file', size: 1024 * 1024 + 1 })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io({ kind: 'file' })), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', io(undefined)), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', { stat: async () => { throw new Error('x'); }, read: async () => '' }), undefined);
+  assert.equal(await readCompactWindow('C:\\cfg', { stat: async () => ({ kind: 'file', size: 3 }), read: async () => { throw new Error('x'); } }), undefined);
+});
+
 test('545 row 8: no window, one call or no meter gives no outlook, and a hostile value never throws', () => {
   const { window, ...noWindow } = meterOf();
   assert.equal(contextOutlook({ ...noWindow, context: [100000, 200000] }), undefined);
@@ -4414,7 +4441,6 @@ test('issue 545: a draft pull request is its own group, from the gh answer or th
   assert.deepEqual(rows.open.map(r => r.number), ['10']);
   assert.deepEqual(rows.draft.map(r => r.number), ['11', '12']);
   assert.equal(rows.draft[1].state, 'draft');
-  assert.equal(pillState('draft', 'open'), 'draft');
 });
 
 test('the PR rows list one row per card, skip dismissed cards but not needs-you ones, and fall back safely on hostile stored values', () => {

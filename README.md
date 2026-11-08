@@ -281,10 +281,11 @@ cache bar, a context meter shows how full the session's context is: amber from
 70%, red from 90%. Icon buttons on the row switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
 with its rate per minute. Context is a bar of the session's context against its window, with a tick
-where auto-compaction fires (your `autoCompactWindow` setting when it is set,
-else the window less 33k, marked with `~`), an estimate of the turns left from the
-average growth per turn, and a dot on the bar for each turn that added more
-than 20k. A sparkline of its last 30 calls' context, marking each call under
+where auto-compaction fires (your `autoCompactWindow` setting when it is set and
+under the window, else the window less 33k, never under half of it, marked with
+`~`), an estimate of the turns left from the average growth per turn since the last
+compaction, and a dot on the bar for each of the last five turns since then that
+added more than 20k. A sparkline of its last 30 calls' context, marking each call under
 half the one before it as a compaction, shows only once the session has compacted. A row shows these buttons only when it has more than one view, and
 keeps your choice while the lead session lasts. The reply reminder shows under
 whichever view you chose. At the bottom of the pane

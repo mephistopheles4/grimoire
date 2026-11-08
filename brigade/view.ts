@@ -1883,15 +1883,17 @@ export const COMPACT_BUFFER = 33000
 /** A turn that adds more than this is a large one. */
 export const LARGE_TURN = 20000
 const MAX_DOTS = 5
-const MAX_SETTINGS_CHARS = 1024 * 1024
+// The settings file's cap: 1 MiB as a stat size in bytes, and as a text length in
+// UTF-16 units (never smaller than the bytes it came from).
+const MAX_SETTINGS_BYTES = 1024 * 1024
 const LEAST_COMPACT_WINDOW = 50000
 
 /** The owner's `autoCompactWindow` out of their settings text, or undefined:
  *  text of at most 1 MiB holding a JSON object with that own key as a whole
- *  number from 50,000 to the stored cap. Nothing else of the file is read or
- *  kept, and it never throws. */
+ *  number from 50,000 to the stored cap. The whole text is parsed, but only that
+ *  figure leaves the function, and it never throws. */
 export function compactWindowFrom(text: unknown): number | undefined {
-  if (typeof text !== 'string' || text.length > MAX_SETTINGS_CHARS) return undefined
+  if (typeof text !== 'string' || text.length > MAX_SETTINGS_BYTES) return undefined
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -1904,13 +1906,14 @@ export function compactWindowFrom(text: unknown): number | undefined {
 }
 
 /** The owner's `autoCompactWindow`, read from `<config>/settings.json` through
- *  the poll's own reads: a regular file of at most 1 MiB, else undefined. Only
+ *  the poll's own reads: a file of at most 1 MiB (a link is followed, since
+ *  only the one number is kept), else undefined. Only
  *  the one figure leaves `compactWindowFrom`; the text is kept nowhere. Never
  *  rejects. */
 export async function readCompactWindow(config: string, io: { stat: (p: string) => Promise<unknown>; read: (p: string) => Promise<string> }): Promise<number | undefined> {
   const path = `${config}${sepOf(config)}settings.json`
   const s = await io.stat(path).catch(() => undefined)
-  if (!isRecord(s) || s.kind !== 'file' || typeof s.size !== 'number' || s.size > MAX_SETTINGS_CHARS) return undefined
+  if (!isRecord(s) || s.kind !== 'file' || typeof s.size !== 'number' || s.size > MAX_SETTINGS_BYTES) return undefined
   return compactWindowFrom(await io.read(path).catch(() => undefined))
 }
 
@@ -1956,7 +1959,7 @@ export function contextOutlook(m: Meter | undefined, compactAt?: unknown): Conte
   const turns = used >= line ? 'at the compaction line' : growth > 0 && Number.isFinite(left) ? `about ${left} ${left === 1 ? 'turn' : 'turns'} to compaction` : undefined
   const share = used / line
   const compactions = marks.filter(Boolean).length
-  const at = `${sizeText(line)}`
+  const at = sizeText(line)
   const out: ContextOutlook = {
     fraction: unit(used / window),
     tick: unit(line / window),
@@ -1983,8 +1986,7 @@ export function contextOutlookSvg(o: Partial<ContextOutlook>): Extract<UsageView
   const dots = (Array.isArray(o.dots) ? o.dots : [])
     .slice(0, MAX_DOTS)
     .flatMap(d => (isRecord(d) && typeof d.at === 'number' ? [`<circle class="warn" cx="${pct(unit(d.at) * 100)}" cy="${num(CACHE_Y + CACHE_THICKNESS / 2)}" r="${num(3)}"/>`] : []))
-  const bar = thinBar(o.fraction ?? Number.NaN, typeof o.cls === 'string' ? o.cls : '', typeof o.alt === 'string' ? o.alt : '', tick + dots.join(''))
-  return bar
+  return thinBar(o.fraction ?? Number.NaN, typeof o.cls === 'string' ? o.cls : '', typeof o.alt === 'string' ? o.alt : '', tick + dots.join(''))
 }
 
 // The columns and marks a sparkline builder draws: the newest 30, each column

@@ -64,7 +64,7 @@ the file itself.
   Leave it out for a pull request in your own repository. The pane asks `gh`
   about each repository the cards name, in turns, the pill opens the pull
   request there once `gh` answers, and the pane names the repository beside
-  the Pull requests row (a card shows only its pill and the model). Any other value is refused as a
+  the Pull requests row (on Desktop a card shows its pill and the settings line; the other surfaces also name the repository beside the pill). Any other value is refused as a
   shape.
 - `url` is a Remote Control session's claude.ai link, and nothing else:
   never an issue's or a pull request's address, which takes Open in app away.

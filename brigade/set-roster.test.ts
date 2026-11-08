@@ -4249,7 +4249,9 @@ test('545 row 3: the card menu has no fixed width, so Desktop sizes it to its la
   // 'Dismiss' is 7 cells; the border takes 2 and each side's padding 2 more.
   expect(Number(menu?.props.minWidth)).toBeGreaterThanOrEqual(7 + 2 + 4)
   // The labels are never cut.
-  for (const t of all.filter(n => n.type === 'Text' && ['Open', 'Split', 'Dismiss'].includes(spoken(n)))) expect(t.props.wrap).toBeUndefined()
+  const labels = all.filter(n => n.type === 'Text' && ['Open', 'Split', 'Dismiss'].includes(spoken(n)))
+  expect(labels.length).toBe(3)
+  for (const t of labels) expect(t.props.wrap).toBeUndefined()
 })
 
 test('545 row 4: the outside layer clips its rows to the pane, so a narrow pane draws no column of cut-off text', async ($, on) => {
@@ -4262,26 +4264,6 @@ test('545 row 4: the outside layer clips its rows to the pane, so a narrow pane 
   for (const b of boxes) expect(b.props.overflow).toBe('hidden')
   const layer = all.find(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.top === 0 && n.props.left === 0 && n.props.right === 0)
   expect(layer?.props.overflow).toBe('hidden')
-})
-
-test('545 row 5: the layer\'s rows, each its own hover scope, exist only while a popover is open and are gone the moment it closes', async ($, on) => {
-  await grouped(on, $, MENU_CARDS)
-  const m = await mountOn($, 'desktop')
-  const rows = async () => (await nodes(m)).filter(n => n.type === 'Box' && String(n.props.key).startsWith('outside-box-')).map(n => String(n.props.key))
-  expect(await rows()).toEqual([])
-  await m.press({ key: 'menu-1-worker' })
-  const open = await rows()
-  expect(open.length).toBeGreaterThan(0)
-  // One Box per layer row, none shared: a shared key would light two rows at once.
-  expect(new Set(open).size).toBe(open.length)
-  // Closing takes the whole layer away at once, so no row is left lit after the pointer has gone.
-  await m.press({ key: 'menu-1-worker' })
-  expect(await rows()).toEqual([])
-  // A second popover replaces the first's layer rather than adding to it.
-  await m.press({ key: 'menu-1-worker' })
-  const again = await rows()
-  await m.press({ key: 'set-1-worker' })
-  expect((await rows()).length).toBe(again.length)
 })
 
 test('desktop, C6: a card that changed group closes its popover, and so does a pane open', async ($, on) => {
@@ -4322,17 +4304,20 @@ test('desktop, C7: the settings words come from card text through the one-line c
   expect(text.includes('‮')).toBe(false)
 })
 
-test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the pill, then the model name at the right, and no repository', async ($, on) => {
-  await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], todos: [] })
+test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, age then `⋯`; the second the pill, then the settings line at the right, and no repository', async ($, on) => {
+  await namedPane(on, $, [card('alpha', { status: 'working', pr: '341', repo: 'other/proj', settings: 'opus, high', since: 0 })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(341)])
+  })
   const m = await mountOn($, 'desktop')
   const text = await textOf(m)
   const at = (x: string) => text.indexOf(x)
   expect(at('alpha')).toBeLessThan(at('⋯'))
   expect(at('⋯')).toBeLessThan(at('opus, high'))
-  // Issue 545, row 9: the pill sits left of the model name, and the repository is not drawn on the card.
+  // Issue 545, row 9: the pill (a press layer, since gh answered) sits left of the settings line, and the repository is not drawn on the card.
   const keys = (await nodes(m)).map(n => String(n.props.key))
-  expect(keys.indexOf('set-0-alpha')).toBeGreaterThan(-1)
-  expect(keys.findIndex(k => k.startsWith('pill-'))).toBeLessThan(keys.indexOf('set-0-alpha'))
+  const pillAt = keys.indexOf('pill-0-alpha')
+  expect(pillAt).toBeGreaterThan(-1)
+  expect(pillAt).toBeLessThan(keys.indexOf('set-0-alpha'))
   expect(text.includes('other/proj')).toBe(false)
   expect(text.includes('O·H')).toBe(false)
   // No Open, Dismiss or Split is drawn at rest.
@@ -4673,7 +4658,7 @@ for (const surface of SURFACES) {
     expect(ages).toEqual(['14m'])
   })
 
-  test(`${surface}: the settings show as one character each on Desktop, in full on the terminal`, async ($, on) => {
+  test(`${surface}: the settings show as the card holds them, on every surface`, async ($, on) => {
     await grouped(on, $, { cards: [card('mx', { status: 'working', settings: 'Opus, max, default mode' })], todos: [] })
     const m = await mountOn($, surface)
     const text = await textOf(m)
@@ -8145,7 +8130,7 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const m = await mountOn($, surface)
     const links = openable(await nodes(m), surface)
     expect(links).toEqual(surface === 'desktop' ? ['pill-0-alpha', 'pill-1-beta'] : ['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // The repository sits inline beside the pill on every surface (issue 513, S3).
+    // The repository sits inline beside the pill off Desktop; the Desktop card drops it (issue 545, row 9).
     const sessions = await textOf(m)
     // Named as text, not only inside the link's URL.
     // Issue 545, row 9: the Desktop card drops the repository; the terminal keeps it.

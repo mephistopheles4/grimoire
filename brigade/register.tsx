@@ -529,7 +529,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       const found = await readCalls(retitled, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
-      compactWindow = await readCompactWindow(config, io)
+      ownerCompactAt = await readCompactWindow(config, io)
       if (!open()) return
       await update($, meters, () => found.meters)
       // read_context reads this copy, never the `meters` plugin state another
@@ -1511,7 +1511,7 @@ async function openPill($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -2756,7 +2756,7 @@ const refuseContext = (rule: string) => ({ deny: `read_context refused: ${rule}.
 let polledMeters: Meter[] = []
 // The owner's autoCompactWindow, read each poll from their settings file (issue
 // 545, row 8). Only the figure is kept, here and never in plugin state.
-let compactWindow: number | undefined
+let ownerCompactAt: number | undefined
 let loadedCards: Card[] = []
 
 async function readContext($: EngineInterface, e: Record<string, unknown>) {
@@ -3747,16 +3747,21 @@ export const register: Register = on => {
 
     // One card, a compact row: its checkbox (none on a card that waits on the
     // owner, whose dot is full size and title bold); the status dot, title, hover
-    // actions (always shown in the terminal), PR pill, live state and age;
-    // the settings in short on the right (the full line under
-    // it in the terminal); and the latest report since the pane opened. Then,
+    // actions (always shown in the terminal), live state and age, and on
+    // Desktop `⋯`; on Desktop a second line with the PR pill and, at the right,
+    // the settings line as the card holds it (in the terminal the pill sits on
+    // the first line and the settings line under it); and the latest report
+    // since the pane opened. Then,
     // on a needs-you or working card, the view icons (words in the terminal)
     // and the chosen view: the ◆ cache bar with its short text and the dim
     // line under it, or the ◆ warmth line, dim, when there is no bar; the ◆
     // context meter, in the cache bar's form, when the card's model has a
     // known window; and the nudge, which wraps. Burn rate: its sparkline and
     // rate, or the cache line's reason when the transcript is too large,
-    // shared or not found. Context trend: its sparkline and the context now.
+    // shared or not found. Context (the `trend` view): the outlook, a bar against
+    // the window with a compaction tick, turns left and large-turn dots, and its
+    // sawtooth only once the session has compacted; with no window, the old
+    // sparkline and the context now.
     // The nudge shows under whichever view is chosen, so a sticky choice never
     // hides it. A done or stopped card draws no views, ◆ line, bar, meter,
     // sparkline or nudge: a finished session's cache and context mean nothing.
@@ -3776,8 +3781,11 @@ export const register: Register = on => {
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
       const reason = chosen === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = chosen === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
-      const outlook = chosen === 'trend' ? contextOutlook(meterOf.get(c.title), compactWindow) : undefined
-      const trend = chosen === 'trend' && outlook === undefined ? contextTrend(meterOf.get(c.title)) : undefined
+      const outlook = chosen === 'trend' ? contextOutlook(meterOf.get(c.title), ownerCompactAt) : undefined
+      // With no window the outlook has none to draw against; the old sparkline then
+      // shows only once the session has compacted, as the outlook's does.
+      const oldTrend = chosen === 'trend' && outlook === undefined ? contextTrend(meterOf.get(c.title)) : undefined
+      const trend = oldTrend !== undefined && oldTrend.compactions > 0 ? oldTrend : undefined
       const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
@@ -3798,17 +3806,17 @@ export const register: Register = on => {
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
       const short = compactSettings(c.settings)
-      // The model name on the second line's right (issue 545, row 9): the settings
-      // line as the card holds it, cleaned and cut; a dash when it holds none.
-      const modelName = short.full === 'No settings on the card.' ? '—' : short.full
+      // The settings line on the Desktop second line's right (issue 545, row 9): as
+      // the card holds it, cleaned and cut; a dash when it holds none.
+      const settingsLine = short.full === 'No settings on the card.' ? '—' : short.full
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
-      // pill, on every surface (Desktop has no hover titles, so issue 513, S3,
-      // draws it there too, and the Pull requests tab names it as well). gh's
-      // spelling once it answered, else the card's.
+      // pill on the terminal, the editor and mobile; the Desktop card does not
+      // draw it (issue 545, row 9), and the Pull requests tab names it on every
+      // surface. gh's spelling once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
       // each opens upward from its opener, one at a time.
@@ -3955,7 +3963,7 @@ export const register: Register = on => {
                   <Box position="relative" flexShrink={1} minWidth={0}>
                     <Button key={keyFor('set', i, c.title)} plain onPress={noop}>
                       <Text dimColor wrap="truncate-end">
-                        {modelName}
+                        {settingsLine}
                       </Text>
                     </Button>
                     {setOpen && popText(settingsPopover(c.settings))}
@@ -3998,7 +4006,7 @@ export const register: Register = on => {
                 )}
               </Box>
             )}
-            {/* The burn rate or the context trend, or the burn view's reason
+            {/* The burn rate, the context outlook or the old trend, or the burn view's reason
                 line, then the nudge, which shows under every view (owner
                 decision q1 B on #272), then one row before the next. */}
             {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || outlook !== undefined || warmLine?.nudge !== undefined) && (

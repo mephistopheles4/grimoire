@@ -52,10 +52,11 @@ work at once. It also reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
 since 0.55.0, its context meter, and since 0.56.0, its burn rate and context
-trend; since 0.127.0 the pane also reads the one whole number `autoCompactWindow`
-from `settings.json` in the config folder (a regular file of at most 1 MiB,
-nothing else of it kept or shown); of the model id it keeps only the window
+trend; of the model id it keeps only the window
 size a fixed table gives the model's family.
+Since 0.127.0 the pane also reads the one whole number `autoCompactWindow` from
+`settings.json` in the config folder (a file of at most 1 MiB; nothing else of it
+is kept or shown) to place the context view's compaction tick.
 To find a transcript that moved into a worktree folder, it lists the config
 folder's `projects` folder at most once a minute, and reads a transcript only
 where a resolving `stat` places it inside that folder.
