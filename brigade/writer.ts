@@ -211,7 +211,7 @@ export function writerSession(sessionId: unknown) {
 /** Registers the writer's two hooks. The engine takes one hook per event from
  *  a module, so the session start's work is register.tsx's to call:
  *  `writerEpoch` and `writerSession`. */
-export function registerWriter(on: On, afterTurn?: ($: EngineInterface, e: { agentId?: string }) => Promise<void>) {
+export function registerWriter(on: On, afterTurn?: (e: { agentId?: string }) => string | undefined) {
   // The step starts its id read, then is passed on. Everything after it sits
   // in one catch, and the registration's own catch passes the step through
   // unchanged.
@@ -251,7 +251,10 @@ export function registerWriter(on: On, afterTurn?: ($: EngineInterface, e: { age
     // The module's own work at a turn end (the roster reminder, issue 532):
     // the engine takes one hook per event from a module, so it runs here.
     try {
-      if (afterTurn !== undefined) await afterTurn($, e)
+      const line = afterTurn?.(e)
+      if (line !== undefined) {
+        await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: `Brigade (plugin note): ${line}` }] } })
+      }
     } catch {
       // The turn ends unchanged.
     }

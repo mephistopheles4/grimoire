@@ -52,7 +52,7 @@ test('the wiring: SendMessage, log_decision and set_roster feed the tally, and t
   assert.match(reg, /on\('tool\.call', \{ tool: SEND_TOOL \}/);
   assert.match(reg, /tally\(owedRoster, 'decision'\)/);
   assert.match(reg, /tally\(owedRoster, 'roster'\)/);
-  assert.match(reg, /registerWriter\(on, async/);
+  assert.match(reg, /registerWriter\(on, e =>/);
   assert.match(reg, /endTurn\(owedRoster\)/);
   const writer = fs.readFileSync(new URL('../brigade/writer.ts', import.meta.url), 'utf8');
   assert.equal((writer.match(/on\('turn\.complete'/g) ?? []).length, 1);

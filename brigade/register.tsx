@@ -2951,10 +2951,10 @@ const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' i
 
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
-  registerWriter(on, async ($, e) => {
-    if (e.agentId !== undefined) return
+  registerWriter(on, e => {
+    if (e.agentId !== undefined) return undefined
     const line = endTurn(owedRoster)
-    if (line !== undefined && timers.length > 0) await note($, line)
+    return timers.length > 0 ? line : undefined
   })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
   // hooks, so the permission warning draws beneath it.
