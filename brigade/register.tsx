@@ -3043,19 +3043,21 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
   if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
   // A real path that is not itself a plain spelling is not trusted, and the compare folds case on
   // every host: folding can only refuse more.
-  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: not found on PATH' }
-  if (pathKey(real.found.realPath, true).startsWith(`${pathKey(folder, true)}/`)) return { why: 'program: found inside the folder' }
+  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: its real path could not be trusted' }
+  // Both sides in one Unicode form too, as a link's target may carry the other.
+  if (pathKey(real.found.realPath.normalize('NFC'), true).startsWith(`${pathKey(folder.normalize('NFC'), true)}/`)) return { why: 'program: found inside the folder' }
   return hit
 }
 
 // The start. Every refusal is fixed words; nothing of a run is shown.
-async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, progress: { ran: boolean }) {
+async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, signal: AbortSignal, progress: { ran: boolean }) {
   if (e.agentId !== undefined) return refuseStart("subagent: only the lead session's own turns start a session")
   if (!fromEngine(origin)) return refuseStart("caller: only the model's own call starts a session, never another plugin's")
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
   // pane that comes while a start waits behind another one stops it.
   return startTurn(async () => {
+    if (signal.aborted) return refuseStart('abandoned: the call ran out of time or was interrupted before its turn')
     if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(RULES_RULE)
     if (!(await offered($))) return refuseStart(OFFER_RULE)
     if (!(await paneOpen($))) return refuseStart('pane closed: the owner opens it with /brigade')
@@ -3065,11 +3067,11 @@ async function startBackground($: EngineInterface, e: Record<string, unknown>, o
     const own = 'error' in at ? undefined : sessions?.rows.find(r => r.sessionId === at.id)
     const checked = checkInputs(input, own === undefined ? undefined : oneLine(own.name, 80))
     if ('why' in checked) return refuseStart(checked.why)
-    return startRun($, checked.value, sessions, progress)
+    return startRun($, checked.value, sessions, signal, progress)
   })
 }
 
-async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<ReturnType<typeof readSessions>>, progress: { ran: boolean }) {
+async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<ReturnType<typeof readSessions>>, signal: AbortSignal, progress: { ran: boolean }) {
   // (1) the cap
   const now = await $.clock.now()
   if (!capOpen(startTimes, now)) return { deny: `start_background_session refused: ${CAP_REASON}` }
@@ -3112,6 +3114,7 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
   const matched = originMatch(origin, i.repository)
   if ('why' in matched) return refuseStart(matched.why)
   // (8) the start: held against a second try and counted before it runs, whatever it answers
+  if (signal.aborted) return refuseStart('abandoned: the call ran out of time or was interrupted before its run')
   attempted.add(i.name.toLowerCase())
   startTimes = capRecord(startTimes, now)
   progress.ran = true
@@ -3557,7 +3560,7 @@ export const register: Register = on => {
   on('tool.call', { tool: START_NAME }, async ($, e, next) => {
     const progress = { ran: false }
     try {
-      const r = await startBackground($, e as unknown as Record<string, unknown>, next.origin, progress)
+      const r = await startBackground($, e as unknown as Record<string, unknown>, next.origin, next.signal, progress)
       if (e.agentId === undefined && progress.ran) tally(owedRoster, 'start')
       return r
     } catch {

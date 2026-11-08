@@ -9930,7 +9930,7 @@ test("543 C8: a program whose real path is spelled otherwise than the folder's i
   const base = w.stat
   const claudeBin = exe('claude')
   const cases: [string, string][] = [
-    [ON_WINDOWS ? `\\\\?\\${claudeBin}` : `${BIN}/../bin/claude`, 'program: not found on PATH'],
+    [ON_WINDOWS ? `\\\\?\\${claudeBin}` : `${BIN}/../bin/claude`, 'program: its real path could not be trusted'],
     [`${REPO_DIR.toUpperCase()}${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`, 'program: found inside the folder'],
   ]
   for (const [real, why] of cases) {
@@ -9939,6 +9939,25 @@ test("543 C8: a program whose real path is spelled otherwise than the folder's i
       return s !== undefined && p === claudeBin ? { ...s, realPath: real } : s
     }
     expect((await startTool($)).text).toBe(refusedStart(why))
+  }
+  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
+})
+
+test("543 C8: a program whose real path differs from the folder's only in Unicode form is still inside it, whichever form each has", async ($, on) => {
+  const composed = `${REPO_DIR}é`
+  // The same name with an e and a combining accent.
+  const decomposed = `${REPO_DIR}é`
+  const { w, runs } = await startWorld(on, $, [composed, decomposed])
+  for (const d of [composed, decomposed]) w.dirs(`${d}${SEP}.git`)
+  const base = w.stat
+  const claudeBin = exe('claude')
+  const tail = `${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`
+  for (const [folder, real] of [[composed, decomposed], [decomposed, composed]]) {
+    w.stat = (p: string) => {
+      const s = base(p)
+      return s !== undefined && p === claudeBin ? { ...s, realPath: `${real}${tail}` } : s
+    }
+    expect((await startTool($, { folder })).text).toBe(refusedStart('program: found inside the folder'))
   }
   expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
 })
