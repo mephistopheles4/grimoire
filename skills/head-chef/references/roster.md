@@ -36,7 +36,8 @@ the file itself.
     }
   ],
   "todos": [
-    { "id": "approve-312", "text": "Tap Approve in build-312's chat.", "session": "build-312" }
+    { "id": "approve-312", "text": "Tap Approve in build-312's chat.", "session": "build-312" },
+    { "id": "review-18", "text": "Review PR 18.", "link": "https://github.com/example-org/api/pull/18" }
   ]
 }
 ```
@@ -71,15 +72,40 @@ the file itself.
   A Desktop session's card carries `desktopId`, and a background session's
   card `bgId`, so leave `url` out.
 - `work` names the repository and the issue number only, as in the example.
+- A to-do is one line the owner takes in at a glance: at most 80 characters
+  (the 300 below is only the check's limit), one ask or one owner step, naming
+  the act or the place ("Answer in build-312's chat"), never the question or
+  the decision text. Put no facts, picks, commands or reasons in it; they stay
+  in your chat message or on the issue. A waiting entry's fixed text is the
+  one exception. The pane draws a to-do on one line and cuts what does not fit.
+- A to-do's `session` is a card's title: give it when the step is in that
+  member's chat, and the row gets an Open button when the pane can open that
+  session. A to-do's `link` is an issue or pull request on github.com, written
+  whole as `https://github.com/owner/name/issues/N` or
+  `https://github.com/owner/name/pull/N`: give it when the answer or step is
+  on one. The owner and the name follow the `repo` rule below, the number is 1
+  to 7 digits with no leading zero, and nothing else is allowed: no other
+  host, no query, no fragment, no trailing slash. A link that does not fit is
+  refused as a shape. The pane never opens a link until the owner presses it,
+  and shows the repository beside the number.
 - Caps: a title at most 80 characters; `work` and `settings` at
   most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
-  most 40, its `text` at most 300, its `session` at most 80.
+  most 40, its `text` at most 300, its `session` at most 80, its `link` at
+  most 200.
   `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
   the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
   or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
 - A card and a to-do hold what `SKILL.md`'s "What goes out" allows: other
   plugins can read the pane's file. A waiting entry's to-do has fixed text:
   "Decision <id> from <lead name> waits for you in the Decisions tab".
+
+## If the pane is rolled back
+
+A roster that holds a to-do `link` is refused by a pane from before this field.
+If the owner tells you the pane refused the roster file for a `link`, ask them
+to delete that session's roster file by hand, then write a fresh roster
+without links. This happens only when a session spans a downgrade of the
+plugin.
 
 ## When to call it
 

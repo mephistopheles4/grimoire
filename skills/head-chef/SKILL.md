@@ -584,6 +584,14 @@ it falls back to the card's title only when no session file carries a
 Desktop id, so keep the title equal to the session's name, exactly. Give a card whose pull
 request is in another repository than your own working folder's that
 repository as `repo`, an `owner/name` with no host; give no other card one.
+
+Write each to-do as one line of at most 80 characters, one ask or one owner
+step: name the act or the place ("Answer in build-312's chat"), never the
+question or the decision text, and put no facts, picks, commands or reasons in
+it. A waiting entry's fixed text is the one exception. Give a to-do `session`,
+a card's title, when the step is in that member's chat, and `link`, an issue
+or pull request on github.com as `https://github.com/owner/name/issues/N` or
+`.../pull/N` and nothing else, when the answer or step is on one.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

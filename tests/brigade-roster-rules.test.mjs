@@ -1079,6 +1079,24 @@ test('#560 C4: an issue press builds gh issue view <number> --web with GH_REPO p
   for (const kind of ['', 'merge', 'pull', 'issues', '--web', 7, null]) assert.equal(ghViewRun('18', 'o/r', kind), undefined, JSON.stringify(kind));
 });
 
+test('#560 C9: the roster reference, the skill and the contract give the to-do rules as the check holds them', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
+  const ref = await read('references/roster.md');
+  // Every link the reference shows as an example passes the check, and the cap it names is the check's.
+  const examples = [...ref.matchAll(/"link": "([^"]*)"/g)].map(m => m[1]);
+  assert.ok(examples.length > 0, 'the example call carries a link');
+  for (const e of examples) assert.ok(parseLink(e), e);
+  assert.match(ref, /its `link` at most 200/);
+  assert.match(ref, /one line the owner takes in at a glance: at most 80 characters/);
+  assert.match(ref, /naming the act or the place \("Answer in build-312's chat"\), never the question or the decision text/);
+  assert.match(ref, /`https:\/\/github\.com\/owner\/name\/issues\/N` or `https:\/\/github\.com\/owner\/name\/pull\/N`/);
+  assert.match(ref, /delete that session's roster file by hand/);
+  const rule = /one line of at most 80 characters, one ask or one owner step/;
+  assert.match(await read('SKILL.md'), rule);
+  assert.match(await read('references/CONTRACT.md'), rule);
+});
+
 test('#560 C3: a to-do may carry link from the file and from the tool; any other value is refused in fixed words that never echo it', () => {
   const todo = over => JSON.stringify({ cards: [], todos: [{ id: 't1', text: 'Review PR 18', ...over }] });
   for (const link of GOOD_LINKS) {
