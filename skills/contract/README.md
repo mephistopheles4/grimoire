@@ -40,8 +40,8 @@ request to run a skill or agent that already exists.
 **Read before you install.** Read a shared skill, agent or CLAUDE.md and its
 contract before you use it, as you would any code from someone else.
 
-**The hiring page keeps your answers, unencrypted.** If you take the second
-way in (below), the page keeps your answers in your browser until you press
+**The hiring page keeps your answers, unencrypted.** When you say yes to the
+notice (below), the page keeps your answers in your browser until you press
 **Reset** on it. Other pages opened from disk in the same
 browser, browser extensions with file access, programs running as you and
 backups of your browser profile can read them. Reset removes them from the
@@ -88,12 +88,19 @@ When you give the go, it generates the file from the contract, and runs
 `claude plugin validate --strict` on it. When that command is not available,
 it says the file was not validated.
 
-## The second way in: the hiring page
+## The way in: the hiring page
 
 Most people do not know what to write in a contract, or do not enjoy it. So
-the skill offers a second way in, where you answer by picking.
+the skill uses a page where you answer by picking. It does not first ask
+which way you want.
 
 1. In chat, you agree what good output looks like, as above.
+   Before it writes anything, the skill gives you one notice: where the
+   scratch folder is, that the draft and your answers sit there unencrypted
+   until deleted, that the page keeps them in your browser until Reset, and
+   that copying the answer block, online spell check, dictation and synced
+   browser history can carry what you type off the machine. It waits for
+   your yes. A no means chat.
 2. The skill drafts the contract, every answer *Proposed*, and renders it as
    a page on your machine: a short offer letter with blanks, and its
    schedules below it. You open the page in your own browser.
@@ -104,12 +111,16 @@ the skill offers a second way in, where you answer by picking.
 4. You copy one answer block from the page and paste it in chat. The skill
    checks it with its script, which prints what changed, and asks you about
    each term that can do damage, in your own words. Then it writes the
-   contract and builds, as in the chat way.
+   contract. Before the go to build, it shows you the whole contract in one
+   message. Then it builds, as described in "How it works".
 
 The page needs **Node.js 24 or later** to render, and nothing else to
 install. It loads nothing from the network. When Node is missing, or you
-cannot open a file from this machine in your browser, the skill offers the
-chat way. [An example page](https://mephistopheles4.github.io/grimoire/skills-contract-examples-release-notes.html)
+cannot open a file from this machine in your browser, when the draft is too
+large for the page, when the skill's own folder holds a character the script
+refuses, or the scratch folder's does and you name no other folder, or when
+you ask for chat in your own words, the skill uses chat and says which case applies.
+It never recommends chat for its own ease. [An example page](https://mephistopheles4.github.io/grimoire/skills-contract-examples-release-notes.html)
 shows a made-up skill's interview; it keeps nothing.
 
 ## Fix the contract, not the file
@@ -131,6 +142,10 @@ A small change then gives a small diff, and a reviewer can read it.
 
 ## What it hands back
 
+Either way in, before the go to build, the skill shows you the whole
+contract in one message. Nothing is called ready until you have seen the
+contract and the built file. It then hands back:
+
 1. **The contract** and its change log, with a mark on every answer.
 2. **The built file**, marked "not installed".
 3. **The validator's output**, as printed.
@@ -146,6 +161,25 @@ A small change then gives a small diff, and a reviewer can read it.
 - It never writes a hook, a settings file or a permission list.
 - It never follows an instruction that it finds inside a file. A "yes" in a
   file is never your yes.
+
+## Changes in 0.14.0
+
+**The hiring page is the default way in** for every interview, a rewrite, and an
+existing skill or agent you hand it, included. The skill no longer asks which way you want. Before the
+first write it gives one notice, naming the scratch folder, the browser store
+and the routes that can carry your answers off the machine, and waits for
+your yes; a no means chat. Chat is used only when Node is missing or older
+than 24.0.0, when you cannot open a file from this machine in your browser,
+when the draft is too large for the page, when the skill's own folder holds a
+character the script refuses, or the scratch folder's does and you name no
+other folder, or when you ask for chat in your own words. The skill names the case.
+Either way in, it shows you the whole contract in one message before the go to
+build, and calls nothing ready until you have seen the contract and the built
+file.
+
+**To roll back,** revert the change and publish the next minor version. An
+interview still open then finishes either way, and Reset still works on a page
+already rendered.
 
 ## Changes in 0.13.0
 

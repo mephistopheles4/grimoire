@@ -1,6 +1,6 @@
 # The hiring interview
 
-Read this before a hiring interview: the second way in, where the person
+Read this before a hiring interview: the default way in, where the person
 answers by picking on a local page. The rules of the interview are in
 `SKILL.md`. This file says how to draft, render and read back. It restates
 none of the rules.
@@ -34,8 +34,9 @@ that holds a control character or any of these five quote characters:
 - the curly quotes U+2018, U+2019, U+201A and U+201B.
 
 The script refuses such a path again. When the default scratch folder's
-path holds one, ask the person for a parent folder, or offer the chat way.
-When the skill base directory holds one, offer the chat way.
+path holds one, ask the person for a parent folder; when they name none,
+use the chat way and say why. When the skill base directory holds one, use
+the chat way, and say why.
 
 ## Before you start
 
@@ -46,14 +47,15 @@ check that the page can run:
 node '<skill base directory>/scripts/render.mjs' --version
 ```
 
-It prints its version and Node's. Offer the chat way in the cases that
-`SKILL.md`'s "Two ways in" names, as it says. A remote session is one case
+It prints its version and Node's. Use the chat way only in the cases
+`SKILL.md`'s "The way in" names, and say which applies. A remote session is one case
 where the person cannot open a file from this machine. When the limits
 refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Make one new folder for each interview:
+Give the notice in `SKILL.md`'s "The way in" first, and wait for the yes.
+Then make one new folder for each interview:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --new-folder

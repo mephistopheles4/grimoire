@@ -933,7 +933,7 @@ function termPopBody(x) {
 function whyBox(x) {
   const a = S.answers.get(x.id);
   const labelId = newDomId();
-  const fill = h('span', { class: 'fill', key: `why:${x.id}`, role: 'textbox', tabIndex: 0, spellcheck: true, aria: { multiline: 'true', labelledby: labelId } });
+  const fill = h('span', { class: 'fill', key: `why:${x.id}`, role: 'textbox', tabIndex: 0, spellcheck: false, aria: { multiline: 'true', labelledby: labelId } });
   try { fill.contentEditable = 'plaintext-only'; } catch (e) { /* not supported */ }
   if (fill.contentEditable !== 'plaintext-only') fill.contentEditable = 'true';
   fill.textContent = a ? a.fields.text : '';
@@ -1046,7 +1046,7 @@ function fieldsEditor(x) {
       ctl = h('select', { class: 'pick', id, key, on: { change: e => act(() => setField(x.id, f.name, e.target.value)) } },
         kinds.choices[f.name].map(v => h('option', { value: v, selected: fields[f.name] === v }, (kinds.words && kinds.words[v]) || v)));
     } else {
-      ctl = h('textarea', { class: 'ed', id, key, rows: 1, spellcheck: true, value: Object.hasOwn(fields, f.name) ? fields[f.name] : '',
+      ctl = h('textarea', { class: 'ed', id, key, rows: 1, spellcheck: false, value: Object.hasOwn(fields, f.name) ? fields[f.name] : '',
         on: { input: e => { setField(x.id, f.name, e.target.value); persist(); size(e.target); refresh(); } } });
       if (f.optional) ctl.placeholder = '(optional)';
     }
