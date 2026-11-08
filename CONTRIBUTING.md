@@ -215,7 +215,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/eval-budget.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -313,6 +313,31 @@ rather than being skipped.
 
 That is also why a `git worktree` needs no setup here. Add one and run the
 check; there is nothing to install, link, or copy first.
+
+## Eval cases
+
+The cases in `evals/<skill>/` are counted. `tests/eval-budget.test.mjs` holds a
+budget for each skill and fails when a skill holds more cases than its budget,
+or holds cases and has no budget. A case is a subfolder of `evals/<skill>/` with
+a `prompt.md`; a folder with none, such as the git-ignored `evals/results/` an
+eval run writes, is not counted. To add a case past the budget, merge or cut
+another one in the same change. **Raising a budget is a spec change:** it needs
+the owner's yes in the issue, and only review holds that line.
+
+A case is added only when all three hold:
+
+- **It backs a named acceptance claim,** cited in its criteria or in the pull
+  request.
+- **Nothing cheaper decides the claim.** No unit test or contract check already
+  covers the rule it grades. An eval is for what only a model's reply shows.
+- **No case in the skill already fails on the same wrong behaviour.** If one
+  does, widen that case's criteria, or cut. One prompt may grade several wrong
+  behaviours.
+
+The test counts; these three are for the review to ask. A merge says, in its pull
+request, what each source case failed on, which sentence of the survivor now
+fails it, and which branch it gives up. Each eval run costs tokens, which is the
+other reason to keep the count down.
 
 ## What a good patch looks like
 
