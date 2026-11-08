@@ -266,7 +266,9 @@ stop's wiring and for what the mod must not hold: a window, a cleaner, a
 removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
 imports it to check that a send after the last `set_roster` owes an update and
-which sends carry a message. The turn-level cases run in
+which sends carry a message, and, since #533, the two compaction lines, the
+shared exception string, the 0.9 margin and the once-per-cycle state. The
+turn-level cases run in
 `brigade/set-roster.test.ts`. Keep all
 six to erasable syntax (no enums, namespaces or parameter properties), so
 Node can strip their types. The

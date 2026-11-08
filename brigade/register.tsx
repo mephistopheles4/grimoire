@@ -203,7 +203,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { endTurn, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
+import { compactSign, endTurn, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -1233,10 +1233,11 @@ function takeNamed(repo: string, found: ReadonlyMap<number, GhPr> | undefined, w
 }
 
 // This session's own usage, for the section at the bottom of the pane. The
-// plain reading costs nothing. The context breakdown is asked for only when
-// the session draws somewhere other than the terminal, the one place the
-// image shows its rows, and only as the local summary estimate, which sends
-// no request. Only the fields the section draws are stored. Each reading also
+// context breakdown is asked for on every surface, only as the local summary
+// estimate, which sends no request (since issue 533 it carries the
+// auto-compact threshold the before-compaction line needs). The terminal is not
+// the image's surface, so its rows are dropped before anything is stored. Only
+// the fields the section draws are stored. Each reading also
 // samples the session limit for its projection, by view.ts's rules. A failed
 // reading keeps the last one, and a reading that started before the pane
 // closed is dropped, so it cannot land over a fresh one after a reopen.
@@ -1247,9 +1248,17 @@ async function readUsage($: EngineInterface) {
   try {
     const surfaces = await $.session.surfaces()
     const image = surfaces.some(s => s !== 'terminal')
-    const reading = await $.session.usage(image ? LOCAL_BREAKDOWN : undefined)
+    // Every reading asks for the local summary, which sends no request: the
+    // before-compaction line (issue 533) needs the engine's auto-compact
+    // threshold, and it sits in the breakdown. Only the two numbers are kept
+    // for it. Where the pane draws no image, the stored snapshot keeps no
+    // breakdown rows, as before.
+    const reading = await $.session.usage(LOCAL_BREAKDOWN)
     if (generation !== mine) return
+    const figures = figuresOf(reading)
+    setFigures(cycle, figures.tokens, figures.threshold)
     const snapshot = snapshotFrom(reading)
+    if (!image) delete snapshot.categories
     await update($, usage, () => snapshot)
     const now = await $.clock.now()
     if (generation === mine) await update($, samples, list => addSample(list, snapshot, now))
@@ -2979,12 +2988,23 @@ const HANDOFF_CAUGHT = {
 const owedRoster = { owed: false }
 const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' in r)
 
+// The compaction nudges (issue 533): the lead's last reading of its context
+// (tokens and the engine's auto-compact threshold) and where the cycle stands.
+// Module memory only; it holds two numbers and flags, no text, and no tool
+// reads it.
+const cycle = newCycle()
+
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
   registerWriter(on, e => {
     if (e.agentId !== undefined) return undefined
-    const line = endTurn(owedRoster)
-    return timers.length > 0 ? line : undefined
+    // With the pane closed nothing is added, and the compaction cycle is left
+    // alone, so a line is not used up unseen (issue 533).
+    if (timers.length === 0) {
+      endTurn(owedRoster)
+      return undefined
+    }
+    return turnEnd(cycle, owedRoster)
   })
   // The level-3 band above the lead's prompt, outermost of this plugin's band
   // hooks, so the permission warning draws beneath it.
@@ -3062,7 +3082,15 @@ export const register: Register = on => {
     // A Pane entry still waiting for this id is logged by the level poll, with
     // the pane open or closed.
     await ensureLevelPoll($)
-    return next(e)
+    const result = await next(e)
+    // The after-compaction line (issue 533): the lead's main conversation, the
+    // pane open, source compact. The line is fixed text; the other plugins'
+    // added context is kept, and none of it is copied.
+    if (e.source !== 'compact' || (e as { agent_id?: unknown }).agent_id !== undefined || timers.length === 0) return result
+    compactSign(cycle)
+    const line = takeAfter(cycle)
+    if (line === undefined) return result
+    return { ...result, additionalContext: [...(result?.additionalContext ?? []), `${NOTE_PREFIX}${line}`] }
   })
 
   // A compaction of the lead's main conversation keeps the level (issue 504,
@@ -3074,7 +3102,11 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     try {
-      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) await compacted($)
+      if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
+        // The first sign of a compaction (issue 533); the classic SessionStart is the second.
+        if (timers.length > 0) compactSign(cycle)
+        await compacted($)
+      }
     } catch {
       // The result goes back as it came.
     }
