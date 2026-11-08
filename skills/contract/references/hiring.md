@@ -214,7 +214,7 @@ on the page, or picks again or agrees there, and copies the block again.
 ## The hand-back and the deletes
 
 Ask for Reset first, on every path, and wait, as `SKILL.md` says for the
-hand-back. Reset clears this draft's name and type only. When the page
+hand-back. A page the person says was never opened is the one exception. Reset clears this draft's name and type only. When the page
 said that Reset here does not clear earlier answers, render that earlier
 draft too, and press Reset there.
 
@@ -234,7 +234,8 @@ node '<skill base directory>/scripts/render.mjs' --clean '<folder>' --draft
 The script deletes only its own files, and only in a scratch folder. It
 prints what it deleted and how many other entries are left. The empty
 folder stays: name it in the hand-back. At a stop, a refused build or an
-interview the person drops, ask for Reset. Then name the files that are
+interview the person drops, ask for Reset, unless they say the page was
+never opened. Then name the files that are
 left, and offer to delete them the same way.
 
 ## A half-done interview

@@ -163,7 +163,7 @@ quote and the four curly ones.
 
 At the hand-back of a hiring interview, ask the person to press Reset on the
 page. Before any delete of the page, wait for their word that the page says
-the answers are cleared. When they decline, say the answers stay in the
+the answers are cleared, except for a page the person says was never opened. When they decline, say the answers stay in the
 browser. While the draft is kept, rendering the page again and pressing Reset
 removes them. Once the draft is deleted, clearing the browser's stored data
 for pages opened from disk is the one way left. Name what you deleted.
@@ -361,7 +361,7 @@ Each write and delete it makes is an action. Tell the person first:
   unencrypted, and that other pages opened from disk in the same browser may
   read them. Their yes to the notice is the go.
 - **Deleting the page and the answers file** (`--clean`), after asking for
-  Reset: say "I will delete the page and the answers file". The person's yes
+  Reset (not for a page the person says was never opened): say "I will delete the page and the answers file". The person's yes
   in chat is the go.
 - **Deleting the draft** (`--clean --draft`): only on the person's yes to
   that offer.
