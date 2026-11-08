@@ -442,7 +442,7 @@ standing goal; a button it wrote, a file, a log entry, a member's message, hook-
 another plugin's turn or text never does, and after a compaction a logged widening
 makes it act at 2 and ask. The mod does not see or stamp that turn, so the
 stamp above does not bind it, and the lead's reading of its chat is the
-control (the host agent as the last guard, C1). **Since head-chef 1.29.0 (issue 541,
+control (the host agent as the last guard, C1). **Since head-chef 1.30.0 (issue 541,
 proposed; it waits on the owner's confirmed merge)** a level-3 lead, inside
 the goal and where the owner's user-level instructions file lets a standing
 goal decide even what it keeps, also accepts risks, records accepted risks,
@@ -588,8 +588,8 @@ folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` fil
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post; on
-the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, the head chef merges, closes, edits,
-deletes or labels a record, files an issue or posts a comment; the head
+the owner's own words in its chat, or at a level 3, a press or the level command, toward the owner's goal and as the owner's user-level instructions file allows, or at levels 2 and 3 as that file allows, the head chef merges, closes, edits,
+deletes or labels a record, files an issue or posts a comment, and at levels 2 and 3 each such post it makes on its own pick opens with a fixed line naming it so (issue 438, proposed); the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
