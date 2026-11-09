@@ -5,7 +5,6 @@ import type { Card, Meter, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
   AHEAD_MS,
-  LINK,
   MAX_LINK,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
@@ -19,6 +18,7 @@ import {
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
+  TODO_LINK,
   HOST_PROBES,
   answerFor,
   appLink,
@@ -1627,7 +1627,7 @@ async function pressQuick($: EngineInterface, surface: unknown, cards: readonly 
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, nothing else), or both. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment on it, with `#issuecomment-C` added; on a pull request also `#pullrequestreview-C` or `#discussion_rC`; nothing else), or both. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -1663,7 +1663,7 @@ const SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'text'],
-        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: LINK.source } },
+        properties: { id: field(40), text: field(MAX_TEXT), session: field(80), link: { type: 'string', maxLength: MAX_LINK, pattern: TODO_LINK.source } },
       },
     },
   },
@@ -4637,9 +4637,12 @@ export const register: Register = on => {
       // A to-do's link (issue 560), parsed again at each draw from the roster as read: what is
       // drawn and keyed is the address rebuilt from the parse, never the stored string, and a
       // string the pattern refuses draws nothing. The label names the repository and wraps
-      // whole, never cut; the text above it is the one that is cut.
+      // whole, never cut; the text above it is the one that is cut. A link with an anchor
+      // (issue 567) is the engine's Link on every surface, Desktop included: no `gh` command
+      // takes the anchor, so it has no button, and its label and address come from this one parse.
       const linkParts = parseLink(t.link)
       const linkHref = linkParts === undefined ? undefined : linkUrl(linkParts)
+      const linkButton = pointer && linkParts?.anchor === undefined
       return (
         <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
           {/* Dim at rest (a blank on the terminal, a ○ on a desktop), a tick
@@ -4665,7 +4668,7 @@ export const register: Register = on => {
               {oneLine(t.text, MAX_TEXT)}
             </Text>
             {linkParts !== undefined && linkHref !== undefined &&
-              (pointer ? (
+              (linkButton ? (
                 <Button key={`${keyFor('visit', i, t.id)}-${linkDigest(linkHref)}`} plain onPress={noop}>
                   <Text wrap="wrap">{linkLabel(linkParts)}</Text>
                 </Button>

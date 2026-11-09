@@ -214,6 +214,7 @@ type World = ReturnType<typeof makeFs> & {
   verdict: { decision: 'allow' | 'ask' | 'deny'; reason?: string; rule?: string }
   registered: string[]
   descriptions: Map<string, string>
+  schemas: Map<string, any>
   roster: unknown[]
   toasts: string[]
   existsCalls: string[]
@@ -340,6 +341,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     verdict: { decision: 'ask' as const },
     registered: [] as string[],
     descriptions: new Map<string, string>(),
+    schemas: new Map<string, any>(),
     roster: [] as unknown[],
     toasts: [] as string[],
     existsCalls: [] as string[],
@@ -514,6 +516,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     if (w.failRegister) return { deny: 'forced register failure' }
     w.registered.push(e.name)
     w.descriptions.set(e.name, String(e.description))
+    w.schemas.set(e.name, e.inputSchema)
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
   on('state.set', ($, e: any, next: any) => {
@@ -4744,6 +4747,82 @@ test('#560 C8: a to-do that carries a link and a session draws both its link but
   const keys = (await nodes(m)).filter(n => n.type === 'Button' && typeof n.props.key === 'string').map(n => n.props.key)
   expect(keys).toContain('go-0-t3')
   expect(keys).toContain(visitKey(0, 't3', PR_LINK))
+})
+
+// --- issue 567: a to-do's comment link ----------------------------------------------------
+//
+// An anchored link is the engine's Link on every surface, Desktop included: no gh command takes
+// the anchor, so there is no press button, no process run and no host opener.
+
+const COMMENT_LINK = 'https://github.com/mephistopheles4/grimoire/issues/560#issuecomment-4300000000'
+const PR_COMMENT_LINK = 'https://github.com/o/r/pull/18#issuecomment-5'
+const REVIEW_LINK = 'https://github.com/o/r/pull/18#pullrequestreview-7'
+const REVIEW_COMMENT_LINK = 'https://github.com/o/r/pull/18#discussion_r9'
+const ANCHORED = {
+  cards: [],
+  todos: [
+    { id: 't1', text: 'Answer in the comment', link: COMMENT_LINK },
+    { id: 't2', text: 'Reply on the PR', link: PR_COMMENT_LINK },
+    { id: 't3', text: 'Read the review', link: REVIEW_LINK },
+    { id: 't4', text: 'Read the review comment', link: REVIEW_COMMENT_LINK },
+    { id: 't5', text: 'Plain issue', link: ISSUE_LINK },
+  ],
+}
+const ANCHORED_LABELS = ['#560 comment mephistopheles4/grimoire', 'PR 18 comment o/r', 'PR 18 review o/r', 'PR 18 review comment o/r']
+
+for (const surface of ['terminal', 'vscode', 'desktop', 'mobile'] as const) {
+  test(`#567 C3 ${surface}: an anchored link draws as the engine's Link on the rebuilt address with its label, and no press button`, async ($, on) => {
+    const w = await grouped(on, $, ANCHORED)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    const hrefs = all.filter(n => n.type === 'Link').map(l => l.props.href)
+    // The plain issue link is the Button route on Desktop (#560) and a Link elsewhere.
+    expect(hrefs).toEqual(surface === 'desktop' ? [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK] : [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK, ISSUE_LINK])
+    expect(visitKeys(all)).toEqual(surface === 'desktop' ? [visitKey(4, 't5', ISSUE_LINK)] : [])
+    const text = await textOf(m)
+    for (const label of ANCHORED_LABELS) expect(text).toContain(label)
+    expect(linkViews(w)).toEqual([])
+  })
+}
+
+// #567 C4, a forged `visit` press on an anchored to-do, is tested at its seam: the harness presses
+// only keys the tree drew (a forged key throws before any handler), so tests/brigade-view.test.mjs
+// holds linkPress and visitPress to return nothing for a parse with an anchor. Here, the draw above
+// holds that no `visit` button is drawn for one, and no gh run follows a draw.
+
+test('#567 C7 desktop: an anchored label is drawn whole, wrapped and never cut', async ($, on) => {
+  await grouped(on, $, ANCHORED)
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  for (const label of ANCHORED_LABELS) {
+    const node = all.find(n => n.type === 'Text' && typeof n.text === 'string' && n.text.includes(label))
+    expect(node?.props.wrap, label).toBe('wrap')
+  }
+})
+
+test('#567 C2: the registered set_roster schema takes the anchored shapes by the pattern TODO_LINK holds, and the tool keeps them', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const link = w.schemas.get('set_roster').properties.todos.items.properties.link
+  expect(link.maxLength).toBe(210)
+  // The engine's validators may read a pattern with or without the unicode flag.
+  for (const flags of ['', 'u']) {
+    const re = new RegExp(link.pattern, flags)
+    for (const ok of [COMMENT_LINK, PR_COMMENT_LINK, REVIEW_LINK, REVIEW_COMMENT_LINK, ISSUE_LINK, PR_LINK]) expect(re.test(ok), `${flags} ${ok}`).toBe(true)
+    for (const bad of ['https://github.com/o/r/issues/1#issuecomment-0', 'https://github.com/o/r/issues/1#pullrequestreview-5', 'https://github.com/o/r/pull/1#x', 'https://github.com/o/r/pull/1#issuecomment-5#issuecomment-6']) expect(re.test(bad), `${flags} ${bad}`).toBe(false)
+  }
+  const r = await call($, { cards: [], todos: ANCHORED.todos })
+  expect(r.ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').todos.map((t: any) => t.link)).toEqual(ANCHORED.todos.map(t => t.link))
+  // The one named exception: the pattern takes `..` in the name, and the tool's check (parseLink) refuses it.
+  expect(new RegExp(link.pattern).test('https://github.com/o/a..b/issues/1')).toBe(true)
+  const dots = await call($, { cards: [], todos: [{ id: 't1', text: 'x', link: 'https://github.com/o/a..b/issues/1' }] })
+  expect(dots.ok).toBe(false)
+  const refused = await call($, { cards: [], todos: [{ id: 't1', text: 'x', link: 'https://github.com/o/r/issues/1#issuecomment-0' }] })
+  expect(refused.ok).toBe(false)
+  expect(refused.text).toContain('link is not a github.com issue, pull request or comment link')
+  expect(refused.text).not.toContain('issuecomment-0')
 })
 
 // --- the views ------------------------------------------------------------------
