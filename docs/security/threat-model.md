@@ -610,7 +610,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the usage summary writer: module memory, the step counted as a transcript row, at most one write every 15 seconds, the roster's path rule, the 1,024-byte cap and strict summary check, a refusal stops the writer ([row 15](brigade.md#row-15))
 - the decision log, marks and hand-off writers: offered where `set_roster` is, a session's own file only, a queue, caps, entry shapes, clock checks, fixed refusals ([row 15](brigade.md#row-15))
 - a to-do's `link` (issue 560): one closed github.com issue or pull request pattern, parsed again at each draw and press, drawn with its repository, opened only by the owner's press, through the `gh` call above or, off Desktop, as the engine's Link on the rebuilt address (E84; [row 15](brigade.md#row-15))
-- a card's quick action, since Brigade 0.143.0 (issue 223): on Desktop only, a blank test and a checked fill, never a submit, so the owner's Enter stays the yes. Its candidates O1 to O3 are in [brigade.md, Summary part 1](brigade.md#summary-part-1-the-mods-calls-and-their-bounds) and wait for the owner's merge decision
+- a card's quick action, since Brigade 0.144.0 (issue 223): on Desktop only, a blank test and a checked fill, never a submit, so the owner's Enter stays the yes. Its candidates O1 to O3 are in [brigade.md, Summary part 1](brigade.md#summary-part-1-the-mods-calls-and-their-bounds) and wait for the owner's merge decision
 - each call's bounds in the call table ([the engine calls](brigade.md#row-15-the-engine-calls-behind-its-write-and-its-tool-call))
 
 #### R7. Plugin plants state (old row 15)
