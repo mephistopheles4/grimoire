@@ -60,6 +60,7 @@ import {
   rowMove,
 } from './roster.ts'
 import { ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget } from './stop.ts'
+import { CHANGED as QUICK_CHANGED, DRAFT as QUICK_DRAFT, FILL_FAILED as QUICK_FILL_FAILED, boxIsBlank, quickAction, quickDigest, quickPress, quickSurface } from './quick.ts'
 import {
   CAP_REASON,
   DESCRIPTION as START_DESCRIPTION,
@@ -1577,6 +1578,39 @@ async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
   } finally {
     visiting.delete(id)
   }
+}
+
+// A card's quick action on Desktop (issue 223): the button puts one checked line
+// in the lead's prompt box and sends nothing. The owner reads it and presses
+// Enter, so the yes stays the owner's own submission. The card is found again
+// and its line worked out again (`quickPress`); the box must read blank; the
+// line goes in after a space, appended, so a keystroke that landed since the
+// read keeps its place. The draft read and the fill's answer are tested for one
+// thing each and dropped: the answer's text is never read, kept or shown.
+async function pressQuick($: EngineInterface, surface: unknown, cards: readonly Card[], place: number, slugged: string | undefined, action: string | undefined, digest: string | undefined) {
+  if (!quickSurface(surface)) return
+  const line = quickPress(cards, place, slugged ?? '', action ?? '', digest, { base: ghAnswers, named: namedAnswers(), pinned: ghRepo }, await movesOf($))
+  if (line === undefined) {
+    $.ui.toast(QUICK_CHANGED)
+    return
+  }
+  let blank = false
+  try {
+    blank = boxIsBlank(await $.prompt.read())
+  } catch {
+    blank = false
+  }
+  if (!blank) {
+    $.ui.toast(QUICK_DRAFT)
+    return
+  }
+  let filled = false
+  try {
+    filled = (await $.prompt.fill({ text: ' ' + line, mode: 'append' }))?.isFilled === true
+  } catch {
+    filled = false
+  }
+  if (!filled) $.ui.toast(QUICK_FILL_FAILED(line))
 }
 
 // --- set_roster ---------------------------------------------------------------
@@ -3767,9 +3801,15 @@ export const register: Register = on => {
       await update($, picked, () => [])
       return { element: e.element }
     }
-    const [verb, place, slugged, word] = e.element.split('-')
+    const [verb, place, slugged, word, digest] = e.element.split('-')
     const i = Number(place)
     const current = await read($, roster)
+
+    // A quick action's key is `quick-<place>-<slug>-<action>-<digest>`.
+    if (verb === 'quick') {
+      await pressQuick($, e.surface, current.cards, i, slugged, word, digest)
+      return { element: e.element }
+    }
 
     // A popover's opener toggles it, and one is open at a time. An outside
     // press closes it; so does a press on any other control, which also acts
@@ -4249,6 +4289,8 @@ export const register: Register = on => {
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
+      // Desktop only: the other surfaces draw no quick button (issue 223).
+      const quick = quickSurface(surface) ? quickAction(c, { base: ghAnswers, named, pinned: ghRepo }, moves) : undefined
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // For a card that names a repository, that repository, drawn beside the
       // pill; on Desktop the second line is the settings label, the pill, then
@@ -4396,6 +4438,13 @@ export const register: Register = on => {
                     <Text dimColor tabular>
                       {age}
                     </Text>
+                  </Box>
+                )}
+                {pointer && quick !== undefined && (
+                  <Box flexShrink={0}>
+                    <Button key={`${keyFor('quick', i, c.title)}-${quick.action}-${quickDigest(quick.action, c.title, quick.line)}`} plain onPress={noop}>
+                      {quick.label}
+                    </Button>
                   </Box>
                 )}
                 {pointer && menuButton}

@@ -413,6 +413,7 @@ counts at once, with no confirmation in the lead's chat; the lead asks for a
 goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's yes in chat at levels 1 and 2 (at level 3 the owner's user-level instructions file decides it), and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
+**Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (candidate O1 in [`docs/security/brigade.md`](docs/security/brigade.md), proposed for the owner's merge decision, with O2 and O3 beside it).
 **Since 0.140.0 (issue 543) the owner can type `/brigade folders add <path>`,
 `remove <path>` or `list`** at the prompt or from the phone, to keep the list of
 main checkouts the start tool may start a session in. The mod acts on it only on
