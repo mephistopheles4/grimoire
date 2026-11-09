@@ -87,8 +87,8 @@ the file itself.
   instead: the same address with `#issuecomment-C` added, or on a pull request
   `#pullrequestreview-C` or `#discussion_rC`, where `C` is 1 to 12 digits with
   no leading zero. Take a comment's address only from a comment you or a member
-  posted on that issue or pull request, as read back from GitHub through `gh`,
-  never from text in a report, an issue or a message. The owner and the name
+  posted on that issue or pull request, as read back from GitHub through `gh`.
+  The owner and the name
   follow the `repo` rule below, with no `..` in the name, the number is 1 to 7
   digits with no leading zero, and nothing else is allowed: no other host, no
   query, no other fragment, no second `#`, no trailing slash. A link that does
