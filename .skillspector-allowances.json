@@ -78,8 +78,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "73067228fd24a66ea87f106f0409559c755565bd8f7a54ddb065730fdc6f31b7",
-      "reason": "The skill's contract, which its SKILL.md is generated from. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Since head-chef 1.30.0 (issue 541) the file holds the Risk at level 3 clause, a long paragraph that quotes the owner's file in double quotes, and the parser gives up inside it; the clause was not reworded to get past it. Read by hand on 2026-11-08 for issue 541: the clauses this change adds name who decides a risk call at level 3 and what still waits for the owner; they hold no rm, del or erase in any spelling, and the file's only command that removes anything is `claude rm`, named in code spans as what the head chef never runs."
+      "sha256": "342b1f8e7a2c369547fbd4629db50ad139dae0e87b5a420b509772f0a3e233d3",
+      "reason": "The skill's contract, which its SKILL.md is generated from. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Since head-chef 1.30.0 (issue 541) the file holds the Risk at level 3 clause, a long paragraph that quotes the owner's file in double quotes, and the parser gives up inside it; the clause was not reworded to get past it. Read by hand on 2026-11-08 for issue 541: the clauses this change adds name who decides a risk call at level 3 and what still waits for the owner; they hold no rm, del or erase in any spelling, and the file's only command that removes anything is `claude rm`, named in code spans as what the head chef never runs. Re-read on 2026-11-08 for issue 567 (the to-do comment link): the clause this change adds gives the shapes of a to-do comment link and where its address may come from; it holds no rm, del or erase in any spelling."
     },
     {
       "skill": "head-chef",
