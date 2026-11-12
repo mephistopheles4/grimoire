@@ -1,6 +1,6 @@
-// The head-chef start prompt is written in two places: the contract and the
-// SKILL.md generated from it. These tests hold both to issue 503's one
-// sentence (decision 546). The tests after it hold the eval graders to the
+// The head-chef start prompt is written in two places: the contract's
+// schedule and its home in SKILL.md, which the drift test holds equal. These
+// tests hold both to issue 503's one sentence (decision 546). The tests after it hold the eval graders to the
 // keys the CLI accepts and each fixed grader to replies that must pass and
 // fail it.
 import { test } from 'node:test';
