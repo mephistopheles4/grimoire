@@ -565,8 +565,8 @@ The owner then narrowed D3 (2026-11-12, decision 169, relayed by the lead):
 speech kept in logs on the person's own machine is out of scope, since the
 machine itself is not something Incantation defends. The guard checks no log
 setting, S8 has no kept-speech entry, and README step 7 names where VoiceMode
-keeps speech, as information. A web page's path to those files stays in
-scope, and the proxy closes it. A risk wholly on the person's machine is out
+keeps speech, as information. A route from off the machine stays in scope;
+S4.2 covers it. A risk wholly on the person's machine is out
 of scope unless it touches auth, crypto or data migrations.
 
 One rule holds for every session on this work: no third-party weakness detail
