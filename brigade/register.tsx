@@ -4021,8 +4021,8 @@ export const register: Register = on => {
     const pill = (n: string, state: string) => {
       const color = pillColor(state)
       const image = Image === undefined ? undefined : pillSvg(n, state)
-      // An image draws above the popover, so while one is open the pill is a blank of its size (issue 598).
-      if (Image !== undefined && image !== undefined && popLive) return <Box width={image.width} height={image.height} />
+      // An image draws above the popover, so while one is open the pill is a blank of about its size, in cells (the image is in pixels) (issue 598).
+      if (Image !== undefined && image !== undefined && popLive) return <Box width={Math.ceil(image.width / 8)} height={1} />
       if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
       return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
