@@ -453,7 +453,7 @@ Issue 578: a start's note sits in the member's own first user turn behind a pros
 - **P11.8, an unverifiable setup.** The skill cannot check that the speech engine is local or that its server binds loopback only. Widens C7.
 - **P11.9, a planted PATH and a writable recorder folder.** Another account on a shared host can create a missing PATH folder that comes before the recorder's, or write to an existing one that does. The recorder's own folder can also be writable by others (a drive-root folder, a synced folder); the pin checks the path, not the content. A new class, outside C11.
 
-Not a risk line, and waiting for the owner's word: decision 66 accepted prompt injection as a threat class for this skill (spec D17), and the threat model has no such class. Its C1 says prompt injection in general is not accepted. Until the owner names one, the skill's read-back and its typed-words rule are controls with no accepted class behind them.
+Not a risk line, and waiting for the owner's word: decision 66 accepted prompt injection as a threat class for this skill (spec D17). C1 since issue 584 (E88) accepts the steering of a working session by text it reads, but it leaves outside it "a change that adds a route by which outside text reaches a session". Heard speech is such a route, and the text C1 lists (issues, comments, pull requests, files, notes, hand-offs, reports, tool output) does not name it. So no class covers decision 66 today. Until the owner names one, or widens C1 to take it, the skill's read-back and its typed-words rule are controls with no accepted class behind them, and P11.1 stands as proposed.
 
 </details>
 
