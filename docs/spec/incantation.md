@@ -1,6 +1,6 @@
 # Incantation: the spec
 
-Draft 1.3, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
+Draft 1.4, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
@@ -49,7 +49,9 @@ back.
 - **Networking.** WSL 2 in its default NAT mode. Mirrored mode is not
   supported yet.
 - **Audio.** Audio inside the distribution, set up as VoiceMode's WSL 2
-  guidance says. The README quotes that guidance, with its commit.
+  guidance says, through WSLg's sound server at `/mnt/wslg/PulseServer`,
+  which the listener uses (S4.3). The README quotes that guidance, with its
+  commit, and its step 1 names WSLg.
 - **The host.** The repo's host check may run on Windows. There, the socket
   tests skip and say so; they run in the athanor container and in CI.
 
@@ -350,9 +352,11 @@ speaking.
   server, reading 16 kHz mono 16-bit audio from the server's default source
   on its stdout. It watches playback with `pactl`. Both come from
   `pulseaudio-utils` (README step 1).
-- **The programs it runs.** Only `/usr/bin/parec` and `/usr/bin/pactl`, after
-  resolving links, each owned by root and writable by no group or other
-  account; otherwise it fails closed with a fixed line. Each runs by that
+- **The programs it runs.** Only `/usr/bin/parec` and `/usr/bin/pactl`. Each
+  path, and every link on the way to its target, must be owned by root and
+  writable by no group or other account, and the final target must sit in
+  `/usr/bin`, whatever its name (on common distributions `parec` is a link
+  to a sibling program there). Otherwise it fails closed with a fixed line. Each runs by that
   path, with no shell, from `~/.incantation/run/`, with this environment and
   nothing else: `HOME`, `LANG=C`, and `PULSE_SERVER=unix:/mnt/wslg/PulseServer`.
 - **Inputs.** Like the proxy, it reads its settings only from
@@ -380,9 +384,10 @@ speaking.
   - **Its limit:** sound played on the Windows side of WSL 2 (a browser, a
     call, media) is not seen by `pactl`, so it is not muted and is heard as
     speech. README step 6 and S8 say so.
-  - When the mic has been muted for more than 30 s with no `converse` call
-    running, `wait` returns a fixed `muted` line, and the session shows
-    `Muted: something is playing.`
+  - When the mic has been muted for more than 30 s at a stretch, `wait`
+    returns a fixed `muted` line, once per stretch. The session shows
+    `Muted: something is playing.` unless its own `converse` call is
+    running; the session, not the listener, knows that.
 - **Fails closed.** If it cannot read the playback state (`pactl` missing,
   exiting, or the sound server not answering), it captures nothing and exits
   with a fixed line.
@@ -398,15 +403,23 @@ speaking.
   `listen.mjs` writes it to no file or log. At most 20 turns wait; beyond
   that the oldest is dropped. A turn waiting longer than 5 minutes is
   dropped. Drops are counted, and the next delivery prints `dropped <n>`.
-- **Each turn's mark.** The listener notes whether a turn began after the
-  last playback ended. `wait` prints it, so the skill can tell a reply to a
-  say-back from speech that came before or with it (S4 step 4).
+- **Each turn's mark.** A turn is marked "after reply" only when a playback
+  started after the listener's previous delivery and ended, tail included,
+  before the turn began. A turn said after a delivery but before the next
+  playback starts is not marked, so a yes said before the say-back plays
+  never counts. `wait` prints the mark, so the skill can tell a reply to a
+  say-back from speech that came before or with it (S4 step 4). Its limit:
+  another Linux-side sound played in that window also sets the mark.
 - **One waiter.** Waiters connect on `~/.incantation/run/listen.sock`, in the
   0700 folder S4.1 (a) sets. One waiter at a time: a second gets the fixed
   line `listener error busy`.
 - **Bound to its session.** `listen.mjs start` records the process ID of the
-  Claude Code process that ran it, the nearest ancestor that is Claude Code,
-  read from `/proc`. The listener exits:
+  Claude Code process that ran it: the nearest ancestor, read from `/proc`,
+  whose executable or first argument has the base name `claude`, a match
+  rule the build's first checks confirm from a Bash tool child. It keeps that
+  process's start time from `/proc` with the ID, so a reused ID does not
+  count as the same process. With no such ancestor it fails closed with
+  `listener error session`. The listener exits:
   - when that process ends, whatever waiters remain, dropping every queued
     turn, so a session that ends, crashes or is closed releases the mic;
   - on `listen.mjs stop`, which checks the PID in `~/.incantation/run/` is a
@@ -419,7 +432,8 @@ speaking.
   `listen.sock` that accepts no connection. A start that finds the socket
   answering exits with a fixed line, so one session at a time listens.
 - **Errors** are fixed lines, `listener error <reason>`, the reason one of
-  `recorder`, `playback`, `programs`, `settings`, `stt`, `busy`, `ended`.
+  `recorder`, `playback`, `programs`, `settings`, `session`, `stt`, `busy`,
+  `ended`.
 
 **Delivery.** The skill starts the first `wait` right after the listener
 starts, before the greeting. `wait` runs as a background command. It exits
@@ -436,8 +450,9 @@ Claude Code wakes the session when a background command ends, whether the
 session is idle or working, so heard text arrives with no hook (S3). `wait`
 also ends after 10 minutes with `quiet`; the skill starts the next `wait` and
 says nothing. After each delivery, the skill's first act is to start the
-next `wait`. At most 4 deliveries a minute: when no say-back is pending,
-further turns stay queued and come with the next delivery. Any exit of the
+next `wait`. The listener holds deliveries to at most 4 a minute, keeping
+further turns queued for the next delivery, but never holds a turn marked
+"after reply" or a whole turn of "stop", "that's all" or "wait". Any exit of the
 listener reaches the running `wait` as `listener error <reason>`.
 
 **Only its own task counts.** A heard turn is only what the skill's own
@@ -486,6 +501,47 @@ session, the model replies, and the reply starts to play.
   `Muted: something is playing.`
 - A live level meter is not in this change; a follow-up issue holds it.
 
+### S4.4 When it speaks
+
+The owner's speech policy (2026-11-12, relayed by the lead; decision on
+#208): "I want it to only speak to the human when something requires the
+human's attention." It is judgment, not fixed rules, and it is the main thing
+the practice runs tune.
+
+- **Speak only when it needs the person.** Before speaking, the session asks
+  itself whether there is something here the person must act on, decide or
+  know now. If not, it stays quiet: a heard turn that holds nothing for it
+  (talk not meant for it, a remark, room noise) is shown in chat as `Heard`
+  and gets no speech and no say-back. Finished work with nothing to decide
+  waits until the person asks, or until the next time it must speak anyway.
+- **Conversational and sized.** What it says is a short, easy summary, sized
+  to how much the person wants to hear. When the person asks for more or
+  less ("just the gist", "tell me everything"), it keeps to that until told
+  otherwise. Detail goes to chat.
+- **Check before a long message after a pause.** When the session has been
+  quiet for longer than the pause threshold and is about to say more than a
+  sentence, it first asks, briefly and casually, whether the person is there
+  and free ("Hey, are you there?"), and waits for a heard or typed answer.
+  With no answer, it does not speak the message; it leaves it in chat and
+  says it when the person next speaks. The threshold grows with how long
+  work has run quietly, since long silences during work are normal.
+- **The yes rules hold.** An answer to "are you there?" is heard speech like
+  any other (S4 steps 4 and 5): it only means the person is listening. It is
+  never a yes to an act, and the next say-back still needs its own yes.
+- **One place to tune.** Every number and phrase this section uses lives in
+  one file, `plugins/incantation/skills/incantation/references/tuning.md`:
+  the pause threshold and how it grows, the one-sentence limit before a
+  check, the summary length, the delivery cap, the mute notice delay, and
+  the example phrases. Changing them needs no spec change. Each value there
+  is a starting point, marked as such.
+- **What the practice runs measure,** each reported, not pass or fail:
+  - unneeded speech: spoken turns the person did not need, as the person
+    marks them;
+  - missed attention: moments the person needed to hear something and the
+    session stayed quiet;
+  - length against what was wanted: turns the person cut short or asked to
+    expand.
+
 The prototype's two setup fixes, a temp folder on the system drive and the
 `in#0` device tag in newer ffmpeg output, belong to its Windows listener.
 Neither applies here, and neither is carried.
@@ -516,6 +572,9 @@ Neither applies here, and neither is carried.
 - `plugins/incantation/skills/incantation/scripts/listen.mjs` (S4.3): the
   always-on listener, with `start`, `wait` and `stop`. It exports the
   program resolver and a start function that tests pass fake programs to.
+- `plugins/incantation/skills/incantation/references/tuning.md` (S4.4): the
+  speech policy's settings and example phrases, each marked as a starting
+  point; the skill reads it at start.
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
   free ports, Node's built-in test runner. It skips on win32 and says so.
 - `tests/incantation-listen.test.mjs`: a fake recorder that plays synthetic
@@ -667,19 +726,26 @@ Neither applies here, and neither is carried.
     - discards every frame while a playing stream exists and for the tail
       after, including a stream that exists before start; a corked stream
       does not mute;
-    - drops a turn that playback cuts; marks a turn begun after playback
-      ended;
+    - drops a turn that playback cuts; marks a turn begun after a playback
+      that started after the previous delivery and ended; does not mark a
+      turn begun after a delivery but before the next playback;
+    - holds deliveries to 4 a minute, but never holds a turn marked "after
+      reply" or a whole turn of "stop" or "wait";
     - takes a frame 10 dB over the floor as voice and one just under as
       not;
     - ends a turn after the end-of-speech wait; delivers a 0.3 s "yes" and
       "stop" and drops a 0.2 s blip; cuts a turn at 30 s and goes on;
-    - returns `muted` after 30 s of mute with no `converse` running.
+    - returns `muted` once after 30 s of mute, and not again until the
+      mute has ended and a new one passed 30 s.
 20. `listen.mjs` captures nothing and exits with a fixed line when the
     playback watcher is missing, fails to start, or exits. It exits when the
     recorded Claude Code process ends, even with a waiter connected, and
     drops its queue; it does not exit while that process lives and no
     waiter is connected. It exits on `stop`, which signals only its own
-    process, and after 30 minutes with no turn. A second start exits with a
+    process, and after 30 minutes with no turn. A start with no Claude Code
+    ancestor fails closed with `listener error session`, and a recorded
+    process ID whose start time no longer matches counts as ended. A second
+    start exits with a
     fixed line and leaves the first running; a second waiter gets `busy`; a
     stale socket is removed. One `stt` failure prints `stt-dropped` and goes
     on; three in a row end it.
@@ -694,8 +760,9 @@ Neither applies here, and neither is carried.
 22. The listener runs only `/usr/bin/parec` and `/usr/bin/pactl`, owned by
     root and not group- or other-writable after links are resolved, with
     only `HOME`, `LANG` and `PULSE_SERVER` in their environment; a fixture
-    `parec` elsewhere, on PATH or in the start folder, is never run, and a
-    writable or linked-away one fails closed.
+    `parec` elsewhere, on PATH or in the start folder, is never run; a link
+    in `/usr/bin` to a root-owned sibling there runs, and a writable link,
+    a writable target or a target outside `/usr/bin` fails closed.
 23. The skill calls `converse` only with `wait_for_response: false`, starts
     the first `wait` before the greeting, prints `Listening, always on.`
     when the listener starts and `Stopped listening.` when it stops, starts
@@ -723,7 +790,12 @@ are fixed:
 - **quiet room:** five minutes in a quiet room deliver no heard text;
 - **mic released:** after the session is closed without "stop", the sound
   server lists no recording stream within 5 s, and no turn from before the
-  close is delivered to a later session;
+  close is delivered to a later session; the same after the conversation is
+  cleared or resumed in the same session, or `Stopped listening.` is shown;
+- **when it speaks (S4.4):** a working session with heard turns not meant
+  for it, a finished task with nothing to decide, and one that needs a
+  decision; the three S4.4 measures are recorded, and this step reports,
+  it does not pass or fail;
 - **round trip:** ten turns, each with the listener's timings and
   `converse`'s; the median of the end-of-speech wait plus transcription plus
   time to first audio, and the whole felt time split as S4.3 says, are
@@ -784,7 +856,8 @@ parts. The `hear-back` rubric also grades claim 23's order after a delivery.
   - **How heard lines get in.** The listener runs only `/usr/bin/parec` and
     `/usr/bin/pactl` and takes no override, so heard lines get in only where
     the eval sandbox lets the fixture install fake programs at those paths,
-    owned by root, playing a scripted turn to a fake speech-to-text engine
+    owned by root, only inside the check's container image and never on
+    the host, playing a scripted turn to a fake speech-to-text engine
     that answers with an invented heard line. Where it does not, the cases
     that need a heard line (`hear-back`, `typed-yes`, and claim 23's
     delivery parts) move to the practice run, which then gains a step for
@@ -879,8 +952,8 @@ The entries:
   `converse` in README step 6, the permission prompt on `listen.mjs start`,
   one listener and one waiter at a time, and the listener bound to the
   session that started it. With the allow rule for `wait` (O19), a steered
-  session can read heard text unprompted while the listener runs; that path
-  stays open.
+  session can read heard text unprompted while the listener runs, and takes
+  it, so the person's own session never shows it; that path stays open.
 - **The listener's reach.** A program the listener runs, or text it hands
   the session. Controls: only root-owned `/usr/bin/parec` and
   `/usr/bin/pactl`, with a fixed environment (S4.3); the mic released, and
@@ -906,7 +979,12 @@ The security pair runs on the diff at Test as well.
     stream is gone within 1 s of its sound ending; the delay from a stream
     ending to its sound ending is measured, and sets the mute's tail;
   - `/usr/bin/parec` records from the sound server at
-    `/mnt/wslg/PulseServer`;
+    `/mnt/wslg/PulseServer`, and its link and ownership check (S4.3)
+    passes on the owner's install;
+  - `listen.mjs start`, run from the Bash tool, finds its Claude Code
+    ancestor by the S4.3 match rule;
+  - what clearing, resuming or switching the conversation does to a running
+    background command and to that ancestor;
   - a background command that ends wakes a session that is working, not
     only an idle one;
   - where Claude Code keeps a background command's output, for README
@@ -918,8 +996,9 @@ The security pair runs on the diff at Test as well.
   going on.
 - **Stop if:** the build's first check (S4.1 a) finds an engine that cannot
   listen on a socket at all; or `pactl` cannot see VoiceMode's playback, or
-  its stream outlives its sound by more than 1 s, since the mute then has
-  nothing reliable to follow; or VoiceMode will not
+  its stream outlives its sound by more than 1 s, or its sound outlives its
+  stream by more than 1500 ms, since the mute then has nothing reliable to
+  follow; or `/usr/bin/parec` cannot record from `/mnt/wslg/PulseServer`; or VoiceMode will not
   run on a target system; or the practice run
   shows a spoken yes starting a typed-yes act; or the guard cannot read the
   settings VoiceMode uses on a target system; or an engine cannot listen on a
@@ -1008,7 +1087,8 @@ after round 1 of that reopened stage (2026-11-12), and answered:
   names one allow rule for exactly `node <skill base>/scripts/listen.mjs
   wait`, with `start` and `stop` always prompted. Adding it to any settings
   file stays the owner's step. The residual: while the listener runs, a
-  steered session of the person's could run `wait` without a prompt, and
+  steered session of the person's could run `wait` without a prompt, takes
+  any heard turn it gets so the person's own session never shows it, and
   gets `busy` only while the skill's own `wait` is connected.
 - O13 and O18 go to the owner now, and the build waits for their words.
 
@@ -1024,6 +1104,22 @@ word for word): "Accept the scope lines." The third scope line, heard text
 reaching the provider, is covered by "Accept both". The scope changes hold
 for the build; the threat-model edit still lands only on a merge the owner
 confirms.
+
+Draft 1.4 (2026-11-12) adds S4.4, the owner's speech policy (relayed by the
+lead, posted on #208 as a decision): speak only when something needs the
+person, as a short conversational summary sized to what they want to hear,
+check they are there before a long message after a pause, and keep the
+settings in one tuning file. The owner expects this to need a lot of tuning.
+1.4 also drafts the fixes from round 2 (final) of the reopened stage:
+- the "after reply" mark binds to a playback after the last delivery;
+- the listener enforces the delivery cap and never holds a reply or a stop;
+- `muted` once per stretch;
+- the session match rule, its start-time pin and `listener error session`;
+- the `/usr/bin` link rule;
+- WSLg named;
+- more first checks and stop conditions;
+- eval fakes only in the container.
+The three new mediums go to the owner as trade-offs.
 
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
