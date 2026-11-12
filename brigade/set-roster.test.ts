@@ -23,7 +23,7 @@ import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
 import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
-import { ASK_FORM, ASK_NO_STOP, STOP_KINDS, sha256Hex } from './decisions.ts'
+import { ASK_FORM, ASK_NO_STOP, ASK_TYPES, STOP_KINDS, sha256Hex } from './decisions.ts'
 import { BEFORE_LINE, EXCEPTION, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
 let otherContext: string | undefined
@@ -7894,6 +7894,13 @@ const WAIT = { ...ENTRY, waiting: true, pick: '' }
 // The lead's own entries: a press also writes an Owner entry to the same log.
 const entryCount = (w: World) => (parsed(w, LOG)?.entries ?? []).filter((e: any) => e.source === 'lead').length
 
+test("618 S3: the log_decision schema lists the ask types and the stop kinds as enums", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const props = w.schemas.get('log_decision').properties
+  expect(props.ask.enum).toEqual([...ASK_TYPES])
+  expect(props.stop.enum).toEqual([...STOP_KINDS])
+})
+
 test('618 C2: at level 3 a wait with a stop outside STOP_KINDS gets the form answer through the tool, and nothing is written', async ($, on) => {
   const w = await decisionsPane(on, $)
   await press($, 'level-3')
@@ -7985,6 +7992,13 @@ test('618 C4: at level 3 a new to-do needs the id of an open waiting entry, and 
     expect(await call($, withTodos([{ id, text: 'ask' }])), id).toEqual({ ok: false, text: TODO_REFUSAL })
   }
   expect(w.text(FILE)).toBeUndefined()
+  // An entry that does not wait is no open wait: the press's Owner entry, and a plain Lead entry.
+  const owner = parsed(w, LOG).entries.find((e: any) => e.source === 'owner').id
+  const plain = /^Logged decision (\d+) /.exec((await decide($)).text)![1]
+  for (const id of [`w${owner}`, `w${plain}`]) {
+    expect(await call($, withTodos([{ id, text: 'ask' }])), id).toEqual({ ok: false, text: TODO_REFUSAL })
+  }
+  expect(w.text(FILE)).toBeUndefined()
   const r = await call($, withTodos([{ id: `w${n}`, text: 'ask' }]))
   expect(r.ok).toBe(true)
   expect(parsed(w, FILE).todos).toEqual([{ id: `w${n}`, text: 'ask' }])
@@ -8021,6 +8035,22 @@ test('618 C4: an answered waiting entry is no longer open, and a log call then s
   expect((await decide($, { ...ENTRY, source: 'relayed', answers: n })).ok).toBe(true)
   expect(await call($, withTodos([{ id: `w${n}`, text: 'ask, changed' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
   expect(parsed(w, FILE).todos).toEqual([{ id: `w${n}`, text: 'ask' }])
+})
+
+test('618 C4: a set_roster call that starts while a wait is being written reads the log after that write', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const n = await logWait($)
+  w.holdWrite = true
+  const logged = decide($, { ...WAIT, ask: 'question', stop: 'owner-hands' })
+  await w.clock.settle()
+  const called = call($, withTodos([{ id: `w${Number(n) + 1}`, text: 'ask' }]))
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  expect((await logged).ok).toBe(true)
+  expect((await called).ok).toBe(true)
+  expect(parsed(w, FILE).todos).toEqual([{ id: `w${Number(n) + 1}`, text: 'ask' }])
 })
 
 test('618 C4: at level 1 a new to-do is kept and the log is never read, even a broken one; at level 3 a broken log counts as no open wait', async ($, on) => {

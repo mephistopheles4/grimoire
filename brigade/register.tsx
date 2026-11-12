@@ -2003,8 +2003,8 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // session's own log (618). The lock order is fixed: this roster queue, then
     // the log queue, then the level lock, as logDecision takes them. The level
     // is read at every level; the log only at level 3, and only for such a to-do.
+    await ensureLevelPoll($)
     const allowed = await logTurn(async () => {
-      await ensureLevelPoll($)
       const state = await levelTurn(() => levelState($, at.id))
       if (state.level !== 3) return true
       const changed = changedTodos(previous?.todos, checked.value.todos)
