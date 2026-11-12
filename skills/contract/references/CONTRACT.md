@@ -367,9 +367,10 @@ built `SKILL.md` of a contract with schedules has no part fences, because each
 home is matched by its heading. A change goes into the schedule first, and is
 copied word for word to its home. A contract without schedules keeps its
 fences. Writing a home is a write the skill did not make before, so stop 13
-holds it. The interview script and the repository's drift test apply the home
-grammar as code; when a contract is amended in chat or shared, the stop is
-prose only.
+holds it. The interview script checks the home grammar on a draft only on the
+hiring-page path. Chat push-back and the chat way in check no home in code.
+The head-chef drift test (T2) covers this repository's own contracts only. The
+link and junction check before a write is prose, followed up in #611.
 
 ## rules
 
@@ -419,7 +420,7 @@ change-log row.
 
 | Rule | Guards against | Status | Gated by, freedom |
 |---|---|---|---|
-| Before writing a home, check it against the template's `schedules` part, refuse the contract and its change log in any letter case, and write nothing outside the built skill's folder | A schedule that writes over the contract or its history, or through a link to a folder elsewhere | potential | Gated by: the interview script's draft check and the repository's drift test, for the home grammar only (unconfirmed); fixed |
+| Before writing a home, check it against the template's `schedules` part, refuse the contract and its change log in any letter case, and write nothing outside the built skill's folder | A schedule that writes over the contract or its history, or through a link to a folder elsewhere | potential | Gated by: the interview script's draft check, on the hiring-page path only, for the home grammar (unconfirmed); the link and junction check is prose, followed up in #611; fixed |
 | In a contract with schedules, change the schedule first and copy it word for word to its home | A home edited by hand, so the contract and its built file part ways | potential | |
 
 ## writing

@@ -286,7 +286,7 @@ source was read on 2026-11-12.
   (The skill-creator skill before its 2026-02-06 rewrite, the parent of
   [anthropics/skills commit 1ed29a03dc](https://github.com/anthropics/skills/commit/1ed29a03dc):
   "Information should live in either SKILL.md or references files, not both".
-  Kept on the owner's word, 2026-11-12.)
+  Kept on grimoire's maintainer's word, 2026-11-12.)
 - **R5.** Deterministic work goes in `scripts/`, which the agent runs and does
   not read. Files used in output go in `assets/`.
   ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Provide utility scripts";
