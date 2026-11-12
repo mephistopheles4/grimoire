@@ -16,7 +16,7 @@ The host agent's own rule that file content is data. groundtrack's `SKILL.md` sa
 
 ### Residual gap
 
-A sentence in a skill and a note on the page remind the agent and the reader. Neither makes anyone check. This is the highest-value attack here. A misleading review aid is the product failing quietly.
+A sentence in a skill and a note on the page remind the agent and the reader. Neither makes anyone check. This is the highest-value attack here. A misleading review aid is the product failing quietly. Accepted risk: class C1 (E88), for the steering only; what a steered session does, a sheet that misleads a reviewer first, stays this row's open gap.
 
 ### Tags
 
@@ -178,7 +178,7 @@ A pin trusts whatever code it names. The CI npm pins are not content pins: no ta
 
 ### Residual gap
 
-The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent.
+The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent. The steering is accepted in class C1 (E88); the key leaving is not.
 
 ### Tags
 
