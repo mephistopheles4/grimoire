@@ -684,7 +684,7 @@ merge, a cleanup. Never leave it for later. A refused call is said once in
 your next report, and you carry on. A card's `work` names the repository and
 issue number only. A card's `status` is `working`, `idle`, `done` or `stopped`.
 Write `idle` for a member that has reported and waits on the owner or on you,
-and put what the owner must do in a to-do. Never write `needs-you`; the pane
+and `working` again when it resumes; put what the owner must do in a to-do. Never write `needs-you`; the pane
 still reads that word as `idle`.
 
 Give each background session's card its job id as `bgId`, and no

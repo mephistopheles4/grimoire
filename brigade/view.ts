@@ -19,8 +19,9 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // beyond the last call, stored as each card's meters record, and the meter
 // drawn from it under the cache bar.
 //
-// Burn rate, the context trend and card tabs: two sparklines drawn from the
-// same record, each in a tab of its own, and which tab each card shows.
+// Burn rate and card tabs: the burn sparkline drawn from the stored meter, in a
+// tab of its own beside the Context trend tab (the context outlook), and which
+// tab each card shows.
 //
 // The usage summary writer: which steps count, the numbers kept in module
 // memory, the summary file's shape and strict check, its byte cap, and the
@@ -825,7 +826,7 @@ export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
 
 /** The quiet line an empty group shows. */
 export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
-  ['waiting', 'Decisions, reviews, and permission requests.'],
+  ['waiting', 'Decisions and reviews.'],
   ['working', 'No session is working.'],
   ['finished', 'Sessions the owner closed.'],
   ['pr-open', 'No open pull requests.'],
@@ -1824,18 +1825,16 @@ export function contextMeterSvg(c: Pick<ContextMeter, 'fraction' | 'cls' | 'alt'
   return thinBar(c.fraction, c.cls, c.alt)
 }
 
-// --- Burn rate and the context trend ------------------------------------------
+// --- Burn rate ----------------------------------------------------------------
 //
-// Two sparklines from a card's stored meter. The burn rate: the new tokens of
-// each of the 30 minutes up to the read, shifted left by the whole minutes
-// since it at draw time, so an idle session's burn falls to 0 without another
-// read. The context trend: the context size of each of the last 30 calls, a
-// drop below half the call before marked as a compaction. Drawn from the
-// meter's numbers alone: no title, path, model or message id reaches either,
-// and the alt texts are fixed words and numbers.
+// A sparkline from a card's stored meter: the new tokens of each of the 30
+// minutes up to the read, shifted left by the whole minutes since it at draw
+// time, so an idle session's burn falls to 0 without another read. Drawn from
+// the meter's numbers alone: no title, path, model or message id reaches it,
+// and the alt text is fixed words and numbers.
 
 /** The columns of a sparkline: the burn's minutes, and the most calls the
- *  context trend draws. */
+ *  context outlook reads. */
 export const SPARK_COLUMNS = 30
 // The sparkline image's height, and the least height of a column: an empty
 // one draws the flat baseline, and one above 0 never draws as short.
@@ -1864,7 +1863,7 @@ export function shiftBurn(burn: readonly number[], at: number, now: number): num
 }
 
 /** A sparkline: each column's height from 0 to 1, oldest first, whether each
- *  is marked (a compaction), the text beside it and the image's alt text. */
+ *  is marked (none is today; the burn marks nothing), the text beside it and the image's alt text. */
 export type Spark = { columns: number[]; marks: boolean[]; text: string; alt: string }
 
 /** A card's burn rate at `now`, or undefined with no record or no burn
@@ -1886,8 +1885,8 @@ export function burnRate(m: Meter | undefined, now: number): Spark | undefined {
 
 // --- The context outlook (issue 545, row 8; issue 581) ---------------------------
 //
-// The context trend scaled to a 0 to 1M window drew a flat line with an odd
-// bump, since a session grows a few thousand tokens a turn. The outlook is a
+// A session grows a few thousand tokens a turn, so a line of its context against a
+// 0 to 1M window is flat. The outlook is a
 // bar of context against the window with a tick where auto-compaction fires,
 // an estimate of the turns left and the large turns as dots. It is the one
 // context bar: the Cache · context tab's context row and the Context trend
@@ -2057,7 +2056,8 @@ export function sparkSvg(s: Partial<Spark>): Extract<UsageView, { kind: 'svg' }>
 // --- Card tabs -----------------------------------------------------------------
 //
 // A working or idle card has up to three views, each a tab: the cache
-// bar and context bar, the burn rate, and the context trend. The tab row
+// bar and context bar, the burn rate, and the context outlook (the Context trend
+// tab). The tab row
 // shows only with two or more. The choice is kept per card for the session in
 // the `tabs` atom, card title to view word, and read only through
 // `VIEW_WORDS` below: an unknown or unavailable word reads as the default. A
@@ -2090,7 +2090,7 @@ const REASONS = new Set(['too-large', 'shared', 'not-found'])
 export const isReason = (w: Warmth | undefined): boolean => w !== undefined && REASONS.has(w.kind)
 
 /** A card's views, in tab order: the default always; the burn rate when its
- *  meter has a burn series or its warmth is a reason line; the context trend
+ *  meter has a burn series or its warmth is a reason line; the Context trend tab
  *  only when the card has a context outlook (a known window and 2 or more
  *  calls). */
 export function cardViews(w: Warmth | undefined, m: Meter | undefined): View[] {

@@ -1975,7 +1975,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const text = await textOf(m)
     expect(text.includes('▸ Done · stopped 1')).toBe(true)
-    expect(text.includes('Decisions, reviews, and permission requests.')).toBe(true)
+    expect(text.includes('Decisions and reviews.')).toBe(true)
     expect(text.includes('No session is working.')).toBe(true)
     expect(text.includes('No cards in the roster yet.')).toBe(false)
     // A folded group shows no hint: its cards stay out of sight.
@@ -1986,7 +1986,7 @@ for (const surface of SURFACES) {
     await grouped(on, $, { cards: [], todos: [] })
     const text = await textOf(await mountOn($, surface))
     expect(text.includes('No cards in the roster yet.')).toBe(true)
-    for (const hint of ['Decisions, reviews, and permission requests.', 'No session is working.']) expect(text.includes(hint)).toBe(true)
+    for (const hint of ['Decisions and reviews.', 'No session is working.']) expect(text.includes(hint)).toBe(true)
   })
 
   test(`${surface}: a press on the Done · stopped bar opens it, and a second press folds it`, async ($, on) => {
@@ -5144,6 +5144,11 @@ for (const surface of SURFACES) {
     expect(after.includes('work-one')).toBe(false)
     expect(after.includes('need-one')).toBe(true)
     expect(after.includes('▸ Done · stopped 1')).toBe(true)
+    // The bar's Dismiss never puts an idle card in the stored dismissed list (581 C5): it
+    // would stay hidden after it stopped being idle.
+    const stored = w.states.filter(([k]: [string, string]) => k === 'dismissed').at(-1)?.[1] ?? ''
+    expect(stored).toContain('work-one')
+    expect(stored).not.toContain('need-one')
     // Reopening brings the dismissed cards back and clears the selection.
     w.open = false
     await w.clock.advance(5000)

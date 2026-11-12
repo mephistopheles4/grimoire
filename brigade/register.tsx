@@ -246,7 +246,7 @@ import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY
 // three foldable groups (Waiting on you, Working, Done · stopped) behind a
 // switch to a Pull requests view. A row shows its status dot, title,
 // live busy or idle state, age, PR pill and latest report, and on an idle
-// or working row the cache warmth, context bar and the burn and trend views;
+// or working row the cache warmth, context bar and the burn and Context trend views;
 // the owner's to-dos sit under Waiting on you, each ticked with a press that a
 // second press undoes; at the foot are the selection bar and this session's
 // own rate limits and context. The pane reads the roster file while it is
@@ -4214,8 +4214,8 @@ export const register: Register = on => {
       )
     }
 
-    // One card, a compact row: its checkbox (none on a card that waits on the
-    // owner, whose dot is full size and title bold); the status dot, title, hover
+    // One card, a compact row: its checkbox (none on an idle card, whose
+    // mark is its full-size ○ and title bold); the status dot, title, hover
     // actions (always shown in the terminal), live state and age, and on
     // Desktop `⋯`; on Desktop a second line with the PR pill and, at the right,
     // the settings line as the card holds it (in the terminal the pill sits on
@@ -4354,8 +4354,8 @@ export const register: Register = on => {
             )}
           </Box>
         )
-      // The actions: in the terminal always shown; a card that waits on the
-      // owner has no Dismiss there. Desktop has the menu instead.
+      // The actions: in the terminal always shown; an idle card has
+      // no Dismiss there. Desktop has the menu instead.
       const actions =
         pointer ? null : canOpen || !needs ? (
           <Box flexShrink={0} flexDirection="row" columnGap={1}>
@@ -4375,7 +4375,7 @@ export const register: Register = on => {
         <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} {...hoverFill(scope)}>
           <Box flexDirection="row" columnGap={1} alignItems="center">
             {/* The checkbox: its own key and its own word, so a press on it
-                is never a to-do's tick. A card that waits on the owner has
+                is never a to-do's tick. An idle card has
                 none: the bar's one action, Dismiss, never takes it.
                 On the terminal only; on a desktop the status mark below is
                 the checkbox. */}

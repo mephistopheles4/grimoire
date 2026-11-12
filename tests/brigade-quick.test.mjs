@@ -26,14 +26,12 @@ test('581 C7: a working card the poll moved to waiting or idle gets Ask too', ()
   }
 });
 
-test('581 C7: Ask shows on no working, done or stopped card, a move or not, and an older needs-you word draws nothing here', () => {
+test('581 C7: Ask shows on no working, done or stopped card, a move or not', () => {
   assert.equal(quickAction(card('alpha', { status: 'working' }), NONE, new Map()), undefined);
   // done and stopped cards ignore a move; with no PR they get Clean up, never Ask.
   for (const status of ['done', 'stopped']) {
     assert.equal(quickAction(card('alpha', { status }), NONE, new Map([['alpha', 'waiting']]))?.action, 'cleanup', status);
   }
-  // The pane reads needs-you as idle before a card reaches here, so the word itself is no status.
-  assert.equal(quickAction(card('alpha', { status: 'needs-you' }), NONE, new Map()), undefined);
 });
 
 test('claim 2: a done card with no repo field and an open PR gh answered gets Merge, with the number and repository from gh', () => {

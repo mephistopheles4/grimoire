@@ -144,12 +144,11 @@ you install. Not for work in the same session.
 started. A switch at the top shows Sessions, Pull requests or Decisions, and
 the pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports
-its sessions sent since you opened the pane. A row shows a checkbox, a status
+its sessions sent since you opened the pane. Waiting on you holds your to-dos
+alone. A session the lead marked idle, or a working one that is idle or waits on a
+prompt, stays under Working, marked idle, and the status strip counts it apart. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
-state (a row the lead marked idle, and a working row whose session is idle or waits
-on a prompt, keeps its place under Working, marked idle, and the status strip above
-the groups counts it apart; Waiting on you holds your to-dos alone; and a row shows
-the session's own title) and how long the session has been in its status. Model and
+state (a row shows the session's own title) and how long the session has been in its status. Model and
 effort show as the settings line the lead wrote, at the right of the pull request pill on Desktop. Pressing it opens a small
 popover with the same words, and a `⋯` on each row holds Open, Split and
 Dismiss, each only where it applies; in the terminal Open and Dismiss are always shown. A pull request
@@ -166,7 +165,7 @@ with anything but letters, digits, `.`, `_` or `-`, or over 80 characters, gets 
 draft (a toast says so). If the box cannot be filled, a toast shows the line to type.
 The terminal, the phone and VS Code draw no button; ask the lead in chat there.
 Tick several rows and a bar at the foot dismisses them together. An idle row has no
-checkbox and can be dismissed for that one wait; it comes back when its status
+checkbox and can be dismissed while it stays idle; it comes back when its status
 changes or it stops being idle. Reopening the pane brings
 dismissed rows back. The pane's section bars, hover and selection bar are drawn
 for Desktop's dark theme, so in a light theme they look darker than the rest of
@@ -298,7 +297,7 @@ less 33k, never under half of it, marked with `~`) and a dot on the bar for each
 last five turns since the last compaction that added more than 20k; amber and red then
 count the way to the tick. Icon buttons on the row switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
-with its rate per minute. Context shows the same bar with `<used> of <window>` beside it, and
+with its rate per minute. Context trend shows the same bar with `<used> of <window>` beside it, and
 under it `compacts at ~N` with an estimate of the turns left from the average growth per turn
 since the last compaction; it shows only when the row has that bar. No row draws a chart of
 its last calls' context or a count of compactions, and none draws a reminder to reply or

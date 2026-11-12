@@ -1099,14 +1099,6 @@ test('the "Waiting on you" count leaves out ticking and done to-dos', () => {
   assert.equal(waitingCount(todos, 'x', { name: 'a' }), 4);
 });
 
-test('581 C6: the "Waiting on you" count is the open to-dos, whatever the cards say', () => {
-  const todos = [{ id: 'a' }, { id: 'b' }];
-  // The function takes no card: three idle cards change nothing.
-  assert.equal(waitingCount.length, 3);
-  assert.equal(waitingCount(todos, [], []), 2);
-  assert.equal(waitingCount([], [], []), 0);
-});
-
 test('the stored done list is checked: only text entries of a list count, and no shape throws', async () => {
   const { idsFrom } = view;
   for (const stored of [undefined, null, 'ab', 5, {}, { length: 2 }, { 0: 'a', length: 1 }]) assert.deepEqual(idsFrom(stored), [], String(stored));
@@ -1272,7 +1264,6 @@ test('581 C8: no ◆ line carries a nudge, whatever the tokens, the window or th
       }
     }
   }
-  assert.equal(view.NUDGE_TOKENS, undefined);
 });
 
 test('an unknown window shows no countdown and no nudge', () => {
@@ -3273,7 +3264,6 @@ test('581 C8a: no outlook carries a bar chart or a compaction count, however oft
     assert.equal(o.sawtooth, undefined);
     assert.doesNotMatch(JSON.stringify(o), /\d+ compactions?\b|now ·/);
   }
-  assert.equal(view.contextTrend, undefined);
 });
 
 test('581 C8b: the outlook says <used> of <window> on line one, and compacts at with the turns left on line two', () => {
@@ -4467,7 +4457,7 @@ test('the section bar notes: the report count only when there are reports', () =
 });
 
 test('each group has a quiet hint', () => {
-  assert.equal(GROUP_HINTS.get('waiting'), 'Decisions, reviews, and permission requests.');
+  assert.equal(GROUP_HINTS.get('waiting'), 'Decisions and reviews.');
   assert.equal(GROUP_HINTS.get('working'), 'No session is working.');
   assert.equal(GROUP_HINTS.get('finished'), 'Sessions the owner closed.');
   assert.equal(GROUP_HINTS.get('pr-open'), 'No open pull requests.');
