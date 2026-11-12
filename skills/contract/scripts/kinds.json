@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "parts": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open"],
+  "parts": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open", "schedules"],
   "levels": {
-    "Quick": ["purpose", "why", "good", "roles", "tools"],
-    "Standard": ["purpose", "why", "good", "roles", "tools", "rules", "writing"],
-    "Thorough": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open"]
+    "Quick": ["purpose", "why", "good", "roles", "tools", "schedules"],
+    "Standard": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "schedules"],
+    "Thorough": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open", "schedules"]
   },
   "choices": {
     "choice": ["asks-at-once", "pauses-at-set-points", "leaves-questions", "decides-and-shows"],
@@ -43,6 +43,7 @@
     { "id": "term", "kind": "a word in the glossary", "part": "writing", "fields": [{ "name": "word" }, { "name": "meaning" }, { "name": "standard", "optional": true }], "exports": "the term list: word, plain meaning, standard", "stakes": "low", "hiring": "___ means ___", "plain": "___: ___" },
     { "id": "style", "kind": "house style", "part": "writing", "fields": [{ "name": "text" }], "exports": "writing rules and formats", "stakes": "low", "hiring": "It writes ___", "plain": "Writes: ___" },
     { "id": "probation", "kind": "a probation check", "part": "open", "fields": [{ "name": "question" }, { "name": "why-open" }, { "name": "settled-when" }], "exports": "a row of the open table", "stakes": "low", "hiring": "We still need to learn ___, because ___, and will know when ___", "plain": "Open: ___; because ___; settled when ___" },
-    { "id": "retire", "kind": "when to let it go", "part": "open", "fields": [{ "name": "text" }], "exports": "when you would retire it", "stakes": "low", "hiring": "You would let it go when ___", "plain": "Retired when ___" }
+    { "id": "retire", "kind": "when to let it go", "part": "open", "fields": [{ "name": "text" }], "exports": "when you would retire it", "stakes": "low", "hiring": "You would let it go when ___", "plain": "Retired when ___" },
+    { "id": "schedule", "kind": "a procedure it follows", "part": "schedules", "fields": [{ "name": "name" }, { "name": "home" }, { "name": "text" }], "exports": "a schedule: the text of one section of the built file or of a reference, kept word for word, the body clauses it carries out, and the section that is its home", "stakes": "high", "hiring": "Its steps for ___ are kept in ___, and read: ___", "plain": "Schedule ___, kept in ___: ___" }
   ]
 }

@@ -80,6 +80,116 @@ const Interview = (() => {
    * refused once, at `type`, and gates no kind. */
   const TYPE_FAULT = kind => `this draft's type cannot hold this kind; it is for ${kind.types.join(' and ')}`;
 
+  /* -- the schedule kind -----------------------------------------------------
+   *
+   * A schedule holds the text of one section of a built file, names the body
+   * clauses it carries out, and names the section's home: SKILL.md, or one
+   * reference. The contract skill writes the home file, so the grammar below
+   * is the first of the stops that keep that write inside the skill it builds.
+   * The part is the one a draft may leave out: a draft saved before it existed
+   * carries no `schedules` key, and the check adds the part, empty. */
+  const SCHEDULE = 'schedule';
+  const SCHEDULES = 'schedules';
+  const partList = (draft, part) => (Object.hasOwn(draft.parts, part) ? draft.parts[part] : []);
+
+  /* The home grammar. The file name is matched in any letter case first, so a
+   * contract, a change log or a device name written in capitals is named for
+   * what it is; a name in capitals still fails the lowercase grammar. */
+  const HOME_FILE = /^references\/([^/]*)\.md$/i;
+  const DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+  const HOME_GRAMMAR = 'must be SKILL.md or references/<file>.md, where <file> is 1 to 40 characters of a-z, 0-9 and -';
+  function homeFault(home) {
+    if (home === 'SKILL.md') return null;
+    const m = HOME_FILE.exec(home);
+    if (m) {
+      const stem = m[1].toLowerCase();
+      if (stem === 'contract' || stem === 'contract-changelog') return 'names the contract or its change log, which is never a home';
+      if (DEVICE.test(stem)) return 'names a Windows device name, which is never a home';
+      if (/^[a-z0-9-]{1,40}$/.test(m[1]) && home.endsWith('.md')) return null;
+    }
+    return HOME_GRAMMAR;
+  }
+
+  /* A name is the heading of its home section, written exactly; a piece of a
+   * split section adds " (n of m)" at the end, and the suffix is stripped
+   * before the heading is matched. */
+  const PIECE = /^(.*) \((\d+) of (\d+)\)$/;
+  function scheduleNameFault(name) {
+    if (name.length === 0) return 'is empty';
+    if (name.length > 120) return 'is longer than 120 characters';
+    if (/[\r\n]/.test(name)) return 'holds a line break; a name is one line';
+    if (name.startsWith('#')) return 'may not start with #';
+    if (name.includes('<!--')) return 'may not hold <!--';
+    return null;
+  }
+
+  /* A text may not hold a line that would read as a heading, hide a comment
+   * or define a link. Each rule is applied to every line, a line inside a
+   * code fence too, since a fence may be left open and swallow what follows. */
+  const ATX = /^ {0,3}#{1,6}(?:[ \t]|$)/;
+  const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/;
+  const DEFINITION = /^(?:[ \t]*(?:>|[-+*]|\d{1,9}[.)]))*[ \t]*\[(?:[^\]\\\n]|\\.)+\]:/;
+  function scheduleTextFault(text) {
+    const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const n = `line ${i + 1}`;
+      if (ATX.test(line)) return `${n} is a heading line; a schedule cannot break the contract's outline`;
+      if (SETEXT.test(line) && i > 0 && lines[i - 1].trim() !== '') return `${n} is a setext underline of = or -, which makes the line above it a heading`;
+      if (line.includes('<!') || line.includes('<?')) return `${n} holds <! or <?, which opens an HTML comment, a declaration, CDATA or a processing instruction`;
+      if (DEFINITION.test(line)) return `${n} is a link reference definition`;
+    }
+    return null;
+  }
+
+  /** Why a schedule's field is refused, or null. */
+  function scheduleFault(field, value) {
+    if (field === 'home') return homeFault(value);
+    if (field === 'name') return scheduleNameFault(value);
+    return scheduleTextFault(value);
+  }
+
+  /** A schedule's name as a piece of a split section: { base, n, m }, or null. */
+  function pieceOf(fields) {
+    const m = isObj(fields) && typeof fields.name === 'string' ? PIECE.exec(fields.name) : null;
+    return m ? { base: m[1], home: fields.home, n: Number(m[2]), m: Number(m[3]) } : null;
+  }
+
+  /** The cut a section longer than one field takes: pieces of at most `limit`
+   *  characters, cut only on an empty line outside a code fence. The blank
+   *  line goes with neither piece, and joining the pieces with one blank line
+   *  gives the section back, byte for byte. Throws when no cut fits. */
+  function cutSection(text, limit = LIMITS.fieldChars) {
+    const lines = text.split('\n');
+    const cuts = [];
+    let fence = null;
+    lines.forEach((line, i) => {
+      const inside = fence !== null;
+      if (fence) {
+        const close = new RegExp(`^ {0,3}${fence.ch}{${fence.len},}[ \\t]*$`).exec(line);
+        if (close) fence = null;
+      } else {
+        const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+        if (open && !(open[1][0] === '`' && open[2].includes('`'))) fence = { ch: open[1][0], len: open[1].length };
+      }
+      if (!inside && line === '' && i > 0 && i < lines.length - 1) cuts.push(i);
+    });
+    const before = [0];
+    for (const line of lines) before.push(before[before.length - 1] + line.length + 1);
+    const size = (a, b) => before[b] - before[a] - 1;
+    const pieces = [];
+    let start = 0;
+    while (size(start, lines.length) > limit) {
+      let best = -1;
+      for (const c of cuts) if (c > start && size(start, c) <= limit) best = c;
+      if (best < 0) throw new Error(`no empty line outside a code fence falls within ${count(limit)} characters of the piece that starts at line ${start + 1}`);
+      pieces.push(lines.slice(start, best).join('\n'));
+      start = best + 1;
+    }
+    pieces.push(lines.slice(start).join('\n'));
+    return pieces;
+  }
+
   /* Why a name is refused: only what breaks the storage key or a command
    * (q22 on #313). Anything else outside the name format is a warning. */
   function nameFault(name) {
@@ -229,7 +339,10 @@ const Interview = (() => {
         }
         const at = `${path}.${f.name}`;
         if (f.type === 'choice') oneOf(at, fields[f.name], K.choices.get(f.name));
-        else isText(at, fields[f.name]);
+        else if (isText(at, fields[f.name]) && kind.id === SCHEDULE) {
+          const why = scheduleFault(f.name, fields[f.name]);
+          if (why) refuse(at, why);
+        }
       }
     };
     const nameOk = (path, v) => {
@@ -253,6 +366,10 @@ const Interview = (() => {
     const { isText, oneOf, keys, fieldsOf, nameOk } = checks(draft, refuse, K);
 
     if (!keys('file', draft, TOP)) return { refusals, warnings };
+    /* A draft saved before the schedules part existed has no such key. It
+     * loads as an empty part, added here to the draft itself, so the page and
+     * the script that read the same object after this check see nine parts. */
+    if (isObj(draft.parts) && !Object.hasOwn(draft.parts, SCHEDULES)) draft.parts[SCHEDULES] = [];
     if (draft.format !== 1) refuse('format', 'unknown format; this script reads format 1');
     isText('title', draft.title);
     oneOf('type', draft.type, TYPES);
@@ -320,15 +437,41 @@ const Interview = (() => {
             if (!Array.isArray(c.refs)) refuse(`${path}.refs`, 'expected an array of clause ids');
             else c.refs.forEach((r, j) => isText(`${path}.refs[${j}]`, r));
           }
+          if (c.kind === SCHEDULE && hasFields && !(Array.isArray(c.refs) ? c.refs.length : Object.hasOwn(c, 'refs'))) {
+            refuse(`${path}.refs`, 'a schedule names the body clauses it carries out in refs, and this one names none');
+          }
           if (idOk) clauses.set(c.id, { c, kind, part, path });
         });
       }
     } else refuse('parts', 'expected an object');
-    for (const { c, path } of clauses.values()) {
+    for (const { c, kind, path } of clauses.values()) {
       if (Array.isArray(c.refs)) c.refs.forEach((r, j) => {
-        if (typeof r === 'string' && !clauses.has(r)) refuse(`${path}.refs[${j}]`, 'names no clause in this draft');
+        if (typeof r !== 'string') return;
+        if (!clauses.has(r)) refuse(`${path}.refs[${j}]`, 'names no clause in this draft');
+        else if (kind.id === SCHEDULE && clauses.get(r).part === SCHEDULES) refuse(`${path}.refs[${j}]`, 'names a clause outside the eight body parts; a schedule carries out body clauses only');
       });
     }
+    /* The pieces of a split section run in order, each one the next's
+     * neighbour, with the same home and name, and the run is whole. */
+    let open = null;
+    const closeRun = () => {
+      if (open) refuse(open.path, `piece ${open.n} of ${open.m} is not followed by piece ${open.n + 1} of ${open.m}`);
+      open = null;
+    };
+    if (isObj(draft.parts) && Array.isArray(draft.parts[SCHEDULES])) draft.parts[SCHEDULES].forEach((c, i) => {
+      const piece = c && c.kind === SCHEDULE ? pieceOf(c.fields) : null;
+      if (!piece) return closeRun();
+      const path = `parts.schedules[${i}].fields.name`;
+      const { n, m } = piece;
+      if (n < 1 || n > m) { closeRun(); return refuse(path, `piece ${n} of ${m} is not a place in a run of ${m}`); }
+      if (open && open.home === piece.home && open.base === piece.base && open.m === m && open.n + 1 === n) open = null;
+      else {
+        closeRun();
+        if (n !== 1) return refuse(path, `piece ${n} of ${m} does not follow piece ${n - 1} of ${m} with the same home and name`);
+      }
+      open = n < m ? { ...piece, path } : null;
+    });
+    closeRun();
 
     /* -- the questions -------------------------------------------------------- */
     if (Array.isArray(draft.questions)) {
@@ -386,7 +529,7 @@ const Interview = (() => {
    *  question by the clause it asks about. */
   function draftIndex(draft, K) {
     const clauses = new Map();
-    for (const part of K.parts) for (const c of draft.parts[part]) clauses.set(c.id, { c, kind: K.byId.get(c.kind), part });
+    for (const part of K.parts) for (const c of partList(draft, part)) clauses.set(c.id, { c, kind: K.byId.get(c.kind), part });
     const questions = new Map();
     for (const q of draft.questions) questions.set(q.clause, q);
     return { clauses, questions };
@@ -527,7 +670,7 @@ const Interview = (() => {
       const dropSchedule = (part, kindId) => { for (const [id, x] of [...live]) if (x.part === part && x.kind === kindId) live.delete(id); };
       const ids = new Set(ix.clauses.keys());
       for (const q of draft.questions) { ids.add(q.id); for (const o of q.options) ids.add(o.id); }
-      const perPart = new Map(K.parts.map(p => [p, draft.parts[p].length]));
+      const perPart = new Map(K.parts.map(p => [p, partList(draft, p).length]));
       const asked = K.levels.get(draft.level);
       /* A part the level does not ask holds no clauses (spec v4 S6), so an
        * edit cannot add one there or agree a none in it. */
@@ -563,6 +706,9 @@ const Interview = (() => {
         if (Object.hasOwn(e, 'restored') && e.restored !== true) refuse(`${path}.restored`, 'expected true, or no restored');
         if (e.op === 'add') {
           const kind = kindIn(path, e.part, e.kind);
+          /* A schedule names the body clauses it carries out, and an edit has
+           * no refs to name them with. */
+          if (kind && kind.id === SCHEDULE && e.none !== true) refuse(`${path}.kind`, 'a schedule names the body clauses it carries out; add it to the draft, since an entry added on the page cannot name them');
           const inAsked = kind !== null && askedPart(path, e.part);
           if (isText(`${path}.id`, e.id)) {
             if (!ID.test(e.id)) refuse(`${path}.id`, 'an id is 1 to 64 characters of a-z, 0-9 and -, starting with a letter or digit');
@@ -805,12 +951,12 @@ const Interview = (() => {
     const ix = draftIndex(draft, K);
     const answered = new Map(block.answers.map(a => [a.id, a]));
     const parts = new Map(K.parts.map(p => [p, []]));
-    for (const part of K.parts) for (const c of draft.parts[part]) {
+    for (const part of K.parts) for (const c of partList(draft, part)) {
       const a = answered.get(c.id);
       const kind = K.byId.get(c.kind);
       let fields = c.fields;
       if (a) fields = Object.hasOwn(a, 'option') ? ix.questions.get(c.id).options.find(o => o.id === a.option).fields : a.fields;
-      parts.get(part).push({ id: c.id, kind, fields, none: c.none === true, gate: c.gate, freedom: c.freedom, mark: a ? a.mark : c.kind === 'why' ? null : 'Proposed' });
+      parts.get(part).push({ id: c.id, kind, fields, none: c.none === true, gate: c.gate, freedom: c.freedom, refs: c.refs, mark: a ? a.mark : c.kind === 'why' ? null : 'Proposed' });
     }
     const names = new Map(); // "part/kind" -> schedule name
     const order = new Map(K.parts.map(p => [p, []])); // schedule order per part

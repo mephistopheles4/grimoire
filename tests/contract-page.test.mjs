@@ -79,10 +79,13 @@ test('--out writes a page that holds every hostile draft string as data, inside 
   assert.equal(blocks.length, (template.match(/<script>/gi) || []).length);
   assert.match(blocks[1], /const Interview = \(\(\) => \{/, 'the module is in its block, not in the title');
   assert.match(blocks[2], /render\(\);\s*$/, 'the page script ends where the template ends it');
-  // The data parses back to the draft it came from, and holds no raw "<".
+  // The data parses back to the draft it came from, with the schedules part
+  // an older draft lacks added empty, and holds no raw "<".
   const { text, value } = dataOf(html);
   assert.ok(!text.includes('<'), 'a raw "<" in the inlined data');
-  assert.deepEqual(value.draft, JSON.parse(readFileSync(file, 'utf8')));
+  const written = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(!Object.hasOwn(written.parts, 'schedules'), 'the draft on disk has no schedules key');
+  assert.deepEqual(value.draft, { ...written, parts: { ...written.parts, schedules: [] } });
   // The title is element content with its markup characters dropped.
   const title = /<title>([\s\S]*?)<\/title>/.exec(html)[1];
   assert.ok(!/[<>&]/.test(title.replace(/^Hiring interview: /, '')), title);

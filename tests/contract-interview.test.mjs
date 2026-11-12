@@ -76,7 +76,7 @@ const quick = () => {
   return d;
 };
 
-test('the export matches the template: its title block, the eight parts in order, and an empty heading for each part the level does not ask', () => {
+test('the export matches the template: its title block, the nine parts in order, and an empty heading for each part the level does not ask', () => {
   const d = quick();
   const kept = answers();
   kept.delete('term-1');
@@ -84,8 +84,8 @@ test('the export matches the template: its title block, the eight parts in order
   const md = Interview.exportContract(d, kinds, block);
   assert.match(md, /^# Contract: contract\n\nVersion: 1\.0\.0\nKind: skill\nLevel: Quick\n/);
   const headings = md.split('\n').filter(l => l.startsWith('## '));
-  assert.deepEqual(headings, ['## purpose', '## why', '## good', '## roles', '## tools', '## rules', '## writing', '## open']);
-  assert.match(md, /## rules\n\n## writing\n\n## open\n$/);
+  assert.deepEqual(headings, ['## purpose', '## why', '## good', '## roles', '## tools', '## rules', '## writing', '## open', '## schedules']);
+  assert.match(md, /## rules\n\n## writing\n\n## open\n\n## schedules\n$/);
   assert.match(md, /Because people forget why they decided\. \*\*Decided\*\*/);
   assert.match(md, /Only you decide|The person decides: confirm the type, the level and the name/);
   const fresh = { ...d };
@@ -325,4 +325,181 @@ test('the page\'s warning list finds a key shape and an email with no home folde
 // figures are measured again.
 test('the measurement draft is the one the limits were measured on', () => {
   assert.equal(hashes.draft, '9faf6d8bca75bd599f62e92906eec45c6288fd550d421ddeab920a006866032b');
+});
+
+/* -- the schedule kind (#604, T1) --------------------------------------------
+ *
+ * A schedule holds the text of one section of a built file, names the body
+ * clauses it carries out, and names its home. The part is optional in a draft
+ * saved before it existed; every refusal names the field it is about. */
+
+test('kinds.json holds the schedules part last in every level, and the schedule kind with the strings every kind carries', () => {
+  assert.equal(kinds.parts.at(-1), 'schedules');
+  assert.equal(kinds.parts.length, 9);
+  for (const [level, list] of Object.entries(kinds.levels)) assert.equal(list.at(-1), 'schedules', `${level} asks the schedules part last`);
+  const k = kinds.kinds.find(x => x.id === 'schedule');
+  assert.ok(k, 'the schedule kind');
+  assert.equal(k.part, 'schedules');
+  assert.equal(k.stakes, 'high');
+  assert.deepEqual(k.fields.map(f => f.name), ['name', 'home', 'text']);
+  for (const key of ['kind', 'exports', 'hiring', 'plain']) assert.equal(typeof k[key], 'string', key);
+  for (const frame of ['hiring', 'plain']) assert.equal(k[frame].split('___').length - 1, 3, `${frame} has a blank for each field`);
+  for (const other of kinds.kinds) assert.deepEqual(['hiring', 'plain', 'exports', 'kind'].filter(s => typeof other[s] !== 'string'), [], other.id);
+});
+
+/** A schedule clause; `duty-1` is a body clause of the measurement draft. */
+const schedule = (fields = {}, over = {}) => ({
+  id: 'sched-1',
+  kind: 'schedule',
+  fields: { name: 'Starting a session', home: 'SKILL.md', text: 'Run the steps.\n\nThen stop.', ...fields },
+  mark: 'Proposed',
+  refs: ['duty-1'],
+  ...over,
+});
+const withSchedules = (...list) => { const d = base(); d.parts.schedules = list; return d; };
+const refusalsOf = d => Interview.checkDraft(d, kinds).refusals;
+/** The reason refused at exactly this path, or undefined. */
+const at = (d, path) => (refusalsOf(d).find(([p]) => p === path) || [])[1];
+
+test('a draft with no schedules key loads as an empty part, and a draft with schedules passes', () => {
+  const old = base();
+  assert.ok(!Object.hasOwn(old.parts, 'schedules'));
+  assert.deepEqual(refusalsOf(old), []);
+  assert.deepEqual(old.parts.schedules, [], 'the check leaves the part empty on the draft, so every reader sees nine parts');
+  assert.deepEqual(refusalsOf(withSchedules(schedule())), []);
+  // Every other part is still required.
+  const gone = base();
+  delete gone.parts.open;
+  assert.deepEqual(refusalsOf(gone), [['parts', 'missing required key "open"']]);
+  // The module's readers cope with a draft that never went through the check.
+  const raw = base();
+  const block = Interview.blockOf(raw, kinds, hashes, { answers: new Map(), edits: [] });
+  assert.deepEqual(Interview.checkBlock(block, raw, kinds, hashes).refusals, []);
+  assert.match(Interview.exportContract(raw, kinds, block), /## open\n[\s\S]*\n## schedules\n$/);
+});
+
+test('a schedule with no refs is refused, and so is a ref outside the eight body parts', () => {
+  const none = schedule();
+  delete none.refs;
+  assert.match(at(withSchedules(none), 'parts.schedules[0].refs'), /names the body clauses it carries out/);
+  assert.match(at(withSchedules(schedule({}, { refs: [] })), 'parts.schedules[0].refs'), /names the body clauses it carries out/);
+  const other = schedule({ name: 'Other' }, { id: 'sched-2', refs: ['sched-1'] });
+  assert.match(at(withSchedules(schedule(), other), 'parts.schedules[1].refs[0]'), /outside the eight body parts/);
+  assert.match(at(withSchedules(schedule({}, { refs: ['no-such-clause'] })), 'parts.schedules[0].refs[0]'), /names no clause/);
+  assert.match(at(withSchedules(schedule({}, { refs: 'duty-1' })), 'parts.schedules[0].refs'), /expected an array/);
+  // An agreed none is no schedule, so it names no clause.
+  assert.deepEqual(refusalsOf(withSchedules({ id: 'sched-none', kind: 'schedule', none: true, mark: 'Proposed' })), []);
+});
+
+const BAD_HOMES = [
+  'contract', 'CONTRACT.md', 'references/contract.md', 'references/CONTRACT.md', 'references/Contract.md', 'references/cOnTrAcT.md',
+  'references/contract-changelog.md', 'references/CONTRACT-CHANGELOG.md', 'references/Contract-Changelog.md',
+  'references/con.md', 'references/CON.md', 'references/prn.md', 'references/aux.md', 'references/Nul.md',
+  'references/com1.md', 'references/COM9.md', 'references/lpt1.md', 'references/LPT9.md',
+  'references/a_b.md', 'references/a.b.md', `references/${'a'.repeat(41)}.md`, 'references/.md', 'references/sub/x.md', 'references/x.txt', 'references/x.MD', 'references/x.md ',
+  'SKILL.MD', 'skill.md', 'Skill.md', 'README.md', '../SKILL.md', '/etc/x.md', 'references\\x.md', 'references/../SKILL.md', 'references/x.md\n', '', ' SKILL.md',
+];
+const GOOD_HOMES = ['SKILL.md', 'references/cleanup.md', 'references/a-1.md', `references/${'a'.repeat(40)}.md`, 'references/com0.md', 'references/com10.md', 'references/lpt0.md', 'references/contracts.md', 'references/0.md'];
+
+test('a home outside the grammar is refused with its field path, the contract, its change log and a Windows device name in any letter case', () => {
+  for (const home of BAD_HOMES) {
+    const why = at(withSchedules(schedule({ home })), 'parts.schedules[0].fields.home');
+    assert.ok(why, `refused: ${JSON.stringify(home)}`);
+  }
+  assert.match(at(withSchedules(schedule({ home: 'references/CONTRACT.md' })), 'parts.schedules[0].fields.home'), /contract or its change log/);
+  assert.match(at(withSchedules(schedule({ home: 'references/Contract-Changelog.md' })), 'parts.schedules[0].fields.home'), /contract or its change log/);
+  assert.match(at(withSchedules(schedule({ home: 'references/LPT9.md' })), 'parts.schedules[0].fields.home'), /Windows device name/);
+  assert.match(at(withSchedules(schedule({ home: 'references/a_b.md' })), 'parts.schedules[0].fields.home'), /SKILL\.md or references\/<file>\.md/);
+  for (const home of GOOD_HOMES) assert.equal(at(withSchedules(schedule({ home })), 'parts.schedules[0].fields.home'), undefined, `accepted: ${home}`);
+});
+
+test('a name is one line of 1 to 120 characters that starts with no # and holds no <!--', () => {
+  const bad = ['', 'x'.repeat(121), 'one\ntwo', 'one\rtwo', '# Heading', '#x', 'a <!-- b', '<!--', 'Autonomy levels (2 of 3) <!-- x -->'];
+  for (const name of bad) assert.ok(at(withSchedules(schedule({ name })), 'parts.schedules[0].fields.name'), `refused: ${JSON.stringify(name)}`);
+  for (const name of ['x', 'x'.repeat(120), 'Starting a session', 'Tools (1 of 1)', 'a # b', 'Stop 1 <! no']) {
+    assert.equal(at(withSchedules(schedule({ name })), 'parts.schedules[0].fields.name'), undefined, `accepted: ${JSON.stringify(name)}`);
+  }
+});
+
+const BAD_TEXT = {
+  'an ATX heading': '# Heading',
+  'an ATX heading after three spaces': 'text\n\n   ## Heading',
+  'a level 6 heading': '###### Deep',
+  'an empty heading': 'text\n\n#',
+  'a heading closed with hashes': '## Title ##',
+  'a heading inside a code fence': '```bash\n# a comment\n```',
+  'a setext heading with =': 'Title\n=====',
+  'a setext heading with -': 'Title\n---',
+  'a setext heading with one -': 'Title\n-',
+  'an underline with trailing spaces': 'Title\n---   ',
+  'an HTML comment': 'before <!-- hidden --> after',
+  'a declaration': '<!DOCTYPE html>',
+  'a CDATA section': 'x <![CDATA[ y ]]>',
+  'a processing instruction': '<?xml version="1.0"?>',
+  'a comment on a later line': 'one\n\ntwo <!-- c',
+  'a link reference definition': '[label]: https://example.org',
+  'a definition after three spaces': 'text\n\n   [label]: https://example.org "title"',
+  'a definition after a quote marker': '> [label]: https://example.org',
+  'a definition after a list marker': '- [label]: https://example.org',
+  'a definition after a numbered marker': '1. [label]: https://example.org',
+  'a definition after a star marker': '* [label]: https://example.org',
+  'a definition after nested markers': '> - > [label]: https://example.org',
+};
+const GOOD_TEXT = {
+  'a hashtag': '#hashtag and #another',
+  'an indented hash': 'text\n\n    # four spaces is code',
+  'a table': '| a | b |\n|---|---|\n| 1 | 2 |',
+  'a rule under a blank line': 'text\n\n---\n\nmore',
+  'an inline link': 'see [label](https://example.org) and [a]: b is not at the start',
+  'a list': '- one\n- two\n\n1. three',
+  'a fence': '```text\nrun it\n```',
+  'an angle bracket': 'a < b and c > d',
+  'a quote': '> a quoted line',
+  'empty': '',
+};
+
+test('a text holding a heading line, a line with <! or <?, or a link reference definition is refused with its field path and line', () => {
+  for (const [what, text] of Object.entries(BAD_TEXT)) {
+    const why = at(withSchedules(schedule({ text })), 'parts.schedules[0].fields.text');
+    assert.match(why || '', /^line \d+ /, `refused: ${what}`);
+  }
+  assert.match(at(withSchedules(schedule({ text: 'a\n\n## H' })), 'parts.schedules[0].fields.text'), /^line 3 is a heading line/);
+  assert.match(at(withSchedules(schedule({ text: 'a\nb\n===' })), 'parts.schedules[0].fields.text'), /^line 3 is a setext underline/);
+  assert.match(at(withSchedules(schedule({ text: 'a\n<!-- x' })), 'parts.schedules[0].fields.text'), /^line 2 holds <! or <\?/);
+  assert.match(at(withSchedules(schedule({ text: 'a\n> [x]: y' })), 'parts.schedules[0].fields.text'), /^line 2 is a link reference definition/);
+  for (const [what, text] of Object.entries(GOOD_TEXT)) assert.equal(at(withSchedules(schedule({ text })), 'parts.schedules[0].fields.text'), undefined, `accepted: ${what}`);
+});
+
+test('the same field checks hold wherever a schedule\'s fields come from: a question\'s option, an answer, an edit', () => {
+  const d = withSchedules(schedule());
+  d.questions.push({ id: 'q-sched', clause: 'sched-1', situation: 'A section is long.', chips: [], proposed: 'o-a', options: [
+    { id: 'o-a', label: 'Keep it', fields: { name: 'Starting a session', home: 'SKILL.md', text: 'ok' } },
+    { id: 'o-b', label: 'Move it', fields: { name: 'Starting a session', home: 'references/contract.md', text: 'ok' } },
+  ] });
+  assert.match(at(d, `questions[${d.questions.length - 1}].options[1].fields.home`), /contract or its change log/);
+  d.questions.pop();
+  const h = { draft: 'a'.repeat(64), kinds: hashes.kinds };
+  const block = fields => ({ format: 1, draft: h.draft, kinds: h.kinds, answers: [{ id: 'sched-1', fields, mark: 'Decided' }], edits: [] });
+  const ok = { name: 'Starting a session', home: 'SKILL.md', text: 'ok' };
+  assert.deepEqual(Interview.checkBlock(block(ok), d, kinds, h).refusals, []);
+  const refused = (b, path) => (Interview.checkBlock(b, d, kinds, h).refusals.find(([p]) => p === path) || [])[1];
+  assert.match(refused(block({ ...ok, home: 'references/CON.md' }), 'answers[0].fields.home'), /Windows device name/);
+  assert.match(refused(block({ ...ok, text: '# no' }), 'answers[0].fields.text'), /heading line/);
+  assert.match(refused(block({ ...ok, name: '# no' }), 'answers[0].fields.name'), /start with #/);
+  // A schedule added on the page has no refs to name its clauses, so it is refused.
+  const added = { format: 1, draft: h.draft, kinds: h.kinds, answers: [], edits: [{ op: 'add', id: 'sched-new', part: 'schedules', kind: 'schedule', fields: ok }] };
+  assert.match(refused(added, 'edits[0].kind'), /names the body clauses it carries out; add it to the draft/);
+});
+
+test('pieces of a split section are named (n of m) and must form a complete run in order', () => {
+  const piece = (n, m, extra = {}) => schedule({ name: `Autonomy levels (${n} of ${m})`, text: `part ${n}` }, { id: `sched-${n}`, ...extra });
+  assert.deepEqual(refusalsOf(withSchedules(piece(1, 3), piece(2, 3), piece(3, 3))), []);
+  assert.match(at(withSchedules(piece(1, 3), piece(2, 3)), 'parts.schedules[1].fields.name'), /not followed by piece 3 of 3/);
+  assert.match(at(withSchedules(piece(2, 3), piece(3, 3)), 'parts.schedules[0].fields.name'), /piece 2 of 3 does not follow piece 1 of 3/);
+  assert.match(at(withSchedules(piece(1, 2), piece(1, 2, { id: 'sched-9' })), 'parts.schedules[0].fields.name'), /not followed by piece 2 of 2/);
+  const elsewhere = piece(2, 2);
+  elsewhere.fields.home = 'references/other.md';
+  assert.match(at(withSchedules(piece(1, 2), elsewhere), 'parts.schedules[1].fields.name'), /does not follow piece 1 of 2/);
+  assert.match(at(withSchedules(schedule({ name: 'Tools (3 of 2)' })), 'parts.schedules[0].fields.name'), /piece 3 of 2/);
+  assert.match(at(withSchedules(schedule({ name: 'Tools (0 of 2)' })), 'parts.schedules[0].fields.name'), /piece 0 of 2/);
 });
