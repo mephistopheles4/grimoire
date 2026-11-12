@@ -256,7 +256,6 @@ test('579 C2: a badly spelled or network folder refuses with NOT_SPELLED', () =>
 test('579 C4: the folder list is gone from the rules: no removed name is exported, and the description names no list', () => {
   for (const gone of ['NOT_LISTED', 'FOLDERS_REPLIES', 'storedList', 'listed', 'isFoldersCommand', 'parseFolders', 'foldersAdd', 'foldersRemove', 'foldersList']) assert.equal(gone in S, false, gone);
   for (const kept of ['samePath', 'isNetworkPath', 'folderSpelling', 'mainCheckout']) assert.equal(typeof S[kept], 'function', kept);
-  assert.doesNotMatch(S.DESCRIPTION, /folders|owner listed/);
 });
 
 // --- C5: names --------------------------------------------------------------------

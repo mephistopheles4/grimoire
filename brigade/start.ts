@@ -120,7 +120,7 @@ export function originArgv(git: string, folder: string): string[] {
 
 const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/u
 
-/** Whether a path begins as a network path does. */
+/** Whether a path begins as a network path does. No production code calls it since issue 579; spec S4.1 keeps it, with its test. */
 export const isNetworkPath = (folder: string): boolean => /^(?:\\\\|\/\/)/.test(folder)
 
 /** Step 1: the folder is spelled as a canonical absolute path, and nothing else. */

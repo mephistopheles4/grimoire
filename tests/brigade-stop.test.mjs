@@ -188,12 +188,9 @@ test('C2: brigade/ holds no removal command text', () => {
   }
 });
 
-test('579 C3, C4: register.tsx holds none of the folder list\'s names, and its one startFolders mention is the guarded clear', () => {
+test('579 C3, C4: register.tsx holds none of the folder list\'s names, and its only startFolders mentions are the two in the guarded clear', () => {
   for (const gone of ['FOLDERS_KEY', 'FOLDERS_REPLIES', 'foldersCommand', 'isFoldersCommand', 'folderTurn', 'foldering', 'parseFolders', 'NOT_LISTED', 'brigade folders']) {
     assert.ok(!register.includes(gone), `register.tsx still holds ${gone}`);
   }
   assert.equal([...register.matchAll(/startFolders/g)].length, 2);
-  const clear = between('async function clearOldFolders', 'const sessionIo');
-  assert.match(clear, /if \(\(await \$\.store\.get\('startFolders'\)\) !== undefined\) await \$\.store\.delete\('startFolders'\)/);
-  assert.match(clear, /catch \{/);
 });

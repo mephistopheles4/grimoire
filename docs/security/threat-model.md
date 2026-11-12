@@ -105,9 +105,9 @@ loads, its hooks module code included.
   protects nothing.
 - Name the harness control a row relies on, instead of duplicating it.
 
-The second bullet is the first sentence of [P0](#candidates-for-the-owners-word)
-in the owner's words: a program the owner runs. P0's sentence on what stays in
-scope (another plugin, a branch's own code, a steered session) stands.
+The second bullet means the out-of-scope actor of [P0](#candidates-for-the-owners-word):
+a program the owner runs. It does not cover another plugin, a branch's own code
+or a steered session. These stay in scope, as P0 says.
 
 ## Who is in scope
 
@@ -334,7 +334,7 @@ There are 63 candidate lines in ten groups, P0 to P9. None of these is in force.
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
-**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing. Issue 579 records its first sentence in the owner's words under [Harness controls](#harness-controls): a program the owner runs. The rest of P0 is unchanged.
+**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing. Issue 579 records its out-of-scope actor under [Harness controls](#harness-controls), in the owner's words: a local process running as the owner. That actor is a program the owner runs. Another plugin, a branch's own code and a steered session stay in scope, and the rest of P0 is unchanged.
 
 **P1. Same-user and plugin paths.** Under the four questions in [Scope](#scope), every line below has at least one yes. Another plugin, a branch's own code and a steered session all run as the owner, and each can take the same path. So the scope line drops none of these outright. Each line names the class it would widen. Answers: plugin · branch code · steered session · another account.
 
@@ -583,7 +583,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 
 - `skills/head-chef/SKILL.md` and its references, scanned with the other skills ([row 16](brigade.md#row-16))
 - sessions: background sessions with Remote Control, or Desktop sessions on the owner's words, started by the head chef, named from a plain set, never from an issue, no permission mode unless the owner's words name one ([row 16](brigade.md#row-16))
-- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the harness's folder trust, on which the start's folder relies (measured on claude 2.1.319 in issue 543 M2 and again on claude 2.1.322 in issue 579 T0), with the start tool's checkout and origin checks beside it; a steered lead can name any main checkout of the repository whose own folder the owner trusted (trust on a plain parent folder did not reach a new checkout below it on 2.1.322, and a checkout under a trusted repository is refused for its `.git` above), the residual the owner accepted in issue 579; the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16))
+- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the harness's folder trust, on which the start's folder relies (measured on claude 2.1.319 in issue 543 M2 and again on claude 2.1.322 in issue 579 T0), with the start tool's checkout and origin checks beside it, the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16)). Residual, accepted by the owner in issue 579: a steered lead can name any main checkout of the repository whose own folder the owner trusted. Trust on a plain parent folder did not reach a new checkout below it on 2.1.322, and a checkout under a trusted repository is refused for its `.git` above
 - the fixed-form start prompt and what it tells each session ([row 16](brigade.md#row-16))
 - the sender check: shown name, status file, `from-session` and `from` pairing, form refusals, the kept id ([row 16](brigade.md#row-16))
 - the owner's yes for starts, cleanup and each GitHub act; anything else asked goes to the owner (stop 1) ([row 16](brigade.md#row-16))

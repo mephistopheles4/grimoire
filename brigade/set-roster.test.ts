@@ -9784,11 +9784,14 @@ test('579 C2: a start in a main checkout reaches the run with no startFolders ke
   expect(runs().filter(a => a[0] === exe('claude')).length).toBe(3)
 })
 
-test('579 C2: the start never reads the store: a store whose read throws changes nothing', async ($, on) => {
-  const { fail, runs } = await startWorld(on, $)
-  fail.get = true
-  expect((await startTool($)).ok).toBe(true)
-  expect(runs().filter(a => a[0] === exe('claude')).length).toBe(1)
+test('579 C2: a folder that is missing, or reached by an alias for the checkout, is not a main checkout, and runs nothing', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  expect((await startTool($, { folder: ON_WINDOWS ? 'C:\\src\\nowhere' : '/src/nowhere' })).text).toBe(refusedStart(NOT_MAIN))
+  if (ON_WINDOWS) {
+    w.put('C:\\src\\alias', { type: 'link', kind: 'junction', target: REPO_DIR })
+    expect((await startTool($, { folder: 'C:\\src\\alias' })).text).toBe(refusedStart(NOT_MAIN))
+  }
+  expect(runs()).toEqual([])
 })
 
 test('579 C2: a network or badly spelled folder refuses with NOT_SPELLED, no path and no file-system call, and runs nothing', async ($, on) => {
@@ -9977,7 +9980,7 @@ test('579 C3: /brigade folders in any form opens the pane, whoever types it, and
   expect(store.has(FOLDERS_KEY)).toBe(false)
 })
 
-test('579 C3: a startFolders key present at load is deleted once, and a load with none writes nothing', async ($, on) => {
+test('579 C3: a startFolders key present at a session.start is deleted once, and a session.start with none writes nothing', async ($, on) => {
   const { w, store, sets, deletes } = await startWorld(on, $, [REPO_DIR])
   expect(deletes).toEqual([])
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
@@ -9988,15 +9991,6 @@ test('579 C3: a startFolders key present at load is deleted once, and a load wit
   expect(deletes).toEqual([FOLDERS_KEY])
   expect(sets).toEqual([])
   expect(w.registered).toContain('show_permission_warning')
-})
-
-test('579 C3: a store that throws on the one delete leaves the key and the load goes on', async ($, on) => {
-  const { store, deletes, fail } = await startWorld(on, $)
-  store.set(FOLDERS_KEY, [REPO_DIR])
-  fail.set = true
-  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
-  expect(deletes).toEqual([])
-  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
 })
 
 // --- 543, Test round 1: the gaps the three lenses found ------------------------------

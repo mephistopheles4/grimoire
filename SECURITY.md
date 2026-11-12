@@ -36,7 +36,7 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
 since 0.74.0 (#380) it also hooks the `Skill` tool's call, the typed `/head-chef` and `/grimoire:head-chef` commands, and each turn's start, and each of those passes on with no engine call unless a head-chef load is under way or a load left the pane waiting: where the security default skips `skill.prompt`, a model's head-chef load opens no pane and leaves one fixed note asking for `/brigade`, and a typed one that Claude Code itself answered opens the pane only after one read of the session's local skill list confirms the copy is grimoire's or the owner's; the notes are fixed rows added to the conversation, each starting "Brigade (plugin note):";
 since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
-since 0.69.0 it also reads one key, `permission-warning-ack`, from the plugin's own store and offers a second tool, `show_permission_warning`, below (0.117.0 added a second key, `cleaner-path`; since 0.118.0 nothing reads, writes or deletes it, so a value left there stays, unencrypted and readable by other plugins);
+since 0.69.0 it also reads one key, `permission-warning-ack`, from the plugin's own store and offers a second tool, `show_permission_warning`, below (0.117.0 added a second key, `cleaner-path`; since 0.118.0 nothing reads, writes or deletes it, so a value left there stays, unencrypted and readable by other plugins; since 0.146.0 it also reads the old `startFolders` key once at each session start and deletes it when present);
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
@@ -559,7 +559,7 @@ Brigade no longer intercepts; an archive removes nothing and can be undone. Sinc
 starts every session as a background session with Remote Control, and since
 head-chef 1.28.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
-in a main checkout of the repository, which the harness refuses unless you have trusted the folder, takes no permission
+in a main checkout of the repository (the harness refuses a folder you have not trusted), takes no permission
 mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's

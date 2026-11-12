@@ -110,8 +110,8 @@ model carries the old session's whole context.
 
 - **The tool refuses with a line that names a rule and says nothing was
   started:** say it in one line in plain words, with the fix the rule names.
-  A folder that is not a main checkout, or could not be read: ask the owner
-  which main checkout. The pane closed or the tool
+  A folder that is not a plain absolute local path, not a main checkout, or
+  could not be read: ask the owner which main checkout, by its full local path. The pane closed or the tool
   not offered: the owner types `/brigade`. A name already used: pick another.
   The cap of four starts in ten minutes: wait or ask the owner. The lead name:
   it is your own session name, exactly. Offer the Desktop start as the other
