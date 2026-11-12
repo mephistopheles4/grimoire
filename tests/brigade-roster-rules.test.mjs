@@ -1147,11 +1147,18 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.ok(examples.length > 0, 'the example call carries a link');
   for (const e of examples) assert.ok(parseLink(e), e);
   assert.match(ref, /its `link` at most 210/);
-  assert.match(ref, /one line the owner takes in at a glance: at most 80 characters/);
-  assert.match(ref, /naming the act or the place \("Answer in build-312's chat"\), never the question or the decision text/);
+  assert.match(ref, /one line the owner takes in at a glance: at most 50 characters/);
+  // Issue 580: a verb first, then the act and the work; a decision number alone is never a to-do.
+  assert.match(ref, /starts with a verb, then names the act and the work/);
+  assert.match(ref, /A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule\./);
+  assert.match(ref, /The one exception is a carried decision, which `handoff\.md` gives/);
+  assert.match(ref, /Put no other facts, options, picks, reasons, commands, file names, paths, error text or quoted text in it/);
+  const texts = [...ref.matchAll(/"text": "([^"]*)"/g)].map(m => m[1]);
+  assert.ok(texts.length >= 2, 'the example call carries to-dos');
+  for (const x of texts) assert.ok(x.length <= 50, `the example to-do "${x}" fits 50 characters`);
   assert.match(ref, /`https:\/\/github\.com\/owner\/name\/issues\/N` or `https:\/\/github\.com\/owner\/name\/pull\/N`/);
   assert.match(ref, /delete that session's roster file by hand/);
-  const rule = /one line of at most 80 characters, one ask or one owner step/;
+  const rule = /one line of at most 50 characters, one ask or one owner step\. It starts with a verb, then names the act and the work\. It names the question or the decision text only as the eased control below allows, and carries no facts but the count below/;
   assert.match(await read('SKILL.md'), rule);
   assert.match(await read('references/CONTRACT.md'), rule);
 });
