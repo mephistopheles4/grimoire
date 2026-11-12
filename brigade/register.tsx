@@ -4321,7 +4321,10 @@ export const register: Register = on => {
           <Box flexShrink={0}>
             {answer === undefined ? (
               pill(number, pillState(undefined, c.prState))
-            ) : href !== undefined && pointer && !popLive ? (
+            ) : href !== undefined && pointer && popLive ? (
+              // The same wrapper as pillLayer's, with no positioned box and no press layer, so the card keeps its height.
+              <Box overflow="hidden">{pill(number, pillState(answer.state, c.prState))}</Box>
+            ) : href !== undefined && pointer ? (
               pillLayer(keyFor('pill', i, c.title), number, pillState(answer.state, c.prState))
             ) : href !== undefined && Image === undefined ? (
               linkedNumber(number, pillState(answer.state, c.prState), href)
