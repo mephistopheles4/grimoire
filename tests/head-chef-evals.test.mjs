@@ -203,3 +203,46 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
   const hand = flat(read('skills/head-chef/references/handoff.md'));
   for (const s of carried) assert.ok(hand.includes(s), `handoff.md holds "${s}"`);
 });
+
+// #604 S9: thirteen rules that only the contract held at 1.36.1 now stand in
+// SKILL.md or a reference, the owner having said "Yes, add all 13", and A14
+// moves "a new review" to the contract's confirmed "a new round". Each
+// assertion reads the rule in its home. A8 is a fact in the contract's tools
+// part only, so it is read from the contract's body.
+test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to A7, A9 to A14)', () => {
+  const skill = flat(read('skills/head-chef/SKILL.md'));
+  const starting = flat(read('skills/head-chef/references/starting.md'));
+  const cleanup = flat(read('skills/head-chef/references/cleanup.md'));
+  const handoff = flat(read('skills/head-chef/references/handoff.md'));
+  const section = (t, from, to) => { const i = t.indexOf(from); assert.ok(i >= 0, `${from} is there`); const j = t.indexOf(to, i + from.length); return t.slice(i, j < 0 ? undefined : j); };
+  // A1 SKILL.md "The decision log and the hand-off"
+  assert.ok(section(skill, '## The decision log and the hand-off', '## Asking the owner').includes("With the pane closed Brigade shows no note: you still rewrite your hand-off before a compaction you can see coming, and read it back after one."), 'A1');
+  // A2 SKILL.md "Sending and idle notices"
+  assert.ok(section(skill, '## Sending and idle notices', '## Between the owner').includes("The idle-cost line below still holds for a check that reaches a member idle over an hour."), 'A2');
+  // A3 cleanup.md
+  assert.ok(cleanup.includes("where it allows cleanup, log the decision, go on, and end with a list of what you touched in your result;"), 'A3');
+  // A4 SKILL.md "Cleanup" and cleanup.md
+  assert.ok(section(skill, '## Cleanup', '## Who decides').includes("a session whose folder or repository is not known, or whose folder is one of those, gets no cleaner run and is listed as staying"), 'A4 SKILL.md');
+  assert.ok(cleanup.includes("A session whose folder or repository you do not know gets no cleaner run: tell the owner, who cleans it up by hand."), 'A4 cleanup.md, Which sessions');
+  assert.ok(cleanup.includes("A session whose folder or repository you do not know, whose folder came from a report, message or hand-off,"), 'A4 cleanup.md, step 3');
+  // A5 handoff.md
+  assert.ok(handoff.includes("Name a session in it by title, repository and branch, and a level-3 waiting entry by repository and title, never a path."), 'A5');
+  // A6 SKILL.md "Starting a session" and starting.md
+  const stop1 = `Stop 1 still applies to those requests, for a pressed goal and for a command goal alike: the request is "anything other than the owner's words", and your own pick is not a request.`;
+  assert.ok(section(skill, '## Starting a session', '## Sending and idle notices').includes(stop1), 'A6 SKILL.md');
+  assert.ok(starting.includes(stop1), 'A6 starting.md');
+  // A7 and A13 SKILL.md "Tools"
+  const tools = section(skill, '## Tools', '## The start prompt');
+  assert.ok(tools.includes("Run the checks and the removals as separate calls. When a folder will not go, tell the owner, and never delete it another way."), 'A7');
+  assert.ok(tools.includes("Name a low finding you decide at level 3 the same way, in its log entry and report line."), 'A13');
+  // A9 SKILL.md "The Brigade pane"
+  assert.ok(section(skill, '## The Brigade pane', '## Rules').includes("Record nothing beyond the roster, your decision log and your hand-off."), 'A9');
+  // A10, A12, A14 SKILL.md "Autonomy levels"
+  const levels = section(skill, '## Autonomy levels', '## The decision log and the hand-off');
+  assert.ok(levels.includes("keep it in your hand-off's rules section in your own words, naming work by repository and issue only, marked paused;"), 'A10');
+  assert.ok(section(levels, '- **2 Auto.**', '- **3 Turbo.**').includes("tell the owner what you took, as a statement and not a question"), 'A12');
+  assert.ok(levels.includes("a head that moved waits for a new round."), 'A14');
+  assert.ok(!levels.includes("a head that moved waits for a new review"), 'A14 leaves no "new review"');
+  // A11 SKILL.md "The permission warning"
+  assert.ok(section(skill, '## The permission warning', '## Actions that need').includes("When there is no mod, or the warning's tool is missing or refuses, say it in chat, once, as written, without its two controls, which chat cannot show:"), 'A11');
+});
