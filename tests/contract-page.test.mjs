@@ -797,3 +797,16 @@ test('--check names a key or an email in a schedule\'s text and its answer reads
   assert.match(r.stdout, /schedules\/sched-start wrote its own words; marked Decided/);
   assert.match(r.stdout, /schedules\/sched-start text "Send \[masked\] to \[masked\] second\."/);
 });
+
+test('a field that holds more than a line wraps and grows, in the sheet as in the letter (#606)', () => {
+  // The sheet is filled after the letter is sized, so it is sized on its own.
+  assert.match(template, /modalEl\.querySelectorAll\('textarea\.ed'\)\) size\(el\)/);
+  assert.match(template, /textarea\.ed\{[^}]*overflow:hidden/);
+  assert.doesNotMatch(template, /h\('input', \{ class: 'ed'/);
+});
+
+test('an entry\'s menu sits at the entry\'s top right, not in its foot line (#606)', () => {
+  assert.match(template, /\.rec\.has-menu>\.menu\{position:absolute;top:[^;}]+;right:0\}/);
+  assert.match(template, /rec\.append\(entryMenu\(x, where\.schedule\)\)/);
+  assert.doesNotMatch(template, /foot\.append\(entryMenu/);
+});
