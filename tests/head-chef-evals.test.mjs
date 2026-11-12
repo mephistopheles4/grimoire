@@ -281,3 +281,21 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   // A11 SKILL.md "The permission warning"
   assert.ok(section(skill, '## The permission warning', '## Actions that need').includes("When there is no mod, or the warning's tool is missing or refuses, say it in chat, once, as written, without its two controls, which chat cannot show:"), 'A11');
 });
+
+// The body's level-3 clauses keep the waits SKILL.md's "Autonomy levels" keeps
+// (adversarial review of #613): a merge that changes a threat model's accepted
+// risks, an edit to the line that names it, and dropping or narrowing a review
+// of sensitive work. A dropped or narrowed review is the lead's flagged call
+// only outside sensitive work. Each sentence stands in the schedule too.
+test('the contract body keeps the level-3 waits for accepted risks, the threat model line and sensitive-work reviews', () => {
+  const body = flat(read('skills/head-chef/references/CONTRACT.md').split('\n## schedules\n')[0]);
+  const levels = flat(read('skills/head-chef/SKILL.md'));
+  const waits = body.slice(body.indexOf('**What a standing goal never decides.**'), body.indexOf('**Never lifted, at any level.**'));
+  assert.ok(waits.includes("a merge that changes a threat model's scope or accepted risks, or an edit to the line that names it"), 'waits: the threat model');
+  assert.ok(waits.includes('dropping or narrowing a review of sensitive work'), 'waits: a review of sensitive work');
+  const visible = body.slice(body.indexOf('**Visibility in place of approval at level 3.**'), body.indexOf('**Not asking for a yes it can take.**'));
+  assert.ok(visible.includes('a dropped or narrowed review outside sensitive work'), 'visibility: only outside sensitive work');
+  assert.ok(levels.includes("a merge that changes a threat model's scope or accepted risks"), 'SKILL.md keeps the merge wait');
+  assert.ok(levels.includes("an edit to a threat model's scope, to the line that names it"), 'SKILL.md keeps the line wait');
+  assert.ok(levels.includes('dropping or narrowing a review, check or route'), 'SKILL.md keeps the review wait');
+});
