@@ -30,12 +30,20 @@ function fenceOf(line) {
 }
 
 // Each heading of a file outside a code fence: its level, its text and its
-// line. A section runs from a heading of level 1 or 2 to the next one.
+// line. A section runs from a heading of level 1 or 2 to the next one. The
+// frontmatter is not read, and `before` holds the text above the first
+// heading, which belongs to no section.
 function headingsOf(text) {
   const lines = lf(text).split('\n');
   const heads = [];
   let fence = null;
+  let from = 0;
+  if (lines[0] === '---') {
+    const close = lines.indexOf('---', 1);
+    if (close > 0) from = close + 1;
+  }
   lines.forEach((line, i) => {
+    if (i < from) return;
     const f = fenceOf(line);
     if (fence) {
       if (f && f.ch === fence.ch && f.len >= fence.len && f.rest.trim() === '') fence = null;
@@ -50,7 +58,18 @@ function headingsOf(text) {
     const end = top[k + 1] ? top[k + 1].line - 1 : lines.length;
     h.text = trimmed(lines.slice(h.line, end).join('\n'));
   });
-  return { sections: top, deep: heads.filter(h => h.level > 2) };
+  const before = trimmed(lines.slice(from, heads.length ? heads[0].line - 1 : lines.length).join('\n'));
+  return { sections: top, deep: heads.filter(h => h.level > 2), before };
+}
+
+// A line a setext underline can turn into a heading: text that is not a quote,
+// a table row, a fence, a heading or an underline, not a list item (`-`, `*` or
+// `+` then a space) and not a thematic break. A line led by `**` or `*` with no
+// space after it is text.
+function isParagraphLine(line) {
+  return /^ {0,3}[^\s>|`~#=]/.test(line)
+    && !/^ {0,3}[-*+](?:[ \t]|$)/.test(line)
+    && !/^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(line);
 }
 
 // What a schedule's text may not hold (S3): a heading line as CommonMark
@@ -70,8 +89,8 @@ function textFault(text) {
     }
     if (f) { fence = f; continue; }
     if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) return `line ${i + 1} is a heading`;
-    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(line) && i > 0 && /^ {0,3}[^\s>|`~#=*+-]/.test(lines[i - 1]) && !/^ {0,3}\[[^\]]+\]:/.test(lines[i - 1])) return `line ${i + 1} underlines a line of text as a heading`;
-    if (/^ {0,3}(?:(?:>|[-*+]|\d+[.)])[ \t]+)*\[[^\]]+\]:[ \t]*\S/.test(line)) return `line ${i + 1} is a link-reference definition`;
+    if (/^ {0,3}(?:=+|-+)[ \t]*$/.test(line) && i > 0 && isParagraphLine(lines[i - 1]) &&!/^ {0,3}\[[^\]]+\]:/.test(lines[i - 1])) return `line ${i + 1} underlines a line of text as a heading`;
+    if (/^ {0,3}(?:(?:>|[-*+]|\d+[.)])[ \t]+)*\[[^\]]+\]:/.test(line)) return `line ${i + 1} is a link-reference definition`;
   }
   return null;
 }
@@ -133,10 +152,16 @@ function schedulesOf(contract) {
   return { body, schedules };
 }
 
+// The marks the contract template defines. A mark in bold is no clause label.
+const MARKS = ['Proposed', 'Confirmed', 'Decided'];
+
 // The bold labels a body holds, trailing punctuation inside the bold dropped.
 function labelsOf(body) {
   const labels = [];
-  for (const m of body.matchAll(/\*\*([^*\n]+?)\*\*/g)) labels.push(m[1].replace(/[.:;]+$/, '').trim());
+  for (const m of body.matchAll(/\*\*([^*\n]+?)\*\*/g)) {
+    const label = m[1].replace(/[.:;]+$/, '').trim();
+    if (!MARKS.includes(label)) labels.push(label);
+  }
   return labels;
 }
 
@@ -214,6 +239,7 @@ function faultsOf(contractPath, skillDir, pending) {
   for (const rel of homeFilesOf(skillDir)) {
     const file = homeOf(rel);
     if (!file) continue;
+    if (file.before !== '') out.push(`check 3: ${rel} holds text before its first heading`);
     for (const d of file.deep) out.push(`check 4: ${rel} line ${d.line} holds a level-${d.level} heading`);
     for (const h of file.sections) {
       const n = schedules.filter(s => s.home === rel && s.name === h.heading).length;
@@ -450,7 +476,7 @@ test('the fixture contract and its homes pass', () => {
   assert.deepEqual(run(files => { files['SKILL.md'] = files['SKILL.md'].replace(/\n/g, '\r\n') + '\r\n\r\n'; }), []);
 });
 
-test('the counter fails each of the seven faults, with its message', () => {
+test('the counter fails each fault, with its message', () => {
   const rows = [
     ['check 1: a schedule differs from its home', edit('SKILL.md', 'You do the demo.', 'You do the demo twice.'), /^check 1: schedule "SKILL\.md: demo" differs from its home section$/],
     ['check 2: a home outside the grammar', edit('references/CONTRACT.md', '### references/extra.md: More', '### references/Extra File.md: More'), /^check 2: schedule "references\/Extra File\.md: More": its home is outside the grammar/],
@@ -464,16 +490,29 @@ test('the counter fails each of the seven faults, with its message', () => {
     ['check 4: a setext underline in a schedule', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', 'A line\n---'); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ underlines a line of text as a heading$/],
     ['check 4: a comment in a schedule', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', '- Do it. <!-- hidden -->'); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ holds "<!" or "<\?"$/],
     ['check 4: a link-reference line in a schedule', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', '> [x]: https://example.com'); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ is a link-reference definition$/],
+    ['check 3: text before a home file\'s first heading', edit('SKILL.md', '---\n\n# demo', '---\n\nA stray rule.\n\n# demo'), /^check 3: SKILL\.md holds text before its first heading$/],
+    ['check 3: text before the first heading of a reference', edit('references/extra.md', '# Extra\n', 'A stray rule.\n\n# Extra\n'), /^check 3: references\/extra\.md holds text before its first heading$/],
+    ['check 4: a setext underline under a line led by **', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', '**Bold line**\n---'); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ underlines a line of text as a heading$/],
+    ['check 4: a setext underline under a line led by *', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', '*Italic line*\n==='); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ underlines a line of text as a heading$/],
+    ['check 4: a link-reference definition whose target is on the next line', files => { for (const f of ['SKILL.md', 'references/CONTRACT.md']) files[f] = files[f].replace('- Do it.', '[x]:\nhttps://example.com'); }, /^check 4: schedule "SKILL\.md: Rules": its text line \d+ is a link-reference definition$/],
+    ['check 2: a Home line that names another section', edit('references/CONTRACT.md', 'the section "Rules". Carries out', 'the section "Words". Carries out'), /^check 2: schedule "SKILL\.md: Rules": its Home line names another home or section$/],
+    ['check 2: a home file that is not there', files => { files['references/extra.md'] = null; }, /^check 2: schedule "references\/extra\.md: Extra": its home file is not there$/],
+    ['check 2: a heading the home holds twice', edit('SKILL.md', '## Rules\n\n- Do it.\n', '## Rules\n\n- Do it.\n\n## Rules\n\n- Again.\n'), /^check 2: schedule "SKILL\.md: Rules": SKILL\.md holds that heading 2 times$/],
+    ['check 6: a body with no Needs clause', edit('references/CONTRACT.md', '**Needs** (**Decided**):', '**Wants** (**Decided**):'), /^check 6: the body holds no compatibility clause$/],
+    ['check 6: a body with no description clause', edit('references/CONTRACT.md', '**Description for the built file**', '**Summary for the built file**'), /^check 6: the body holds no description clause$/],
+    ['check 5: a mark word is not a label', edit('references/CONTRACT.md', 'Carries out: "Keep the rules".\n*Proposed*: pending at 1.0.0 in "y".', 'Carries out: "Confirmed".\n*Proposed*: pending at 1.0.0 in "y".'), /^check 5: schedule "SKILL\.md: Rules" carries out "Confirmed", which the body does not hold$/],
     ['check 5: a label the body does not hold', edit('references/CONTRACT.md', 'Carries out: "Keep the rules".\n*Proposed*: pending at 1.0.0 in "y".', 'Carries out: "Keep the rulez".\n*Proposed*: pending at 1.0.0 in "y".'), /^check 5: schedule "SKILL\.md: Rules" carries out "Keep the rulez", which the body does not hold$/],
     ['check 5: a schedule that names no clause', edit('references/CONTRACT.md', ' Carries out: "Keep the rules".\n*Proposed*: pending at 1.0.0 in "y".', '\n*Proposed*: pending at 1.0.0 in "y".'), /^check 5: schedule "SKILL\.md: Rules" names no clause it carries out$/],
     ['check 6: a description that differs', edit('SKILL.md', 'Does the demo thing.', 'Does a demo thing.'), /^check 6: SKILL\.md's description differs from the body's clause$/],
     ['check 6: a compatibility line that differs', edit('SKILL.md', 'Needs a demo.', 'Needs two demos.'), /^check 6: SKILL\.md's compatibility differs from the body's clause$/],
     ['check 7: a pending schedule marked Confirmed', edit('references/CONTRACT.md', '*Proposed*: pending at 1.0.0 in "z".', '**Confirmed**'), /^check 7: schedule "references\/extra\.md: Extra" carried text that was Proposed or pending at 1\.36\.1 and is marked Confirmed$/],
   ];
+  const missed = [];
   for (const [name, mutate, message] of rows) {
     const found = run(mutate);
-    assert.ok(found.some(f => message.test(f)), `${name}: wanted ${message}, got ${JSON.stringify(found)}`);
+    if (!found.some(f => message.test(f))) missed.push(`${name}: wanted ${message}, got ${JSON.stringify(found)}`);
   }
+  assert.deepEqual(missed, [], 'every row fails with its message');
 });
 
 test('the counter reads a heading inside a code fence as text, and a pending title it cannot find as a fault', () => {
