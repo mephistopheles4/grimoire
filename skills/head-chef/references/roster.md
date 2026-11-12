@@ -46,7 +46,10 @@ the file itself.
   session by its `desktopId` and draws that session's own name on the card,
   so a rename does not lose it. It falls back to the title only when no
   session file carries a Desktop id, so keep the title equal to the name.
-- `status` is one of `working`, `needs-you`, `done` or `stopped`.
+- `status` is one of `working`, `idle`, `done` or `stopped`. Use `idle` for a
+  member that has reported and waits on the owner or on you, and `working` again
+  when it resumes; put what the owner must do in a to-do. The pane still reads the older word `needs-you` as
+  `idle`, but write `idle`.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
   the id a Desktop session's card carries: the pane finds the session by it,
   and its Open in app needs it. A value read back from the pane is never a
