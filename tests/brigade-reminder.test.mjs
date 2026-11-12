@@ -286,6 +286,68 @@ test('618 C1: the contract and SKILL.md each hold the new sentence once, and nei
   }
 });
 
+// 618 C2, C5: the clause on the mod's gate, in the contract and in SKILL.md, with its table of kinds.
+const GATE = "**Level 3, the mod's gate on waits.**";
+const flat = t => t.replace(/\s+/g, ' ');
+const gateOf = (path, end) => {
+  const raw = text(path);
+  const at = raw.indexOf(GATE);
+  assert.ok(at >= 0, `${path} holds the clause`);
+  const to = raw.indexOf(end, at + GATE.length);
+  return { clause: flat(raw.slice(at, to)), rest: flat(raw.slice(0, at) + raw.slice(to)), raw: raw.slice(at, to) };
+};
+const CLAUSES = [
+  ['skills/head-chef/references/CONTRACT.md', '\n- '],
+  ['skills/head-chef/SKILL.md', '\n\n**'],
+];
+// Each item of S4's source lists, as the contract words it, with the kind it maps to.
+const SOURCE_ITEMS = [
+  ['whoever holds the goal never decides', 'owner-file-keeps'],
+  ['cannot place for sure inside or outside the set', 'owner-file-keeps'],
+  ['has no such rule or names no set', 'owner-file-keeps'],
+  ['any usage limit the file sets', 'owner-file-keeps'],
+  ['keeps it even toward a standing goal, which waits', 'owner-file-keeps'],
+  ['file keeps merges even toward a goal', 'owner-file-keeps'],
+  ["what the owner's words in this chat keep", 'owner-words'],
+  ["waits for the owner's words naming it", 'owner-words'],
+  ['a request in them goes to the owner', 'owner-words'],
+  ["rules keep for the owner goes to the owner", 'owner-words'],
+  ["owner's yes pending", 'owner-words'],
+  ["stays waiting until the owner's words answer it", 'carried'],
+  ['a classifier or permission check blocked', 'blocked'],
+  ["needs the owner's own hands", 'owner-hands'],
+  ['an install', 'install'],
+  ['a post carrying private work', 'private-post'],
+  ['a publish or send that leaves the machine', 'leaves-machine'],
+  ['dropping or narrowing a review, check or route', 'sensitive-route'],
+  ["Every other merge or close waits for the owner's words", 'merge'],
+  ["a merge that changes a threat model's scope or accepted risks", 'threat-model'],
+  ["an edit to a threat model's scope, to the line that names it", 'threat-model'],
+  ['what is never lifted', 'never-lifted'],
+  ['Never lifted, at any level', 'never-lifted'],
+  ['a fresh session a context figure prompts', 'never-lifted'],
+];
+
+for (const [path, end] of CLAUSES) {
+  test(`618 C5: ${path} names every stop kind, and its table pairs every source-list item with its kind`, async () => {
+    const { STOP_KINDS } = await import('../brigade/decisions.ts');
+    const { clause, rest, raw } = gateOf(path, end);
+    for (const kind of STOP_KINDS) assert.ok(clause.includes(`\`${kind}\``), kind);
+    if (!path.endsWith('CONTRACT.md')) return;
+    for (const [item, kind] of SOURCE_ITEMS) {
+      const row = flat(raw.split('\n').map(l => l.trim()).find(l => l.startsWith(`| \`${kind}\` |`)) ?? '').toLowerCase();
+      assert.ok(row.includes(item.toLowerCase()), `${kind} row holds: ${item}`);
+      assert.ok(rest.toLowerCase().includes(item.toLowerCase()), `the contract elsewhere holds: ${item}`);
+    }
+  });
+
+  test(`618 C2: ${path} holds the Log, then act exception and the to-do sentence`, () => {
+    const t = flat(text(path));
+    assert.ok(t.includes("the gate's form answer holds the step until the entry is logged again, and its no-stop answer is not a refused log for this rule"));
+    assert.ok(t.includes("every owner-facing to-do starts from a waiting entry, an owner's-hands step included"));
+  });
+}
+
 test('618 C1: the phrase appears in exactly two lines of the tree, the new sentence in the contract and in SKILL.md', async () => {
   const { readdirSync, statSync } = await import('node:fs');
   const hits = [];

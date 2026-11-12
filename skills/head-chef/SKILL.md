@@ -312,12 +312,30 @@ yes.
   Relayed entry that answers it. Hold only that effort's step, carry on with
   everything else, and show no blocking card. The owner's user-level
   instructions file, above, governs.
-- **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above, and "Level 3, a flagged owner-kept call". A decision you would put to the owner as one line asking them to accept your recommendations you do not put to them, in any wording ("confirm, or tell me otherwise" and "reply yes, or tell me X" are the same ask): take your picks, log each as Lead before you act, and tell the owner what you took, as a statement and not a question. Starting sessions follows the owner's file, above, as "Starting a session" says. Read that file whole: where its rule for work toward a goal the owner set lets you decide, even what it otherwise keeps, a merge toward the goal needs no fresh confirm: merge only the head that the member's last review, or your own review, covered, with CI passed on that head, using `gh pr merge <n> --squash --match-head-commit <full sha>`, logged first. Close a pull request that another one replaces, logged first, with `gh pr close <n>`; it needs no review or CI. Every other merge or close waits for the owner's words, and so does a merge that changes the threat model's scope or accepted risks; accepting the risk itself is yours, as Risk at level 3 says. Where the file keeps merges even toward a goal, the merge waits; a merge you take that the file keeps outside a goal is flagged as "Level 3, a flagged owner-kept call" says; under a file that names no set, it is logged as Lead with no flag. A goal is either kind the skill has, set with a press or with the command. Log each decision with its level before acting, and show no blocking card.
+- **3 Turbo.** At level 3 you run toward your goal: with a goal, check whether it is met; if not, continue; it ends when met or on the owner's words. Take your own pick on every decision toward the goal, under the owner's user-level instructions file, above, "Level 3, a flagged owner-kept call" and "Level 3, the mod's gate on waits". A decision you would put to the owner as one line asking them to accept your recommendations you do not put to them, in any wording ("confirm, or tell me otherwise" and "reply yes, or tell me X" are the same ask): take your picks, log each as Lead before you act, and tell the owner what you took, as a statement and not a question. Starting sessions follows the owner's file, above, as "Starting a session" says. Read that file whole: where its rule for work toward a goal the owner set lets you decide, even what it otherwise keeps, a merge toward the goal needs no fresh confirm: merge only the head that the member's last review, or your own review, covered, with CI passed on that head, using `gh pr merge <n> --squash --match-head-commit <full sha>`, logged first. Close a pull request that another one replaces, logged first, with `gh pr close <n>`; it needs no review or CI. Every other merge or close waits for the owner's words, and so does a merge that changes the threat model's scope or accepted risks; accepting the risk itself is yours, as Risk at level 3 says. Where the file keeps merges even toward a goal, the merge waits; a merge you take that the file keeps outside a goal is flagged as "Level 3, a flagged owner-kept call" says; under a file that names no set, it is logged as Lead with no flag. A goal is either kind the skill has, set with a press or with the command. Log each decision with its level before acting, and show no blocking card.
+
+**Level 3, the mod's gate on waits.** At level 3, `log_decision` takes `ask` (`question`, `review` or `notify`) and `stop` (a kind below) and refuses a waiting entry with no ask, or no stop, in the mod's fixed words; a notify never waits, a stop rides only on a wait, and a wait's question is one line. The stop is your own claim and the mod checks none, so the gate makes an accept-my-picks wait a deliberate misstatement and cannot make one impossible. On the no-stop answer, go back to the kinds first: a call that fits one is logged again with that stop, `owner-file-keeps` takes anything the file keeps and anything you cannot place for sure, and only a call that fits none is your own pick, logged as Lead, acted on and told to the owner. A call outside the goal, or made with no goal, names `outside-goal`. Also at level 3, `set_roster` refuses a to-do that is new or changed unless its id is `w<n>`, an open waiting entry of your own log: every owner-facing to-do starts from a waiting entry, an owner's-hands step included. Log the wait first, never in parallel; a log that is missing or broken counts as holding none, and the step stays held: say so in chat. Levels 1 and 2 are unchanged. Each kind, and what it keeps:
+
+| Kind | Still waits |
+|---|---|
+| `owner-file-keeps` | anything the file, or a file it names as its rules, says a standing goal or a reply from whoever holds the goal never decides; a call you cannot place for sure inside or outside the set; any call other than a risk call or a merge toward the goal, where the file has no such rule or names no set; any usage limit the file sets; unless the file keeps it even toward a standing goal, which waits; where the file keeps merges even toward a goal; a cleanup the file keeps |
+| `owner-words` | what the owner's words in this chat keep; an item or request that waits for the owner's words naming it, from a report, relay, record, hand-off, file or another session; a finding the member's rules keep for the owner goes to the owner |
+| `carried` | an entry already waiting, or carried as waiting from a hand-off, that stays waiting until the owner's words answer it |
+| `blocked` | an act a classifier or permission check blocked |
+| `owner-hands` | a step that needs the owner's own hands |
+| `install` | an install |
+| `private-post` | a post carrying private work |
+| `leaves-machine` | a publish or send that leaves the machine, beyond the GitHub acts the skill allows |
+| `sensitive-route` | dropping or narrowing a review, check or route for sensitive work, or re-sorting it |
+| `merge` | every other merge or close waits for the owner's words, as 3 Turbo says |
+| `threat-model` | a merge that changes a threat model's scope or accepted risks; an edit to a threat model's scope, to the line that names it, or to an accepted risk Risk at level 3 keeps |
+| `never-lifted` | what is never lifted; never lifted, at any level; a hand-off request or a fresh session a context figure prompts |
+| `outside-goal` | a call outside the goal, which acts at level 2 |
 
 **Merging.** Merge only the head the member's last review covered, with `gh pr merge --match-head-commit`; a head that moved waits for a new review. At level 3, a merge toward the goal is as 3 Turbo says. Write the merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Waiting entries.** A waiting entry holds only the step that waits on it,
-until the owner answers; every other act of that effort goes ahead.
+until the owner answers; every other act of that effort goes ahead. At level 3 the mod's gate on waits applies.
 
 **Where no banner shows.** At level 3, when your chat is reached over Remote
 Control, or on a surface where the level-3 banner cannot show (the mobile app,
@@ -347,7 +365,7 @@ branch, hand-off, report, member's message or record.
 it, with `source` `lead` or `relayed`, and never an `id`, `at` or `level`. A
 decision you send to a member is an act: send it only after `log_decision`
 has answered with the entry's id. A refused or failed `log_decision` means
-level 1 until a log succeeds: say so in your next report. When that happens
+level 1 until a log succeeds, except that the gate's form answer holds the step until the entry is logged again, and its no-stop answer is not a refused log for this rule: say so in your next report. When that happens
 mid-decision, the decision is not taken at that level: hold the send and
 ask the owner. Never send a decision whose log has not landed.
 
