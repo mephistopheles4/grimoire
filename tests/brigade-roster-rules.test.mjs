@@ -1195,7 +1195,7 @@ test('#578 C5: the contract, the skill, the Desktop page and the README give the
   assert.match(await read('references/contract.changelog.md'), /\| 1\.32\.0 \| [0-9-]+ \| \*Proposed\.\* A background start may carry one `note`/);
 });
 
-test('#581 C10: the roster reference, the skill and the contract name the four statuses and write idle, never needs-you; the contract carries its 1.34.0 row', async () => {
+test('#581 C10: the roster reference, the skill and the contract name the four statuses and write idle, never needs-you; the contract carries its 1.35.0 row', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const roster = await read('references/roster.md');
@@ -1209,7 +1209,7 @@ test('#581 C10: the roster reference, the skill and the contract name the four s
   assert.match(contract, rule);
   assert.match(contract, /and `working` again when it resumes; what the owner must do goes in a to-do, not in the status/);
   assert.match(contract, /^# .*?Version: 1\.\d+\.\d+ /);
-  assert.match(await read('references/contract.changelog.md'), /\| 1\.34\.0 \| [0-9-]+ \| \*Proposed\.\*/);
+  assert.match(await read('references/contract.changelog.md'), /\| 1\.35\.0 \| [0-9-]+ \| \*Proposed\.\*/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {
