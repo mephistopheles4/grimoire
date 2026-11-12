@@ -114,25 +114,6 @@ flowchart LR
 
 **In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine. The root of trust is the owner's GitHub account.
 
-## Accepted threat classes
-
-A class covers only what its sentence names; nothing under Open issues is inside a class.
-
-- **Text steers a session.** The host agent is the last guard against text read as instruction; no injection detector is built, closing a gap in a check aside, so a well-worded injection steers a session and breaks rules held only by prose.
-- **Review is the guard for scanner gaps.** Baseline allowances cover whole files or rules, some files are read in part, nothing is signed, and a skill is dangerous by its nature (ADR 0006).
-- **Renderer output carries author text.** An escaped one-line name can still read like a path or a reason; refusal lines are bounded each, not in count; deep nesting stops a renderer with one line.
-- **Other plugins share the mod's trust.** An installed plugin can read the mod's plugin state (not the report store, Remote Control link or old folder key), rewrite the usage record, plant the warning's dismissal, and rewrite or press the autonomy level, forging a 3's confirmation.
-- **A forged or misled session can speak for the lead.** A message under the lead's shown name or a relay counted as a decision can move the lead; a steered lead or an unasked skill load can write false log entries and lead hand-offs.
-- **GitHub acts on the owner's word are irreversible and public.** The head is not pinned between review and merge, a broad word covers acts it did not name, deletes are permanent, and history keeps text; at a confirmed level 3 the lead's own picks reach a merge.
-- **A steered lead can start a session in any trusted folder.** The start binds a folder to no repository the owner chose, and its reads run before the trust gate, so a refusal shows whether a path exists, is a main checkout, or belongs to a repository.
-- **The mod's tools run with no permission prompt,** in plan and don't-ask modes too, each inside its guards and the path rule: `set_roster`, the four tab tools and `stop_background_session`.
-- **A tracked hook runs a branch's code when a session opens.** The owner judged the agent guard worth that exposure; it protects the merge, not the reader.
-- **The local test image trusts Debian's archive at build time.** git and its packages install unpinned, with network and proxy settings; a moved or replaced package runs inside an image that only runs checks.
-- **Data leaves the machine as the owner accepted.** A provider keeps audit text; pull request polls reach the polled organisation's audit log; the level and goal reach Remote Control devices; plugin files and a named folder's answers reach backup and sync; a home path warns, not blocks.
-- **Every background member runs with Remote Control on.** Its whole conversation goes to claude.ai and every device signed in, and any signed-in device can type to the member and answer its permission prompts.
-- **No rule holds a secret or personal detail back.** Brigade and the head chef check no post, record or send for a secret or personal detail, so one can reach a public record or a transcript; a change that writes one into text sessions read is not covered.
-- **Box text can move an audit edge.** A box's text can move an edge in the audit's reread order; a score never changes a tier.
-
 ## Residual risk
 
 ```mermaid
@@ -161,6 +142,25 @@ quadrantChart
 ```
 
 Likelihood and impact, 0 to 1, are judgement after today's controls, a ranking only.
+
+## Accepted threat classes
+
+A class covers only what its sentence names; nothing under Open issues is inside a class.
+
+- **Text steers a session.** The host agent is the last guard against text read as instruction; no injection detector is built, closing a gap in a check aside, so a well-worded injection steers a session and breaks rules held only by prose.
+- **Review is the guard for scanner gaps.** Baseline allowances cover whole files or rules, some files are read in part, nothing is signed, and a skill is dangerous by its nature (ADR 0006).
+- **Renderer output carries author text.** An escaped one-line name can still read like a path or a reason; refusal lines are bounded each, not in count; deep nesting stops a renderer with one line.
+- **Other plugins share the mod's trust.** An installed plugin can read the mod's plugin state (not the report store, Remote Control link or old folder key), rewrite the usage record, plant the warning's dismissal, and rewrite or press the autonomy level, forging a 3's confirmation.
+- **A forged or misled session can speak for the lead.** A message under the lead's shown name or a relay counted as a decision can move the lead; a steered lead or an unasked skill load can write false log entries and lead hand-offs.
+- **GitHub acts on the owner's word are irreversible and public.** The head is not pinned between review and merge, a broad word covers acts it did not name, deletes are permanent, and history keeps text; at a confirmed level 3 the lead's own picks reach a merge.
+- **A steered lead can start a session in any trusted folder.** The start binds a folder to no repository the owner chose, and its reads run before the trust gate, so a refusal shows whether a path exists, is a main checkout, or belongs to a repository.
+- **The mod's tools run with no permission prompt,** in plan and don't-ask modes too, each inside its guards and the path rule: `set_roster`, the four tab tools and `stop_background_session`.
+- **A tracked hook runs a branch's code when a session opens.** The owner judged the agent guard worth that exposure; it protects the merge, not the reader.
+- **The local test image trusts Debian's archive at build time.** git and its packages install unpinned, with network and proxy settings; a moved or replaced package runs inside an image that only runs checks.
+- **Data leaves the machine as the owner accepted.** A provider keeps audit text; pull request polls reach the polled organisation's audit log; the level and goal reach Remote Control devices; plugin files and a named folder's answers reach backup and sync; a home path warns, not blocks.
+- **Every background member runs with Remote Control on.** Its whole conversation goes to claude.ai and every device signed in, and any signed-in device can type to the member and answer its permission prompts.
+- **No rule holds a secret or personal detail back.** Brigade and the head chef check no post, record or send for a secret or personal detail, so one can reach a public record or a transcript; a change that writes one into text sessions read is not covered.
+- **Box text can move an audit edge.** A box's text can move an edge in the audit's reread order; a score never changes a tier.
 
 ## Open issues
 
