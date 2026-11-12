@@ -1,13 +1,16 @@
 # Incantation: the spec
 
-Draft 1.1, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 1.2, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
 to 0.8 fold in the answers (Decisions taken), 0.9 holds the fixes drafted after
 spec round 2, 1.0 folds in the lead's answers to them, and 1.1 holds the
 fixes drafted after round 1 of the reopened spec stage. None of 1.1's fixes
-is accepted yet.
+is accepted yet. 1.2 folds in the four findings from the owner's live run of
+the voice prototype (issue comment of 2026-11-12): the mic open during
+speech, the round-trip delay, no sign of listening, and listening at all
+times (S4.3). None of 1.2's changes is accepted yet.
 
 ## S1. Objective
 
@@ -20,7 +23,9 @@ Incantation only adds the way the session talks:
 - it summarizes rather than reads output aloud, then offers to drill in;
 - it says each request back in its own words and acts only on a yes;
 - it keeps turns casual: one thing per turn, plain words, no markdown aloud,
-  details only when asked.
+  details only when asked;
+- it listens only once it has finished speaking, and shows when it listens
+  (S4.3).
 
 Incantation is a separate plugin in the `mephistopheles4` marketplace, not part
 of the grimoire plugin. It declares no dependency on VoiceMode. A guard checks
@@ -65,7 +70,9 @@ threat-model entries (S8).
 Out: any recorder or speech engine of our own (the proxy forwards, and holds
 no speech); changes to VoiceMode;
 clearing VoiceMode's logs for the person; a hook that runs on every session
-start; running Incantation in a head-chef lead session (S4 step 7).
+start; running Incantation in a head-chef lead session (S4 step 7);
+listening at all times, and a live level meter (S4.3, both to follow-up
+issues).
 
 This spec replaces the old tickets #593 and #594. The lead closes them as
 replaced once the spec is approved.
@@ -155,6 +162,10 @@ replaced once the spec is approved.
   - turns off the auto-start of a speech engine, and the services' enable on
     install (`VOICEMODE_SERVICE_AUTO_ENABLE=false`);
   - sets the default voice (`VOICEMODE_VOICES`) to plain engine voice names;
+  - keeps the listening chimes on (`VOICEMODE_AUDIO_FEEDBACK=true`) and
+    streamed speech on (`VOICEMODE_STREAMING_ENABLED=true`), and sets the
+    end-of-speech wait (`VOICEMODE_SILENCE_THRESHOLD_MS`) to 1000 or less
+    (S4.3);
   - names the VoiceMode versions the guard was checked against;
   - needs no OpenAI key;
   - does not install VoiceMode's heard hook.
@@ -194,6 +205,8 @@ replaced once the spec is approved.
       off, see README step 4`.
     - A first `VOICEMODE_VOICES` entry that is not a plain voice name (no
       path, no `/` or `:` form) fails: `voice: see README step 4`.
+    - `VOICEMODE_AUDIO_FEEDBACK` set to anything VoiceMode reads as off
+      fails: `chimes: turn them on, see README step 4` (S4.3).
     - VoiceMode's installed version outside the README's range fails:
       `voicemode version: see README step 1`.
     - The heard hook in any of `~/.claude/settings.json`,
@@ -300,6 +313,55 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
   - VoiceMode used without Incantation needs the proxy running too, since
     the engines are on sockets. The README says so.
 
+### S4.3 Listening and timing
+
+The owner's live run of the voice prototype (2026-11-12) found four faults.
+The prototype spoke through one tool and listened through another; Incantation
+does both inside VoiceMode's `converse`. What VoiceMode does is taken from
+its release v9.0.2 (2026-10-29), and the README names that version.
+
+1. **The mic is closed while the session speaks.** In the prototype the speak
+   call returned before playback ended, so the next listen heard the
+   session's own voice. `converse` plays its speech to the end, plays a
+   listening chime, and only then records, all in one call.
+   - Every `converse` call that waits for a reply carries that turn's speech
+     in the same call. The skill never follows a speak-only call
+     (`wait_for_response: false`) with a call that only listens.
+   - The skill never adds a fixed wait before listening.
+2. **The round trip is budgeted.** A round trip is: the person stops talking,
+   VoiceMode waits out the silence, transcribes, the model replies, and the
+   reply is synthesized and starts to play. Incantation controls the speech
+   side and keeps the model's share short.
+   - **Budget, drafted (O17):** the end-of-speech wait, plus transcription,
+     plus time to first audio, at most 2.5 s as the median of 10 turns. It is
+     read from the timings `converse` reports for each call. The model's time
+     is reported beside it and not budgeted.
+   - The README settings in S4.1 (c): streamed speech on, and an end-of-speech
+     wait of 1000 ms or less.
+   - The say-back (S4 step 4) is the first thing the session does after a
+     heard reply, with no tool call before it, and it is one sentence.
+3. **The person can tell when they are heard.**
+   - **Heard:** VoiceMode's chimes, one when recording starts and one when it
+     ends. The README keeps them on, and the guard fails when they are off.
+   - **Seen:** before each `converse` call that waits for a reply, the
+     session prints one line in chat, `Listening…`. It stays on screen while
+     the call is open.
+   - A live level meter needs a second reader of the microphone. It is not in
+     this change; a follow-up issue holds it.
+4. **Listening at all times is deferred (the lead's pick, 2026-11-12).**
+   VoiceMode v9.0.2
+   listens only inside a `converse` call, and has no echo cancellation.
+   Incantation stays turn-based: the mic is closed during playback, which
+   keeps the session from hearing itself, and speech said between turns is
+   not heard. The chimes mark the window. VoiceMode's own work toward an
+   always-open listener is unreleased. A follow-up issue waits on it, and on
+   echo cancellation, and adopting it reopens the threat model (S8): it adds
+   a route for heard text into a session that is working.
+
+The prototype's two setup fixes, a temp folder on the system drive and the
+`in#0` device tag in newer ffmpeg output, belong to its Windows listener.
+Neither applies to VoiceMode in WSL 2, and neither is carried.
+
 ## S5. Files
 
 - `plugins/incantation/.claude-plugin/plugin.json`, with its own `version`
@@ -342,6 +404,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
      - VoiceMode used on its own needs it running;
   6. never run `voicemode serve`; use a headset; and approve `converse` in
      each session when asked, never through an allow rule in settings;
+     wait for the listening chime before talking, since speech before it or
+     after the closing chime is not heard (S4.3);
   7. who hears: people in the room are heard, and their words reach the model
      provider as chat. One plain line names where VoiceMode keeps what is
      heard and said on the machine.
@@ -448,25 +512,41 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     removes a stale socket of its own, restarts an engine that exits, and
     ignores a planted project settings file or module in the folder it was
     run from.
+19. `guard.mjs` prints `chimes …` when `VOICEMODE_AUDIO_FEEDBACK` is off.
+20. Every `converse` call that waits for a reply carries that turn's speech,
+    no call only listens after a speak-only call, and a `Listening…` line in
+    chat comes before each call that waits for a reply.
+21. After a heard reply, the say-back is the session's first act, with no
+    tool call before it.
 
-Claims 7 to 13 and 15 to 18 are Node tests; the socket ones skip on win32. The ticket closes on the owner's
+Claims 7 to 13, 15 to 19 are Node tests; the socket ones skip on win32. The ticket closes on the owner's
 practice run. Once Test passes, the build session proposes its steps, each
-with a pass or fail, in WSL 2, and the owner picks the time then. One step
-reads the proxy's refusal count after a full turn; it must be 0.
+with a pass or fail, in WSL 2, and the owner picks the time then. Three steps
+are fixed:
+
+- the proxy's refusal count after a full turn must be 0;
+- **own voice:** on speakers, not a headset, five turns in which the person
+  stays silent; no heard text holds words from the session's own turn
+  before it (S4.3 item 1);
+- **round trip:** ten turns, each with its timings from `converse`; the
+  median of the end-of-speech wait plus transcription plus time to first
+  audio is within the budget (S4.3 item 2), and the model's time is reported
+  beside it.
 
 ### S6.1 The eval cases
 
-Claims 1 to 6 and 14 are eval cases, seven in all, one per row. The
+Claims 1 to 6, 14, 20 and 21 are eval cases, seven in all, one per row. The
 `greeting` rubric also grades a warm, alive opening. The `spoken-style` rubric
-also grades one thing per turn.
+also grades one thing per turn, and claim 20 on every `converse` call in the
+case. The `hear-back` rubric also grades claim 21.
 
 | Case | Claim | `converse` |
 |---|---|---|
 | `no-converse` | 1 | absent |
 | `guard-fails` | 14, first half | present; the guard fails |
 | `greeting` | 2 | present |
-| `spoken-style` | 3, 4 | present |
-| `hear-back` | 5 | present |
+| `spoken-style` | 3, 4, 20 | present |
+| `hear-back` | 5, 21 | present |
 | `typed-yes` | 6 | present |
 | `lead-session` | 14, second half | present |
 
@@ -512,6 +592,15 @@ also grades one thing per turn.
   decisions kept for the owner need a typed yes. Driver: cheaper to reverse.
 - **Guard against dependency.** A guard keeps grimoire free of VoiceMode's
   install, at the cost of a check on each start. Owner's call, taken.
+- **Listening at all times against hearing itself.** The owner asked for
+  both (S4.3 item 4). This change keeps the session from hearing itself and
+  gives up speech said between turns, until VoiceMode ships an always-open
+  listener and echo cancellation. Driver: cheaper to reverse; it needs no
+  new recorder and no change to the threat model's scope.
+- **A short end-of-speech wait against cutting the person off.** A shorter
+  wait speeds the round trip and can end a turn in a pause. The README caps
+  it at 1000 ms, VoiceMode's default; the round-trip practice step measures
+  the rest.
 - **Port 8765 probe: drafted back in (O15).** A10 skipped it as Hardening.
   Round 1 of the reopened stage found a web-page route through that port, so
   1.1 drafts the probe; keeping A10 instead is the lead's call.
@@ -637,6 +726,12 @@ keeps speech, as information. A route from off the machine stays in scope;
 S4.2 covers it. A risk wholly on the person's machine is out
 of scope unless it touches auth, crypto or data migrations.
 
+The lead, at level 3 under the owner's standing goal, took the live-run
+picks (2026-11-12): S4.3 items 1 to 3 as drafted in 1.2, with the budget
+left for the owner (O17); and item 4 deferred to a follow-up issue that waits
+on VoiceMode's always-open listener and echo cancellation, with the mic
+closed during playback. The owner's own pick, if it differs, replaces it.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -654,5 +749,7 @@ them.
 - **O15.** The port 8765 probe, drafted back in against A10.
 - **O16.** The pull request from a fresh branch, and deleting this branch on
   origin.
+- **O17.** The round-trip budget (S4.3 item 2): drafted at 2.5 s, the median
+  of 10 turns, for the speech side only. The owner's number.
 
 Nothing is filed upstream, and any future report stays private.
