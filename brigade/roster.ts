@@ -12,7 +12,12 @@ import type { Card, Pair, PrState, Roster, Status, Todo } from './types'
 // writes it. The shape check, the byte cap and the decision whether a roster
 // path may be read or written are each one function below.
 
-export const STATUSES: readonly Status[] = ['working', 'needs-you', 'done', 'stopped']
+export const STATUSES: readonly Status[] = ['working', 'idle', 'done', 'stopped']
+
+/** An older word for `idle` (issue 581). A roster file or a `set_roster` call
+ *  that holds it is read as `idle`, and the pane writes `idle`: a lead running
+ *  an older skill text still sends it, and rosters already on disk hold it. */
+export const OLD_IDLE = 'needs-you'
 
 // The caps a roster is held to. A roster over them is refused with an error in
 // the pane rather than drawn in part.
@@ -173,10 +178,10 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
     if ('error' in t) return t
     out[k] = t.value ?? ''
   }
-  if (typeof o.status !== 'string' || !(STATUSES as readonly string[]).includes(o.status)) {
+  if (typeof o.status !== 'string' || !([...STATUSES, OLD_IDLE] as readonly string[]).includes(o.status)) {
     return { error: `${where} status is not one of ${STATUSES.join(', ')}` }
   }
-  out.status = o.status as Status
+  out.status = o.status === OLD_IDLE ? 'idle' : (o.status as Status)
   for (const k of ['desktopId', 'bgId', 'url'] as const) {
     const t = text(`${where} ${k}`, o[k], MAX_ID, false)
     if ('error' in t) return t
@@ -777,7 +782,7 @@ export function matchRows(cards: readonly Card[], rows: readonly SessionRow[], n
  *  head chef marked `working` moves, to `waiting` while its session's status
  *  is `waiting` (a permission prompt or input), or to `idle` while it is
  *  `idle` (no turn running). Any other status gives no move. The head chef's
- *  needs-you, done and stopped always hold. The pane takes no background
+ *  idle, done and stopped always hold. The pane takes no background
  *  `state` from a session file (a real one carries none, and a forged one
  *  must not move a card; see #370). */
 export function rowMove(status: string, row: SessionRow | undefined): Move | undefined {

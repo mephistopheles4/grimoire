@@ -7,7 +7,7 @@
 
 import { sha256Hex } from './decisions.ts'
 import { REPO, type GhPr } from './roster.ts'
-import { movedLook, prAnswer, slug, type Moves } from './view.ts'
+import { isIdle, prAnswer, slug, type Moves } from './view.ts'
 
 /** A title that may be built into a line: whole-string, no space. */
 export const TITLE = /^[A-Za-z0-9._-]{1,80}$/
@@ -44,7 +44,7 @@ const safeRepo = (repo: unknown): repo is string =>
 export function quickAction(c: unknown, answers: QuickAnswers, moves?: Moves): QuickAction | undefined {
   if (!isRecord(c) || typeof c.title !== 'string' || !TITLE.test(c.title)) return undefined
   const title = c.title
-  if (c.status === 'needs-you' || movedLook(c, moves)?.group === 'needsYou') {
+  if (isIdle(c, moves)) {
     return { action: 'ask', label: 'Ask', line: `What does ${title} need from me?` }
   }
   if (c.status === 'done' && c.repo === undefined && c.pr !== undefined) {

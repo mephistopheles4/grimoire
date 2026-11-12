@@ -1,5 +1,5 @@
 /** The status the head chef writes on a card, from a fixed set. */
-export type Status = 'working' | 'needs-you' | 'done' | 'stopped'
+export type Status = 'working' | 'idle' | 'done' | 'stopped'
 
 /** One session the lead started, as its roster card says. */
 export type Card = {
