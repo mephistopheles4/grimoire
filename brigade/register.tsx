@@ -15,6 +15,7 @@ import {
   OPEN_SERVER,
   OPEN_TARGET,
   OPEN_TOOL,
+  OLD_IDLE,
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
@@ -180,7 +181,6 @@ import {
   contextMeterSvg,
   compactSettings,
   settingsPopover,
-  contextTrend,
   contextOutlook,
   contextOutlookSvg,
   readCompactWindow,
@@ -193,6 +193,7 @@ import {
   hairlineSvg,
   IDLE_LOOK,
   idsFrom,
+  isIdle,
   levelTrackSvg,
   isReason,
   linkStep,
@@ -244,8 +245,8 @@ import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY
 // The Brigade pane: one compact row per session a lead session started, in
 // three foldable groups (Waiting on you, Working, Done · stopped) behind a
 // switch to a Pull requests view. A row shows its status dot, title,
-// live busy or idle state, age, PR pill and latest report, and on a needs-you
-// or working row the cache warmth, context meter and the burn and trend views;
+// live busy or idle state, age, PR pill and latest report, and on an idle
+// or working row the cache warmth, context bar and the burn and trend views;
 // the owner's to-dos sit under Waiting on you, each ticked with a press that a
 // second press undoes; at the foot are the selection bar and this session's
 // own rate limits and context. The pane reads the roster file while it is
@@ -315,19 +316,19 @@ async function closePopover($: EngineInterface) {
   popoverTitle = undefined
   await update($, popover, () => '')
 }
-// Waiting cards the owner dismissed, for one wait (issue 513, S9): title to
+// Idle cards the owner dismissed, for one wait (issue 513, S9; issue 581): title to
 // the card's `since` at the dismissal. Module memory, so the lead cannot read
 // it and another plugin cannot plant it; the `dismissed` atom keeps its rule
-// of never hiding a waiting card. A pane open and a reload clear it.
+// of never hiding an idle card. A pane open and a reload clear it.
 const waitDismissed = new Map<string, number | undefined>()
 // The titles it hides now: the card's `since` must still be the one dismissed.
 const waitHiddenOf = (cards: readonly { title: string; since?: number }[]): ReadonlySet<string> =>
   new Set(cards.filter(c => waitDismissed.has(c.title) && waitDismissed.get(c.title) === c.since).map(c => c.title))
-// A dismissal ends when the card is read as not waiting or its `since` changed.
+// A dismissal ends when the card is read as not idle or its `since` changed.
 function pruneWaitDismissed(cards: readonly Card[], moves: Moves) {
   for (const [title, since] of [...waitDismissed]) {
     const c = cards.find(x => x.title === title)
-    if (c === undefined || c.since !== since || !(c.status === 'needs-you' || movedLook(c, moves)?.group === 'needsYou')) waitDismissed.delete(title)
+    if (c === undefined || c.since !== since || !isIdle(c, moves)) waitDismissed.delete(title)
   }
 }
 const popoverOf = (v: unknown): { kind: 'menu' | 'set'; place: number } | undefined => {
@@ -1103,7 +1104,7 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
   const g = groupCards(cards, hidden, moves, waitHiddenOf(cards))
   const base: number[] = []
   const named = new Map<string, number[]>()
-  for (const { c } of [...g.needsYou, ...g.working, ...g.finished]) {
+  for (const { c } of [...g.working, ...g.finished]) {
     const n = prNumber(c)
     if (n === undefined) continue
     if (c.repo === undefined) {
@@ -1646,7 +1647,7 @@ const SCHEMA = {
           title: field(80),
           work: field(MAX_TEXT),
           settings: field(MAX_TEXT),
-          status: { type: 'string', enum: [...STATUSES] },
+          status: { type: 'string', enum: [...STATUSES, OLD_IDLE], description: `\`${OLD_IDLE}\` is an older word for \`idle\`: it is read as \`idle\`.` },
           desktopId: field(100),
           bgId: field(100),
           url: field(100),
@@ -3793,10 +3794,10 @@ export const register: Register = on => {
       return { element: e.element }
     }
     if (e.element === 'bardismiss') {
-      // Each selected title that is still a card and does not wait on the owner.
+      // Each selected title that is still a card and is not drawn idle.
       const chosen = new Set(pickedFrom(await read($, picked)))
       const moves = await movesOf($)
-      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you' && movedLook(c, moves)?.group !== 'needsYou').map(c => c.title)
+      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && !isIdle(c, moves)).map(c => c.title)
       await update($, dismissed, list => [...list, ...drop.filter(t => !list.includes(t))])
       await update($, picked, () => [])
       return { element: e.element }
@@ -3869,9 +3870,9 @@ export const register: Register = on => {
     if (verb === 'openlink') await openLink($, c)
     if (verb === 'split') await openSplit($, c)
     if (verb === 'dismiss') {
-      if (c.status === 'needs-you' || movedLook(c, await movesOf($))?.group === 'needsYou') {
-        // A waiting card is dismissed for this one wait, in module memory
-        // only; the `dismissed` atom never hides one (issue 513, S9).
+      if (isIdle(c, await movesOf($))) {
+        // An idle card is dismissed for this one wait, in module memory
+        // only; the `dismissed` atom never hides one (issue 513, S9; issue 581).
         waitDismissed.set(c.title, c.since)
         await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
       } else {
@@ -3986,7 +3987,7 @@ export const register: Register = on => {
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
     const waitHidden = waitHiddenOf(cards)
-    const { needsYou, working, finished } = groupCards(cards, hidden, moves, waitHidden)
+    const { working, finished } = groupCards(cards, hidden, moves, waitHidden)
     // The open popover, read again through its fixed shape. It draws only for
     // a card still drawn in the group it opened in (issue 513, S5).
     const popped = pointer && view === 'sessions' ? popoverOf(await read($, popover)) : undefined
@@ -3995,20 +3996,19 @@ export const register: Register = on => {
     const outsideRows = bodyRows === undefined ? 60 : Math.min(400, bodyRows + (rowsOf(e.props.scroll?.offset) ?? 0))
     const popLive =
       popped !== undefined &&
-      ([['needsYou', needsYou], ['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place && x.c.title === popoverTitle))
-    // The bar counts only picks a checkbox shows: a card that waits on the
-    // owner has none, and a title no shown card holds is no pick.
-    const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
+      ([['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place && x.c.title === popoverTitle))
+    // The bar counts only picks a checkbox shows: a card drawn idle has none,
+    // and a title no shown card holds is no pick.
+    const pickable = new Set([...working, ...finished].filter(({ c }) => !isIdle(c, moves)).map(({ c }) => c.title))
     const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
-    // Issue 545, row 11: a needs-you card stays in the group it belongs to, Working, in roster
-    // order; Waiting on you holds the owner's to-dos alone, so it never claims a reason it lacks.
-    const inWorking = [...needsYou, ...working].sort((a, b) => a.i - b.i)
-    const waiting = waitingCount(0, todos, done, ticks)
+    // Waiting on you holds the owner's to-dos alone (issue 545, row 11; issue 581): an idle
+    // card draws in Working, so this never claims a reason it lacks.
+    const waiting = waitingCount(todos, done, ticks)
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
-    const shown = needsYou.length + working.length + finished.length
+    const shown = working.length + finished.length
     const strip = statusStrip(cards, hidden, moves, waitHidden)
     const progress = todoBar(todos, done, ticks)
     const sessionsCount =
@@ -4148,9 +4148,9 @@ export const register: Register = on => {
     }
     const rows = (list: JSX.Element[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
 
-    // The context outlook (issue 545, row 8): the bar against the window with its
-    // compaction tick and large-turn dots, its text, the turns left and the large
-    // turns in dim lines, and the sawtooth only once the session has compacted.
+    // The context outlook (issue 545, row 8; issue 581): the bar against the window with its
+    // compaction tick and large-turn dots, `<used> of <window>` beside it, then
+    // `compacts at ~N` with the turns left, and the large turns, in dim lines.
     const outlookRows = (o: ContextOutlook) => {
       const image = Image !== undefined ? contextOutlookSvg(o) : undefined
       return (
@@ -4169,23 +4169,18 @@ export const register: Register = on => {
                 </Text>
               </Box>
             )}
-            <Box flexShrink={1} minWidth={0}>
-              <Text dimColor wrap="truncate-end">
-                {o.text}
-              </Text>
+            <Box flexShrink={0}>
+              <Text dimColor>{o.text}</Text>
             </Box>
           </Box>
-          {o.turns !== undefined && (
-            <Text dimColor wrap="truncate-end">
-              {o.turns}
-            </Text>
-          )}
+          <Text dimColor wrap="truncate-end">
+            {o.second}
+          </Text>
           {o.dotsText !== undefined && (
             <Text dimColor wrap="truncate-end">
               {o.dotsText}
             </Text>
           )}
-          {o.sawtooth !== undefined && sparkRow(o.sawtooth)}
         </Box>
       )
     }
@@ -4226,51 +4221,59 @@ export const register: Register = on => {
     // the settings line as the card holds it (in the terminal the pill sits on
     // the first line and the settings line under it); and the latest report
     // since the pane opened. Then,
-    // on a needs-you or working card, the view icons (words in the terminal)
+    // on an idle or working card, the view icons (words in the terminal)
     // and the chosen view: the ◆ cache bar with its short text and the dim
     // line under it, or the ◆ warmth line, dim, when there is no bar; the ◆
-    // context meter, in the cache bar's form, when the card's model has a
-    // known window; and the nudge, which wraps. Burn rate: its sparkline and
+    // context row, drawn as the context outlook's bar when the card has an
+    // outlook (a known window and 2 or more calls), else as the plain meter when
+    // the card's model has a known window. Burn rate: its sparkline and
     // rate, or the cache line's reason when the transcript is too large,
-    // shared or not found. Context (the `trend` view): the outlook, a bar against
-    // the window with a compaction tick, turns left and large-turn dots, and its
-    // sawtooth only once the session has compacted; with no window, the old
-    // sparkline and the context now.
-    // The nudge shows under whichever view is chosen, so a sticky choice never
-    // hides it. A done or stopped card draws no views, ◆ line, bar, meter,
-    // sparkline or nudge: a finished session's cache and context mean nothing.
+    // shared or not found. Context (the `trend` view, shown only with an
+    // outlook): the outlook, a bar against the window with a compaction tick
+    // and large-turn dots, `<used> of <window>` beside it, and `compacts at ~N`
+    // with the turns left under it.
+    // A done or stopped card draws no views, ◆ line, bar, meter or sparkline: a
+    // finished session's cache and context mean nothing. No card draws a nudge to
+    // reply or hand off (issue 581).
+    // The last card the pane draws, in the last unfolded group that has cards (#581 S5): its
+    // popover opens upward, since nothing below it would show one that opens downward. Worked
+    // out on every draw, so a fold, a dismissal or a group change moves it.
+    const lastDrawn = (() => {
+      if (!folds.has('finished') && finished.length > 0) return finished[finished.length - 1]?.i
+      if (!folds.has('working') && working.length > 0) return working[working.length - 1]?.i
+      return undefined
+    })()
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
-      // The look of the group the card draws in; its dot stays the head chef's,
-      // except an idle move's, which takes the idle look.
-      const moved = movedLook(c, moves)
-      const group = moved?.group ?? look.group
-      const markLook = moved === IDLE_LOOK ? IDLE_LOOK : look
+      // The look the card draws with; its dot stays the head chef's, except an
+      // idle move's, which takes the idle look.
+      const markLook = movedLook(c, moves) ?? look
+      const group = markLook.group
       const isFinished = group === 'finished'
       const views = isFinished ? [] : cardViews(warm.get(c.title), meterOf.get(c.title))
       const chosen = isFinished ? undefined : chosenView(tabChoices, c.title, views)
-      const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
+      const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), now)
       const bar = chosen === 'cache' ? cacheBar(warm.get(c.title), running.get(c.title), now) : undefined
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
-      const meter = chosen === 'cache' ? contextMeter(meterOf.get(c.title)) : undefined
+      // The one context bar (issue 581): the cache tab's ◆ context row draws the
+      // outlook's bar when the card has an outlook, else the plain meter.
+      const rowOutlook = chosen === 'cache' ? contextOutlook(meterOf.get(c.title), ownerCompactAt) : undefined
+      const meter = chosen === 'cache' && rowOutlook === undefined ? contextMeter(meterOf.get(c.title)) : undefined
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
+      const rowOutlookImage = rowOutlook !== undefined && Image !== undefined ? contextOutlookSvg(rowOutlook) : undefined
       const reason = chosen === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = chosen === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
       const outlook = chosen === 'trend' ? contextOutlook(meterOf.get(c.title), ownerCompactAt) : undefined
-      // With no window the outlook has none to draw against; the old sparkline then
-      // shows only once the session has compacted, as the outlook's does.
-      const oldTrend = chosen === 'trend' && outlook === undefined ? contextTrend(meterOf.get(c.title)) : undefined
-      const trend = oldTrend !== undefined && oldTrend.compactions > 0 ? oldTrend : undefined
       const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
-      // cache bar and the context meter end at the same place. Each value
+      // cache bar and the context bar end at the same place. Each value
       // starts at the column's left edge, one gap after its bar, as each bar
       // sits one gap after its label.
       const record = warm.get(c.title)
-      const sizeOnly = bar !== undefined && meter === undefined && record?.kind === 'call' ? sizeText(record.tokens) : undefined
-      const valueCells = Math.max(bar?.text.length ?? 0, meter?.text.length ?? 0, sizeOnly?.length ?? 0)
+      const sizeOnly = bar !== undefined && meter === undefined && rowOutlook === undefined && record?.kind === 'call' ? sizeText(record.tokens) : undefined
+      const valueCells = Math.max(bar?.text.length ?? 0, meter?.text.length ?? 0, rowOutlook?.text.length ?? 0, sizeOnly?.length ?? 0)
       // Where images draw, the text is proportional and narrower than its
       // cell count, so a fixed column leaves room after each value: there
       // each value takes its own width and its bar grows to meet it. The
@@ -4278,7 +4281,8 @@ export const register: Register = on => {
       // test harness drops undefined props, so no test can tell the two apart.
       const valueWidth = Image === undefined ? { width: valueCells } : {}
       const report = last(c.title)
-      const needs = group === 'needsYou'
+      // An idle card has no checkbox: its dot is full size and its title bold.
+      const needs = markLook === IDLE_LOOK
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
@@ -4298,7 +4302,8 @@ export const register: Register = on => {
       // once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
-      // each opens upward from its opener, one at a time.
+      // each opens downward from its opener, one at a time; the last card drawn opens upward.
+      const pop = i === lastDrawn ? { bottom: 1 } : { top: 1 }
       const canSplit = toolSession(c) !== undefined
       const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
       // One menu item (#513 S5; the approved prototype): a round clear border, one soft hover on
@@ -4314,12 +4319,12 @@ export const register: Register = on => {
         </Box>
       )
       const popRows = () => (
-        <Box position="absolute" bottom={1} right={0} width={13} flexDirection="column" alignItems="stretch" {...MENU_LOOK} paddingX="xs" paddingY="xs">
+        <Box position="absolute" {...pop} right={0} width={13} flexDirection="column" alignItems="stretch" {...MENU_LOOK} paddingX="xs" paddingY="xs">
           {items.map(([verb, label]) => menuItem(verb, label))}
         </Box>
       )
       const popText = (text: string) => (
-        <Box position="absolute" bottom={1} right={0} width={Math.min(36, short.full.length + 6)} {...MENU_LOOK} paddingX="sm" paddingY="xs">
+        <Box position="absolute" {...pop} right={0} width={Math.min(36, short.full.length + 6)} {...MENU_LOOK} paddingX="sm" paddingY="xs">
           <Text size="footnote" wrap="truncate-end">
             {text}
           </Text>
@@ -4397,7 +4402,7 @@ export const register: Register = on => {
                   {terminal ? (
                     <Text color={markLook.color}>{markLook.glyph}</Text>
                   ) : needs ? (
-                    <Text color={markLook.color}>●</Text>
+                    <Text color={markLook.color}>{markLook.glyph}</Text>
                   ) : (
                     // On a desktop the dot is the card's checkbox, drawn as
                     // a to-do's is: a circle in the status colour, a tick once
@@ -4511,10 +4516,9 @@ export const register: Register = on => {
                 {pointer && pillBlock}
               </Box>
             )}
-            {/* The burn rate, the context outlook or the old trend, or the burn view's reason
-                line, then the nudge, which shows under every view (owner
-                decision q1 B on #272), then one row before the next. */}
-            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || outlook !== undefined || warmLine?.nudge !== undefined) && (
+            {/* The burn rate or the context outlook, or the burn view's reason
+                line, then one row before the next. */}
+            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || outlook !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {reason !== undefined && (
                   <Text dimColor wrap="truncate-end">
@@ -4522,13 +4526,7 @@ export const register: Register = on => {
                   </Text>
                 )}
                 {burn !== undefined && sparkRow(burn)}
-                {trend !== undefined && sparkRow(trend)}
                 {outlook !== undefined && outlookRows(outlook)}
-                {warmLine?.nudge !== undefined && (
-                  <Text color="warning" wrap="wrap">
-                    {warmLine.nudge}
-                  </Text>
-                )}
               </Box>
             )}
             {/* The cache block. Where images draw, the image takes the room
@@ -4536,7 +4534,7 @@ export const register: Register = on => {
                 narrow pane the bar shrinks to its minimum, not the text; the
                 image, placed in percentages, spans a column Box that grows.
                 The terminal's 16 cells keep their width. */}
-            {chosen === 'cache' && (bar !== undefined || warmLine !== undefined || meter !== undefined) && (
+            {chosen === 'cache' && (bar !== undefined || warmLine !== undefined || meter !== undefined || rowOutlook !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {bar !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
@@ -4564,8 +4562,31 @@ export const register: Register = on => {
 
                 {bar === undefined && warmLine !== undefined && (
                   <Text dimColor wrap="truncate-end">
-                    {meter !== undefined ? withoutSize(warmLine.text) : warmLine.text}
+                    {meter !== undefined || rowOutlook !== undefined ? withoutSize(warmLine.text) : warmLine.text}
                   </Text>
+                )}
+                {rowOutlook !== undefined && (
+                  <Box flexDirection="row" columnGap={1}>
+                    <Box flexShrink={0} width={LABEL_CELLS}>
+                      <Text dimColor>◆ context</Text>
+                    </Box>
+                    {Image !== undefined && rowOutlookImage !== undefined ? (
+                      <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                        <Image source={rowOutlookImage.source} alt={rowOutlookImage.alt} height={rowOutlookImage.height} />
+                      </Box>
+                    ) : (
+                      <Box flexShrink={0}>
+                        <Text>
+                          <Text dimColor>▕</Text>
+                          <Text color={rowOutlook.cls === 'hot' ? 'error' : rowOutlook.cls === 'warn' ? 'warning' : 'success'}>{contextCells(rowOutlook)}</Text>
+                          <Text dimColor>▏</Text>
+                        </Text>
+                      </Box>
+                    )}
+                    <Box flexShrink={0} {...valueWidth} justifyContent="flex-start">
+                      {rowOutlook.cls === 'done' ? <Text>{rowOutlook.text}</Text> : <Text color={rowOutlook.cls === 'hot' ? 'error' : 'warning'}>{rowOutlook.text}</Text>}
+                    </Box>
+                  </Box>
                 )}
                 {meter !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
@@ -4608,11 +4629,6 @@ export const register: Register = on => {
                       <Text>{sizeOnly}</Text>
                     </Box>
                   </Box>
-                )}
-                {warmLine?.nudge !== undefined && (
-                  <Text color="warning" wrap="wrap">
-                    {warmLine.nudge}
-                  </Text>
                 )}
               </Box>
             )}
@@ -5237,7 +5253,6 @@ export const register: Register = on => {
           decisionsBody
         ) : view === 'prs' ? (
           <Box flexDirection="column">
-            {needsYou.length > 0 && <Text dimColor>{`${needsYou.length} waiting on you`}</Text>}
             {(
               [
                 ['pr-open', prs.open],
@@ -5308,9 +5323,9 @@ export const register: Register = on => {
             )}
             {/* The groups: a section bar with its fold arrow, name and count,
                 then its cards, or a quiet hint when it is empty. Waiting on you
-                holds the cards that need the owner, then the open to-dos, a
-                row apart with no hairline and a row below its bar, as the
-                prototype draws them. Each bar counts the reports its
+                holds the open to-dos alone, a row apart with no hairline and
+                a row below its bar, as the prototype draws them. Idle cards
+                draw in Working. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
             {groupHead('waiting', waiting, undefined)}
             {!folds.has('waiting') &&
@@ -5325,8 +5340,8 @@ export const register: Register = on => {
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', inWorking.length, reportNote(reportCount(inWorking.flatMap(({ c }) => senders(c.title)), inbox)))}
-            {!folds.has('working') && (inWorking.length > 0 ? rows(inWorking.map(card), 'working') : hint('working'))}
+            {groupHead('working', working.length, reportNote(reportCount(working.flatMap(({ c }) => senders(c.title)), inbox)))}
+            {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
             {groupHead('finished', finished.length, reportNote(reportCount(finished.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (

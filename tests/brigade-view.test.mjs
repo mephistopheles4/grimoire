@@ -1092,11 +1092,19 @@ test('a sweep after a failed or missing roster load writes nothing', async () =>
 
 test('the "Waiting on you" count leaves out ticking and done to-dos', () => {
   const todos = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
-  assert.equal(waitingCount(2, todos, [], []), 6);
-  assert.equal(waitingCount(2, todos, ['a'], [tick('b', 0)]), 4);
-  assert.equal(waitingCount(0, todos, ['a', 'b'], [tick('c', 0), tick('d', 0)]), 0);
+  assert.equal(waitingCount(todos, [], []), 4);
+  assert.equal(waitingCount(todos, ['a'], [tick('b', 0)]), 2);
+  assert.equal(waitingCount(todos, ['a', 'b'], [tick('c', 0), tick('d', 0)]), 0);
   // Stored values of the wrong shape count nothing out, and never throw.
-  assert.equal(waitingCount(1, todos, 'x', { name: 'a' }), 5);
+  assert.equal(waitingCount(todos, 'x', { name: 'a' }), 4);
+});
+
+test('581 C6: the "Waiting on you" count is the open to-dos, whatever the cards say', () => {
+  const todos = [{ id: 'a' }, { id: 'b' }];
+  // The function takes no card: three idle cards change nothing.
+  assert.equal(waitingCount.length, 3);
+  assert.equal(waitingCount(todos, [], []), 2);
+  assert.equal(waitingCount([], [], []), 0);
 });
 
 test('the stored done list is checked: only text entries of a list count, and no shape throws', async () => {
@@ -1104,7 +1112,7 @@ test('the stored done list is checked: only text entries of a list count, and no
   for (const stored of [undefined, null, 'ab', 5, {}, { length: 2 }, { 0: 'a', length: 1 }]) assert.deepEqual(idsFrom(stored), [], String(stored));
   assert.deepEqual(idsFrom(['a', 5, null, 'b', {}]), ['a', 'b']);
   // The count and the sweep's append read it through the same check.
-  assert.equal(waitingCount(0, [{ id: 'a' }], { length: 1, 0: 'a' }, []), 1);
+  assert.equal(waitingCount([{ id: 'a' }], { length: 1, 0: 'a' }, []), 1);
   const done = store({ length: 2 });
   const ticking = store([tick('a', 0)]);
   await settleTicks(ticking.update(), done.update(), NOW + 30000, ['a']);
@@ -1113,7 +1121,7 @@ test('the stored done list is checked: only text entries of a list count, and no
 
 // --- cache warmth ------------------------------------------------------------
 
-const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
+const { MAX_TRANSCRIPT_BYTES, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
 const { sessionRow } = roster;
 const HOUR = 60 * MIN;
 
@@ -1233,60 +1241,54 @@ test('no assistant row, or no valid one, means no record', () => {
 const call = (idleMs, tokens = 150000, windowMs = HOUR) => ({ name: 'S', kind: 'call', at: NOW - idleMs, tokens, windowMs });
 
 test('the warmth bands: working dim, more than 15 min left green, 15 min or less amber, cold red', () => {
-  assert.deepEqual(warmthLine(call(10 * MIN), 'busy', 'working', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
-  assert.equal(warmthLine(call(10 * MIN), 'running', 'working', NOW)?.tone, 'dim');
-  assert.deepEqual(warmthLine(call(10 * MIN), 'idle', 'working', NOW), { tone: 'success', text: '◆ cache warm · idle 10 min · cold in 50 min · 150k context' });
-  assert.deepEqual(warmthLine(call(50 * MIN), 'idle', 'working', NOW), { tone: 'warning', text: '◆ cache warm · idle 50 min · cold in 10 min · 150k context' });
-  assert.deepEqual(warmthLine(call(70 * MIN), 'idle', 'working', NOW), { tone: 'error', text: '◆ cache cold · idle 1 hr 10 min · 150k context' });
+  assert.deepEqual(warmthLine(call(10 * MIN), 'busy', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
+  assert.equal(warmthLine(call(10 * MIN), 'running', NOW)?.tone, 'dim');
+  assert.deepEqual(warmthLine(call(10 * MIN), 'idle', NOW), { tone: 'success', text: '◆ cache warm · idle 10 min · cold in 50 min · 150k context' });
+  assert.deepEqual(warmthLine(call(50 * MIN), 'idle', NOW), { tone: 'warning', text: '◆ cache warm · idle 50 min · cold in 10 min · 150k context' });
+  assert.deepEqual(warmthLine(call(70 * MIN), 'idle', NOW), { tone: 'error', text: '◆ cache cold · idle 1 hr 10 min · 150k context' });
 });
 
 test('the 15-minute and 0-minute edges', () => {
-  assert.equal(warmthLine(call(45 * MIN - 1), 'idle', 'working', NOW)?.tone, 'success');
-  assert.equal(warmthLine(call(45 * MIN), 'idle', 'working', NOW)?.tone, 'warning');
-  assert.match(warmthLine(call(45 * MIN), 'idle', 'working', NOW)?.text ?? '', /cold in 15 min/);
-  assert.equal(warmthLine(call(HOUR - 1), 'idle', 'working', NOW)?.tone, 'warning');
-  assert.match(warmthLine(call(HOUR - 1), 'idle', 'working', NOW)?.text ?? '', /cold in 1 min/);
-  assert.equal(warmthLine(call(HOUR), 'idle', 'working', NOW)?.tone, 'error');
+  assert.equal(warmthLine(call(45 * MIN - 1), 'idle', NOW)?.tone, 'success');
+  assert.equal(warmthLine(call(45 * MIN), 'idle', NOW)?.tone, 'warning');
+  assert.match(warmthLine(call(45 * MIN), 'idle', NOW)?.text ?? '', /cold in 15 min/);
+  assert.equal(warmthLine(call(HOUR - 1), 'idle', NOW)?.tone, 'warning');
+  assert.match(warmthLine(call(HOUR - 1), 'idle', NOW)?.text ?? '', /cold in 1 min/);
+  assert.equal(warmthLine(call(HOUR), 'idle', NOW)?.tone, 'error');
   // A 5-minute window is amber from the start.
-  assert.equal(warmthLine(call(MIN, 150000, 5 * MIN), 'idle', 'working', NOW)?.tone, 'warning');
+  assert.equal(warmthLine(call(MIN, 150000, 5 * MIN), 'idle', NOW)?.tone, 'warning');
   // A call time ahead of the clock reads as idle 0.
-  assert.match(warmthLine(call(-MIN), 'idle', 'working', NOW)?.text ?? '', /idle 0 min · cold in 1 hr 0 min/);
+  assert.match(warmthLine(call(-MIN), 'idle', NOW)?.text ?? '', /idle 0 min · cold in 1 hr 0 min/);
 });
 
-test('the nudge: only a needs-you card with 100,000 or more known tokens that is not working', () => {
-  assert.equal(NUDGE_TOKENS, 100000);
-  assert.equal(warmthLine(call(50 * MIN, 100000), 'idle', 'needs-you', NOW)?.nudge, 'Reply within 10 min to keep the cache.');
-  assert.equal(warmthLine(call(50 * MIN, 99999), 'idle', 'needs-you', NOW)?.nudge, undefined);
-  assert.equal(
-    warmthLine(call(70 * MIN, 182400), 'idle', 'needs-you', NOW)?.nudge,
-    'Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.',
-  );
-  // More than 15 min left: no nudge yet.
-  assert.equal(warmthLine(call(45 * MIN - 1, 150000), 'idle', 'needs-you', NOW)?.nudge, undefined);
-  assert.equal(warmthLine(call(45 * MIN, 150000), 'idle', 'needs-you', NOW)?.nudge, 'Reply within 15 min to keep the cache.');
-  // Not needing the owner, or working: no nudge.
-  for (const status of ['working', 'done', 'stopped']) assert.equal(warmthLine(call(70 * MIN), 'idle', status, NOW)?.nudge, undefined, status);
-  assert.equal(warmthLine(call(70 * MIN), 'busy', 'needs-you', NOW)?.nudge, undefined);
-  assert.equal(warmthLine(call(70 * MIN), 'running', 'needs-you', NOW)?.nudge, undefined);
-  // A blocked or not-running session that needs the owner still gets it.
-  assert.ok(warmthLine(call(70 * MIN), 'blocked', 'needs-you', NOW)?.nudge);
-  assert.ok(warmthLine(call(70 * MIN), undefined, 'needs-you', NOW)?.nudge);
+test('581 C8: no ◆ line carries a nudge, whatever the tokens, the window or the live state; the line itself still draws', () => {
+  for (const tokens of [50000, 99999, 100000, 182400]) {
+    for (const idle of [10 * MIN, 45 * MIN, 50 * MIN, 70 * MIN]) {
+      for (const live of ['idle', 'busy', 'blocked', undefined]) {
+        const line = warmthLine(call(idle, tokens), live, NOW);
+        assert.ok(line !== undefined && line.text.startsWith('◆ cache'), `${tokens} ${idle} ${live}`);
+        assert.deepEqual(Object.keys(line).sort(), ['text', 'tone'], `${tokens} ${idle} ${live}`);
+        assert.doesNotMatch(line.text, /Reply|Replying|hand-off/);
+      }
+    }
+  }
+  assert.equal(view.NUDGE_TOKENS, undefined);
 });
 
 test('an unknown window shows no countdown and no nudge', () => {
   const r = { name: 'S', kind: 'call', at: NOW - 70 * MIN, tokens: 150000 };
-  assert.deepEqual(warmthLine(r, 'idle', 'needs-you', NOW), { tone: 'dim', text: '◆ cache window unknown · idle 1 hr 10 min · 150k context' });
+  assert.deepEqual(warmthLine(r, 'idle', NOW), { tone: 'dim', text: '◆ cache window unknown · idle 1 hr 10 min · 150k context' });
 });
 
 test('a transcript too large to read, or a name two sessions share, shows unknown: never warm, never a nudge, even while working', () => {
   for (const live of ['idle', 'busy', undefined]) {
-    assert.deepEqual(warmthLine({ name: 'S', kind: 'too-large' }, live, 'needs-you', NOW), { tone: 'dim', text: '◆ cache unknown · transcript too large to read' });
-    assert.deepEqual(warmthLine({ name: 'S', kind: 'shared' }, live, 'needs-you', NOW), { tone: 'dim', text: '◆ cache unknown · two sessions share this name' });
+    assert.deepEqual(warmthLine({ name: 'S', kind: 'too-large' }, live, NOW), { tone: 'dim', text: '◆ cache unknown · transcript too large to read' });
+    assert.deepEqual(warmthLine({ name: 'S', kind: 'shared' }, live, NOW), { tone: 'dim', text: '◆ cache unknown · two sessions share this name' });
   }
 });
 
 test('no record, no line', () => {
-  assert.equal(warmthLine(undefined, 'idle', 'needs-you', NOW), undefined);
+  assert.equal(warmthLine(undefined, 'idle', NOW), undefined);
 });
 
 test('stored warmth records are checked again: wrong shapes go, and none reaches a prototype', () => {
@@ -1569,10 +1571,10 @@ test('a busy member whose transcript has not been read yet shows "warm (working)
   const out = await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io);
   assert.deepEqual(out, [{ name: 'A', kind: 'unread' }]);
   assert.equal(reads.length, 0);
-  assert.deepEqual(warmthLine(out[0], 'busy', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
-  assert.deepEqual(warmthLine(out[0], 'running', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
+  assert.deepEqual(warmthLine(out[0], 'busy', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
+  assert.deepEqual(warmthLine(out[0], 'running', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
   // Not working, it has no line: the next poll reads it.
-  assert.equal(warmthLine(out[0], 'idle', 'needs-you', NOW), undefined);
+  assert.equal(warmthLine(out[0], 'idle', NOW), undefined);
   // A missing or non-file transcript is not found, busy or not. The expected
   // value changed in #270 (spec revision 3 on #251, S3): it was no record.
   for (const f of [undefined, { kind: 'dir', text: '' }]) {
@@ -1657,7 +1659,7 @@ test('a background row that says "working" counts as working: read under the wor
   files[pathOf(0)].mtimeMs = MTIME + 1;
   await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, memory, io);
   assert.equal(reads.length, 1, 'changed inside the minute: not read again');
-  assert.deepEqual(warmthLine(call(70 * MIN), 'working', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
+  assert.deepEqual(warmthLine(call(70 * MIN), 'working', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
 });
 
 // --- finding a member's transcript --------------------------------------------
@@ -2021,7 +2023,7 @@ test('a stored link for a name with no card on the roster goes (#281)', () => {
 test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {
   const missing = { name: 'S', kind: 'not-found' };
   for (const state of ['idle', 'busy', 'working', undefined]) {
-    assert.deepEqual(warmthLine(missing, state, 'needs-you', NOW), { tone: 'dim', text: '◆ transcript not found' });
+    assert.deepEqual(warmthLine(missing, state, NOW), { tone: 'dim', text: '◆ transcript not found' });
     assert.equal(view.cacheBar(missing, state, NOW), undefined);
   }
   assert.deepEqual(warmthFrom([missing]), [missing]);
@@ -2039,10 +2041,12 @@ const placed = list => list.map(({ c, i }) => [i, c.title]);
 
 test('the status Map gives each of the four statuses its glyph, word, theme key and class, in display order', () => {
   assert.ok(STATUS instanceof Map, 'a Map, so no status text reaches a prototype');
-  assert.deepEqual([...STATUS.keys()], ['needs-you', 'working', 'done', 'stopped']);
+  assert.deepEqual([...STATUS.keys()], ['working', 'idle', 'done', 'stopped']);
   const look = s => { const v = STATUS.get(s); return [v.glyph, v.word, v.color, v.cls]; };
-  assert.deepEqual(look('needs-you'), ['●', 'needs you', 'warning', 'warn']);
   assert.deepEqual(look('working'), ['◐', 'working', 'suggestion', 'ok']);
+  assert.deepEqual(look('idle'), ['○', 'idle', 'warning', 'idle']);
+  assert.equal(STATUS.get('idle').group, 'working');
+  assert.equal(STATUS.get('needs-you'), undefined, 'needs-you is read as idle before the pane draws it');
   assert.deepEqual(look('done'), ['✓', 'done', 'success', 'done']);
   // Stopped changes from ○ to –.
   assert.deepEqual(look('stopped'), ['–', 'stopped', 'inactive', 'stopped']);
@@ -2055,20 +2059,19 @@ test('a status outside the four words, a prototype key or a value that is not te
   assert.equal(statusOf('done'), STATUS.get('done'));
 });
 
-test('cards sit under needs you, then working, then done and stopped together, each in roster order, with their roster index', () => {
+test('cards sit under working (idle ones included, in roster order), then done and stopped together, each with their roster index', () => {
   const cards = [
-    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'needs-you'), cardOf('d', 'stopped'),
-    cardOf('e', 'working'), cardOf('f', 'needs-you'), cardOf('g', 'done'),
+    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'idle'), cardOf('d', 'stopped'),
+    cardOf('e', 'working'), cardOf('f', 'idle'), cardOf('g', 'done'),
   ];
   const g = groupCards(cards, new Set());
-  assert.deepEqual(placed(g.needsYou), [[2, 'c'], [5, 'f']]);
-  assert.deepEqual(placed(g.working), [[1, 'b'], [4, 'e']]);
+  assert.deepEqual(Object.keys(g), ['working', 'finished'], 'no group for needs you');
+  assert.deepEqual(placed(g.working), [[1, 'b'], [2, 'c'], [4, 'e'], [5, 'f']]);
   assert.deepEqual(placed(g.finished), [[0, 'a'], [3, 'd'], [6, 'g']]);
 });
 
 test('a dismissed card is in no group, and an empty group is empty', () => {
   const g = groupCards([cardOf('a', 'done'), cardOf('b', 'working')], new Set(['a']));
-  assert.deepEqual(placed(g.needsYou), []);
   assert.deepEqual(placed(g.working), [[1, 'b']]);
   assert.deepEqual(placed(g.finished), []);
 });
@@ -2079,12 +2082,11 @@ test('a stored card with a hostile or unknown status draws in no group, the rest
   const g = groupCards(cards, new Set());
   assert.deepEqual(placed(g.working), [[0, 'first']]);
   assert.deepEqual(placed(g.finished), [[cards.length - 1, 'last']]);
-  assert.deepEqual(placed(g.needsYou), []);
   // A card that is not a record, and a roster whose cards are not a list.
   assert.deepEqual(placed(groupCards([null, 7, 'done', cardOf('x', 'done')], new Set()).finished), [[3, 'x']]);
   for (const stored of [undefined, null, 'cards', {}, { length: 1, 0: cardOf('x', 'done') }]) {
     const empty = groupCards(stored, new Set());
-    assert.deepEqual([empty.needsYou, empty.working, empty.finished], [[], [], []], String(stored));
+    assert.deepEqual([empty.working, empty.finished], [[], []], String(stored));
   }
 });
 
@@ -2148,7 +2150,7 @@ test('the cache bar keeps warmthLine\'s band edges: 15 min left is amber, 0 left
   for (const [idle, tone] of [[45 * MIN - 1, 'success'], [45 * MIN, 'warning'], [HOUR - 1, 'warning'], [HOUR, 'error']]) {
     assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, tone, `idle ${idle}`);
     // The bar and the line it replaces agree on the band.
-    assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, warmthLine(rec(idle), 'idle', 'working', NOW)?.tone);
+    assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, warmthLine(rec(idle), 'idle', NOW)?.tone);
   }
   assert.equal(cacheBar(rec(45 * MIN), 'idle', NOW)?.text, 'cold in 15 min');
   assert.equal(cacheBar(rec(HOUR - 1), 'idle', NOW)?.text, 'cold in 1 min');
@@ -2322,7 +2324,7 @@ function assertNoOutsideText(text, label) {
   }
 }
 const look = s => STATUS.get(s);
-const entries = counts => ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ look: look(s), count: counts[i] }));
+const entries = counts => ['working', 'idle', 'done', 'stopped'].map((s, i) => ({ look: look(s), count: counts[i] }));
 
 test('the strip cell counts are 32 on the terminal and the to-do bar 20', () => {
   assert.equal(STRIP_CELLS, 32);
@@ -2331,15 +2333,18 @@ test('the strip cell counts are 32 on the terminal and the to-do bar 20', () => 
 
 test('the status counts take only shown cards with one of the four statuses, in the Map\'s order, and match the groups', () => {
   const cards = [
-    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'needs-you'), cardOf('d', 'stopped'),
-    cardOf('e', 'working'), cardOf('f', 'needs-you'), cardOf('g', 'done'), cardOf('h', 'working'),
+    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'idle'), cardOf('d', 'stopped'),
+    cardOf('e', 'working'), cardOf('f', 'idle'), cardOf('g', 'done'), cardOf('h', 'working'),
   ];
   const counts = statusCounts(cards, new Set(['h']));
-  assert.deepEqual(counts.map(e => [e.look.word, e.count]), [['needs you', 2], ['working', 2], ['done', 2], ['stopped', 1]]);
+  assert.deepEqual(counts.map(e => [e.look.word, e.count]), [['working', 2], ['idle', 2], ['done', 2], ['stopped', 1]]);
   const g = groupCards(cards, new Set(['h']));
-  assert.equal(counts.reduce((s, e) => s + e.count, 0), g.needsYou.length + g.working.length + g.finished.length);
+  assert.equal(counts.reduce((s, e) => s + e.count, 0), g.working.length + g.finished.length);
   // A status with no cards has no entry.
-  assert.deepEqual(statusCounts([cardOf('a', 'done'), cardOf('b', 'needs-you')], new Set()).map(e => e.look.word), ['needs you', 'done']);
+  assert.deepEqual(statusCounts([cardOf('a', 'done'), cardOf('b', 'idle')], new Set()).map(e => e.look.word), ['idle', 'done']);
+  // A working card moved to idle or waiting counts as idle, as a stored idle one does.
+  const moved = statusCounts([cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'idle')], new Set(), new Map([['a', 'idle'], ['b', 'waiting']]));
+  assert.deepEqual(moved.map(e => [e.look.word, e.count]), [['idle', 3]]);
   assert.deepEqual(statusCounts([], new Set()), []);
 });
 
@@ -2387,6 +2392,7 @@ test('the strip runs never throw: a count that is not a finite positive number i
 
 test('the strip SVG: one segment per counted status in the Map\'s order, 2 px gaps under one rounded clip, and the allowlist holds', () => {
   const s = stripSvg(entries([1, 2, 1, 0]));
+  assert.equal(s.alt, 'Status: 1 working, 2 idle, 1 done');
   assertAllowlisted(s.source);
   assert.match(s.source, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="8">/);
   assert.equal(s.height, 8);
@@ -2395,12 +2401,11 @@ test('the strip SVG: one segment per counted status in the Map\'s order, 2 px ga
   assert.equal(body.match(/id="st"/g).length, 1);
   // Shares 25%, 50%, 25%: each but the last in a nested <svg> whose rect
   // moves 2 px left, the last a plain rect, so no gap at the right end.
-  assert.match(body, /<svg x="0%" width="25%" height="8"><rect class="warn" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
-  assert.match(body, /<svg x="25%" width="50%" height="8"><rect class="ok" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
+  assert.match(body, /<svg x="0%" width="25%" height="8"><rect class="ok" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
+  assert.match(body, /<svg x="25%" width="50%" height="8"><rect class="idle" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
   assert.match(body, /<rect class="done" x="75%" y="0" width="25%" height="8"\/><\/g><\/svg>$/);
   assert.ok(!body.includes('class="stopped"'), 'a status with no cards has no segment');
   assert.ok(!body.includes('<text'), 'the strip holds no text element');
-  assert.equal(s.alt, 'Status: 1 needs you, 2 working, 1 done');
   // One status alone fills the strip.
   assert.match(withoutStyle(stripSvg(entries([0, 0, 0, 3])).source), /<g clip-path="url\(#st\)"><rect class="stopped" x="0%" y="0" width="100%" height="8"\/><\/g>/);
 });
@@ -2409,8 +2414,8 @@ test('the strip SVG never throws on a count that is not a finite positive number
   for (const bad of [NaN, Infinity, -Infinity, -1, 1e400]) {
     const s = stripSvg(entries([bad, 1, bad, 2]));
     assertAllowlisted(s.source);
-    assert.ok(!withoutStyle(s.source).includes('class="warn"'), String(bad));
-    assert.equal(s.alt, 'Status: 1 working, 2 stopped');
+    assert.ok(!withoutStyle(s.source).includes('class="ok"'), String(bad));
+    assert.equal(s.alt, 'Status: 1 idle, 2 stopped');
   }
   const none = stripSvg(entries([NaN, -1, 0, Infinity]));
   assertAllowlisted(none.source);
@@ -2418,24 +2423,35 @@ test('the strip SVG never throws on a count that is not a finite positive number
 });
 
 test('the status strip view: the legend in the Map\'s order with its counts, terminal runs summing to 32, and nothing with no counted card', () => {
-  const v = statusStrip([cardOf('a', 'working'), cardOf('b', 'needs-you'), cardOf('c', 'working'), cardOf('d', 'stopped')], new Set());
+  const v = statusStrip([cardOf('a', 'working'), cardOf('b', 'idle'), cardOf('c', 'working'), cardOf('d', 'stopped')], new Set());
   assert.equal(v.total, 4);
-  assert.deepEqual(v.legend.map(e => [e.text, e.color]), [['● 1 needs you', 'warning'], ['◐ 2 working', 'suggestion'], ['– 1 stopped', 'inactive']]);
-  assert.deepEqual(v.runs.map(r => [r.color, [...r.text].length]), [['warning', 8], ['suggestion', 16], ['inactive', 8]]);
+  assert.deepEqual(v.legend.map(e => [e.text, e.color]), [['◐ 2 working', 'suggestion'], ['○ 1 idle', 'warning'], ['– 1 stopped', 'inactive']]);
+  assert.deepEqual(v.runs.map(r => [r.color, [...r.text].length]), [['suggestion', 16], ['warning', 8], ['inactive', 8]]);
   for (const r of v.runs) assert.match(r.text, /^█+$/);
   assert.equal(v.runs.reduce((s, r) => s + [...r.text].length, 0), 32);
-  assert.equal(v.svg.alt, 'Status: 1 needs you, 2 working, 1 stopped');
+  assert.equal(v.svg.alt, 'Status: 2 working, 1 idle, 1 stopped');
   assertAllowlisted(v.svg.source);
   assert.equal(statusStrip([], new Set()), undefined);
   assert.equal(statusStrip([cardOf('a', 'done')], new Set(['a'])), undefined);
   assert.equal(statusStrip([cardOf('a', 'paused'), cardOf('b', '__proto__')], new Set()), undefined);
 });
 
+test('581 C4: the legend for 2 working, 1 idle, 1 done and 1 stopped reads in that order, and no surface says needs you', () => {
+  const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'idle'), cardOf('d', 'done'), cardOf('e', 'stopped')];
+  const v = statusStrip(cards, new Set());
+  assert.equal(v.legend.map(e => e.text).join('  '), '◐ 2 working  ○ 1 idle  ✓ 1 done  – 1 stopped');
+  assert.equal(v.svg.alt, 'Status: 2 working, 1 idle, 1 done, 1 stopped');
+  assert.doesNotMatch(JSON.stringify(v), /needs you/i);
+  // A stored idle card and a working card moved to idle draw and count alike.
+  const moved = statusStrip([cardOf('a', 'working'), cardOf('b', 'idle')], new Set(), new Map([['a', 'waiting']]));
+  assert.deepEqual(moved.legend.map(e => e.text), ['○ 2 idle']);
+});
+
 test('stored cards with hostile and unknown statuses: nothing throws, they count nowhere, and the runs still sum to 32', () => {
   const statuses = ['__proto__', 'constructor', HOSTILE, 'paused', 5, null, {}];
-  const v = statusStrip([cardOf('ok', 'needs-you'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), cardOf('fin', 'done')], new Set());
+  const v = statusStrip([cardOf('ok', 'idle'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), cardOf('fin', 'done')], new Set());
   assert.equal(v.total, 2);
-  assert.deepEqual(v.legend.map(e => e.text), ['● 1 needs you', '✓ 1 done']);
+  assert.deepEqual(v.legend.map(e => e.text), ['○ 1 idle', '✓ 1 done']);
   assert.equal(v.runs.reduce((s, r) => s + [...r.text].length, 0), 32);
   assertAllowlisted(v.svg.source);
 });
@@ -2446,7 +2462,7 @@ test('the to-do counts: done and ticking both count as done, once each, only for
   const ticking = [{ name: 't1', value: '1' }, { name: 't3', value: '2' }, { name: 'other', value: '3' }];
   assert.deepEqual(todoCounts(todos, done, ticking), { done: 2, total: 4 });
   const c = todoCounts(todos, done, ticking);
-  assert.equal(c.total - c.done, waitingCount(0, todos, done, ticking));
+  assert.equal(c.total - c.done, waitingCount(todos, done, ticking));
   assert.deepEqual(todoCounts([], done, ticking), { done: 0, total: 0 });
   // Stored lists of the wrong shape count as empty, and nothing throws.
   for (const [d, t] of [[null, null], ['t1', {}], [{ 0: 't1' }, 't3'], [[5, null], [null, 7, { name: 5 }]]]) {
@@ -2502,7 +2518,7 @@ test('the to-do bar view: "N of M done", 20 eighth-block cells, and nothing with
 });
 
 test('a roster whose titles and to-do texts hold hostile text draws, and none of that text reaches the strip or the to-do bar', () => {
-  const cards = ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ ...cardOf(`${MARKED}${i}`, s), work: MARKED, settings: MARKED }));
+  const cards = ['idle', 'working', 'done', 'stopped'].map((s, i) => ({ ...cardOf(`${MARKED}${i}`, s), work: MARKED, settings: MARKED }));
   const todos = [{ id: 't1', text: MARKED, session: MARKED }, { id: 't2', text: MARKED }];
   // The builders take no report: the inbox never reaches them. The pane's own
   // test draws a hostile report beside these, on both surfaces.
@@ -2517,7 +2533,7 @@ test('a roster whose titles and to-do texts hold hostile text draws, and none of
   for (const r of strip.runs) assertNoOutsideText(r.text, 'a strip run');
   for (const e of strip.legend) assertNoOutsideText(e.text, 'a legend entry');
   assertNoOutsideText(bar.text, 'the to-do text');
-  assert.equal(strip.svg.alt, 'Status: 1 needs you, 1 working, 1 done, 1 stopped');
+  assert.equal(strip.svg.alt, 'Status: 1 working, 1 idle, 1 done, 1 stopped');
   assert.equal(bar.svg.alt, 'To-dos 1 of 2 done');
 });
 
@@ -2529,14 +2545,14 @@ test('liveFrom keeps a stored move only when it is waiting or idle', () => {
   for (const bad of ['finished', 'busy', 'Idle', '', 5, null, {}]) assert.equal(mv(bad), undefined, String(bad));
 });
 
-test('an idle move counts as idle between working and done, in the Working group, and a stored idle status counts nowhere', () => {
+test('an idle move counts as idle between working and done, in the Working group, as a stored idle status does', () => {
   const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'stopped'), cardOf('d', 'done'), cardOf('e', 'idle')];
   const moves = new Map([['b', 'idle'], ['c', 'idle'], ['d', 'idle'], ['e', 'idle']]);
-  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['working', 1], ['idle', 1], ['done', 1], ['stopped', 1]]);
-  assert.deepEqual(groupCards(cards, new Set(), moves).working.map(p => p.c.title), ['a', 'b']);
+  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['working', 1], ['idle', 2], ['done', 1], ['stopped', 1]]);
+  assert.deepEqual(groupCards(cards, new Set(), moves).working.map(p => p.c.title), ['a', 'b', 'e']);
   const v = statusStrip(cards, new Set(), moves);
-  assert.deepEqual(v.legend.map(l => l.text), ['◐ 1 working', '○ 1 idle', '✓ 1 done', '– 1 stopped']);
-  assert.equal(v.svg.alt, 'Status: 1 working, 1 idle, 1 done, 1 stopped');
+  assert.deepEqual(v.legend.map(l => l.text), ['◐ 1 working', '○ 2 idle', '✓ 1 done', '– 1 stopped']);
+  assert.equal(v.svg.alt, 'Status: 1 working, 2 idle, 1 done, 1 stopped');
   assert.match(v.svg.source, /class="idle"/);
   assertAllowlisted(v.svg.source);
 });
@@ -3098,7 +3114,7 @@ test('a working member never read goes before every member that is due, however 
 // A card's tabs are its views, the choice kept per card in the `tabs` atom
 // and read through a fixed set of view words.
 
-const { SPARK_COLUMNS, burnRate, cardViews, chooseTab, chosenView, contextTrend, isReason, shiftBurn, sparkRuns, sparkSvg, tabsFrom, viewOf, VIEW_LABELS } = view;
+const { SPARK_COLUMNS, burnRate, cardViews, chooseTab, chosenView, isReason, shiftBurn, sparkRuns, sparkSvg, tabsFrom, viewOf, VIEW_LABELS } = view;
 const ramp = () => Array.from({ length: 30 }, (_, i) => i + 1);
 const spoken = runs => runs.map(r => r.text).join('');
 
@@ -3177,44 +3193,36 @@ test('no burn rate with no record or no burn series', () => {
   assert.equal(burnRate(noBurn, NOW), undefined);
 });
 
-test('the context trend: the last calls\' context scaled to the window, each drop below half the call before marked and counted', () => {
-  const t = contextTrend(meterOf({ window: 1000000, context: [200000, 500000, 120000, 400000, 199999, 412000] }));
-  assert.deepEqual(t.columns, [0.2, 0.5, 0.12, 0.4, 0.199999, 0.412]);
-  assert.deepEqual(t.marks, [false, false, true, false, true, false]);
-  assert.equal(t.compactions, 2);
-  assert.equal(t.text, '412k now · 2 compactions');
-  assert.equal(t.alt, 'Context trend 412k now, 2 compactions in the last 6 calls');
-  // Exactly half is no drop below half.
-  assert.deepEqual(contextTrend(meterOf({ context: [400000, 200000] })).marks, [false, false]);
-  const one = contextTrend(meterOf({ context: [900000, 5000, 412000] }));
-  assert.equal(one.text, '412k now · 1 compaction');
-  assert.equal(one.alt, 'Context trend 412k now, 1 compaction in the last 3 calls');
-  assert.equal(contextTrend(meterOf({ context: [5000, 412000] })).text, '412k now · 0 compactions');
-});
-
 // Issue 545, row 8: the context view is a bar against the window with a tick where
-// auto-compaction fires, an estimate of the turns left, the large turns as dots, and
-// the sawtooth only once the session has compacted.
+// auto-compaction fires, an estimate of the turns left and the large turns as dots.
+// Issue 581: it is the one context bar, with no bar chart of the turns.
 const { contextOutlook, contextOutlookSvg, compactWindowFrom } = view;
 
 test('545 row 8: the outlook is a bar of context over the window, its tick at window less 33k, and the words say both', () => {
   const o = contextOutlook(meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] }));
   assert.equal(o.fraction, 0.305);
   assert.equal(o.tick, 0.967);
-  assert.equal(o.text, '305k of 1M · compacts at ~967k');
+  assert.equal(o.text, '305k of 1M');
+  assert.equal(o.compacts, 'compacts at ~967k');
+  assert.equal(o.second, 'compacts at ~967k · about 133 turns to compaction');
   assert.equal(o.alt, 'Context 305k of 1M, compacts at about 967k');
   const small = contextOutlook(meterOf({ window: 200000, context: [100000, 110000] }));
   assert.equal(small.tick, 0.835);
-  assert.equal(small.text, '110k of 200k · compacts at ~167k');
-  // Past the window the bar is full.
-  assert.equal(contextOutlook(meterOf({ window: 200000, context: [100000, 300000] })).fraction, 1);
+  assert.equal(small.text, '110k of 200k');
+  assert.equal(small.compacts, 'compacts at ~167k');
+  // Past the window the bar is full, and the words say over, as the plain meter's do.
+  const over = contextOutlook(meterOf({ window: 200000, context: [100000, 300000] }));
+  assert.equal(over.fraction, 1);
+  assert.equal(over.text, '300k · over 200k');
+  assert.equal(over.alt, 'Context 300k, over 200k, compacts at about 167k');
 });
 
 test('545 row 8: the owner\'s autoCompactWindow, when set and below the window, is the tick, and the words drop the tilde', () => {
   const m = meterOf({ window: 1000000, context: [290000, 295000, 300000, 305000] });
   const o = contextOutlook(m, 400000);
   assert.equal(o.tick, 0.4);
-  assert.equal(o.text, '305k of 1M · compacts at 400k');
+  assert.equal(o.text, '305k of 1M');
+  assert.equal(o.compacts, 'compacts at 400k');
   assert.equal(o.alt, 'Context 305k of 1M, compacts at 400k');
   assert.equal(o.turns, 'about 19 turns to compaction');
   // Not below the window, not a whole number or not a number: the estimate stands.
@@ -3259,11 +3267,26 @@ test('545 row 8: a turn that adds more than 20k is a dot with how much it added,
   assert.equal(many.dots[4].at, 0.3);
 });
 
-test('545 row 8: the sawtooth shows only once the session has compacted', () => {
-  assert.equal(contextOutlook(meterOf({ window: 1000000, context: [100000, 200000, 300000] })).sawtooth, undefined);
-  const saw = contextOutlook(meterOf({ window: 1000000, context: [800000, 100000, 120000] })).sawtooth;
-  assert.deepEqual(saw.marks, [false, true, false]);
-  assert.equal(saw.compactions, 1);
+test('581 C8a: no outlook carries a bar chart or a compaction count, however often the session compacted', () => {
+  for (const context of [[100000, 200000, 300000], [800000, 100000, 120000], [900000, 5000, 412000]]) {
+    const o = contextOutlook(meterOf({ window: 1000000, context }));
+    assert.equal(o.sawtooth, undefined);
+    assert.doesNotMatch(JSON.stringify(o), /\d+ compactions?\b|now ·/);
+  }
+  assert.equal(view.contextTrend, undefined);
+});
+
+test('581 C8b: the outlook says <used> of <window> on line one, and compacts at with the turns left on line two', () => {
+  const o = contextOutlook(meterOf({ window: 1000000, context: [145000, 148000, 152000] }));
+  assert.equal(o.text, '152k of 1M');
+  assert.doesNotMatch(o.text, /compacts/);
+  assert.match(o.second, /^compacts at ~967k · about \d+ turns to compaction$/);
+  // With no turns, line two is compacts at alone.
+  const flat = contextOutlook(meterOf({ window: 1000000, context: [300000, 300000] }));
+  assert.equal(flat.turns, undefined);
+  assert.equal(flat.second, 'compacts at ~967k');
+  const at = contextOutlook(meterOf({ window: 200000, context: [160000, 170000] }));
+  assert.equal(at.second, 'compacts at ~167k · at the compaction line');
 });
 
 test('545 row 8: the tick never sits under half the window, and the bar warns at 70% and fires at 90% of the way to it', () => {
@@ -3312,21 +3335,14 @@ test('545 row 8: the outlook image keeps to the allowlist: a track, a fill, a ti
   assertAllowlisted(contextOutlookSvg({ fraction: Number.NaN, tick: 5, dots: [{ at: -1, added: 1 }, 'x'], cls: 'evil', alt: 'x' }).source);
 });
 
-test('the context trend scales to the largest value with no window, and clamps a value past the window to full', () => {
+test('581 C8a: the Context trend tab shows only with an outlook, a known window and 2 or more calls', () => {
   const { window, ...noWindow } = meterOf();
-  assert.deepEqual(contextTrend({ ...noWindow, context: [100000, 400000, 200000] }).columns, [0.25, 1, 0.5]);
-  assert.deepEqual(contextTrend({ ...noWindow, context: [0, 0] }).columns, [0, 0]);
-  const over = contextTrend(meterOf({ window: 200000, context: [100000, 1300000] }));
-  assert.deepEqual(over.columns, [0.5, 1]);
-  assert.equal(over.text, '1.3M now · 0 compactions');
-});
-
-test('with fewer than 2 calls there is no context trend, and so no tab for it', () => {
-  assert.equal(contextTrend(meterOf({ context: [412000] })), undefined);
-  assert.equal(contextTrend(meterOf({ context: [] })), undefined);
-  const { context, ...noContext } = meterOf();
-  assert.equal(contextTrend(noContext), undefined);
-  assert.equal(contextTrend(undefined), undefined);
+  assert.deepEqual(cardViews(undefined, { ...noWindow, context: [100000, 200000] }), ['cache', 'burn'], 'no window: no tab');
+  assert.deepEqual(cardViews(undefined, meterOf({ context: [412000] })), ['cache', 'burn'], 'one call: no tab');
+  assert.deepEqual(cardViews(undefined, meterOf({ context: [100000, 200000] })), ['cache', 'burn', 'trend']);
+  assert.deepEqual(cardViews(undefined, undefined), ['cache']);
+  // A stored trend choice with no outlook reads as the default.
+  assert.equal(chosenView([{ name: 'A', value: 'trend' }], 'A', cardViews(undefined, { ...noWindow, context: [100000, 200000] })), 'cache');
 });
 
 test('the terminal sparkline: 30 cells from ▁ to █, a zero bucket a space, a nonzero one never a space; compactions in the warning colour', () => {
@@ -3334,9 +3350,9 @@ test('the terminal sparkline: 30 cells from ▁ to █, a zero bucket a space, a
   const runs = sparkRuns({ columns, marks: columns.map(() => false) });
   assert.equal(spoken(runs), ` ▁▁▂▄▇██${' '.repeat(22)}`);
   assert.deepEqual([...new Set(runs.map(r => r.tone))], ['suggestion']);
-  // A trend of fewer calls is padded on the left to 30 cells, so its newest
-  // call sits at the right end, as the burn's newest minute does.
-  const t = contextTrend(meterOf({ window: 1000000, context: [800000, 100000, 1000000] }));
+  // A series of fewer columns is padded on the left to 30 cells, so its newest
+  // column sits at the right end, as the burn's newest minute does.
+  const t = { columns: [0.8, 0.1, 1], marks: [false, true, false] };
   const trend = sparkRuns(t);
   assert.equal(spoken(trend), `${' '.repeat(27)}▇▁█`);
   assert.deepEqual(trend.filter(r => r.tone === 'warning').map(r => r.text), ['▁']);
@@ -3352,7 +3368,7 @@ test('both sparkline images: 30 slots of rect only, classes ok and warn, numbers
   burn[29] = 300000;
   burn[3] = 1;
   const b = burnRate(meterOf({ burn }), NOW);
-  const t = contextTrend(meterOf({ context: [900000, 5000, 412000] }));
+  const t = { columns: [0.9, 0.005, 0.412], marks: [false, true, false], alt: 'x' };
   for (const [label, s, rects, classes] of [
     ['burn', b, 30, ['ok']],
     ['trend', t, 3, ['ok', 'warn']],
@@ -3404,22 +3420,17 @@ test('the sparkline builders never throw: NaN, Infinity, negatives, values past 
     const b = burnRate(meterOf({ burn: Object.assign(zeros(), { 3: v, 4: 5 }) }), NOW);
     for (const c of b.columns) assert.ok(c >= 0 && c <= 1, `burn ${v}`);
     assert.match(b.text, /^[0-9.]+k?\/min · last 30 min$/, `burn ${v}`);
-    const t = contextTrend(meterOf({ context: [v, v, 412000] }));
-    for (const c of t.columns) assert.ok(c >= 0 && c <= 1, `trend ${v}`);
-    assert.match(t.text, /^[0-9.]+[kM]? now · \d+ compactions?$/, `trend ${v}`);
   }
 });
 
-test('no title, path, model or id reaches either sparkline: its text, alt, cells and source are fixed words and numbers', () => {
+test('no title, path, model or id reaches the burn sparkline: its text, alt, cells and source are fixed words and numbers', () => {
   const burn = zeros();
   burn[29] = 300000;
   const b = burnRate(meterOf({ name: MARKED, burn }), NOW);
-  const t = contextTrend(meterOf({ name: MARKED, context: [900000, 5000, 412000] }));
-  for (const s of [b, t]) {
+  for (const s of [b]) {
     for (const out of [s.text, s.alt, sparkSvg(s).source, sparkSvg(s).alt, spoken(sparkRuns(s))]) assertNoOutsideText(withoutStyle(out), 'a sparkline');
   }
   assert.match(b.alt, /^Burn rate [0-9.]+k? tokens per minute over the last 30 min$/);
-  assert.match(t.alt, /^Context trend [0-9.]+[kM]? now, \d+ compactions? in the last \d+ calls$/);
 });
 
 test('the view words are a fixed set: cache, burn and trend, with their tab labels', () => {
@@ -3900,24 +3911,22 @@ function summaryPoll(files, { clock, listing } = {}) {
   };
 }
 
-// What a card would draw from one poll's records: the ◆ line and its nudge,
-// the cache bar's text, the context meter's text, and the two sparklines'
-// text and terminal cells.
-const cardText = (out, { name = 'A', state = 'idle', status = 'needs-you', now = NOW } = {}) => {
+// What a card would draw from one poll's records: the ◆ line, the cache bar's
+// text, the context meter's text, the burn sparkline's text and terminal cells,
+// and the context outlook's two lines.
+const cardText = (out, { name = 'A', state = 'idle', now = NOW } = {}) => {
   const w = warmthFrom(out.warmth).find(x => x.name === name);
   const m = metersFrom(out.meters).find(x => x.name === name);
-  const line = warmthLine(w, state, status, now);
+  const line = warmthLine(w, state, now);
   const burn = burnRate(m, now);
-  const trend = contextTrend(m);
+  const outlook = contextOutlook(m);
   return {
     line: line?.text,
-    nudge: line?.nudge,
     bar: cacheBar(w, state, now)?.text,
     meter: contextMeter(m)?.text,
     burn: burn?.text,
     burnCells: burn === undefined ? undefined : spoken(sparkRuns(burn)),
-    trend: trend?.text,
-    trendCells: trend === undefined ? undefined : spoken(sparkRuns(trend)),
+    outlook: outlook === undefined ? undefined : [outlook.text, outlook.second],
   };
 };
 const FILE_LINE = '◆ cache warm · idle 0 min · cold in 1 hr 0 min · 151k context';
@@ -4209,25 +4218,23 @@ test('a working member with a passing file leaves the working-read budget to the
   assert.deepEqual(fs.reads.filter(p => p.endsWith('.jsonl')).sort(), [1, 2, 3, 4, 5].map(tp).sort(), 'five working reads, none of them the file-fed member');
 });
 
-// --- the window, the nudge and the link on a file-fed card
+// --- the window and the link on a file-fed card
 
-test('a file-fed card counts down from 1 hour, and the nudge fires on it', async () => {
+test('a file-fed card counts down from 1 hour', async () => {
   assert.equal(HOUR_SUMMARY_MS, HOUR);
   const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } });
   const out = await poll();
   const t = cardText(out, { now: NOW - 1000 + 50 * MIN });
   assert.equal(t.line, '◆ cache warm · idle 50 min · cold in 10 min · 151k context');
   assert.equal(t.bar, 'cold in 10 min');
-  assert.equal(t.nudge, 'Reply within 10 min to keep the cache.');
-  assert.match(cardText(out, { now: NOW + 2 * HOUR }).nudge, /^Replying re-reads about 151k tokens/);
+  assert.equal(cardText(out, { now: NOW + 2 * HOUR }).line, '◆ cache cold · idle 2 hr 0 min · 151k context');
 });
 
-test('a file whose cache flag is 0 draws "cache window unknown", with no countdown and no nudge', async () => {
+test('a file whose cache flag is 0 draws "cache window unknown", with no countdown', async () => {
   const { poll } = summaryPoll({ [summaryAt(0)]: { text: summaryText({ cache: 0 }) } });
   const t = cardText(await poll(), { now: NOW + 10 * MIN });
   assert.equal(t.line, '◆ cache window unknown · idle 10 min · 151k context');
   assert.equal(t.bar, undefined);
-  assert.equal(t.nudge, undefined);
 });
 
 test('a transcript-fed card still draws "cache window unknown" when no call says its window', async () => {
@@ -4288,7 +4295,7 @@ test('for one call series with 1-hour cache writes, the transcript-fed card and 
     for (const now of [at, at + 10 * MIN, at + 29 * MIN, at + 29.5 * MIN, at + 30 * MIN, at + 50 * MIN, at + 2 * HOUR]) {
       for (const state of ['idle', 'busy']) {
         const want = cardText(byTranscript, { now, state });
-        assert.ok(want.line !== undefined && want.meter !== undefined && want.burn !== undefined && want.trend !== undefined);
+        assert.ok(want.line !== undefined && want.meter !== undefined && want.burn !== undefined && want.outlook !== undefined);
         assert.deepEqual(cardText(fed, { now, state }), want, `${late} ms late, ${now - at} ms on, ${state}`);
       }
     }
@@ -4429,13 +4436,28 @@ test('the picked titles keep only text within the title cap, at most 50, from th
   for (const stored of [undefined, null, 'a', {}, { length: 1, 0: 'a' }]) assert.deepEqual(pickedFrom(stored), [], String(stored));
 });
 
-test('a needs-you card is shown whatever the dismissed list holds; any other card is hidden by it', () => {
-  const cards = [cardOf('a', 'needs-you'), cardOf('b', 'working'), cardOf('c', 'done')];
+test('581 C5: an idle card is shown whatever the dismissed list holds; any other card is hidden by it', () => {
+  const cards = [cardOf('a', 'idle'), cardOf('b', 'working'), cardOf('c', 'done')];
   const g = groupCards(cards, new Set(['a', 'b', 'c']));
-  assert.deepEqual(placed(g.needsYou), [[0, 'a']]);
-  assert.deepEqual(placed(g.working), []);
+  assert.deepEqual(placed(g.working), [[0, 'a']]);
   assert.deepEqual(placed(g.finished), []);
-  assert.deepEqual(statusCounts(cards, new Set(['a', 'b', 'c'])).map(e => [e.look.word, e.count]), [['needs you', 1]]);
+  assert.deepEqual(statusCounts(cards, new Set(['a', 'b', 'c'])).map(e => [e.look.word, e.count]), [['idle', 1]]);
+  // A working card moved to idle or waiting is shown too.
+  const moved = groupCards([cardOf('m', 'working')], new Set(['m']), new Map([['m', 'waiting']]));
+  assert.deepEqual(placed(moved.working), [[0, 'm']]);
+  // Only the pane's own one-wait memory hides an idle card, by the title it holds.
+  assert.deepEqual(placed(groupCards(cards, new Set(), undefined, new Set(['a'])).working), [[1, 'b']]);
+  assert.deepEqual(placed(groupCards(cards, new Set(), undefined, new Set(['b', 'c'])).working), [[0, 'a'], [1, 'b']]);
+});
+
+test('581 C5: isIdle says whether a card draws idle: a stored idle, or a working card moved to waiting or idle', () => {
+  const { isIdle } = view;
+  assert.equal(isIdle(cardOf('a', 'idle'), undefined), true);
+  assert.equal(isIdle(cardOf('a', 'working'), new Map([['a', 'waiting']])), true);
+  assert.equal(isIdle(cardOf('a', 'working'), new Map([['a', 'idle']])), true);
+  for (const status of ['working', 'done', 'stopped', 'needs-you', 'paused']) assert.equal(isIdle(cardOf('a', status), undefined), false, status);
+  for (const status of ['done', 'stopped']) assert.equal(isIdle(cardOf('a', status), new Map([['a', 'idle']])), false, status);
+  for (const bad of [null, undefined, 5, 'idle', []]) assert.equal(isIdle(bad, undefined), false, String(bad));
 });
 
 test('the section bar notes: the report count only when there are reports', () => {
@@ -4477,8 +4499,8 @@ test('issue 545: a draft pull request is its own group, from the gh answer or th
   assert.equal(rows.draft[1].state, 'draft');
 });
 
-test('the PR rows list one row per card, skip dismissed cards but not needs-you ones, and fall back safely on hostile stored values', () => {
-  const cards = [prCard('a', 'working', '7'), prCard('b', 'working', '7'), prCard('c', 'done', '8'), prCard('d', 'needs-you', '9'), prCard('e', 'working', 'abc'), prCard('f', 'working', '1', 'constructor'), prCard('g', 'paused', '2'), null, 5];
+test('the PR rows list one row per card, skip dismissed cards but not idle ones, and fall back safely on hostile stored values', () => {
+  const cards = [prCard('a', 'working', '7'), prCard('b', 'working', '7'), prCard('c', 'done', '8'), prCard('d', 'idle', '9'), prCard('e', 'working', 'abc'), prCard('f', 'working', '1', 'constructor'), prCard('g', 'paused', '2'), null, 5];
   const rows = prRows(cards, new Set(['c', 'd']), new Map(), NOW);
   assert.deepEqual(rows.open.map(r => r.title), ['a', 'b', 'd', 'f']);
   assert.deepEqual(rows.merged, []);
@@ -4741,7 +4763,7 @@ test('the group rule moves only a working card: a waiting status moves it to Wai
   const forged = sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'B', jobId: 'ab12cd34', status: 'busy', state: 'waiting' }));
   assert.equal(rowMove('working', forged), undefined);
   // The head chef's other statuses always hold; no row holds too.
-  for (const s of ['needs-you', 'done', 'stopped']) {
+  for (const s of ['idle', 'done', 'stopped']) {
     for (const status of ['waiting', 'idle']) assert.equal(rowMove(s, rowOf('r', { status })), undefined, s);
   }
   assert.equal(rowMove('working', undefined), undefined);
@@ -4757,18 +4779,18 @@ test('the live word draws waiting with its reason, and shell as busy', () => {
 });
 
 test('moves regroup working cards in the groups, the strip counts, the PR rows and the dismiss rule, and never touch the others', () => {
-  const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'done'), cardOf('d', 'needs-you'), cardOf('e', 'working')];
+  const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'done'), cardOf('d', 'idle'), cardOf('e', 'working')];
   const moves = new Map([['a', 'waiting'], ['b', 'waiting'], ['c', 'waiting'], ['d', 'waiting']]);
   const g = groupCards(cards, new Set(), moves);
-  assert.deepEqual(g.needsYou.map(p => p.c.title), ['a', 'b', 'd']);
-  assert.deepEqual(g.working.map(p => p.c.title), ['e']);
+  assert.deepEqual(g.working.map(p => p.c.title), ['a', 'b', 'd', 'e']);
   assert.deepEqual(g.finished.map(p => p.c.title), ['c']);
-  // Without moves, as today.
-  assert.deepEqual(groupCards(cards, new Set()).needsYou.map(p => p.c.title), ['d']);
+  // Without moves, the stored idle card is still in Working and a working one is not idle.
+  assert.deepEqual(groupCards(cards, new Set()).working.map(p => p.c.title), ['a', 'b', 'd', 'e']);
+  assert.deepEqual(statusCounts(cards, new Set()).map(e => [e.look.word, e.count]), [['working', 3], ['idle', 1], ['done', 1]]);
   // A moved-up card is never hidden by a dismiss.
-  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).needsYou.map(p => p.c.title), ['a', 'b', 'd']);
+  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).working.map(p => p.c.title), ['a', 'b', 'd', 'e']);
   assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).finished.map(p => p.c.title), ['c']);
-  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['needs you', 3], ['working', 1], ['done', 1]]);
+  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['working', 1], ['idle', 3], ['done', 1]]);
   assert.equal(statusStrip(cards, new Set(), moves).total, 5);
   const withPr = [{ ...cardOf('a', 'working'), pr: '5' }, { ...cardOf('b', 'working'), pr: '6' }];
   assert.equal(prRows(withPr, new Set(['b']), new Map(), 0, new Map([['b', 'waiting']])).open.length, 2);

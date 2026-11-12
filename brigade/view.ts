@@ -698,8 +698,8 @@ export async function settleTicks(
 
 // --- Severity groups --------------------------------------------------------
 //
-// The cards sit in three groups by the status the head chef wrote: Waiting on
-// you, Working, and Done · stopped. Any group folds on a press, and
+// The cards sit in two groups by the status the head chef wrote: Working
+// (working and idle) and Done · stopped. Any group folds on a press, and
 // STARTS_FOLDED in register.tsx says which start folded. The stored
 // roster is drawn as stored, and another plugin can rewrite it, so a status is
 // read only through the fixed Map below: one outside the four words, or one
@@ -713,32 +713,26 @@ export type StatusLook = {
   word: string
   color: string
   cls: string
-  group: 'needsYou' | 'working' | 'finished'
+  group: 'working' | 'finished'
 }
 
-/** The four stored statuses: needs you, working, done, stopped. The strip's
- *  display order is `LOOK_ORDER`. */
+/** The four stored statuses: working, idle, done, stopped, in the strip's and
+ *  legend's display order (`LOOK_ORDER`). An older roster's `needs-you` is
+ *  read as `idle` before it gets here (`card()` in roster.ts). */
 export const STATUS: ReadonlyMap<string, StatusLook> = new Map([
-  ['needs-you', { glyph: '●', word: 'needs you', color: 'warning', cls: 'warn', group: 'needsYou' }],
   ['working', { glyph: '◐', word: 'working', color: 'suggestion', cls: 'ok', group: 'working' }],
+  ['idle', { glyph: '○', word: 'idle', color: 'warning', cls: 'idle', group: 'working' }],
   ['done', { glyph: '✓', word: 'done', color: 'success', cls: 'done', group: 'finished' }],
   ['stopped', { glyph: '–', word: 'stopped', color: 'inactive', cls: 'stopped', group: 'finished' }],
 ] as const)
 
-/** The look of a working card whose session is idle. Pane-only: it is not in
- *  `STATUS`, so a stored status of `idle` has no look and counts nowhere; it
- *  is reached only through the idle move (see `movedLook`). */
-export const IDLE_LOOK: StatusLook = { glyph: '○', word: 'idle', color: 'warning', cls: 'idle', group: 'working' }
+/** The look of an idle card: a stored `idle` and a working card whose session
+ *  is idle or waiting (see `movedLook`) draw the same. */
+export const IDLE_LOOK: StatusLook = STATUS.get('idle') as StatusLook
 
-/** The looks in the strip's and legend's display order: needs you, working,
- *  idle, done, stopped. */
-export const LOOK_ORDER: readonly StatusLook[] = [
-  STATUS.get('needs-you') as StatusLook,
-  STATUS.get('working') as StatusLook,
-  IDLE_LOOK,
-  STATUS.get('done') as StatusLook,
-  STATUS.get('stopped') as StatusLook,
-]
+/** The looks in the strip's and legend's display order: working, idle, done,
+ *  stopped. */
+export const LOOK_ORDER: readonly StatusLook[] = [...STATUS.values()]
 
 /** A stored status's look, or undefined for anything but the four words. */
 export const statusOf = (status: unknown): StatusLook | undefined =>
@@ -748,15 +742,15 @@ export const statusOf = (status: unknown): StatusLook | undefined =>
  *  place, never its place inside a group: the press handler finds a card by
  *  roster place and title slug, and the slug folds many titles to one. */
 export type Placed<T> = { c: T; i: number }
-export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished: Placed<T>[] }
+export type Groups<T> = { working: Placed<T>[]; finished: Placed<T>[] }
 
 /** The stored cards in their groups, each in roster order. A card whose title
- *  is in `hidden`, the dismissed ones, is in none unless it waits on the owner,
+ *  is in `hidden`, the dismissed ones, is in none unless it is drawn idle,
  *  and a card that is not a record or has no look is in none; cards that are
- *  not a list give three empty groups. A working card the poll moved (see
+ *  not a list give two empty groups. A working card the poll moved (see
  *  `movedLook`) is in the group of its move. */
 export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): Groups<T> {
-  const out: Groups<T> = { needsYou: [], working: [], finished: [] }
+  const out: Groups<T> = { working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     const look = shownLook(c, hidden, moves, waitHidden)
@@ -775,27 +769,30 @@ export function movesFrom(list: readonly Live[]): Moves {
 
 /** The look a card's move gives it, or undefined: a move applies only while
  *  the card's own status is `working`, so a status the head chef wrote since
- *  the poll holds. A move to `waiting` draws as needs-you, one to `idle` as
- *  `IDLE_LOOK`. */
+ *  the poll holds. A move to `waiting` or `idle` draws as `IDLE_LOOK`. */
 export function movedLook(c: unknown, moves: Moves | undefined): StatusLook | undefined {
   if (moves === undefined || !isRecord(c) || c.status !== 'working' || typeof c.title !== 'string') return undefined
   const move = moves.get(c.title)
-  if (move === 'waiting') return STATUS.get('needs-you')
-  return move === 'idle' ? IDLE_LOOK : undefined
+  return move === 'waiting' || move === 'idle' ? IDLE_LOOK : undefined
 }
+
+/** Whether a card draws idle: a stored `idle`, or a working card the poll
+ *  moved to `waiting` or `idle`. Dismiss, Ask and the checkbox all ask this. */
+export const isIdle = (c: unknown, moves: Moves | undefined): boolean =>
+  isRecord(c) && (movedLook(c, moves) ?? statusOf(c.status)) === IDLE_LOOK
 
 /** A stored card's look when the pane shows it: a record with one of the four
  *  statuses, or a working card's moved look (see `movedLook`), that is not
- *  dismissed, or waits on the owner; else undefined. The groups, the heading and the
+ *  dismissed, or is drawn idle; else undefined. The groups, the heading and the
  *  status strip all count cards by this one rule. */
 function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, waitHidden?: ReadonlySet<unknown>): StatusLook | undefined {
   if (!isRecord(c)) return undefined
   const look = movedLook(c, moves) ?? statusOf(c.status)
   if (look === undefined) return undefined
-  // A card that waits on the owner is never hidden by `hidden`, whatever was
-  // dismissed. Only `waitHidden`, which the pane keeps in its own memory for
-  // one wait (issue 513, S9), hides a waiting card.
-  if (look.group === 'needsYou') return waitHidden?.has(c.title) === true ? undefined : look
+  // A card drawn idle is never hidden by `hidden`, whatever was dismissed. Only
+  // `waitHidden`, which the pane keeps in its own memory for one wait (issue
+  // 513, S9), hides an idle card.
+  if (look === IDLE_LOOK) return waitHidden?.has(c.title) === true ? undefined : look
   return hidden.has(c.title) ? undefined : look
 }
 
@@ -1108,11 +1105,11 @@ export function reportCount(titles: readonly string[], inbox: unknown): number {
   return inbox.filter(r => isRecord(r) && typeof r.from === 'string' && drawn.has(r.from)).length
 }
 
-/** The count beside "Waiting on you": the cards that need the owner, plus the
- *  to-dos that are neither done nor ticking. */
-export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
+/** The count beside "Waiting on you": the to-dos that are neither done nor
+ *  ticking. Cards never count: what the owner owes lives in the to-dos. */
+export function waitingCount(todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
   const out = doneOrTicking(done, ticking)
-  return needsYou + todos.filter(t => !out.has(t.id)).length
+  return todos.filter(t => !out.has(t.id)).length
 }
 
 /** The to-do ids that count as done: those in the done list or ticking. The
@@ -1303,9 +1300,6 @@ export function todoBar(
 
 /** The engine refuses to read a file over 4 MiB, so the pane does not try. */
 export const MAX_TRANSCRIPT_BYTES = 4 * 1024 * 1024
-/** From this many context tokens a cold cache costs enough to nudge about. */
-export const NUDGE_TOKENS = 100000
-
 const MIN_MS = 60000
 const HOUR_MS = 60 * MIN_MS
 const SHORT_MS = 5 * MIN_MS
@@ -1570,22 +1564,19 @@ export function warmthFrom(stored: unknown): Warmth[] {
 // "N min" under an hour, "N hr N min" from an hour.
 const span = (mins: number) => (mins >= 60 ? `${Math.floor(mins / 60)} hr ${mins % 60} min` : `${mins} min`)
 
-/** One card's ◆ line: its tone (`dim` or a theme colour), its text, and a
- *  nudge for a large card that waits on the owner, or undefined with no
- *  record. A transcript too large to read and a name two sessions share
- *  read unknown, and a transcript the finder found nowhere reads not found,
- *  whatever the live state. A working session is warm, with no
- *  size when its transcript has not been read yet. Else
- *  the idle time sets the band: more than 15 min left green, 15 min or less
- *  amber, none left red; with no known window, no countdown. The nudge needs
- *  status `needs-you`, 100,000 or more tokens, a known window and a session
- *  that is not working. */
+/** One card's ◆ line: its tone (`dim` or a theme colour) and its text, or
+ *  undefined with no record. A transcript too large to read and a name two
+ *  sessions share read unknown, and a transcript the finder found nowhere
+ *  reads not found, whatever the live state. A working session is warm, with
+ *  no size when its transcript has not been read yet. Else the idle time sets
+ *  the band: more than 15 min left green, 15 min or less amber, none left
+ *  red; with no known window, no countdown. The line carries no nudge to
+ *  reply or hand off (issue 581). */
 export function warmthLine(
   w: Warmth | undefined,
   state: string | undefined,
-  status: string,
   now: number,
-): { tone: 'dim' | 'success' | 'warning' | 'error'; text: string; nudge?: string } | undefined {
+): { tone: 'dim' | 'success' | 'warning' | 'error'; text: string } | undefined {
   if (w === undefined) return undefined
   if (w.kind === 'too-large') return { tone: 'dim', text: '◆ cache unknown · transcript too large to read' }
   if (w.kind === 'shared') return { tone: 'dim', text: '◆ cache unknown · two sessions share this name' }
@@ -1597,17 +1588,10 @@ export function warmthLine(
   const idleText = span(Math.floor(idle / MIN_MS))
   if (w.windowMs === undefined) return { tone: 'dim', text: `◆ cache window unknown · idle ${idleText} · ${size}` }
   const left = w.windowMs - idle
-  const large = status === 'needs-you' && w.tokens >= NUDGE_TOKENS
-  if (left <= 0) {
-    const cold = { tone: 'error' as const, text: `◆ cache cold · idle ${idleText} · ${size}` }
-    return large
-      ? { ...cold, nudge: `Replying re-reads about ${tokens(w.tokens)} tokens at full price. Consider a hand-off through the issue to a fresh session.` }
-      : cold
-  }
+  if (left <= 0) return { tone: 'error', text: `◆ cache cold · idle ${idleText} · ${size}` }
   const leftText = span(Math.ceil(left / MIN_MS))
   const text = `◆ cache warm · idle ${idleText} · cold in ${leftText} · ${size}`
-  if (left > AMBER_MS) return { tone: 'success', text }
-  return large ? { tone: 'warning', text, nudge: `Reply within ${leftText} to keep the cache.` } : { tone: 'warning', text }
+  return { tone: left > AMBER_MS ? 'success' : 'warning', text }
 }
 
 /** A warmth line with its trailing "· Nk context" dropped, for a card whose
@@ -1615,7 +1599,7 @@ export function warmthLine(
 export const withoutSize = (text: string): string => text.replace(/ · [^·]* context$/, '')
 // --- The cache bar -----------------------------------------------------------
 //
-// A needs-you or working card draws its ◆ line as a bar that drains over the
+// A working or idle card draws its ◆ line as a bar that drains over the
 // cache window, with short text beside it and a dim line under it. The bar is
 // worked out here from the warmth record's numbers alone: no title, to-do,
 // report or usage text reaches it, and its alt text is fixed words and numbers.
@@ -1900,35 +1884,15 @@ export function burnRate(m: Meter | undefined, now: number): Spark | undefined {
   }
 }
 
-/** A card's context trend, or undefined with fewer than 2 calls: each call's
- *  context over the window when the table gave one, else over the largest,
- *  clamped to 0 to 1; a call under half the one before it marked and
- *  counted as a compaction. */
-export function contextTrend(m: Meter | undefined): (Spark & { compactions: number }) | undefined {
-  if (m === undefined || !Array.isArray(m.context) || m.context.length < 2) return undefined
-  const values = m.context.slice(-SPARK_COLUMNS).map(seriesValue)
-  const scale = m.window !== undefined && Number.isFinite(m.window) && m.window > 0 ? m.window : Math.max(0, ...values)
-  const marks = values.map((v, i) => i > 0 && v < (values[i - 1] ?? 0) / 2)
-  const compactions = marks.filter(Boolean).length
-  const now = sizeText(values[values.length - 1] ?? 0)
-  const counted = `${compactions} ${compactions === 1 ? 'compaction' : 'compactions'}`
-  return {
-    columns: values.map(v => (scale > 0 ? unit(v / scale) : 0)),
-    marks,
-    compactions,
-    text: `${now} now · ${counted}`,
-    alt: `Context trend ${now} now, ${counted} in the last ${values.length} calls`,
-  }
-}
-
-// --- The context outlook (issue 545, row 8) --------------------------------------
+// --- The context outlook (issue 545, row 8; issue 581) ---------------------------
 //
 // The context trend scaled to a 0 to 1M window drew a flat line with an odd
 // bump, since a session grows a few thousand tokens a turn. The outlook is a
 // bar of context against the window with a tick where auto-compaction fires,
-// an estimate of the turns left, the large turns as dots, and the sawtooth
-// only once the session has compacted. Drawn from the meter's numbers and the
-// owner's one `autoCompactWindow` figure alone.
+// an estimate of the turns left and the large turns as dots. It is the one
+// context bar: the Cache · context tab's context row and the Context trend
+// tab both draw it. Drawn from the meter's numbers and the owner's one
+// `autoCompactWindow` figure alone.
 
 /** Where auto-compaction fires when the owner has set no `autoCompactWindow`:
  *  the window less this buffer, never under half the window. An estimate. */
@@ -1971,7 +1935,9 @@ export async function readCompactWindow(config: string, io: { stat: (p: string) 
 }
 
 /** A card's context outlook. `tick` and the dots' `at` are fractions of the
- *  window; `turns` and `dotsText` are fixed words and numbers. */
+ *  window; `text` is `<used> of <window>` alone, `compacts` and `turns` are
+ *  its parts that the Context trend tab joins on its second line as `second`,
+ *  and `dotsText` is fixed words and numbers. */
 export type ContextOutlook = {
   fraction: number
   tick: number
@@ -1979,9 +1945,10 @@ export type ContextOutlook = {
   dots: { at: number; added: number }[]
   text: string
   alt: string
+  compacts: string
+  second: string
   turns?: string
   dotsText?: string
-  sawtooth?: Spark & { compactions: number }
 }
 
 /** One card's outlook, or undefined with no window or fewer than 2 calls.
@@ -2011,22 +1978,21 @@ export function contextOutlook(m: Meter | undefined, compactAt?: unknown): Conte
   const left = Math.ceil((line - used) / growth)
   const turns = used >= line ? 'at the compaction line' : growth > 0 && Number.isFinite(left) ? `about ${left} ${left === 1 ? 'turn' : 'turns'} to compaction` : undefined
   const share = used / line
-  const compactions = marks.filter(Boolean).length
   const at = sizeText(line)
+  const compacts = `compacts at ${set ? '' : '~'}${at}`
   const out: ContextOutlook = {
     fraction: unit(used / window),
     tick: unit(line / window),
     cls: share >= 0.9 ? 'hot' : share >= 0.7 ? 'warn' : 'done',
     dots: shown,
-    text: `${sizeText(used)} of ${sizeText(window)} · compacts at ${set ? '' : '~'}${at}`,
-    alt: `Context ${sizeText(used)} of ${sizeText(window)}, compacts at ${set ? '' : 'about '}${at}`,
+    // Past the window it reads `over`, as the plain meter does (owner decision q6 B on #251).
+    text: used > window ? `${sizeText(used)} · over ${sizeText(window)}` : `${sizeText(used)} of ${sizeText(window)}`,
+    alt: `Context ${used > window ? `${sizeText(used)}, over ${sizeText(window)}` : `${sizeText(used)} of ${sizeText(window)}`}, compacts at ${set ? '' : 'about '}${at}`,
+    compacts,
+    second: turns === undefined ? compacts : `${compacts} · ${turns}`,
   }
   if (turns !== undefined) out.turns = turns
   if (shown.length > 0) out.dotsText = `large turns: ${shown.map(d => `+${sizeText(d.added)}`).join(', ')}`
-  if (compactions > 0) {
-    const saw = contextTrend(m)
-    if (saw !== undefined) out.sawtooth = saw
-  }
   return out
 }
 
@@ -2090,8 +2056,8 @@ export function sparkSvg(s: Partial<Spark>): Extract<UsageView, { kind: 'svg' }>
 
 // --- Card tabs -----------------------------------------------------------------
 //
-// A needs-you or working card has up to three views, each a tab: the cache
-// bar and context meter, the burn rate, and the context trend. The tab row
+// A working or idle card has up to three views, each a tab: the cache
+// bar and context bar, the burn rate, and the context trend. The tab row
 // shows only with two or more. The choice is kept per card for the session in
 // the `tabs` atom, card title to view word, and read only through
 // `VIEW_WORDS` below: an unknown or unavailable word reads as the default. A
@@ -2125,11 +2091,12 @@ export const isReason = (w: Warmth | undefined): boolean => w !== undefined && R
 
 /** A card's views, in tab order: the default always; the burn rate when its
  *  meter has a burn series or its warmth is a reason line; the context trend
- *  with 2 or more calls. */
+ *  only when the card has a context outlook (a known window and 2 or more
+ *  calls). */
 export function cardViews(w: Warmth | undefined, m: Meter | undefined): View[] {
   const views: View[] = ['cache']
   if (m?.burn !== undefined || isReason(w)) views.push('burn')
-  if (contextTrend(m) !== undefined) views.push('trend')
+  if (contextOutlook(m) !== undefined) views.push('trend')
   return views
 }
 

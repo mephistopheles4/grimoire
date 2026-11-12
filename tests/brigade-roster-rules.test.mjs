@@ -1156,7 +1156,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.match(await read('references/CONTRACT.md'), rule);
 });
 
-test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.31.0 with its row and go', async () => {
+test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract carries its 1.31.0 row and go', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const ref = await read('references/roster.md');
@@ -1167,11 +1167,22 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   assert.match(await read('SKILL.md'), use);
   const contract = await read('references/CONTRACT.md');
   assert.match(contract, use);
-  assert.match(contract, /^# .*?Version: 1\.31\.0 /);
   assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
   const log = await read('references/contract.changelog.md');
   assert.match(log, /\| 1\.31\.0 \| [0-9-]+ \| \*Proposed\.\*/);
   assert.match(log, /the lead's decisions 426, 436 and 487 at level 3, not the owner's words; the lead accepts the E84 widening there and flags it big/);
+});
+
+test('#581 C10: the roster reference, the skill and the contract name the four statuses and write idle, never needs-you; the contract carries its 1.32.0 row', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
+  assert.match(await read('references/roster.md'), /`status` is one of `working`, `idle`, `done` or `stopped`/);
+  const rule = /[Aa] card's `status` is `working`, `idle`, `done` or `stopped`/;
+  assert.match(await read('SKILL.md'), rule);
+  const contract = await read('references/CONTRACT.md');
+  assert.match(contract, rule);
+  assert.match(contract, /^# .*?Version: 1\.\d+\.\d+ /);
+  assert.match(await read('references/contract.changelog.md'), /\| 1\.32\.0 \| [0-9-]+ \| \*Proposed\.\*/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {

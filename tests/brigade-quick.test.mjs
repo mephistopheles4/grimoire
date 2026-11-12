@@ -15,14 +15,25 @@ const gh = (n, over = {}) => ({ number: n, title: 't', state: 'open', additions:
 const answers = (rows = [], over = {}) => ({ base: new Map(rows.map(r => [r.number, r])), named: new Map(), pinned: 'o/r', ...over });
 const NONE = answers();
 
-test('claim 1: a waiting card with a title that passes the rule gets Ask, and its line asks what it needs', () => {
-  const q = quickAction(card('alpha', { status: 'needs-you' }), NONE, new Map());
+test('claim 1: an idle card with a title that passes the rule gets Ask, and its line asks what it needs', () => {
+  const q = quickAction(card('alpha', { status: 'idle' }), NONE, new Map());
   assert.deepEqual(q, { action: 'ask', label: 'Ask', line: 'What does alpha need from me?' });
 });
 
-test('claim 1: a working card the poll moved to waiting gets Ask too', () => {
-  const moves = new Map([['alpha', 'waiting']]);
-  assert.equal(quickAction(card('alpha'), NONE, moves)?.action, 'ask');
+test('581 C7: a working card the poll moved to waiting or idle gets Ask too', () => {
+  for (const move of ['waiting', 'idle']) {
+    assert.equal(quickAction(card('alpha'), NONE, new Map([['alpha', move]]))?.action, 'ask', move);
+  }
+});
+
+test('581 C7: Ask shows on no working, done or stopped card, a move or not, and an older needs-you word draws nothing here', () => {
+  assert.equal(quickAction(card('alpha', { status: 'working' }), NONE, new Map()), undefined);
+  // done and stopped cards ignore a move; with no PR they get Clean up, never Ask.
+  for (const status of ['done', 'stopped']) {
+    assert.equal(quickAction(card('alpha', { status }), NONE, new Map([['alpha', 'waiting']]))?.action, 'cleanup', status);
+  }
+  // The pane reads needs-you as idle before a card reaches here, so the word itself is no status.
+  assert.equal(quickAction(card('alpha', { status: 'needs-you' }), NONE, new Map()), undefined);
 });
 
 test('claim 2: a done card with no repo field and an open PR gh answered gets Merge, with the number and repository from gh', () => {
@@ -64,7 +75,7 @@ test('claim 4: no button on a working card, a draft PR, a stopped card with an o
 test('claim 5: a title outside the rule gets no button, on any row', () => {
   assert.equal(TITLE.test('has space'), false);
   for (const title of ['has space', '', 'a'.repeat(81), 'tab\there', 'ünï', 'new\nline']) {
-    assert.equal(quickAction(card(title, { status: 'needs-you' }), NONE, new Map()), undefined, `ask ${JSON.stringify(title)}`);
+    assert.equal(quickAction(card(title, { status: 'idle' }), NONE, new Map()), undefined, `ask ${JSON.stringify(title)}`);
     assert.equal(quickAction(card(title, { status: 'done' }), NONE, new Map()), undefined, `cleanup ${JSON.stringify(title)}`);
     assert.equal(quickAction(card(title, { status: 'done', pr: '18' }), answers([gh(18)]), new Map()), undefined, `merge ${JSON.stringify(title)}`);
   }

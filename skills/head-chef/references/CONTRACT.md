@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.31.0
+Version: 1.32.0
 Kind: skill
 Level: Thorough
 
@@ -868,7 +868,11 @@ learned).
   milestone report, a new question for the owner, a merge or a cleanup. A
   refused call is said once in its next report, and it carries on. A card's
   `url` follows `references/roster.md`, and `work` names the repository and
-  issue number only.
+  issue number only. *Proposed* (issue 581): a card's `status` is `working`,
+  `idle`, `done` or `stopped`. It writes `idle` for a member that has
+  reported and waits on the owner or on the lead; what the owner must do goes
+  in a to-do, not in the status. It no longer writes `needs-you`; the pane
+  still reads that word as `idle`.
 - **Confirmed** (rev 4 S5.1, L7). **The owner answers in the lead's chat.** The
   start prompt tells members to send their questions to the lead. The owner
   may still type to a member directly: those words, in the member's own
