@@ -4021,8 +4021,6 @@ export const register: Register = on => {
     const pill = (n: string, state: string) => {
       const color = pillColor(state)
       const image = Image === undefined ? undefined : pillSvg(n, state)
-      // An image draws above the popover, so while one is open the pill is a blank of about its size, in cells (the image is in pixels) (issue 598).
-      if (Image !== undefined && image !== undefined && popLive) return <Box width={Math.ceil(image.width / 8)} height={1} />
       if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
       return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
@@ -4316,12 +4314,14 @@ export const register: Register = on => {
           {menuOpen && popRows()}
         </Box>
       )
+      // While a popover is open the pill drops its press layer: a positioned element later in the
+      // tree paints over the popover, and a plain image does not (issue 598). It keeps its size.
       const pillBlock =
         number === undefined ? null : (
           <Box flexShrink={0}>
             {answer === undefined ? (
               pill(number, pillState(undefined, c.prState))
-            ) : href !== undefined && pointer ? (
+            ) : href !== undefined && pointer && !popLive ? (
               pillLayer(keyFor('pill', i, c.title), number, pillState(answer.state, c.prState))
             ) : href !== undefined && Image === undefined ? (
               linkedNumber(number, pillState(answer.state, c.prState), href)
