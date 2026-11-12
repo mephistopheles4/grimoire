@@ -36,7 +36,16 @@ when the person wants any change to it.
    are the fenced parts, between their `<!-- contract:begin NAME -->` and
    `<!-- contract:end NAME -->` lines. Keep every other line word for word.
    An agent file or a `CLAUDE.md` has no fences: regenerate the sections the
-   touched parts write, and keep the rest word for word. A part that writes
+   touched parts write, and keep the rest word for word. The same holds for
+   a contract with schedules: its built `SKILL.md` has no fences, because
+   each home is matched by its heading. Change the schedule first, then copy
+   it word for word to its home, and keep every other line. Before you write
+   a home, check it against the template's `schedules` part. Refuse a home
+   that names the contract or its change log in any letter case. Resolve the
+   target first, and refuse a path that leaves the built skill's folder, such
+   as a `references` link or junction that points elsewhere. No script checks
+   this on the amend path, so the check is yours. A contract without schedules
+   keeps its fences. A part that writes
    nothing into the body (`purpose`, `why`, `open`) changes the description,
    or nothing; say which. Regenerate the frontmatter keys a part writes:
    `description` from `purpose`, and `compatibility` from `tools`.

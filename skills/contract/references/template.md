@@ -1,15 +1,16 @@
 # The contract template
 
 *A skill, an agent or a CLAUDE.md is built to do one job for you. The
-contract is the terms you agree with it: eight parts, filled one question at
-a time. The built file is generated from the contract. A small one takes ten
-minutes. A serious one takes an hour.*
+contract is the terms you agree with it: nine parts, filled one question at
+a time, the last one optional. The built file is generated from the contract.
+A small one takes ten minutes. A serious one takes an hour.*
 
 ## Contents
 
 - Two choices before you start
 - How the contract is kept
-- The eight parts
+- The parts
+- Where a schedule lives
 - Agreeing what good looks like
 - Rules, and what they guard against
 - The eval offer
@@ -38,7 +39,7 @@ The change is a row in the change log, and nothing more.
 | **Thorough** | adds `open`, and the systematic look for failures in `rules` | One others depend on, or one that can do damage |
 
 An empty part that keeps getting "does not apply" means the level is too
-high.
+high. Any level may also fill `schedules`, the last part.
 
 ## How the contract is kept
 
@@ -57,13 +58,16 @@ Ask only before a write that would install.
 | CLAUDE.md | `CLAUDE.md` | `CLAUDE.contract.md`, beside it | `CLAUDE.changelog.md`, beside it |
 
 The contract and the change log never open with frontmatter, so no tool
-loads either as an agent.
+loads either as an agent. A skill whose contract has schedules also has each
+schedule's home file, `<name>/references/<file>.md`.
 
 **The title block.** The contract opens `# Contract: <name>`, then
 `Version: X.Y.Z` starting at 0.1.0, then `Kind: skill`, `Kind: agent` or
 `Kind: CLAUDE.md`, then `Level: Quick`, `Level: Standard` or
-`Level: Thorough`. Every contract has all eight part headings, named as in
-this template. A part the level does not ask stays empty.
+`Level: Thorough`. Every contract has all the part headings, named as in
+this template, with `schedules` last. A part the level does not ask stays
+empty. A contract written before `schedules` existed may lack that heading,
+and reads as one with the part empty.
 
 **Marks.** Each answer carries one mark and at most a one-line why:
 
@@ -93,7 +97,10 @@ stay in the file. A part is fenced where it writes text into the body, so
 `purpose`, `why` and `open` get none. This is a default. An amendment
 regenerates exactly the fenced parts it touches and keeps the rest word for
 word. An agent file or a `CLAUDE.md` has no fences: an amendment there
-regenerates the sections its touched parts write.
+regenerates the sections its touched parts write. The built `SKILL.md` of a
+contract with schedules also has no fences, because each home is matched by
+its heading, and a change goes into the schedule first. A contract without
+schedules keeps its fences.
 
 **The change log.** A table, one row per change:
 
@@ -104,7 +111,7 @@ regenerates the sections its touched parts write.
 one question: could you explain the old clauses from the contract alone? Write
 yes, partly or no. A change of level goes here too, with its reason.
 
-## The eight parts
+## The parts
 
 ### `purpose`
 
@@ -222,6 +229,83 @@ Ask "when would you retire it" plainly: the evidence that gets it cut or
 merged, and what you would see. It is your judgment at each amendment,
 recorded in the change-log row with the field signal. If most of its output
 gets dismissed, that is a failure to record in `rules`.
+
+### `schedules`
+
+Optional, at any level, and last. A **schedule** is the text of one section of
+the built file, kept here word for word and copied to its **home**: `SKILL.md`
+or one file in `references/`. The built file is output, so a change goes into
+the schedule first and is then copied to its home. Each schedule holds:
+
+- its **name**: the heading of its home section, written exactly. A section too
+  long for one field is cut into pieces, each named with ` (n of m)` at the
+  end. A cut falls only on a blank line outside a code fence, and the pieces
+  join with one blank line;
+- its **home**: `SKILL.md`, or `references/<file>.md`, where `<file>` is 1 to
+  40 characters of `a`–`z`, `0`–`9` and `-`. The contract and its change log
+  are never a home;
+- its **text**: no heading line, no line holding `<!` or `<?`, and no
+  link-reference definition line, so a schedule cannot hide a comment or break
+  the contract's outline;
+- the body clauses it **carries out**, which it names.
+
+A schedule is high stakes: its text is what the agent runs. It takes the
+weakest mark of the text it holds.
+
+**The word.** On the hiring page, a schedule is also a sheet that lists the
+entries of one kind, attached under the letter. The entries of this part form
+one such sheet. The two senses meet: the sheets attached to a contract's
+letter are its schedules, and `schedules` holds the ones that carry procedure.
+
+## Where a schedule lives
+
+These eight rules choose a schedule's home. Each names its sources. Every
+source was read on 2026-11-12.
+
+- **R1.** `SKILL.md`'s body stays under 500 lines and about 5,000 tokens. The
+  most important instructions come first, written as standing rules.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Token budgets";
+  [OV](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview);
+  [SPEC](https://agentskills.io/specification);
+  [CC](https://code.claude.com/docs/en/skills) "Skill content lifecycle")
+- **R2.** `SKILL.md` holds the workflow and the selection logic, the stops and
+  gotchas the agent must know before the situation arrives, and one pointer
+  per reference saying what it holds and when to read it.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Progressive disclosure patterns";
+  [SC](https://github.com/anthropics/skills/blob/b0cbd3df15/skills/skill-creator/SKILL.md) "Domain organization";
+  [AS-BP](https://agentskills.io/skill-creation/best-practices) "Gotchas sections";
+  [CC](https://code.claude.com/docs/en/skills))
+- **R3.** A reference holds detail that only some situations need: domain
+  variants, long procedures, exact formats, schemas, examples, long templates.
+  It sits one level deep, is named for its content, and has a table of
+  contents when it runs past 100 lines.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Avoid deeply nested references";
+  [SPEC](https://agentskills.io/specification) "File references";
+  [BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices))
+- **R4.** Each text has one home: `SKILL.md` or one reference, never both.
+  (The skill-creator skill before its 2026-02-06 rewrite, the parent of
+  [anthropics/skills commit 1ed29a03dc](https://github.com/anthropics/skills/commit/1ed29a03dc):
+  "Information should live in either SKILL.md or references files, not both".
+  Kept on the owner's word, 2026-11-12.)
+- **R5.** Deterministic work goes in `scripts/`, which the agent runs and does
+  not read. Files used in output go in `assets/`.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Provide utility scripts";
+  [SC](https://github.com/anthropics/skills/blob/b0cbd3df15/skills/skill-creator/SKILL.md);
+  [AS-BP](https://agentskills.io/skill-creation/best-practices) "Templates")
+- **R6.** "When to use" goes in the description, never the body.
+  ([SC](https://github.com/anthropics/skills/blob/b0cbd3df15/skills/skill-creator/SKILL.md))
+- **R7.** Write only what the agent would get wrong without it.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Concise is key";
+  [AS-BP](https://agentskills.io/skill-creation/best-practices))
+- **R8.** Re-home on evidence: a reference read on every run moves into
+  `SKILL.md`, and one never read is cut or signposted better.
+  ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Observe how Claude navigates Skills")
+
+The abbreviations: BP is the Agent Skills best practices page, OV its
+overview page, CC Claude Code's skills page, SPEC the Agent Skills
+specification, AS-BP the specification site's best-practices page, and SC the
+`skill-creator` skill in `anthropics/skills`, as last changed in commit
+b0cbd3df15 (2026-03-06).
 
 ## Agreeing what good looks like
 
