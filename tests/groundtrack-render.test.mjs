@@ -2157,7 +2157,7 @@ test('the shipped pull-request example draws one sheet control per graph', () =>
 });
 
 test('the authored stamp says an AI drew the page and to check it against the change', () => {
-  // Gap 3 of the threat model: the reader is told the page can be wrong. The
+  // The threat model's R1 control: the reader is told the page can be wrong. The
   // stamp in the title block already says the trace was written, not
   // recorded, so the warning is its help note rather than a second line.
   const html = pageOf(layeredFlightpath);

@@ -37,14 +37,14 @@
 //
 // The posture is hygiene, not a boundary (ADR 0006). It denies the obvious
 // mistakes, backs up the owner's live folders at start and checks them at
-// report, and masks what it prints. The threat model's practice-runner row
+// report, and masks what it prints. The threat model's R11
 // says what it does not stop.
 //
 // A read rule shows the session an environment value. On clean and
 // owner-pact the session's environment holds no secret by construction: it is
 // the system list below, the temp folder and the case's own test values. On
 // user-skills and full-account the user settings add their own values, keys
-// among them; the threat model's row covers that.
+// among them; the threat model's R11 covers that.
 //
 // Runs live under <system temp>/grimoire-practice/<run-id>/: the run state,
 // the settings file, the transcript, backup/ with its manifest, and work/,
@@ -112,7 +112,7 @@ function globalRecord(variant) {
 // ---- the posture ----
 //
 // Hygiene, not a boundary (ADR 0006): it keeps the cheap, obvious mistakes
-// out, and the threat model's practice-runner row says what it does not stop.
+// out, and the threat model's R11 says what it does not stop.
 
 // The tools that reach off the machine or schedule work. They are denied by
 // name in the settings file and disallowed on the command line too, so a

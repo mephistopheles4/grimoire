@@ -280,7 +280,7 @@ test('no rendered page holds the running account\'s home folder, --site included
 /* The page rendered from the measurement draft sets the budget, at the same
  * multiple as the limits (spec v4.1 S7 on #313): four times its size when
  * measured, 2026-10-18, at the head of the review of issue 344, at 381,464
- * bytes. The figure and the multiple go into the threat model's limits entry
+ * bytes. The figure and the multiple go into hiring-interview.md's limits
  * with the owner's diff. */
 const PAGE_BUDGET = 4 * 381464;
 

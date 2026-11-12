@@ -1,6 +1,6 @@
 # How the pages handle a stranger's text
 
-This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
+This page holds detail behind the controls the [threat model](threat-model.md) names. An edit that weakens a control it names is a removed control.
 
 Both renderers turn a file somebody else may have written into an HTML page you
 open. This is the main risk in the repository, so this page states exactly what
@@ -144,7 +144,7 @@ deepest graph is 14 calls deep, 71 times under the limit. Its largest tree
 view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 12.9 times under.
 
-Accepted risk: class C3 (E71), in the threat model. Every refusal in a
+Accepted class: “Renderer output carries author text”, in the threat model. Every refusal in a
 walk repeats the run's name, and nothing caps how many refusals one run
 makes. A 2.1 MB file with a 10,000-character run name and 10,000 return moves
 that each carry a value out of a `void` node prints 99 MB of refusals in
@@ -156,7 +156,7 @@ length times the bad-entry count. The
 renderer exits with the refusal, and nothing reads the file further. Weighed
 against row 5's low rating under ADR 0004, no cap is added.
 
-Accepted risk: class C3 (E71), in the threat model.
+Accepted class: “Renderer output carries author text”, in the threat model.
 The count is not bounded, but each refusal is:
 a run's name stops at 200 characters where it enters a refusal, and the
 whole line at 2,000. Escaping works the other way for one shape. A character
@@ -169,7 +169,7 @@ refusals, before and after:
 | 10,000 plain characters | 0.20 s, 101.8 M characters | 0.12 s, 4.0 M characters |
 | 1,900 DEL characters | 0.11 s, 20.8 M characters | 0.23 s, 14.0 M characters |
 
-Accepted risk: class C3 (E72), in the threat model. A value of any type, such as a call's `args`, nested deep
+Accepted class: “Renderer output carries author text”, in the threat model. A value of any type, such as a call's `args`, nested deep
 enough overflows the stack in a JSON conversion. The renderer catches it and
 prints `<file>: the renderer stopped on this file (RangeError)`, then exits
 2. A 0.4 MB file nested 200,000 deep stops `--check`, `--out` and `--text`

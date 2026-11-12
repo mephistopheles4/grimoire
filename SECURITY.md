@@ -125,7 +125,7 @@ variable argument is the card's checked pull request number, on the command
 line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
 `GH_BROWSER`, `BROWSER` or `gh`'s own configuration names, which inherits the
-session's environment (accepted, E84). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (E84 as widened, waiting on the owner's confirmed merge). A to-do's link may also be one comment or review on such an issue or pull request, with a numeric `#` fragment; the pane draws it as the engine's link on every surface, Desktop included, runs no process for it, and the Desktop app's own opener, not `gh`, picks the browser (E84 as widened by issue 567, accepted by the lead at level 3 in decision 487 and flagged big). Since 0.85.0 a card may carry `repo`,
+session's environment (an open issue of the threat model). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (widened, waiting on the owner's confirmed merge). A to-do's link may also be one comment or review on such an issue or pull request, with a numeric `#` fragment; the pane draws it as the engine's link on every surface, Desktop included, runs no process for it, and the Desktop app's own opener, not `gh`, picks the browser (widened by issue 567, accepted by the lead at level 3 in decision 487 and flagged big). Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,
@@ -191,24 +191,20 @@ words. It asks no permission. What follows from it:
 - **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
-  warmth, on members whose transcript is over 4 MiB too; the threat model
-  lists this gap as [candidate P1](docs/security/threat-model.md#candidates-for-the-owners-word) (E20), still accepted as at the base until the
-  owner names it. A step the transcript would not count restarts the
+  warmth, on members whose transcript is over 4 MiB too; the threat model leaves this to the machine: a forged file from a program
+  running as the owner is the machine's, and from another plugin, a branch's code or a steered session it is an open issue. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
-  Four more gaps, each in the threat model:
+  Four more gaps, each an open issue or a reliability note:
   - other plugins can read and rewrite the pane's list of refused summary
-    files, and so plant or hide a refusal line ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E24: a gap the base
-    named, not accepted);
+    files, and so plant or hide a refusal line (an open issue of the threat model, not accepted);
   - the summary read follows a link swapped in after the path check, as the
-    transcript read does, and keeps only checked numbers ([candidate P1](docs/security/threat-model.md#candidates-for-the-owners-word), E23: a gap the base
-    named, not accepted);
+    transcript read does, and keeps only checked numbers (an open issue of the threat model, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
-    a session with no working folder included ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E22: a gap the base
-    named, not accepted);  - a writer whose files keep failing a check with fresh times freezes its
-    card on the last good record with no line to say so ([candidate P3](docs/security/threat-model.md#candidates-for-the-owners-word), E21,
-    still accepted as at the base until the owner names it).
+    a session with no working folder included (an open issue of the threat model, not accepted);
+  - a writer whose files keep failing a check with fresh times freezes its
+    card on the last good record with no line to say so (a reliability note, not a threat).
 
 **Since 0.81.0 a lead writes a decision log, and the pane writes the
 owner's marks** (spec 402, ticket 1;
@@ -428,7 +424,7 @@ anything else sets nothing. Whether another plugin, or the model itself, can run
 the command with the owner's stamp, or a hook can change the stamp, is not yet
 measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
-confirmation (E35a in the threat model). **Since head-chef 1.23.0 (issue 541,
+confirmation (the threat model's class “Other plugins share the mod's trust”). **Since head-chef 1.23.0 (issue 541,
 proposed; it waits on the owner's confirmed merge, which classes it)** the lead also widens or narrows a command
 goal on the owner's own typed turn in its chat, with no new command, where the
 owner's user-level instructions file counts the owner's chat words as a
@@ -436,20 +432,19 @@ standing goal; a button it wrote, a file, a log entry, a member's message, hook-
 another plugin's turn or text never does, and after a compaction a logged widening
 makes it act at 2 and ask. The mod does not see or stamp that turn, so the
 stamp above does not bind it, and the lead's reading of its chat is the
-control (the host agent as the last guard, C1). **Since head-chef 1.30.0 (issue 541,
+control (the host agent as the last guard, the class “Text steers a session”). **Since head-chef 1.30.0 (issue 541,
 proposed; it waits on the owner's confirmed merge)** a level-3 lead, inside
 the goal and where the owner's user-level instructions file lets a standing
 goal decide even what it keeps, also accepts risks, records accepted risks,
 decides threat classes and a guard's stop, each logged and a big one flagged;
 a repository's or member's rule that keeps those risk calls for the owner no
-longer holds them at 3, and `read_autonomy` says the same. What C5, C6 and E85
-in the threat model keep waiting still waits: an install, a post carrying
-private work, a merge that changes the threat model's scope or accepted risks,
-and an edit to its scope, its naming line, or an accepted risk that removes
-the rules on secrets and personal data or widens the level-3 leave (E79). The control is the
+longer holds them at 3, and `read_autonomy` says the same. What the threat model's controls for the lead's chat (R5) and for merges and acts
+keep waiting still waits: an install, a post carrying
+private work, a merge that changes the threat model's scope or accepted classes,
+and an edit to its scope, its naming line, or an accepted class that widens the level-3 leave. The control is the
 log and the flag, which the owner reviews after the fact; the log rests on
 the decision files, whose planting by another plugin is still an open
-candidate (E40b). A 3 it sets carries its goal, which is
+issue of the threat model. A 3 it sets carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another level command, a
@@ -531,7 +526,7 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
-machine: the [row 15 section](docs/security/brigade.md#row-15) of the threat model (its accepted risks include classes [C4](docs/security/threat-model.md#c4), C5, C7 and C8; E16)
+machine: the [row 15 section](docs/security/brigade.md#row-15) of `brigade.md` (the threat model's classes it cites include “Other plugins share the mod's trust”, “A forged or misled session can speak for the lead”, “Data leaves the machine as the owner accepted” and “The mod's tools run with no permission prompt”)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
@@ -560,10 +555,10 @@ starts every session as a background session with Remote Control, and since
 head-chef 1.28.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
 in a main checkout the harness lets it start (the harness refuses a folder you have not trusted, and the tool binds the folder to no repository you chose, so a main checkout of any repository you trusted can be named, [row 15](docs/security/brigade.md#row-15)), takes no permission
-mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
+mode and writes no card, with no permission prompt and no classifier view (a candidate under the class “The mod's tools run with no permission prompt”, for the owner's merge decision), and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's
-[class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a
+class “Every background member runs with Remote Control on”). Until head-chef 1.10.0 (issue 503) a
 session took any message from the head chef as a relayed decision, on any
 matter, labelled as relayed and never as the owner's own words; since then
 its start prompt carries only its issue and the lead's name, and, since head-chef 1.32.0
@@ -572,10 +567,10 @@ the owner's (by the tool on a background start, by the lead itself on the Deskto
 only (ADR 0013), so any process of the same user, or any session that holds
 the lead's name, can speak for the lead. The owner accepted the forged-sender
 risk of the 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision
-bound to the shown name alone, on 2026-10-21; the threat model's [class C5](docs/security/threat-model.md#c5) records both (E45, E57),
+bound to the shown name alone, on 2026-10-21; the threat model's class “A forged or misled session can speak for the lead” records both,
 with the other risks of 0.9.0 the owner accepted. The 1.0.0 form, which drops
 the status-file pairing, rests on the owner's word of 2026-10-30 ("Yes, name
-only"), the threat model's candidate P8 under C5. Before
+only"), an open issue of the threat model. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
 the prompt. When it starts or takes a session, and at cleanup, the head chef
 reads the engine's own session files, in the config folder's `sessions` folder
@@ -590,7 +585,7 @@ chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
 any device signed in to the owner's account.
-The [row 16 section](docs/security/brigade.md#row-16) of the threat model (its accepted risks include classes C1, [C5](docs/security/threat-model.md#c5), C6, C7 and C10; E45) has the
+The [row 16 section](docs/security/brigade.md#row-16) of `brigade.md` (the threat model's classes it cites include “Text steers a session”, “A forged or misled session can speak for the lead”, “GitHub acts on the owner's word are irreversible and public” and “Data leaves the machine as the owner accepted”) has the
 guards and the gaps.
 
 One script can send data, and only when somebody runs it. eagle-eye's
@@ -612,14 +607,12 @@ person reads those keys.
 
 The attacks worth planning for, by risk and by class, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
-It is one threat model in five pages, with
+Four pages hold the detail behind its controls:
 [`brigade.md`](docs/security/brigade.md), [`checks.md`](docs/security/checks.md),
 [`rendering.md`](docs/security/rendering.md) and
-[`hiring-interview.md`](docs/security/hiring-interview.md). A control that
-[`scanners.md`](docs/security/scanners.md) or [`edge-audit.md`](docs/security/edge-audit.md)
-names counts the same way.
-It records the repository settings as they were read on 2026-09-25, and the
-plugin validator's required check as confirmed on 2026-10-09. The
+[`hiring-interview.md`](docs/security/hiring-interview.md);
+[`scanners.md`](docs/security/scanners.md) and [`edge-audit.md`](docs/security/edge-audit.md)
+say what the scanners and the audit send. The
 [platform table](#what-the-platform-is-relied-on-for) below lists what the
 project relies on, which is not always what is switched on.
 
@@ -755,7 +748,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
-| Plugin validator's `validate` job as a required check | a manifest or skill the schema rejects blocks a merge |
+| Plugin validator's `validate` job, which runs on pull requests and is not a required check | a manifest or skill the schema rejects shows a failed run |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
