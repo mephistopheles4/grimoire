@@ -246,7 +246,7 @@ Anything else prints `LIVE error argument` or `LIVE error token`, and starts no 
 - **Too short:** a turn with under 0.4 s voiced is discarded.
 - **Too long:** a turn is cut at 30 s.
 
-**The clip.** Each listen writes a fresh `clip-<random>.wav`. Only the latest clip exists. `clear`, `off`, `on` (after the lock) and the next `listen` (after the token check) delete it. Every command also removes clips older than five minutes, as built in T2; a fresh clip stays.
+**The clip.** Each listen writes a fresh `clip-<random>.wav`. Only the latest clip exists. `clear`, `off`, `on` (after the lock) and the next `listen` (after the token check) delete it. Every command that gets past its argument check also removes clips older than five minutes, as built in T2; a fresh clip stays.
 
 ## S7. Security controls
 
@@ -258,7 +258,7 @@ Anything else prints `LIVE error argument` or `LIVE error token`, and starts no 
 | K4 | Another account reads the clip. | The per-user temp folder's access rules, with canonical path checks. A link or junction is refused. Each clip is cleared after every transcribe, whatever the result. If a session ends without `off`, the clip stays until a later live command runs five minutes or more after it was written, and for good if none does. |
 | K5 | The speech tool keeps text, and maybe audio. | The never-spoken list. The read-back speaks only the act and its target. The README's loopback check. A candidate risk (S8). |
 | K6 | A spoken confirm comes from the room. | The owner allowed a spoken yes. A candidate risk (S8). |
-| K7 | Another program runs as the recorder. | Only fully qualified drive folders on PATH are searched. The path is pinned at `on` and checked again at each `listen`. The folder is shown to the person. There is no config file. A planted environment or PATH falls under R7, R10 and C11. Residual: another account on a shared host that can create a missing folder listed early on PATH (S8). |
+| K7 | Another program runs as the recorder. | Only fully qualified drive folders on PATH are searched. The path is pinned at `on` and checked again at each `listen`. The folder is shown to the person. There is no config file. A planted environment or PATH falls under R7, R10 and C11. Residual: the recorder is trusted for being on a local drive, not for who can write its folder, and the pin checks the path, not the content; another account on a shared host that can create a missing folder, or write to an existing one, listed early on PATH (S8). |
 | K8 | Audio or text leaves through a cloud engine. | The README's setup. The skill uses only the speech tool pinned at turn-on. Residual: the skill cannot check the setup (S8). |
 | K9 | A stale or planted clip. | A fresh clip name per listen. The skill transcribes only the path printed by its own listen. Residual: a same-user watcher, or a squatter on the speech tool's port (S8). |
 
@@ -269,7 +269,7 @@ T3 adds a candidate entry under "Candidates for the owner's word", and proposes 
 1. **The new actor:** anyone or anything audible while a listener runs.
    - **What it reaches:** the session's next messages, up to the chain limit, and every act a spoken confirm can approve.
    - **What it hears:** every spoken line.
-   - **Residual:** the room supplies both the request and the confirm.
+   - **Residual:** the room supplies both the request and the confirm. The chain limit holds only while the agent keeps the rule that a reset needs a typed message: `reset` and `off` then `on` clear the count on the token, `on --take` with no token, and the token is printed in every reminder line.
 2. **Speech has no speaker identity.** This widens C4 and C5.
 3. **Forged transcripts and a squatted port.** A swapped clip, or a program on the speech tool's port while the tool is down, can forge text and also receives the spoken lines and each clip. This touches C4, C7 and C11. `lock.json` is listed with them.
 4. **The speech tool's history:**
@@ -278,9 +278,9 @@ T3 adds a candidate entry under "Candidates for the owner's word", and proposes 
    - **Browser pages:** whether a page can reach it is answered by T3's probe.
 5. **The clip at rest:** unencrypted in the per-user temp folder until it is cleared, or until a later live command runs five minutes or more after it was written. If none ever does, it stays.
 6. **Bystander speech:** it reaches the provider, the transcript, Remote Control, and local decision records. This widens C6, C7, C12 and P6.
-7. **Identifiers:** the clip path names the account, and device names may name a person.
+7. **Identifiers:** the clip path and the recorder folder name the account, and device names may name a person; a device name also reaches the chat as text.
 8. **Unverifiable setup:** the skill cannot check that the speech engine is local (K8).
-9. **A planted PATH:** another account on a shared host can create a missing PATH folder that comes before the recorder's real one. This is a new class, outside C11.
+9. **A planted PATH:** another account on a shared host can create a missing PATH folder, or write to an existing one, that comes before the recorder's real one; the recorder's own folder may be writable by others too. This is a new class, outside C11.
 
 ## S9. Acceptance claims
 
@@ -297,7 +297,7 @@ The tests in T2 check C1 to C12 and C20, in the Linux check. T3 checks C24. The 
 | C7 | A held lock prints `LIVE held`. A non-ISO `since` prints `unknown`. A wrong token prints `LIVE error token`, and no recorder starts. | listen test |
 | C8 | Each of these prints `LIVE error argument` and starts no recorder: a bad `--words`, `--timeout` 0 or 601, an unlisted index, and a speech-tool name with a disallowed character. A stale `--stamp` prints `LIVE error device`. | listen test |
 | C9 | After heard, timeout, superseded, off and error, the fake's pid is gone when the return line is read. A hard kill of the listener ends the fake within 2 s. | listen test |
-| C10 | `clear`, `off`, `on` and `listen` each remove an earlier clip. A second session's `on` that finds the lock held deletes nothing. Without `NODE_ENV=test`, the recorder variable is ignored. | listen test |
+| C10 | `clear`, `off`, `on` and `listen` each remove an earlier clip. A second session's `on` that finds the lock held deletes no clip younger than five minutes. Without `NODE_ENV=test`, the recorder variable is ignored. | listen test |
 | C11 | The exported resolver, given a PATH of a relative entry, a root-relative entry, a network-share entry and a current folder that each hold `ffmpeg.exe`, returns only the fully qualified entry. Off Windows, without the test recorder, `listen` prints `LIVE error platform` and spawns nothing. A changed first match prints `LIVE error recorder-missing`. | listen test |
 | C12 | A state folder that is a link, or a temp folder outside home (including a sibling with a shared prefix), prints `LIVE error folder`. | listen test |
 | C13 | At a seam, the skill speaks once and starts one listener. A spoken finish says whether it was checked. | case 1 |
