@@ -17,8 +17,8 @@ export type Platform = 'win32' | 'posix'
 
 // --- the fixed words ---------------------------------------------------------------
 
-/** The three reasons a folder is refused, in fixed words with no path (S4.6). */
-export const NOT_LISTED = "folder: not on the owner's list; ask the owner to type /brigade folders add <path>"
+/** The three reasons a folder is refused, in fixed words with no path (issue 579, S3.5). */
+export const NOT_SPELLED = 'folder: not a plain absolute local path'
 export const NOT_MAIN = 'folder: not a main checkout of this repository'
 export const NOT_READ = 'folder: the checkout could not be read'
 
@@ -34,7 +34,7 @@ export const START_TIMEOUT_MS = 60000
 
 /** What the lead still reads after a compaction (S2.0). */
 export const DESCRIPTION =
-  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository that the owner listed with /brigade folders add). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.'
+  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.'
 
 export const NAME_REASONS = {
   card: 'name: a roster card already has this name',
@@ -43,24 +43,6 @@ export const NAME_REASONS = {
   worktree: 'name: a worktree folder with this name exists',
   branch: 'name: a branch with this name exists',
   incomplete: 'name: the session files could not be read whole',
-}
-
-/** The owner's `/brigade folders` replies: one line per outcome, none holding a path. */
-export const FOLDERS_REPLIES = {
-  added: 'added',
-  notCanonical: 'not added: the path is not a canonical absolute path',
-  network: 'not added: a network path',
-  notDirectory: 'not added: not a directory',
-  notMain: 'not added: not a main checkout',
-  already: 'not added: already on the list',
-  full: 'not added: the list is full (8)',
-  removed: 'removed',
-  notOnList: 'not on the list',
-  empty: 'the list is empty',
-  unreadable: 'the list could not be read',
-  usage: 'usage: /brigade folders add <path>, /brigade folders remove <path> or /brigade folders list',
-  notTyped: 'folders: only the owner, typed at the prompt or sent from the phone, can use this command',
-  failed: 'folders: the command failed; type /brigade folders list to see the list as it stands',
 }
 
 // --- the seven inputs (S2.1) ------------------------------------------------------
@@ -143,7 +125,7 @@ export const isNetworkPath = (folder: string): boolean => /^(?:\\\\|\/\/)/.test(
 
 /** Step 1: the folder is spelled as a canonical absolute path, and nothing else. */
 export function folderSpelling(folder: string, platform: Platform): Checked<string> {
-  const no = { why: NOT_LISTED }
+  const no = { why: NOT_SPELLED }
   if (typeof folder !== 'string' || folder.length === 0 || folder.length > MAX_FOLDER || CONTROL.test(folder)) return no
   let parts: string[]
   if (platform === 'win32') {
@@ -175,19 +157,6 @@ export function mainCheckout(folder: string, facts: { gitKind: 'dir' | 'file' | 
   const segments = folder.split(/[\\/]/).map(s => s.toLowerCase())
   for (let n = 0; n + 1 < segments.length; n++) if (segments[n] === '.claude' && segments[n + 1] === 'worktrees') return { why: NOT_MAIN }
   if (facts.gitKind !== 'dir' || facts.ancestorHasGit) return { why: NOT_MAIN }
-  return { value: true }
-}
-
-const goodStored = (v: unknown): v is string[] =>
-  Array.isArray(v) && v.length <= 8 && v.every(e => typeof e === 'string' && e.length <= MAX_FOLDER && !CONTROL.test(e))
-
-/** The stored list, checked: at most 8 strings of at most 1000 characters with no control character. Run before any use. */
-export const storedList = (v: unknown): Checked<string[]> => (goodStored(v) ? { value: v } : { why: NOT_LISTED })
-
-/** The owner's list: the folder must equal an entry of a well-formed list. An
- *  unreadable store, a value of another shape and an empty list refuse alike. */
-export function listed(folder: string, stored: unknown, platform: Platform): Checked<true> {
-  if (!goodStored(stored) || !stored.some(e => samePath(e, folder, platform))) return { why: NOT_LISTED }
   return { value: true }
 }
 
@@ -287,60 +256,4 @@ export function capOpen(times: readonly number[], now: number): boolean {
 /** The times after a start reached the run: the window's, and this one. */
 export function capRecord(times: readonly number[], now: number): number[] {
   return [...times.filter(t => now - t < CAP_WINDOW_MS), now]
-}
-
-// --- the owner's `/brigade folders` command (S4.0) --------------------------------------
-
-/** Whether a command's arguments are the folders command: its first word alone decides. */
-export const isFoldersCommand = (args: unknown): boolean => typeof args === 'string' && /^\s*folders(?:\s|$)/.test(args)
-
-export type FoldersCall = { action: 'add' | 'remove'; path: string } | { action: 'list' } | { reply: string }
-
-/** The command's words: `folders add <path>`, `folders remove <path>`, `folders list`. */
-export function parseFolders(args: string): FoldersCall {
-  const usage = { reply: FOLDERS_REPLIES.usage }
-  const m = /^\s*folders\s+(add|remove|list)(?:\s+(.*?))?\s*$/s.exec(args)
-  if (m === null) return usage
-  const [, action, rest] = m
-  if (action === 'list') return rest === undefined || rest === '' ? { action } : usage
-  if (rest === undefined || rest === '' || CONTROL.test(rest)) return usage
-  return { action: action as 'add' | 'remove', path: rest }
-}
-
-/** Adding a path that already passed steps 1 to 3, as its resolved canonical form. */
-export function foldersAdd(stored: unknown, resolved: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
-  const checked = storedList(stored)
-  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
-  const list = checked.value
-  if (resolved.length > MAX_FOLDER) return { reply: FOLDERS_REPLIES.notCanonical }
-  if (list.some(e => samePath(e, resolved, platform))) return { reply: FOLDERS_REPLIES.already }
-  if (list.length >= 8) return { reply: FOLDERS_REPLIES.full }
-  return { list: [...list, resolved], reply: FOLDERS_REPLIES.added }
-}
-
-/** Removing the entry the path equals, compared as the start compares. */
-export function foldersRemove(stored: unknown, typed: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
-  const checked = storedList(stored)
-  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
-  const list = checked.value
-  const kept = list.filter(e => !samePath(e, typed, platform))
-  return kept.length === list.length ? { reply: FOLDERS_REPLIES.notOnList } : { list: kept, reply: FOLDERS_REPLIES.removed }
-}
-
-/** The list as the owner's reply draws it: the home folder as `~`. */
-export function foldersList(stored: unknown, home: string): string {
-  const checked = storedList(stored)
-  if ('why' in checked) return FOLDERS_REPLIES.unreadable
-  const list = checked.value
-  if (list.length === 0) return FOLDERS_REPLIES.empty
-  const win = /^[A-Za-z]:/.test(home)
-  const sep = win ? '\\' : '/'
-  const key = (p: string) => (win ? foldAscii(p) : p)
-  return list
-    .map(e => {
-      if (home === '') return e
-      if (key(e) === key(home)) return '~'
-      return key(e).startsWith(key(home) + sep) ? `~${e.slice(home.length)}` : e
-    })
-    .join('\n')
 }

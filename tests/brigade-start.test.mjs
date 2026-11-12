@@ -134,7 +134,7 @@ test('C6 step 1: Windows spelling', () => {
   }
 });
 
-test('C6 step 1: a network path is told apart, for the add reply', () => {
+test('C6 step 1: a network path is told apart', () => {
   for (const yes of ['\\\\host\\share', '//host/share']) assert.equal(S.isNetworkPath(yes), true);
   for (const no of ['C:\\x', '/x', '']) assert.equal(S.isNetworkPath(no), false);
 });
@@ -155,9 +155,6 @@ test('C6 step 2: only A to Z fold on Windows, so a Unicode look-alike is a diffe
   assert.equal(S.samePath('C:\\work\\k', 'C:\\work\\\u212A', 'win32'), false, 'the Kelvin sign is not k');
   assert.equal(S.samePath('C:\\work\\\u212A', 'C:\\work\\\u212A', 'win32'), true);
   assert.equal(S.samePath('C:\\work\\\u00C9', 'C:\\work\\\u00E9', 'win32'), false, 'non-ASCII letters are compared as written');
-  assert.equal(refused(S.listed('C:\\work\\\u212A', ['C:\\work\\k'], 'win32')), S.NOT_LISTED);
-  assert.deepEqual(S.foldersAdd(['C:\\work\\k'], 'C:\\work\\\u212A', 'win32').list, ['C:\\work\\k', 'C:\\work\\\u212A']);
-  assert.deepEqual(S.foldersRemove(['C:\\work\\k'], 'C:\\work\\\u212A', 'win32'), { reply: S.FOLDERS_REPLIES.notOnList });
 });
 
 test('C6 step 3: a main checkout is a .git directory, no worktrees segment, no ancestor .git', () => {
@@ -244,86 +241,22 @@ test('C6 step 4: a non-zero exit, truncated stdout, no output and a URL over 300
 });
 
 test('C6: no refusal holds a path, a URL or userinfo', () => {
-  for (const why of [S.NOT_LISTED, S.NOT_MAIN, S.NOT_READ, S.CAP_REASON]) assert.ok(!/[\\/]|https?:|@|<path>/.test(why.replace('/brigade folders add <path>', '')), why);
-  assert.equal(S.NOT_LISTED, "folder: not on the owner's list; ask the owner to type /brigade folders add <path>");
+  for (const why of [S.NOT_SPELLED, S.NOT_MAIN, S.NOT_READ, S.CAP_REASON]) assert.ok(!/[\\/]|https?:|@|<path>/.test(why), why);
+  assert.equal(S.NOT_SPELLED, 'folder: not a plain absolute local path');
   assert.equal(S.NOT_MAIN, 'folder: not a main checkout of this repository');
   assert.equal(S.NOT_READ, 'folder: the checkout could not be read');
 });
 
-// --- C15: the list check --------------------------------------------------------
-
-test('C15: the folder must equal an entry of a well-formed list', () => {
-  const list = ['C:\\src\\grimoire', 'C:\\src\\other'];
-  assert.deepEqual(S.listed('C:\\src\\grimoire', list, 'win32'), { value: true });
-  assert.deepEqual(S.listed('c:\\SRC\\grimoire', list, 'win32'), { value: true });
-  assert.equal(refused(S.listed('C:\\src\\grimoire2', list, 'win32')), S.NOT_LISTED);
-  assert.equal(refused(S.listed('/a', ['/A'], 'posix')), S.NOT_LISTED);
-  assert.equal(refused(S.listed('C:\\src\\grimoire', [], 'win32')), S.NOT_LISTED);
-});
-
-test('C15: an unreadable store, a value that is not an array of at most 8 strings of at most 1000 characters, all refuse alike', () => {
-  const nine = ['/a', ...Array.from({ length: 8 }, (_, i) => `/r${i}`)];
-  for (const stored of [undefined, null, '/a', {}, { 0: '/a' }, ['/a', 5], ['/a', null], nine, ['/a', 'x'.repeat(1001)], [['/a']], ['/a', ['/b']]]) {
-    assert.equal(refused(S.listed('/a', stored, 'posix')), S.NOT_LISTED, JSON.stringify(stored)?.slice(0, 40));
+test('579 C2: a badly spelled or network folder refuses with NOT_SPELLED', () => {
+  for (const [bad, platform] of [['\\\\host\\share\\r', 'win32'], ['//host/r', 'posix'], ['r', 'posix'], ['C:\\src\\..\\r', 'win32'], ['/~r', 'posix'], ['/r\n', 'posix'], [`/${'a'.repeat(1000)}`, 'posix']]) {
+    assert.equal(refused(S.folderSpelling(bad, platform)), S.NOT_SPELLED, bad.slice(0, 20));
   }
-  assert.deepEqual(S.listed('/a', ['/a'], 'posix'), { value: true });
 });
 
-// --- C14: the folders command, as rules -----------------------------------------
-
-test('C14: isFoldersCommand reads only the first word', () => {
-  for (const yes of ['folders', 'folders add C:\\x', '  folders list', 'folders remove x', 'folders\tadd x', 'folders x']) assert.equal(S.isFoldersCommand(yes), true, yes);
-  for (const no of ['', 'level 3', 'foldersx', 'x folders', 'Folders', 'folder']) assert.equal(S.isFoldersCommand(no), false, no);
-  assert.equal(S.isFoldersCommand(undefined), false);
-  assert.equal(S.isFoldersCommand(5), false);
-});
-
-test('C14: parseFolders gives the action and the rest of the line as typed', () => {
-  assert.deepEqual(S.parseFolders('folders add C:\\a b\\c'), { action: 'add', path: 'C:\\a b\\c' });
-  assert.deepEqual(S.parseFolders('folders  remove   /a/b '), { action: 'remove', path: '/a/b' });
-  assert.deepEqual(S.parseFolders('folders list'), { action: 'list' });
-  for (const bad of ['folders', 'folders add', 'folders remove ', 'folders list extra', 'folders nope x', 'folders add \u0000']) assert.deepEqual(S.parseFolders(bad), { reply: S.FOLDERS_REPLIES.usage }, bad);
-});
-
-test('C14: add stores a resolved path once, up to 8, each at most 1000 characters', () => {
-  assert.deepEqual(S.foldersAdd([], '/a', 'posix'), { list: ['/a'], reply: S.FOLDERS_REPLIES.added });
-  assert.deepEqual(S.foldersAdd(['/a'], '/b', 'posix').list, ['/a', '/b']);
-  assert.deepEqual(S.foldersAdd(['/a'], '/a', 'posix'), { reply: S.FOLDERS_REPLIES.already });
-  assert.deepEqual(S.foldersAdd(['C:\\Src\\R'], 'c:\\src\\r', 'win32'), { reply: S.FOLDERS_REPLIES.already });
-  const eight = Array.from({ length: 8 }, (_, i) => `/r${i}`);
-  assert.deepEqual(S.foldersAdd(eight, '/new', 'posix'), { reply: S.FOLDERS_REPLIES.full });
-  assert.deepEqual(S.foldersAdd([], `/${'a'.repeat(1000)}`, 'posix'), { reply: S.FOLDERS_REPLIES.notCanonical });
-});
-
-test('C14: add, remove and list refuse a stored list of the wrong shape alike, and change nothing', () => {
-  const nine = Array.from({ length: 9 }, (_, i) => `/r${i}`);
-  for (const bad of [undefined, null, '/a', {}, ['/a', 5], ['/a', ['/b']], nine, ['/a', 'x'.repeat(1001)], ['/a', '/b\n/etc']]) {
-    assert.deepEqual(S.foldersAdd(bad, '/new', 'posix'), { reply: S.FOLDERS_REPLIES.unreadable }, JSON.stringify(bad)?.slice(0, 30));
-    assert.deepEqual(S.foldersRemove(bad, '/a', 'posix'), { reply: S.FOLDERS_REPLIES.unreadable });
-    assert.equal(S.foldersList(bad, '/home/o'), S.FOLDERS_REPLIES.unreadable);
-  }
-  assert.deepEqual(S.storedList(['/a']), { value: ['/a'] });
-  assert.ok('why' in S.storedList('/a'));
-});
-
-test('C14: remove drops exactly the entry it equals, resolving as the start does', () => {
-  assert.deepEqual(S.foldersRemove(['C:\\Src\\R', 'C:\\Src\\S'], 'c:\\src\\r', 'win32'), { list: ['C:\\Src\\S'], reply: S.FOLDERS_REPLIES.removed });
-  assert.deepEqual(S.foldersRemove(['/a'], '/A', 'posix'), { reply: S.FOLDERS_REPLIES.notOnList });
-  assert.deepEqual(S.foldersRemove([], '/a', 'posix'), { reply: S.FOLDERS_REPLIES.notOnList });
-});
-
-test('C14: list draws the home folder as ~ and says when it is empty; no reply holds a typed path', () => {
-  assert.equal(S.foldersList([], '/home/o'), S.FOLDERS_REPLIES.empty);
-  assert.equal(S.foldersList(['/home/o/src/r', '/srv/x'], '/home/o'), '~/src/r\n/srv/x');
-  assert.equal(S.foldersList(['C:\\Users\\o\\src\\r', 'D:\\x'], 'C:\\Users\\o'), '~\\src\\r\nD:\\x');
-  assert.equal(S.foldersList(['C:\\Users\\other\\r'], 'C:\\Users\\o'), 'C:\\Users\\other\\r');
-  assert.equal(S.foldersList(['/home/ox/r'], '/home/o'), '/home/ox/r');
-  assert.equal(S.foldersList(['C:\\Users\\\u212A\\r'], 'C:\\Users\\k'), 'C:\\Users\\\u212A\\r', 'a look-alike is not drawn as home');
-  assert.equal(S.foldersList(['C:\\Users\\\u0130\\r'], 'C:\\Users\\i'), 'C:\\Users\\\u0130\\r');
-  assert.equal(S.foldersList(['/home/o'], '/home/o'), '~');
-  assert.equal(S.foldersList(['C:\\Users\\O\\r', 'C:\\Users\\o'], 'C:\\Users\\o'), '~\\r\n~');
-  assert.equal(S.foldersList(['/home/o/r'], ''), '/home/o/r');
-  for (const line of Object.values(S.FOLDERS_REPLIES)) assert.ok(!/[\\/:]\w/.test(line.replaceAll('/brigade folders', '')), line);
+test('579 C4: the folder list is gone from the rules: no removed name is exported, and the description names no list', () => {
+  for (const gone of ['NOT_LISTED', 'FOLDERS_REPLIES', 'storedList', 'listed', 'isFoldersCommand', 'parseFolders', 'foldersAdd', 'foldersRemove', 'foldersList']) assert.equal(gone in S, false, gone);
+  for (const kept of ['samePath', 'isNetworkPath', 'folderSpelling', 'mainCheckout']) assert.equal(typeof S[kept], 'function', kept);
+  assert.doesNotMatch(S.DESCRIPTION, /folders|owner listed/);
 });
 
 // --- C5: names --------------------------------------------------------------------
@@ -473,7 +406,7 @@ test('C16: a clock that goes back or a non-number never opens more than the cap'
 test('C11: the description is exactly the spec S2.0 text, on one line', () => {
   assert.equal(
     S.DESCRIPTION,
-    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository that the owner listed with /brigade folders add). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.',
+    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.',
   );
   assert.ok(!/\n/.test(S.DESCRIPTION));
 });

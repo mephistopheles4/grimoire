@@ -414,18 +414,11 @@ goal there when it has none, and acts at 2 until it has one. Cleanup waits for t
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
 **Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (candidate O1 in [`docs/security/brigade.md`](docs/security/brigade.md), proposed for the owner's merge decision, with O2 and O3 beside it).
-**Since 0.140.0 (issue 543) the owner can type `/brigade folders add <path>`,
-`remove <path>` or `list`** at the prompt or from the phone, to keep the list of
-main checkouts the start tool may start a session in. The mod acts on it only on
-the same stamps as the level command below, so a run stamped otherwise, a
-command typed in the terminal included, is refused. The list is plugin state:
-other plugins can read, rewrite or plant it (a candidate widening of class
-[C4](docs/security/threat-model.md#c4), proposed for the owner's merge decision),
-the head chef has no tool that reads it (the start tool's refusal does say whether one named folder is on it), and `list` shows its paths, with `~` for
-the home folder, in the lead's transcript, so they reach the model provider and
-Remote Control devices. The start tool re-checks, at every start, that the folder is a
-main checkout whose own configuration names the repository: a consistency
-check, not a binding. Rows are in the [row 15 section](docs/security/brigade.md#row-15).
+**Since 0.146.0 (issue 579) the command `/brigade folders` and its plugin-state
+key `startFolders` are gone.** The start tool relies on the harness's folder
+trust and keeps its own checkout and origin checks. The command now opens the pane,
+as any unknown arguments do, and the mod clears an old `startFolders` key once at
+load, only when one is present. Rows are in the [row 15 section](docs/security/brigade.md#row-15).
 
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
@@ -566,7 +559,7 @@ Brigade no longer intercepts; an archive removes nothing and can be undone. Sinc
 starts every session as a background session with Remote Control, and since
 head-chef 1.28.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
-in a main checkout you listed with `/brigade folders add`, takes no permission
+in a main checkout of the repository, which the harness refuses unless you have trusted the folder, takes no permission
 mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's

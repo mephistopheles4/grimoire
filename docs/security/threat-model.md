@@ -94,6 +94,21 @@ it, can a branch's own code take it, can a steered session take it, and can
 another account read its data. "Another plugin" means any plugin the engine
 loads, its hooks module code included.
 
+### Harness controls
+
+**Proposed (issue 579); not in force until the merge the owner confirms.**
+
+- Grimoire never re-implements a control the harness already provides, such as
+  folder trust, the permission mode, and allow and deny rules.
+- A local process running as the owner, one that can already write the owner's
+  settings or plugin state, is out of scope. Guarding one key against it
+  protects nothing.
+- Name the harness control a row relies on, instead of duplicating it.
+
+The second bullet is the first sentence of [P0](#candidates-for-the-owners-word)
+in the owner's words: a program the owner runs. P0's sentence on what stays in
+scope (another plugin, a branch's own code, a steered session) stands.
+
 ## Who is in scope
 
 | Actor | Reaches us through |
@@ -319,7 +334,7 @@ There are 63 candidate lines in ten groups, P0 to P9. None of these is in force.
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
-**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing.
+**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing. Issue 579 records its first sentence in the owner's words under [Harness controls](#harness-controls): a program the owner runs. The rest of P0 is unchanged.
 
 **P1. Same-user and plugin paths.** Under the four questions in [Scope](#scope), every line below has at least one yes. Another plugin, a branch's own code and a steered session all run as the owner, and each can take the same path. So the scope line drops none of these outright. Each line names the class it would widen. Answers: plugin · branch code · steered session · another account.
 
@@ -568,7 +583,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 
 - `skills/head-chef/SKILL.md` and its references, scanned with the other skills ([row 16](brigade.md#row-16))
 - sessions: background sessions with Remote Control, or Desktop sessions on the owner's words, started by the head chef, named from a plain set, never from an issue, no permission mode unless the owner's words name one ([row 16](brigade.md#row-16))
-- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the engine's own untrusted-folder refusal, the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16))
+- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the harness's folder trust, on which the start's folder relies (measured on claude 2.1.319 in issue 543 M2 and again on claude 2.1.322 in issue 579 T0), with the start tool's checkout and origin checks beside it; a steered lead can name any main checkout of the repository whose own folder the owner trusted (trust on a plain parent folder did not reach a new checkout below it on 2.1.322, and a checkout under a trusted repository is refused for its `.git` above), the residual the owner accepted in issue 579; the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16))
 - the fixed-form start prompt and what it tells each session ([row 16](brigade.md#row-16))
 - the sender check: shown name, status file, `from-session` and `from` pairing, form refusals, the kept id ([row 16](brigade.md#row-16))
 - the owner's yes for starts, cleanup and each GitHub act; anything else asked goes to the owner (stop 1) ([row 16](brigade.md#row-16))

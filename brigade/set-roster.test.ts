@@ -22,7 +22,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
-import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, FOLDERS_REPLIES, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_STARTED } from './start.ts'
+import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
 import { sha256Hex } from './decisions.ts'
 import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
@@ -9626,10 +9626,11 @@ test('516 C3: a cleaner path left in the store by 0.117.0 is never read, written
   expect(data.get('cleaner-path')).toBe(`${ROOT}${SEP}tools${SEP}old.mjs`)
 })
 
-// --- 543: start_background_session and /brigade folders ----------------------------
+// --- 543, 579: start_background_session ------------------------------------------------
 // brigade/start.ts's rules are tested in tests/brigade-start.test.mjs; these drive the wiring.
 
 const START_TOOL_NAME = 'mcp__grimoire__start_background_session'
+// The folder list's old key (issue 579): the start never reads it, and the mod clears it once.
 const FOLDERS_KEY = 'startFolders'
 const REPO_DIR = ON_WINDOWS ? 'C:\\src\\grimoire' : '/src/grimoire'
 const BIN = ON_WINDOWS ? 'C:\\tools' : '/usr/local/bin'
@@ -9649,7 +9650,6 @@ const startArgs = (over: Record<string, unknown> = {}) => ({
 const startTool = ($: any, over: Record<string, unknown> = {}) => toolAnswer($, START_TOOL_NAME, startArgs(over))
 const refusedStart = (rule: string) => `start_background_session refused: ${rule}. Nothing was started.`
 const wtFolder = (name: string) => `${REPO_DIR}${SEP}.claude${SEP}worktrees${SEP}${name}`
-const folders = ($: any, args: string, kind: string | null = 'composer') => typedBrigade($, `folders ${args}`.trimEnd(), kind)
 // Lets the events run until the condition holds (a pending start has reached its run).
 const settleUntil = async (cond: () => boolean) => {
   for (let i = 0; i < 1000 && !cond(); i++) await new Promise<void>(res => setTimeout(res, 0))
@@ -9657,16 +9657,23 @@ const settleUntil = async (cond: () => boolean) => {
 }
 
 type Out = { origin: unknown; start: (argv: string[]) => unknown; hold?: Promise<void> }
-// A world with a main checkout, the two programs on PATH, the lead's own session file, the owner's list in
-// the store and a recording git and claude. `list` is what the store holds under startFolders.
-async function startWorld(on: On, $: any, list: unknown = [REPO_DIR], offer = true) {
+// A world with a main checkout, the two programs on PATH, the lead's own session file, an empty
+// store and a recording git and claude. `planted` is what the store holds under the old startFolders key at load.
+async function startWorld(on: On, $: any, planted: unknown = undefined, offer = true) {
   const store = new Map<string, unknown>()
-  if (list !== undefined) store.set(FOLDERS_KEY, list)
+  if (planted !== undefined) store.set(FOLDERS_KEY, planted)
   const sets: [string, unknown][] = []
+  const deletes: string[] = []
   const fail = { set: false, get: false }
   on('store.get', ($, e: any) => {
     if (fail.get) throw new Error('store gone: C:\\secret')
     return { value: store.get(e.key) } as any
+  })
+  on('store.delete', ($, e: any) => {
+    if (fail.set) throw new Error('disk full: C:\\secret')
+    deletes.push(String(e.key))
+    store.delete(e.key)
+    return { value: undefined } as any
   })
   on('store.set', ($, e: any) => {
     if (fail.set) throw new Error('disk full: C:\\secret')
@@ -9695,7 +9702,7 @@ async function startWorld(on: On, $: any, list: unknown = [REPO_DIR], offer = tr
   await start($)
   if (offer) await brigade($)
   const runs = () => w.procs.filter(a => a[0] === exe('git') || a[0] === exe('claude'))
-  return { w, store, sets, out, runs, fail }
+  return { w, store, sets, deletes, out, runs, fail }
 }
 
 test('543 C1/C4: a start reads the origin once, then runs the fixed start with the folder as its working folder, and answers in fixed words', async ($, on) => {
@@ -9767,38 +9774,40 @@ withJunction('543 C8: a PATH entry that is a junction into the checkout leads to
   expect(runs().filter(a => a[0] === exe('claude'))).toEqual([])
 })
 
-test('543 C15: a folder not on the list, an empty or unreadable list and a list of another shape refuse with the fixed reason and run nothing', async ($, on) => {
-  const { w, store, runs } = await startWorld(on, $)
-  const reason = refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>")
-  expect((await startTool($, { folder: ON_WINDOWS ? 'C:\\src\\other' : '/src/other' })).text).toBe(reason)
-  for (const bad of [[], undefined, 'not-a-list', [REPO_DIR, 5], Array.from({ length: 9 }, (_, i) => (i === 0 ? REPO_DIR : `${REPO_DIR}${i}`)), { 0: REPO_DIR }]) {
-    if (bad === undefined) store.delete(FOLDERS_KEY)
-    else store.set(FOLDERS_KEY, bad)
-    expect((await startTool($)).text).toBe(reason)
-  }
-  // A network path makes no file system call at all.
-  store.set(FOLDERS_KEY, [REPO_DIR])
-  w.log.length = 0
-  const unc = ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo'
-  expect((await startTool($, { folder: unc })).text).toBe(reason)
-  expect(w.log.filter(l => l.includes('host'))).toEqual([])
-  expect(runs()).toEqual([])
+test('579 C2: a start in a main checkout reaches the run with no startFolders key, and with a key planted naming another folder', async ($, on) => {
+  const { store, runs } = await startWorld(on, $)
+  expect((await startTool($)).ok).toBe(true)
+  store.set(FOLDERS_KEY, [ON_WINDOWS ? 'C:\\src\\other' : '/src/other'])
+  expect((await startTool($, { name: 'echo' })).ok).toBe(true)
+  store.set(FOLDERS_KEY, 'not-a-list')
+  expect((await startTool($, { name: 'foxtrot' })).ok).toBe(true)
+  expect(runs().filter(a => a[0] === exe('claude')).length).toBe(3)
 })
 
-test('543 C15: a store whose read throws refuses as an unreadable list and runs nothing', async ($, on) => {
+test('579 C2: the start never reads the store: a store whose read throws changes nothing', async ($, on) => {
   const { fail, runs } = await startWorld(on, $)
   fail.get = true
-  const r = await startTool($)
-  expect(r.text).toBe(refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>"))
-  expect(r.text).not.toContain('secret')
-  expect(runs()).toEqual([])
+  expect((await startTool($)).ok).toBe(true)
+  expect(runs().filter(a => a[0] === exe('claude')).length).toBe(1)
 })
 
-test('543 C15: the list is read at every call: a folder removed after a start refuses the next one', async ($, on) => {
-  const { store } = await startWorld(on, $)
-  expect((await startTool($)).ok).toBe(true)
-  store.set(FOLDERS_KEY, [])
-  expect((await startTool($, { name: 'echo' })).text).toMatch(/not on the owner's list/)
+test('579 C2: a network or badly spelled folder refuses with NOT_SPELLED, no path and no file-system call, and runs nothing', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  const cases: [string, string][] = [
+    [ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo', 'host'],
+    ['relative/path', 'relative'],
+    [`${REPO_DIR}x${SEP}..${SEP}y`, 'grimoirex'],
+    [`${REPO_DIR}x${SEP}.`, 'grimoirex'],
+    [`${REPO_DIR}~1`, '~1'],
+  ]
+  for (const [folder, bit] of cases) {
+    w.log.length = 0
+    const r = await startTool($, { folder })
+    expect(r.text).toBe(refusedStart(NOT_SPELLED))
+    expect(r.text).not.toContain(bit)
+    expect(w.log.filter(l => l.includes(bit))).toEqual([])
+  }
+  expect(runs()).toEqual([])
 })
 
 test('543 C6: a folder that is not a main checkout, or whose origin is another repository, host or shape, refuses and starts nothing', async ($, on) => {
@@ -9954,90 +9963,46 @@ test('543 C11: the tool is offered with the others, with the spec\'s description
   expect((await startTool($)).ok).toBe(true)
 })
 
-test('543 C14: /brigade folders add stores the resolved path, once, and every refusal is one fixed line with no path', async ($, on) => {
-  const { w, store, sets } = await startWorld(on, $, [])
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.added)
-  expect(sets).toEqual([[FOLDERS_KEY, [REPO_DIR]]])
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.already)
-  const bad: [string, string][] = [
-    [ON_WINDOWS ? 'C:\\src\\..\\src\\grimoire' : '/src/../src/grimoire', FOLDERS_REPLIES.notCanonical],
-    ['relative/path', FOLDERS_REPLIES.notCanonical],
-    [ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo', FOLDERS_REPLIES.network],
-    [ON_WINDOWS ? 'C:\\src\\nowhere' : '/src/nowhere', FOLDERS_REPLIES.notDirectory],
-  ]
-  w.dirs(ON_WINDOWS ? 'C:\\src\\plain' : '/src/plain')
-  bad.push([ON_WINDOWS ? 'C:\\src\\plain' : '/src/plain', FOLDERS_REPLIES.notMain])
-  for (const [path, reply] of bad) {
-    const r = await folders($, `add ${path}`)
-    expect(r.text).toBe(reply)
-    expect(r.text).not.toContain('src')
+test('579 C3: /brigade folders in any form opens the pane, whoever types it, and writes no store key', async ($, on) => {
+  const { store, sets } = await startWorld(on, $)
+  const before = sets.length
+  for (const args of [`add ${REPO_DIR}`, `remove ${REPO_DIR}`, 'list', 'frob', '']) {
+    for (const kind of ['composer', 'plugin', 'sdk', null]) {
+      const r = await typedBrigade($, `folders ${args}`.trimEnd(), kind)
+      expect(r.text).toMatch(/^Brigade pane opened\./)
+      expect(r.text).not.toContain('usage')
+    }
   }
-  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
-  // A ninth entry is refused.
-  store.set(FOLDERS_KEY, Array.from({ length: 8 }, (_, i) => `${ROOT}${SEP}full${SEP}${i}`))
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.full)
+  expect(sets.length).toBe(before)
+  expect(store.has(FOLDERS_KEY)).toBe(false)
 })
 
-withJunction('543 C14: an alias between the typed path and the directory is refused', async ($, on) => {
-  const { w, store } = await startWorld(on, $, [])
-  w.put('C:\\src\\alias', { type: 'link', kind: 'junction', target: REPO_DIR })
-  expect((await folders($, 'add C:\\src\\alias')).text).toBe(FOLDERS_REPLIES.notCanonical)
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-})
-
-test('543 C14: remove drops exactly the entry the path equals, folding case as the start does; list draws the home folder as ~', async ($, on) => {
-  const { w, store } = await startWorld(on, $, [REPO_DIR])
-  expect((await folders($, 'list')).text).toBe(`~${SEP}grimoire`)
-  // With no home to draw (empty or the root) every path shows in full, with no ~ (decision 366).
-  for (const home of ['', '/']) {
-    w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: home } : { PATH: BIN, HOME: home }
-    expect((await folders($, 'list')).text).toBe(REPO_DIR)
-  }
-  w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: 'C:\\src' } : { PATH: BIN, HOME: '/src' }
-  expect((await folders($, 'remove nothing')).text).toBe(FOLDERS_REPLIES.notOnList)
-  if (ON_WINDOWS) {
-    expect((await folders($, 'remove c:\\src\\GRIMOIRE')).text).toBe(FOLDERS_REPLIES.removed)
-  } else {
-    expect((await folders($, `remove ${REPO_DIR.toUpperCase()}`)).text).toBe(FOLDERS_REPLIES.notOnList)
-    expect((await folders($, `remove ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.removed)
-  }
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-  expect((await folders($, 'list')).text).toBe(FOLDERS_REPLIES.empty)
-  expect((await folders($, 'frob')).text).toBe(FOLDERS_REPLIES.usage)
-  expect((await typedBrigade($, 'folders')).text).toBe(FOLDERS_REPLIES.usage)
-})
-
-test('543 C14: a call from any origin the level command refuses writes nothing, reads no argument, and never opens the pane', async ($, on) => {
-  const { w, store, sets } = await startWorld(on, $, [])
-  w.open = false
-  for (const kind of ['plugin', 'sdk', 'cli', null]) {
-    const r = await folders($, `add ${REPO_DIR}`, kind)
-    expect(r.text).toBe(FOLDERS_REPLIES.notTyped)
-    expect(r.text).not.toContain('src')
-  }
+test('579 C3: a startFolders key present at load is deleted once, and a load with none writes nothing', async ($, on) => {
+  const { w, store, sets, deletes } = await startWorld(on, $, [REPO_DIR])
+  expect(deletes).toEqual([])
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(deletes).toEqual([FOLDERS_KEY])
+  expect(store.has(FOLDERS_KEY)).toBe(false)
+  // A later load finds no key and writes nothing.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(deletes).toEqual([FOLDERS_KEY])
   expect(sets).toEqual([])
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-  expect(w.open).toBe(false)
-  // A typed folders call never opens the pane, either.
-  expect((await folders($, 'list')).text).toBe(FOLDERS_REPLIES.empty)
-  expect(w.open).toBe(false)
+  expect(w.registered).toContain('show_permission_warning')
 })
 
-test('543 C14: a damaged stored list answers one fixed line to add, remove and list; a store that throws answers the failed line', async ($, on) => {
-  const { store, sets, fail } = await startWorld(on, $, 'not-a-list')
-  for (const args of [`add ${REPO_DIR}`, `remove ${REPO_DIR}`, 'list']) expect((await folders($, args)).text).toBe(FOLDERS_REPLIES.unreadable)
-  expect(sets).toEqual([])
-  store.set(FOLDERS_KEY, [])
+test('579 C3: a store that throws on the one delete leaves the key and the load goes on', async ($, on) => {
+  const { store, deletes, fail } = await startWorld(on, $)
+  store.set(FOLDERS_KEY, [REPO_DIR])
   fail.set = true
-  const r = await folders($, `add ${REPO_DIR}`)
-  expect(r.text).toBe(FOLDERS_REPLIES.failed)
-  expect(r.text).not.toContain('secret')
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(deletes).toEqual([])
+  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
 })
 
 // --- 543, Test round 1: the gaps the three lenses found ------------------------------
 
 test('543 C8: a call made before the pane has offered the tool refuses with the offer rule and runs nothing', async ($, on) => {
-  const { runs } = await startWorld(on, $, [REPO_DIR], false)
+  const { runs } = await startWorld(on, $, undefined, false)
   expect((await startTool($)).text).toBe(refusedStart('offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'))
   expect(runs()).toEqual([])
 })
@@ -10099,7 +10064,7 @@ test("543 C8: a program whose real path differs from the folder's only in Unicod
   const composed = `${REPO_DIR}é`
   // The same name with an e and a combining accent.
   const decomposed = `${REPO_DIR}é`
-  const { w, runs } = await startWorld(on, $, [composed, decomposed])
+  const { w, runs } = await startWorld(on, $)
   for (const d of [composed, decomposed]) w.dirs(`${d}${SEP}.git`)
   const base = w.stat
   const claudeBin = exe('claude')
@@ -10133,18 +10098,6 @@ test('543 C10: a refused start leaves no roster reminder', async ($, on) => {
   expect((await startTool($, { effort: 'turbo' })).ok).toBe(false)
   await turnEnd($)
   expect(reminders(w).length).toBe(0)
-})
-
-test('543 C14: add stores the directory in the spelling the file system gives, not the one typed', async ($, on) => {
-  if (!ON_WINDOWS) return
-  const { w, store } = await startWorld(on, $, [])
-  const base = w.stat
-  w.stat = (p: string) => {
-    const s = base(p)
-    return s !== undefined && p.toLowerCase() === REPO_DIR.toLowerCase() ? { ...s, realPath: REPO_DIR } : s
-  }
-  expect((await folders($, `add ${REPO_DIR.toLowerCase()}`)).text).toBe(FOLDERS_REPLIES.added)
-  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
 })
 
 // --- read_context (issue 492, spec v3 S2.1) ------------------------------------

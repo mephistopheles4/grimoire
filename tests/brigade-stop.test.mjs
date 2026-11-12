@@ -125,7 +125,7 @@ test('C2: the stop tool refuses a subagent or another plugin, reads the files li
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'stop_background_session refused: /);
 });
 
-test('543 C8: the start tool refuses a subagent or another plugin before anything, runs every other guard in its own turn, and the folders command checks its origin before it reads an argument', () => {
+test('543 C8: the start tool refuses a subagent or another plugin before anything, runs every other guard in its own turn', () => {
   const start = between('async function startBackground', '// end startBackground');
   const lines = live(start.slice(0, start.indexOf('async function startRun'))).map(l => l.replace(/return refuseStart\(.*\)$/, 'return refuseStart(…)'));
   // Every live line, in order: the two cheap refusals, then one queued turn that holds each guard.
@@ -151,20 +151,15 @@ test('543 C8: the start tool refuses a subagent or another plugin before anythin
   for (const l of live(start.slice(0, start.indexOf('async function startRun')))) if (l.includes('refuseStart(')) assert.match(l, /return refuseStart\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE|checked\.why)\)$/, l);
   const handler = between("on('tool.call', { tool: START_NAME }", "on('tool.call', { tool: CONTEXT_NAME }");
   assert.match(handler, /startBackground\(\$, e as unknown as Record<string, unknown>, next\.origin, next\.signal, progress\)/, "the handler passes the call's own signal");
-  // The run's steps, in the order of S2.2: the cap, the spelling and the list, the folder, the name, the host, the programs, the origin, then the start.
+  // The run's steps, in the order of S2.2: the cap, the platform, the spelling, the folder, the name, the host, the programs, the origin, then the start.
   const run = start.slice(start.indexOf('async function startRun'));
-  const order = ['capOpen(startTimes, now)', 'hostPlatform($)', '$.store.get(FOLDERS_KEY)', 'folderSpelling(i.folder', 'listed(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'ghFindable($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'capRecord(startTimes', 'progress.ran = true', 'startArgv(i, claude.value'];
+  const order = ['capOpen(startTimes, now)', 'hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'ghFindable($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'capRecord(startTimes', 'progress.ran = true', 'startArgv(i, claude.value'];
   assert.match(run, /originArgv\(git\.value[\s\S]*if \(signal\.aborted\) return refuseStart\('abandoned: the call ran out of time or was interrupted before its run'\)\n\s*attempted\.add\(/, 'a call abandoned before its run is refused before the name is held');
   const at = order.map(s => run.indexOf(s));
   assert.ok(at.every(n => n >= 0), `a step is missing: ${order.filter((s, k) => at[k] < 0)}`);
   assert.deepEqual(at, [...at].sort((a, b) => a - b), 'the steps are out of order');
-  // The folders command: the origin gate is its first act, and a throw answers the fixed line.
-  const folders = between('async function foldersCommand', 'const sessionIo');
-  const gate = live(folders);
-  assert.equal(gate[1], 'try {');
-  assert.equal(gate[2], 'if (!levelOriginAllowed(origin)) return FOLDERS_REPLIES.notTyped');
-  assert.ok(folders.indexOf('levelOriginAllowed(origin)') < folders.indexOf('parseFolders(args)'));
-  assert.match(register, /if \(isFoldersCommand\(e\.args\)\) return \{ text: FOLDERS_REPLIES\.failed \}/);
+  // Issue 579: the start reads no store and holds no list check.
+  assert.doesNotMatch(run, /\$\.store\.get|listed\(/);
 });
 
 test('C1, C2: the mod holds no window, no cleaner, no archive hook and no typed cleanup command', () => {
@@ -173,10 +168,8 @@ test('C1, C2: the mod holds no window, no cleaner, no archive hook and no typed 
   }
   assert.ok(!fs.existsSync(new URL('../brigade/cleanup.ts', import.meta.url)));
   assert.ok(!fs.existsSync(new URL('../brigade/gate.ts', import.meta.url)));
-  // The cleaner's home read is gone. The one read left is the owner's `/brigade folders list`, which draws the home folder as `~` (issue 543, S4.0).
-  const folders = between('async function foldersCommand', 'const sessionIo');
-  assert.doesNotMatch(register.replace(folders, ''), /\$\.env\.get\('(?:HOME|USERPROFILE)'\)/);
-  assert.equal([...folders.matchAll(/\$\.env\.get\('(?:HOME|USERPROFILE)'\)/g)].length, 2);
+  // The cleaner's home read is gone, and so is the folders list's (issue 579): no home-folder read is left.
+  assert.doesNotMatch(register, /\$\.env\.get\('(?:HOME|USERPROFILE)'\)/);
 });
 
 test('C2: the stop tool\'s description names no window and no clean_up', () => {
@@ -193,4 +186,14 @@ test('C2: brigade/ holds no removal command text', () => {
     for (const bad of ['worktree remove', 'branch -d', 'branch -D', "'-D'", '--force', 'claude rm', "'rm'", 'read_cleanup', 'brigade done', 'brigade cleaner']) assert.ok(!text.includes(bad), `${f}: ${bad}`);
     assert.doesNotMatch(text, /'worktree',\s*'remove'|'branch',\s*'-[dD]'/, `${f}: a removal as an argument list`);
   }
+});
+
+test('579 C3, C4: register.tsx holds none of the folder list\'s names, and its one startFolders mention is the guarded clear', () => {
+  for (const gone of ['FOLDERS_KEY', 'FOLDERS_REPLIES', 'foldersCommand', 'isFoldersCommand', 'folderTurn', 'foldering', 'parseFolders', 'NOT_LISTED', 'brigade folders']) {
+    assert.ok(!register.includes(gone), `register.tsx still holds ${gone}`);
+  }
+  assert.equal([...register.matchAll(/startFolders/g)].length, 2);
+  const clear = between('async function clearOldFolders', 'const sessionIo');
+  assert.match(clear, /if \(\(await \$\.store\.get\('startFolders'\)\) !== undefined\) await \$\.store\.delete\('startFolders'\)/);
+  assert.match(clear, /catch \{/);
 });
