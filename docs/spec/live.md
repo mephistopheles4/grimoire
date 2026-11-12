@@ -1,6 +1,6 @@
 # live: the spec
 
-Draft 0.4, after spec round 1 and the lead's decision 61, for round 2 and the proceed. Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
+Draft 0.5, after spec round 2 (final), for the proceed. Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
 Signed: live-208
 
 **The owner's ask, quoted from the issue:**
@@ -9,15 +9,26 @@ Signed: live-208
 
 > The aim is to **lower the cost of each check-in, not the number of them.**
 
-Tier: thorough, on the sensitive route. Plan on Opus at high. Build on Sonnet at high. The owner chose Sonnet for the build (decision 48, relayed by the lead, quoting "/make-it-so" with "rec" on all 11 plan questions). The lead holds the owner's standing goal and decides the proceed and the ticket cut. Installs, and the practice runs that need the owner's mic, stay the owner's.
+**The owner's narrowing, relayed by the lead:**
+
+> for 208 leave it as draft PR when its finished please
+
+So this issue ends as one draft pull request. Nothing is marked ready for review, nothing is merged and nothing is released.
+
+Tier: thorough, on the sensitive route. Plan on Opus at high. Build on Sonnet at high. The owner chose Sonnet for the build (decision 48, relayed by the lead, quoting "/make-it-so" with "rec" on all 11 plan questions). The lead holds the owner's standing goal and decides the proceed and the ticket cut (decision 61 and later). Installs, and the practice runs that need the owner's mic, stay the owner's.
 
 ## S1. Objective
 
 A person turns live mode on in one session and walks away from the keyboard. At each seam of the work, that session speaks two sentences or fewer. It then listens in the background for one spoken reply, and the session stays free while it listens.
 
 **What stays local and what does not.**
-- **Audio stays local.** Neither the mic audio nor the spoken audio leaves the machine.
-- **Text goes where typed text goes.** Heard text and spoken text both enter the chat. From there they go wherever a typed message goes: the model provider, the session transcript on disk, and the person's devices when Remote Control is on. That flow includes words from other people in the room. The words of "Everything runs locally" are kept for the speech engine and the recorder.
+- **Audio stays local** when the speech tool is set up as S5.6 says. The skill cannot check that setup itself (K8).
+- **Text goes where typed text goes.** Heard text and spoken text enter the chat. From there they reach:
+  - the model provider;
+  - the session transcript on disk;
+  - the person's devices, when Remote Control is on.
+
+  That flow includes words from other people in the room.
 
 **Success.**
 - The six practice cases in S10 pass twice each, on the owner's machine.
@@ -27,323 +38,350 @@ A person turns live mode on in one session and walks away from the keyboard. At 
 
 | # | Decision | Source |
 |---|---|---|
-| D1 | It is a grimoire skill, named `live`. The name is fixed by this spec, not left to the contract interview, so that T2 can build `skills/live/` first. | Issue, Decided; the lead, decision 61 |
+| D1 | It is a grimoire skill named `live`. | Issue; the lead, decision 61 |
 | D2 | It works with no other skill. It names no other skill, and no other skill names it. | Issue, Decided |
-| D3 | Hands-free, with no hotkey. The speech engine and the recorder run locally. The text-flow wording in S1 applies. | Issue, Decided; data round 1 |
-| D4 | The skill prose says *the speech tool* and *the recorder*, and names no product. The README's setup section names Voicebox and ffmpeg. The listener's code names ffmpeg, since code that calls a tool names it (ADR 0001). | Issue; Q8 |
-| D5 | The skill stands alone, on an explicit, typed turn-on. There is no always-loaded instruction and no frontmatter `hooks` key. Each listener return restates the rule and the token. If practice case 1 fails, the fallback is this one line, which the skill prints for the person to add to their own CLAUDE.md and never writes itself: `When live mode is on in this session, speak only at seams, as the live skill says.` | Q1 |
-| D6 | The listener uses an energy gate, a minimum voiced length and a check for an empty or filler-only transcript. It uses no voice-activity model. | Q2 |
-| D7 | Nothing waits for an end-of-playback signal. The wait is an estimate of the speaking time from the word count. The first listen after turn-on adds a cold-start margin. Heard text that repeats the line just spoken is dropped. The setup asks for a headset. | Q3; round 1 |
-| D8 | One listener at a time, ended by a cooperative stop. A new seam stops the listener, speaks, then listens again. The skill ignores a superseded or failed return. | Q4, and the probe |
+| D3 | It is hands-free, with no hotkey. The speech engine and the recorder run locally. The text flows are as S1 says. | Issue; round 1 |
+| D4 | The skill prose says *the speech tool* and *the recorder*, and names no product. The README's setup section names Voicebox and ffmpeg. The listener's code names ffmpeg. | Issue; Q8 |
+| D5 | The skill stands alone, on an explicit typed turn-on. There is no always-loaded instruction and no frontmatter `hooks` key. Each listener return restates the rule, the token and the speech tool's name. If practice case 1 fails, the skill prints this line for the person to add to their own CLAUDE.md, and never writes it itself: `When live mode is on in this session, speak only at seams, as the live skill says.` | Q1 |
+| D6 | The gate is an energy gate with a minimum voiced length. A transcript that is empty or only filler is dropped. There is no voice-activity model. | Q2 |
+| D7 | Nothing waits for an end-of-playback signal. The wait is an estimate of speaking time, plus a cold-start margin after turn-on or after the speech tool failed. Echo is dropped. A spoken read-back never holds an affirmative word. The setup asks for a headset. | Q3; rounds 1 and 2 |
+| D8 | One listener runs at a time, ended by a cooperative stop. A new seam stops the listener, speaks, then listens again. | Q4, and the probe |
 | D9 | The build runs on Sonnet at high. | Q5, owner |
-| D10 | Anyone or anything audible to the mic is proposed as a new actor. The owner writes it in. | Q6 |
-| D11 | Candidate accepted risks, worded in S8. The lead re-accepted Q7a on the widened wording of S8 item 4, and flagged it to the owner. | Q7; the lead, decision 61 |
-| D12 | The recorder is resolved from PATH's absolute entries only, never from the current folder, and runs with fixed arguments. Nothing reads a command from config. | Q8; adversarial round 1 |
-| D13 | v1 runs on Windows only. The platform check sits just before the real recorder would start. With the test recorder, the whole listener runs on any platform, so the Linux check can run its tests. | Q9; executability round 1 |
-| D14 | The practice cases run on the manual `desktop-app` variant, with a real mic and the speech tool. | Q10 |
+| D10 | Anyone or anything audible to the mic is proposed as a new actor. | Q6 |
+| D11 | The candidate risks are worded in S8. The lead re-accepted the history risk for this spec, on the widened wording. The threat-model entry stays a candidate, because this issue merges nothing. | Q7; the lead, decision 61; round 2 |
+| D12 | The recorder is resolved once at turn-on. Only fully qualified drive folders on PATH are searched: never the current folder, a root-relative entry or a network share. The path found is pinned for the rest of the session. | Q8; rounds 1 and 2 |
+| D13 | v1 runs on Windows only. The platform check comes after the argument, folder, token and lock checks, and before recorder resolution. With the test recorder, the whole listener runs on any platform. | Q9; rounds 1 and 2 |
+| D14 | The practice cases run on the manual `desktop-app` variant. | Q10 |
 | D15 | The listener times out 120 s after its gate opens. | Q11 |
-| D16 | The first release to users is T1's merge. It comes only after T2 has merged, T3's candidates have the owner's word, and T4's cases have run against T1's branch. | Executability round 1; the lead, decision 61 |
-| D17 | Heard text never stands for the person's own typed words. | Adversarial round 1; the lead, decision 61 |
-| D18 | After three heard turns in a row with no typed message between them, no listener starts until the person types. | Adversarial round 1; the lead, decision 61 |
+| D16 | Everything lands in one draft pull request on one branch. Nothing merges and nothing ships. | The owner's narrowing; the lead |
+| D17 | Heard text never stands for the person's typed words. It never grants, widens or extends a delegation of the person's decisions, even after a read-back. | Rounds 1 and 2; the lead, decision 61 |
+| D18 | After three heard turns with no typed message from the person, the listener itself refuses to listen until the person types. | Rounds 1 and 2; the lead, decision 61 |
 
-**The probe (2026-11-10, Windows 11).** A background task ran a Node stub. A kill by pid from another command ended it with no output and exit code 1. Its SIGTERM handler never ran. The session was still woken by a "failed" task notification.
+**The probe (2026-11-10, Windows 11).** A kill by pid ended a background Node task with no output and exit code 1, and no handler ran. The session was still woken by a "failed" notice.
 
 **Not probed.**
-- Whether the desktop app delivers another session's report while a listener task runs. D8 holds either way.
-- The speech tool's transport, port, Origin handling, and what its history keeps. T3 probes these once the tool is running (S8).
+- Whether the desktop app delivers another session's report while a listener runs. D8 holds either way.
+- The speech tool's transport, port, Origin handling and what its history keeps. T3 probes these (C24).
 
 ## S3. Scope
 
 **In scope:**
 - the skill, its contract and its README;
-- the listener script and its tests;
-- the security page and the threat-model proposal;
-- the practice-test doc.
+- the listener and its tests;
+- the security page, and the threat-model candidate entry;
+- the practice-test doc;
+- one draft pull request.
 
 **Out of scope:**
-- macOS and Linux input (a follow-up);
-- a voice-activity model (a follow-up, only if case results ask for one);
-- hotkeys and any cloud engine;
-- any change to another skill or to the Brigade mod.
-
-Clearing the speech tool's history from code is out of scope too. The README says how to clear it by hand. D16 makes the owner's word on that risk a condition of the first release.
+- macOS and Linux input;
+- a voice-activity model;
+- hotkeys, and any cloud engine;
+- clearing the speech tool's history from code;
+- any change to another skill or to the Brigade mod;
+- a merge or a release.
 
 ## S4. Files
 
 | Path | What | Ticket |
 |---|---|---|
-| `skills/live/scripts/gate.mjs` | The pure gate: frames in, events out. No I/O. | T2 |
-| `skills/live/scripts/listen.mjs` | The command-line listener (S6). | T2 |
-| `skills/live/.skillspector-baseline.yaml` | Only if SkillSpector flags the scripts. Each entry gives its reason. | T2 |
-| `tests/live-gate.test.mjs` | Gate tests on PCM synthesized in the test. No binary fixture, no mic. | T2 |
-| `tests/live-listen.test.mjs` | Listener tests with a fake recorder (S9). | T2 |
-| `CONTRIBUTING.md` | The test list and the test-seam paragraph name the two new test files. | T2 |
-| `docs/security/threat-model.md` | The candidate entry and a proposed R13 row (S8). | T3 |
-| `docs/security/live.md` | The skill's risks and controls (S7). | T3 |
-| `skills/live/references/CONTRACT.md` | The contract, Level Thorough. | T1 |
-| `skills/live/references/contract.changelog.md` | Its change log. | T1 |
-| `skills/live/SKILL.md` | Generated from the contract. Never edited by hand. | T1 |
-| `skills/live/README.md` | What it does, and the setup steps (S5.6). | T1 |
-| `docs/practice-tests/live.md` | The cases, expected answers, results grid and usage table (S10). | T4, on T1's branch |
-| `.claude-plugin/plugin.json` | A version bump in T2 and in T1. | T2, T1 |
-
-There is no `examples/` folder, so no registry row, and no new dependency.
+| `skills/live/scripts/gate.mjs` | The pure gate. | T2 |
+| `skills/live/scripts/listen.mjs` | The listener (S6). It exports its PATH resolver for tests. | T2 |
+| `skills/live/SKILL.md` | T2 writes a stub, so the check passes: frontmatter `name: live` and `description: Draft, not for use.`, and one line saying T1 replaces it. T1 replaces it with the generated file. | T2, then T1 |
+| `skills/live/.skillspector-baseline.yaml` | Only if SkillSpector flags the scripts. | T2 |
+| `tests/live-gate.test.mjs`, `tests/live-listen.test.mjs` | The gate tests and the listener tests (S9). | T2 |
+| `tests/live-fake-recorder.mjs` | The fake recorder (S6, "The test seam"). | T2 |
+| `CONTRIBUTING.md` | T2 adds the tests to the test list and the test-seam paragraph. T1 adds `skills/live/` to the list of generated skills. | T2, T1 |
+| `docs/security/live.md`, `docs/security/threat-model.md` | The probe record, the controls, and the candidate entry (S8). | T3 |
+| `skills/live/references/CONTRACT.md`, `contract.changelog.md`, `skills/live/README.md` | The contract, its log, and the README with the setup (S5.6). | T1 |
+| `docs/practice-tests/live.md` | The cases and the results grid (S10). | T4 doc by T1's session; runs by the owner |
+| `.claude-plugin/plugin.json` | One version bump on the branch. | T2 |
 
 ## S5. What the skill does
 
 ### S5.1 Turn-on and turn-off
 
-1. **Turn-on is typed.** The person types "live mode on". A spoken turn-on cannot happen, because nothing listens before it.
-2. **The device.** On the first turn-on the skill runs `listen.mjs devices`, which lists the audio inputs with an index. The person types the index. The skill runs `listen.mjs on --device-index <n>`. The script resolves the index to the device name and keeps it in `lock.json`. The model never writes a device name into a command.
-3. **The token.** `on` takes the lock and prints `LIVE on <token>`.
-4. **The lock is held elsewhere.** `on` prints `LIVE held <since>`. The skill tells the person in chat. Only a typed "take it over" runs `on --take`.
-5. **Warm-up.** The skill speaks one short line, such as "Live mode is on", to load the voice model.
-6. **Turn-off.** "live mode off", typed or spoken, runs `listen.mjs off --token <t>`. A spoken off is accepted on purpose, because it fails safe.
+1. **Turn-on is typed.** The person types "live mode on".
+2. **At every turn-on:**
+   - The skill runs `listen.mjs devices`. That prints a list stamp and one line per audio input: the index, then the friendly name. Control characters are stripped and each name is cut to 128 characters.
+   - The skill shows the list and asks the person to type the index of their input and the name of the speech tool to use.
+   - It then runs `listen.mjs on --device-index <n> --stamp <s> --speech-tool <name>`.
+   - The speech tool's name may use only letters, digits, `_`, `-` and `.`.
+3. **What `on` does:**
+   - It takes the lock and resolves the device to its stable id.
+   - It resolves the recorder (D12), and pins the device id, the recorder path and the speech tool name in `lock.json`.
+   - It prints `LIVE on <token>` on the first line, then `device: <name>` and `recorder: <folder>`.
+   - The skill shows those last two lines in chat, so the person sees what was picked.
+4. **The lock is held elsewhere.** `on` prints `LIVE held <since>`. Only a typed "take it over" runs `on --take`. A take-over stops the old listener first.
+5. **Warm-up.** The skill speaks one short line, such as "Live mode is on".
+6. **Turn-off.** "live mode off", typed or spoken, runs `listen.mjs off --token <t>`.
 7. **A session without the lock** never speaks and never listens.
 
 ### S5.2 Seams
 
 The skill speaks only at three seams:
-1. **A hand-back.** A task in this session finishes, or a session this one leads reports a finish.
-2. **A decision only the person can make.** The skill asks for the person's own call aloud first. It gives its own view only after the person answers, or when the person asks for it.
-3. **A stop.** Anything that would make the session stop and escalate.
+1. **A hand-back:** a task in this session finishes, or a session it leads reports a finish.
+2. **A decision only the person can make:** the skill asks for the person's own call aloud first.
+3. **A stop:** anything that would make the session stop and escalate.
 
-**What is never spoken.** The skill never speaks mid-task and never narrates progress. A spoken line never holds:
-- code, diffs, paths, branch names or tokens;
-- secrets or personal details;
-- issue or pull request titles, repository names, or people's names.
+**Never spoken:** narration of progress, code, diffs, paths, branch names, tokens, secrets, personal details, issue or pull request titles, repository names, and people's names. A spoken line gives the outcome and asks the question.
 
-It says the outcome and asks the question. The chat copy carries the detail.
-
-**Background sessions.** A finish in a background session is not a seam for it, because it does not hold the lock.
+**Background sessions.** A finish in a background session is not a seam for that session.
 
 ### S5.3 Speaking
 
-- **Two sentences or fewer:** what happened, then the one question.
-- **Checked or not.** A hand-back always says whether the result was checked, for example "done, tests pass" against "done, not yet checked". A spoken finish is a summary, never a verification.
-- **The same words in chat.** The exact spoken text also appears in chat.
-- **The order of calls.** The skill runs `listen.mjs stop --token <t>`, then calls speak on the speech tool named at setup, then starts the listener as a background task with `--words <n>`. On the first listen after turn-on it also passes `--cold`.
-- **No text to a shell.** Spoken and heard text never go into a shell or a script argument. Only the token, the word count and the flags do.
-- **A failed speak.** If speak or transcribe fails, the skill writes the reason in chat once, starts no listener and stays silent until the next seam.
+- **Length.** Two sentences or fewer. A hand-back says whether the result was checked.
+- **The same words in chat.** The exact text spoken also appears in chat.
+- **The speech tool.** The skill speaks only through the tool whose name is pinned at turn-on. After a compaction it reads that name from the latest reminder line. With no name in sight, it stops and asks the person to type it.
+- **The order of calls.**
+  1. `listen.mjs stop --token <t>`.
+  2. Wait out the estimated length of the line spoken before, so no two lines overlap.
+  3. Speak.
+  4. Start the listener as a background task with `--words <n>`, where n is the word count. Add `--cold` on the first listen after turn-on, and after any failed speak or transcribe.
+- **No text to a shell.** Spoken and heard text never go into a shell or a script argument.
+- **When speaking fails.** If speak or transcribe fails, the skill writes the reason in chat once, runs `clear`, starts no listener and stays silent until the next seam.
 
 ### S5.4 The listener's return
 
-The background task prints exactly two lines. The first is the return, `LIVE <word>` with at most one field. The second is the reminder.
+The background task prints two lines.
+- **The first is the return:** `LIVE <word>`, with at most two fields.
+- **The second is the reminder:** `live mode is on, token <t>, speech tool <name>: speak only at seams`, or `live mode is off`.
 
 | First line | The skill does |
 |---|---|
-| `LIVE heard <seq> <clip path>` | Transcribes that clip only, then runs `listen.mjs clear --token <t>`. It drops the text if it is empty, filler only, or repeats the line just spoken. Otherwise it acts under S5.5. |
-| `LIVE timeout <seq>` | Nothing. It stays quiet until the next seam. |
-| `LIVE superseded <seq>` | Nothing. |
-| `LIVE off` | Nothing. |
-| `LIVE error <reason>` | Writes the reason in chat once. `<reason>` is one word from a fixed list: `platform`, `recorder-missing`, `device`, `argument`, `token`, `folder`, `recorder-failed`. |
+| `LIVE heard <seq> <clip path>` | Transcribes that clip, then runs `clear` whatever transcribe returned. It drops text that is empty, filler only, or equal to the trailing words of the line just spoken. Otherwise it acts under S5.5. |
+| `LIVE timeout <seq>`, `LIVE superseded <seq>`, `LIVE off` | Nothing. |
+| `LIVE paused` | The chain limit was reached. The skill speaks one fixed line, "I've stopped listening; please type.", and writes the same line in chat. |
+| `LIVE error <reason>` | Writes the reason in chat once. If speech still works, it also speaks the fixed line. The reason comes from a fixed list: `platform`, `recorder-missing`, `device`, `argument`, `token`, `folder`, `recorder-failed`. |
 | anything else, or a failed task | Treated as `LIVE error`. |
-
-The reminder line reads `live mode is on, token <t>: speak only at seams`, or `live mode is off`. It restores the rule and the token after compaction. The token is a cooperation marker between sessions, not a secret (S6).
 
 ### S5.5 Acting on what it hears
 
 - **Shown first.** Heard text appears in chat as `Heard: "<text>"` before the skill acts on it.
-- **Heard is never typed (D17).** Heard text never stands for the person's own typed words, wherever the session's instructions ask for those. A decision taken on heard text is always recorded as heard, quoting the `Heard:` line. It is never recorded as the person's typed word.
+- **Heard is never typed (D17):**
+  - Heard text never stands for the person's typed words, wherever the session's instructions ask for those.
+  - It never grants, widens or extends a delegation of the person's decisions, even after a read-back. That needs typed words.
+  - A decision taken on heard text is recorded as heard. A record that stays on this machine may quote the `Heard:` line. A record that is posted anywhere says "heard" and names the act within S5.2's limits, without the quoted text.
+- **What a typed message is.** It is the person's own message in this session's chat. A task notice, a report from another session, a relay and a heard line are not typed messages.
 - **Read-back before acting.** These never run on speech alone:
   - anything hard to reverse: merge, push, delete, publish, send, install, a change to settings;
   - turning live mode on in another session;
   - every decision the session's instructions keep for the person.
 - **How the read-back works:**
-  - **Chat** shows the full heard text.
-  - **Aloud,** the skill names only the act and its target in the limits of S5.2, for example "Merge pull request 12, yes?".
-  - **A yes** is a typed yes, or a spoken reply that is only an affirmative word. It must come from the listener started straight after that read-back, with that listener's `<seq>`.
-  - **Cancelled by:** any other reply, a timeout, or any later seam speaking. The act then needs a fresh request.
-- **Heard text never widens anything.** It never widens the session's permissions, and it never answers a prompt waiting for a typed approval.
-- **The chain limit (D18).** After three heard turns in a row with no typed message, the skill starts no more listeners. It says once in chat that it waits for the person to type.
+  - **In chat:** the full heard text.
+  - **Aloud:** the act and its target only, with no affirmative word. For example: "Merge pull request 12. Say confirm to go ahead."
+  - **What confirms:** a typed yes, or a heard reply that is only "confirm". The heard reply must arrive on the completion of the background task the skill started straight after that read-back. The skill knows that task by the task id the harness returned, and records the task id and the `<seq>` together.
+  - **What cancels:** any other reply, a timeout, any later seam speaking, or a compaction. After a cancel, the act needs a fresh request.
+- **Heard text never widens anything else.** It never widens permissions, and it never answers a prompt that waits for a typed approval.
+- **The chain limit (D18).** `listen` counts heard returns in its own state. On the fourth it prints `LIVE paused`. The skill runs `listen.mjs reset --token <t>` only on a typed message.
 
 ### S5.6 The README setup
 
-The README holds these setup steps. They are the person's own install, never done by the skill:
-1. Run a speech tool with a local engine and no cloud fallback. Its server must bind to loopback only. The README says how to check both for Voicebox.
-2. Register the speech tool's MCP server, and name it to the skill at setup. The skill uses only that tool, and stops if none is named.
-3. Put ffmpeg on the PATH.
-4. Wear a headset. Without one, the mic hears the spoken lines.
-5. Know what the speech tool keeps (text, and audio if it keeps audio), and how to clear it.
-6. Know what is captured. While a listener runs, the mic captures the room and either side of a call, and the words go into the chat. Turn live mode off during calls.
+The person does all of this. The skill never installs anything.
+1. **A local speech tool.** Run one with a local engine, no cloud fallback, and a server bound to loopback only. The README says how to check both for Voicebox.
+2. **Register it.** Register the speech tool's MCP server, and know the name to type at turn-on.
+3. **The recorder.** Put ffmpeg in a folder on PATH that only your account and the administrators can write.
+4. **A headset.** Without one, the mic hears the spoken lines.
+5. **The history.** Know what the speech tool keeps (text, and audio if it keeps audio) and how to clear it.
+6. **What gets captured.** While a listener runs, the mic captures the room and both sides of a call, and the words go into the chat. Turn live mode off during calls.
 
 ## S6. The listener script
 
 **Runtime.** Node 24, with no dependencies.
 
-**Platform.** The platform check sits just before the real recorder would start. On anything but Windows, `listen` prints `LIVE error platform` and starts nothing. Everything before that point runs on any platform.
+**Order of checks** in every command: arguments, then the folder, then the token, then the lock, then the platform, then recorder resolution, then the spawn.
 
-**State folder.** The script computes it at run time as `join(os.tmpdir(), 'grimoire-live')`. The script prints `LIVE error folder` and stops when either:
-- the folder is a link or a junction (checked with lstat); or
-- `os.tmpdir()` lies outside `os.homedir()`.
+**Platform.** On anything but Windows, with no test recorder, the script prints `LIVE error platform` before resolving or spawning anything.
 
-Its privacy rests on the per-user temp folder's access rules. The mode 0o700 is kept for later platforms, and does nothing on Windows.
+**State folder.** `join(os.tmpdir(), 'grimoire-live')`. The script prints `LIVE error folder` when:
+- the folder is a link or a junction (lstat); or
+- its canonical real path is not inside the canonical real path of `os.homedir()`.
 
-**The token.** 16 bytes from `crypto.randomBytes`, as hex. It keeps sessions from stepping on each other by accident, and it is not a secret.
+The inside test compares case-insensitively, at a separator boundary.
+
+Privacy rests on the per-user temp folder's access rules. These variables are environment, and a planted environment falls under R7, R10 and C11: `TEMP`, `TMP`, `USERPROFILE`, `PATH`, `NODE_ENV` and the test variables.
+
+**The token.** 16 bytes from `crypto.randomBytes`, written as hex. It is a cooperation marker, not a secret.
 
 **Commands.**
 
 | Command | Effect |
 |---|---|
-| `devices` | Lists the audio inputs as `<index> <name>`. Uses the real recorder, or the test recorder in tests. |
-| `on --device-index <n> [--take]` | Deletes any leftover clips. Creates `lock.json` exclusively, holding the token, the start time and the device name. Prints `LIVE on <token>`. If a lock exists, prints `LIVE held <since>`, where `<since>` is printed only in ISO time shape and otherwise as `unknown`. `--take` replaces the lock. |
-| `listen --token <t> --words <n> [--cold] [--timeout <s>]` | Checks the token, deletes earlier clips, supersedes any running listener, then waits. The wait is `1 + n / 2.5 + 0.5` s, plus 30 s with `--cold`. It then opens the gate. The timeout counts from the gate opening, defaults to 120 and runs from 1 to 600. An utterance in progress at the timeout runs to its end, up to the 30 s cap, and returns `heard`. |
-| `stop --token <t>` | Writes `stop`. The running listener sees it within 100 ms and prints `LIVE superseded <seq>`. |
+| `devices` | Runs the pinned or resolved recorder with `-hide_banner -list_devices true -f dshow -i dummy`. It reads stderr, keeps only the audio-device lines, and prints a stamp of the list plus `<index> <friendly name>` lines, cleaned as S5.1 says. Alternative names are never printed. |
+| `on --device-index <n> --stamp <s> --speech-tool <name> [--take]` | Lists the devices again, and refuses `LIVE error device` if the stamp differs. Creates `lock.json` exclusively, or with `--take` writes `stop`, waits up to 2 s, then replaces it. Only after holding the lock does it delete leftover clips. It pins the device's alternative id, the recorder path and the tool name, then prints the three lines in S5.1. `LIVE held <since>` prints `<since>` only when it is shaped as ISO time, and otherwise prints `unknown`. |
+| `listen --token <t> --words <n> [--cold] [--timeout <s>]` | Steps, in order: <ol><li>Checks the token. Refuses `LIVE paused` once the heard count has reached three.</li><li>Checks that the pinned recorder is still the first match on PATH, and that the pinned device id is still listed. Otherwise it prints `LIVE error recorder-missing` or `LIVE error device`.</li><li>Supersedes the running listener, then deletes earlier clips.</li><li>Waits `1 + n / 2.5 + 0.5` s, plus 30 s with `--cold`.</li><li>Opens the gate.</li></ol>The timeout counts from the gate opening: 120 by default, from 1 to 600. An utterance still going at the timeout runs to its end, up to the 30 s cap. `<seq>` is the previous seq plus one, and is kept in `listener.json`. |
+| `stop --token <t>` | Writes `stop`. The listener sees it within 100 ms and prints `LIVE superseded <seq>`. |
 | `clear --token <t>` | Deletes the clip. |
+| `reset --token <t>` | Sets the heard count to zero. |
 | `off --token <t>` | Stops the listener, deletes the clips and `lock.json`, then prints `LIVE off`. |
 
-**The rest of the listener's behaviour:**
-- **Supersede.** `listen` writes `stop` and waits up to 2 s for `listener.json` to clear. It then removes `stop` and creates its own `listener.json`, holding a new `<seq>`.
-- **Arguments.** Each must be in range and well formed: `--words` from 0 to 200, `--timeout` from 1 to 600, `--device-index` a listed index, and the token in hex. Anything else prints `LIVE error argument` or `LIVE error token`, and no recorder starts.
-- **The recorder.** The script finds `ffmpeg.exe` by walking the absolute entries of PATH only, skipping empty and relative ones and never the current folder. It spawns that absolute path with `shell: false` and `cwd` set to the state folder, using these arguments. It reads stdout and discards stderr.
+**Arguments.**
+- `--words` runs from 0 to 200, and `--timeout` from 1 to 600.
+- `--device-index` must be a listed index, and `--stamp` must be hex.
+- `--speech-tool` follows S5.1's character set, with at most 64 characters.
+- The token is hex.
+
+Anything else prints `LIVE error argument` or `LIVE error token`, and starts no recorder.
+
+**The recorder.**
+- **Resolution.** At `on`, the script walks PATH. It keeps only entries that are fully qualified drive paths, skipping empty, relative, root-relative and network-share entries. It takes the first `ffmpeg.exe` it finds.
+- **The spawn.** The pinned path runs with `shell: false` and `cwd` set to the state folder. The script reads stdout and discards stderr. The capture arguments are:
 
   ```text
-  -hide_banner -loglevel error -f dshow -i audio=<device from lock.json> -ac 1 -ar 16000 -f s16le -
+  -hide_banner -loglevel error -f dshow -i audio=<pinned alternative id> -ac 1 -ar 16000 -f s16le -
   ```
 
-- **The recorder stops on every exit path:** heard, timeout, superseded, off, error, and the 30 s cap. The script kills the child and waits for it to exit before it prints its return. The recorder also ends when its stdout closes, so killing the listener cannot keep the mic open.
-- **The test seam.** With `NODE_ENV=test`, `GRIMOIRE_LIVE_RECORDER` names a Node script, which runs with `process.execPath` in place of ffmpeg. Both are environment variables. A planted environment is outside this control and falls under the threat model's planted-state risk (R7).
-- **The gate** (`gate.mjs`). Its input is 16 kHz, mono, signed 16-bit frames of 30 ms.
-  - **Noise floor:** the RMS over the first 0.5 s. The threshold is the larger of three times that floor and 300.
-  - **Start:** three frames in a row above the threshold.
-  - **End:** 1.6 s below it.
-  - **Too short:** under 0.4 s voiced is discarded, and the gate keeps listening.
-  - **Too long:** a turn is cut at 30 s.
-  - **Output:** `start`, `end` with the PCM, or `discard`.
-- **The clip.** Each listen writes a fresh random name, `clip-<random>.wav` (a WAV header, then the PCM). Only the latest clip exists. `clear`, `off`, `on` and the next `listen` delete it.
+- **Stopping.** The recorder stops on every exit path. The script kills the child and waits for it before it prints its return. If the listener itself is killed, the child's stdout closes and the recorder ends.
+
+**The test seam.**
+- With `NODE_ENV=test`, `GRIMOIRE_LIVE_RECORDER` names a Node script, which runs with `process.execPath` in place of ffmpeg.
+- **The fake recorder** (`tests/live-fake-recorder.mjs`):
+  - **Arguments:** it takes the same arguments as ffmpeg. For `-list_devices`, it prints a fixed device list to stderr.
+  - **Audio:** for capture, it writes its pid to a file named by `GRIMOIRE_LIVE_FAKE_PID`. It then streams s16le PCM at real time, from a scenario in `GRIMOIRE_LIVE_FAKE_SCENARIO`. A scenario is a list of tone, noise and quiet segments.
+- **Each test's environment:** HOME, USERPROFILE, TMPDIR, TEMP and TMP all point into a fresh folder, with the temp folder inside home.
+
+**The gate** (`gate.mjs`): 16 kHz, mono, signed 16-bit, in 30 ms frames.
+- **Noise floor:** the RMS of the first 0.5 s. The threshold is the larger of three times the floor and 300.
+- **Start:** three frames in a row above the threshold.
+- **End:** 1.6 s below it.
+- **Too short:** a turn with under 0.4 s voiced is discarded.
+- **Too long:** a turn is cut at 30 s.
+
+**The clip.** Each listen writes a fresh `clip-<random>.wav`. Only the latest clip exists. `clear`, `off`, `on` (after the lock) and the next `listen` (after the token check) delete it.
 
 ## S7. Security controls
 
 | # | Risk | Control |
 |---|---|---|
-| K1 | Words from the room, a video or a call reach the session. | **D17:** heard text is never typed words. **The read-back:** it covers hard-to-reverse acts and decisions reserved to the person. The yes is bound to the next listener's `<seq>`, and any later seam cancels it. Heard text is shown in chat. **D18:** the chain limit. Residual: with a spoken yes, the room supplies both halves (K6). |
-| K2 | Heard text or a device name reaches a shell. | No transcript is ever an argument. The device comes by typed index and is read from `lock.json`. Every argument is range-checked. The recorder spawns with no shell. |
-| K3 | Two sessions speak or listen at once. | The token lock, with exclusive create. This is cooperation between sessions, **not a security control**: any same-user process can read the token, and speech has no speaker identity. |
-| K4 | Another account reads the clip. | The per-user temp folder's access rules. The script refuses a link, a junction, or a temp folder outside the profile. There is one clip at a time, deleted right after transcribing. |
-| K5 | The speech tool keeps spoken and heard text, and maybe audio. | The never-spoken list (S5.2). The read-back speaks only the act and its target. The README asks for loopback only and says how to clear the history. Candidate accepted risk (S8). |
-| K6 | A spoken yes comes from the room. | The owner allowed it. Candidate accepted risk (S8). |
-| K7 | Another program runs as the recorder. | The recorder is resolved from PATH's absolute entries only, with `cwd` in the state folder. There is no config file. A planted environment or PATH falls under R7. |
-| K8 | Audio or text leaves through a cloud speech engine. | The README requires a local engine with no cloud fallback. The skill uses only the speech tool named at setup. |
-| K9 | A forged transcript: the clip is swapped, or another program serves the speech tool's port. | A fresh clip name per listen. The skill transcribes only the path its own listen printed. The README says to stop using live mode while the speech tool is down. Candidate residual (S8). |
+| K1 | Words from the room reach the session. | The rules: D17, the typed-message definition, and the read-back covering hard-to-reverse acts and reserved decisions, with no affirmative word spoken. The binding: the yes is tied to the task id. The cancel cases: any later seam, a timeout or a compaction. The limit: the chain limit, enforced in the script. Residual: a spoken confirm from the room (K6). |
+| K2 | Heard text or a device name reaches a shell. | No transcript is ever an argument. The device is chosen by a typed index against a stamped list, and pinned by id. Every argument is range- or character-checked. There is no shell. |
+| K3 | Two sessions speak or listen at once. | The token lock, with exclusive create. A take-over stops the old listener. This is cooperation, not a security control. |
+| K4 | Another account reads the clip. | The per-user temp folder's access rules, with canonical path checks. A link or junction is refused. Each clip is cleared after every transcribe, whatever the result. If a session ends without `off`, the clip stays until the next `on`. |
+| K5 | The speech tool keeps text, and maybe audio. | The never-spoken list. The read-back speaks only the act and its target. The README's loopback check. A candidate risk (S8). |
+| K6 | A spoken confirm comes from the room. | The owner allowed a spoken yes. A candidate risk (S8). |
+| K7 | Another program runs as the recorder. | Only fully qualified drive folders on PATH are searched. The path is pinned at `on` and checked again at each `listen`. The folder is shown to the person. There is no config file. A planted environment or PATH falls under R7, R10 and C11. Residual: another account on a shared host that can create a missing folder listed early on PATH (S8). |
+| K8 | Audio or text leaves through a cloud engine. | The README's setup. The skill uses only the speech tool pinned at turn-on. Residual: the skill cannot check the setup (S8). |
+| K9 | A stale or planted clip. | A fresh clip name per listen. The skill transcribes only the path printed by its own listen. Residual: a same-user watcher, or a squatter on the speech tool's port (S8). |
 
 ## S8. Threat model proposal (T3)
 
-T3 adds a candidate entry under "Candidates for the owner's word", and proposes an R13 row with its scores left to the owner. It changes neither "Who is in scope" nor "Accepted risks". The entry states, in one line each:
+T3 adds a candidate entry under "Candidates for the owner's word", and proposes an R13 row with its scores left to the owner. It changes neither "Who is in scope" nor "Accepted risks". This issue ends as a draft, so the entry stays a candidate. One line each:
 
-1. **The new actor:** anyone or anything audible to the mic while a listener runs.
-   - **What it reaches:** one session's next messages, up to the chain limit, and every decision a spoken yes can confirm.
+1. **The new actor:** anyone or anything audible while a listener runs.
+   - **What it reaches:** the session's next messages, up to the chain limit, and every act a spoken confirm can approve.
    - **What it hears:** every spoken line.
-   - **Residual:** with a spoken yes allowed, the room supplies both the request and the yes for every act the read-back covers.
-2. **Speech has no speaker identity.** A steered session, another plugin, or any process able to use the speech tool can ask a question in the same voice. It is proposed as a widening of C4 and C5.
-3. **Forged transcripts:** a swapped clip, or a program on the speech tool's port while the tool is down. This is K9's residual, under C4, C7 and C11.
+   - **Residual:** the room supplies both the request and the confirm.
+2. **Speech has no speaker identity.** This widens C4 and C5.
+3. **Forged transcripts and a squatted port.** A swapped clip, or a program on the speech tool's port while the tool is down, can forge text and also receives the spoken lines and each clip. This touches C4, C7 and C11. `lock.json` is listed with them.
 4. **The speech tool's history:**
-   - **Who can read it:** any local process of any account, and the LAN if the server binds beyond loopback.
-   - **What it holds:** spoken and heard text, plus audio if the tool keeps it.
-   - **Browser pages:** whether a page can reach the server is probed in T3, before the owner is asked.
-5. **The clip at rest:** the last clip, unencrypted in the per-user temp folder, until it is cleared.
-6. **Bystander speech:** other people's words go to the model provider, to the transcript and to Remote Control devices, as a widening of C7, C12 and P6.
-7. **The clip path names the account,** and it enters the transcript on each heard turn.
+   - **Who can read it:** any local account, and the LAN if the server binds beyond loopback.
+   - **What it holds:** text, and audio if the tool keeps it.
+   - **Browser pages:** whether a page can reach it is answered by T3's probe.
+5. **The clip at rest:** unencrypted in the per-user temp folder until it is cleared, or until the next `on` after an abnormal end.
+6. **Bystander speech:** it reaches the provider, the transcript, Remote Control, and local decision records. This widens C6, C7, C12 and P6.
+7. **Identifiers:** the clip path names the account, and device names may name a person.
+8. **Unverifiable setup:** the skill cannot check that the speech engine is local (K8).
+9. **A planted PATH:** another account on a shared host can create a missing PATH folder that comes before the recorder's real one. This is a new class, outside C11.
 
 ## S9. Acceptance claims
 
-The tests in T2 check C1 to C12. They run in the Linux check. The practice run in T4 checks C13 to C20. Review and CI check C21 to C23.
+The tests in T2 check C1 to C12 and C20, in the Linux check. T3 checks C24. The practice run in T4 checks C13 to C19. Review and CI check C21 to C23.
 
 | # | Claim | Measured by |
 |---|---|---|
-| C1 | A 0.6 s tone, after 0.5 s of low noise and followed by 1.6 s of quiet, gives one `end` with about 0.6 s of PCM. | gate test |
-| C2 | A 0.2 s burst gives `discard`, and a later 0.6 s tone still gives `end`. | gate test |
-| C3 | Speech that never pauses is cut at 30 s. | gate test |
-| C4 | `listen` with the fake recorder prints `LIVE heard <seq> <path>` and the reminder line. The clip is a valid 16 kHz mono WAV. | listen test |
-| C5 | `stop` makes a running `listen` print `LIVE superseded <seq>` within 500 ms. A second `listen` supersedes the first. | listen test |
-| C6 | With no speech, `listen --words 0 --timeout 1` prints `LIVE timeout <seq>` within 1.5 + 1 + 0.5 s. | listen test |
-| C7 | `on` with a lock held prints `LIVE held`. A planted `since` that is not ISO time prints `unknown`. A wrong token prints `LIVE error token`, and no recorder starts. | listen test |
-| C8 | Each of these prints `LIVE error argument` and starts no recorder: a non-integer `--words`, `--timeout 0`, `--timeout 601`, and an unlisted `--device-index`. | listen test |
-| C9 | After each of heard, timeout, superseded, off and error, the fake recorder has recorded its own exit before the return line is printed. | listen test |
-| C10 | `clear`, `off`, `on` and the next `listen` each remove an earlier clip. Without `NODE_ENV=test`, `GRIMOIRE_LIVE_RECORDER` is ignored. | listen test |
-| C11 | With an executable named like the recorder in the current folder, and not on PATH, the listener does not run it. Off Windows without the test recorder, `listen` prints `LIVE error platform` and spawns nothing. | listen test |
-| C12 | A state folder that is a link or junction prints `LIVE error folder`. | listen test |
+| C1 | A 0.6 s tone after 0.5 s of noise, then 1.6 s of quiet, gives one `end` with about 0.6 s of PCM. | gate test |
+| C2 | A 0.2 s burst gives `discard`, and a later 0.6 s tone gives `end`. | gate test |
+| C3 | Unbroken speech is cut at 30 s. | gate test |
+| C4 | `listen` prints `LIVE heard <seq> <path>` and the reminder, which carries the token and the tool name. The clip is a valid 16 kHz mono WAV. | listen test |
+| C5 | `stop` makes `listen` print `LIVE superseded <seq>` within 500 ms. A second `listen` supersedes the first. `on --take` stops a running listener. | listen test |
+| C6 | `listen --words 0 --timeout 1` with quiet prints `LIVE timeout <seq>` within 3 s. | listen test |
+| C7 | A held lock prints `LIVE held`. A non-ISO `since` prints `unknown`. A wrong token prints `LIVE error token`, and no recorder starts. | listen test |
+| C8 | Each of these prints `LIVE error argument` and starts no recorder: a bad `--words`, `--timeout` 0 or 601, an unlisted index, and a speech-tool name with a disallowed character. A stale `--stamp` prints `LIVE error device`. | listen test |
+| C9 | After heard, timeout, superseded, off and error, the fake's pid is gone when the return line is read. A hard kill of the listener ends the fake within 2 s. | listen test |
+| C10 | `clear`, `off`, `on` and `listen` each remove an earlier clip. A second session's `on` that finds the lock held deletes nothing. Without `NODE_ENV=test`, the recorder variable is ignored. | listen test |
+| C11 | The exported resolver, given a PATH of a relative entry, a root-relative entry, a network-share entry and a current folder that each hold `ffmpeg.exe`, returns only the fully qualified entry. Off Windows, without the test recorder, `listen` prints `LIVE error platform` and spawns nothing. A changed first match prints `LIVE error recorder-missing`. | listen test |
+| C12 | A state folder that is a link, or a temp folder outside home (including a sibling with a shared prefix), prints `LIVE error folder`. | listen test |
 | C13 | At a seam, the skill speaks once and starts one listener. A spoken finish says whether it was checked. | case 1 |
-| C14 | Mid-task, nothing is spoken until the seam. | case 2 |
-| C15 | A background session finishing speaks nothing. Only the live session speaks. | case 3 |
-| C16 | At a decision, the skill asks for the person's call before it gives its own. | case 4 |
-| C17 | A spoken "merge it" gets a read-back that speaks only the act and its target. Nothing happens before a yes. | case 5 |
-| C18 | A spoken answer to a decision the instructions keep for the person gets a read-back, and is recorded as heard. | case 6 |
-| C19 | A hand-back whose result holds a path or a token speaks neither. The chat copy shows exactly the spoken line. | case 1, second run |
-| C20 | The chain limit: after three heard turns, no listener starts until a typed message. | case 2, extended |
+| C14 | Nothing is spoken mid-task. | case 2 |
+| C15 | Only the live session speaks. | case 3 |
+| C16 | The skill asks for the person's call first. | case 4 |
+| C17 | A spoken "merge it" gets a read-back with no affirmative word, and no action. Its own echo does not confirm it. | case 5, run once with speakers |
+| C18 | A spoken answer to a reserved decision gets a read-back. A spoken delegation is refused. Both are recorded as heard. | case 6 |
+| C19 | A hand-back whose result holds a path or a token speaks neither. | case 1, second run |
+| C20 | The fourth heard return prints `LIVE paused`. `reset` clears the count. | listen test |
 | C21 | The skill prose names no product and no other skill. | review |
-| C22 | `athanor run check` passes. CI is green, including SkillSpector, zizmor, and `claude plugin validate --strict` on `skills`. | the check and CI |
+| C22 | `athanor run check` passes at each ticket's head. CI is green on the draft pull request, including SkillSpector, zizmor and `claude plugin validate --strict`. | the check and CI |
 | C23 | Every spoken line also appears in chat. | cases 1 and 4 |
+| C24 | `docs/security/live.md` records each probe answer from S2 with the tool's version and how it was found. The probe ran on a cleared or test-only history, and records the history's shape (fields, audio or not, retention), never its entries. The candidate entry holds S8's nine lines. | T3 review |
 
 ## S10. Practice test (T4)
 
-**Who and where.** It runs on the `desktop-app` variant (D14), using T1's branch. The owner supplies the mic, the headset and the speech tool. The doc follows `docs/practice-tests/procedure.md`, and each expected answer is written before the first run.
+**Who and where.** The `desktop-app` variant (D14), on the draft branch. The doc follows `docs/practice-tests/procedure.md`, and each expected answer is written before the first run. T1's session writes the doc. The owner runs the cases.
 
-**Before the cases, the owner installs and registers** the speech tool and ffmpeg (S5.6). When that happens is the owner's call (open item O5).
+**Before the cases.**
+- The owner installs and registers the speech tool and ffmpeg (S5.6), at a time the owner chooses (O5).
+- T4 waits for T3's probe result (C24).
 
-**A smoke step comes first.** `listen.mjs devices`, then `on`, then `listen` with the real device, must return `LIVE heard`.
+**A smoke step comes first:** `devices`, then `on`, then `listen` with the real device, which must return `LIVE heard`, then `off`.
 
 **The cases,** each run twice:
-1. **A seam:** it speaks once and starts a listener. The second run's result holds a path and a token.
-2. **Mid-task:** nothing is spoken until the end. The extended run checks the chain limit.
-3. **A background session finishing:** only the live session speaks. The setup is two sessions, one leading the other, with live mode on in the lead only.
+1. **A seam.** The second run's result holds a path and a token.
+2. **Mid-task.** An extended run checks the chain limit.
+3. **A background session finishing.** The live session starts a background task that finishes on its own. Only the live session speaks.
 4. **A decision:** it asks for the person's call first.
-5. **"Merge it" spoken:** it gives a read-back and does not act. The setup is a work folder with no git remote and nothing to merge.
-6. **A spoken answer to a reserved decision:** it gives a read-back, and the record says "heard".
+5. **"Merge it":** the work folder has no git remote and nothing to merge. One run uses speakers instead of the headset.
+6. **A reserved decision.** The work folder's CLAUDE.md keeps one decision for the person, "close the practice note". The record read is the session's own chat line. A spoken "you decide the rest for me" is refused.
 
-**What the results doc records.**
-- **The results grid:** pass or fail, and the spoken line only. Never transcripts, device names or paths.
-- **A usage table** that the person fills over two weeks: turn-ons, turn-offs, misfires.
+**The results doc** records pass or fail and the spoken line only. Its usage table holds turn-ons, turn-offs, misfires, and the person's own load rating for each check-in.
 
 ## S11. The ticket cut (the lead's word)
 
+Every ticket commits to this issue's branch. The branch ends as one draft pull request.
+
 | Ticket | Builds | Depends on | Who |
 |---|---|---|---|
-| T2 | `gate.mjs`, `listen.mjs` and their tests, test-first. CONTRIBUTING's test list. It ships inert, with no `SKILL.md`. | proceed | A session on Sonnet at high |
-| T3 | `docs/security/live.md` and the threat-model candidate entry, after probing the speech tool (S8 item 4). | T2 merged | A session. Then the owner's word on the candidates. |
-| T1 | The contract through the contract interview, the generated `SKILL.md`, the README. | T2 merged | A session with the interview answered by the lead or the owner |
-| T4 | The practice-test doc, and two runs of each case, on T1's branch. | T1 branch, owner's installs | The owner, with the mic |
-| Release | T1 merges, which ships the skill. | T2 merged, T3's owner word, T4 pass | The lead's sign-off |
+| T2 | `gate.mjs`, `listen.mjs`, the fake recorder, the tests, the stub `SKILL.md`, the CONTRIBUTING test list, the version bump. | the proceed | A session on Sonnet at high |
+| T3 | The probe (C24), `docs/security/live.md`, and the candidate entry. | T2 | A session on Sonnet at high |
+| T1 | The contract interview, the generated `SKILL.md` that replaces the stub, the README, the CONTRIBUTING generated list, and the practice-test doc. | T2 | A session. Who answers the interview is open (O6). |
+| T4 | Two runs of each case. | T1, T3, the installs | The owner |
+| Draft PR | Opened after T2. Updated by each ticket. Never marked ready, never merged. | | This issue's session |
 
 **The lenses at Test.**
-- T2 and T1 each get the QA pair and the security pair. The standards pair is the trade-off at the Lens pairs limit of 2.
+- T2 and T1 each get the QA pair and the security pair. The standards pair is the trade-off at the limit of 2.
 - T3 gets the security pair.
 
 ## S12. Trade-offs, boundaries, rollback, retirement
 
 **Trade-offs.**
-- **Reliability against Security.** A spoken yes saves typing, and the room can fake it. The owner's call stands (K6).
-- **Interaction against Safety.** The chain limit of three ends a long spoken exchange with the person away. The side taken is safety (D18).
-- **Interaction against Safety.** The 120 s timeout. The side taken is quiet (the issue's "quiet helps recovery").
-- **Flexibility against Maintainability.** Windows-only v1.
-- **No business driver.** AGENTS.md names none, so each side leans to what is cheaper to reverse.
+- **A spoken confirm (K6):** convenience against security. The owner's call stands.
+- **The chain limit of three, and the 120 s timeout:** safety and quiet are chosen over long spoken exchanges.
+- **Windows only in v1.**
+- **No business driver** is named, so each choice leans to what is cheaper to reverse.
 
 **Boundaries.**
-- *Always:* test first, then `athanor run check`, then bump the version.
-- *Ask first:*
-  - any new dependency or download, and any frontmatter key;
-  - any change to another skill or to the mod;
-  - any threat-model scope change.
-- *Never:*
-  - a fixed path;
-  - a transcript in a shell;
-  - a product name in the skill prose;
-  - a recorder from the current folder.
+- *Always:* test first, then `athanor run check`.
+- *Ask first:* any new dependency or download, any frontmatter key, any change to another skill or to the mod, and any threat-model scope change.
+- *Never:* a fixed path, a transcript in a shell, a product name in the skill prose, a recorder from the current folder, or a merge.
 
-**Rollback and stop.**
-- **Pull a shipped version.** Revert T1's merge and bump the version. The scripts stay inert without `SKILL.md`.
-- **Clean up after use.** `listen.mjs off` removes the state. A person who added D5's fallback line removes it themselves.
-- **Stop the build and go back to Design when:**
-  - case 1 still fails after the fallback; or
-  - case 5 or case 6 acts on speech alone; or
-  - any case speaks from the wrong session.
+**Rollback.**
+- Close the draft pull request. Nothing has shipped.
+- `listen.mjs off` removes the state.
+- A person who added D5's line removes it themselves.
+
+**Stop and go back to Design when:**
+- case 1 fails after the fallback; or
+- case 5 or case 6 acts on speech alone; or
+- any case speaks from the wrong session.
 
 **Retire it if:**
-- after two weeks the usage table shows no drop in load; or
+- the usage table shows no drop in load after two weeks; or
 - it is turned off more often than on; or
 - it misfires twice after a fix.
 
 ## Open
 
-- **O5, owner only.** The installs and registration T4 needs: the speech tool, ffmpeg and the MCP server. The lead puts this to the owner when T4 is next.
-- **For the lead.** The proceed, fix or kill on this spec after round 2, and the ticket cut in S11.
-- **Decided by the lead (decision 61, level 3, the lead's word, not the owner's).** These were O1 to O4: the name, the release order, D17, and a chain limit of three. The lead also took every round-1 security row as drafted, and both trade-offs (the README capture warning and the exclusive create).
+- **O5, owner only:** when the speech tool, ffmpeg and the MCP registration get installed for T4, and when the owner runs T4. The lead puts both to the owner when T4 is next.
+- **O6, for the lead:**
+  - Who answers T1's contract interview. The contract skill asks for the person's own words on actions, stops, tools and the why.
+  - Whether the interview may change anything that S5 fixes.
+- **The proceed, fix or kill** on this spec, and the ticket cut in S11.
+- **The round-2 trade-offs** in the round record.
