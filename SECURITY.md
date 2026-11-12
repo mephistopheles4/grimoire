@@ -573,8 +573,9 @@ every device signed in to the owner's account (the threat model's
 [class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a
 session took any message from the head chef as a relayed decision, on any
 matter, labelled as relayed and never as the owner's own words; since then
-its start prompt carries only its issue and the lead's name, and the
-session's own rules decide how it treats a lead message. Since head-chef 1.0.0 it knows its lead by name
+its start prompt carries only its issue and the lead's name, and, since head-chef 1.32.0
+(issue 578), at most one bounded note in the lead's words, labelled as the lead's and not
+the owner's (by the tool on a background start, by the lead itself on the Desktop route), and the session's own rules decide how it treats a lead message. Since head-chef 1.0.0 it knows its lead by name
 only (ADR 0013), so any process of the same user, or any session that holds
 the lead's name, can speak for the lead. The owner accepted the forged-sender
 risk of the 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision
