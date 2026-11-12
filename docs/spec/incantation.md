@@ -678,7 +678,11 @@ Neither applies here, and neither is carried.
      never allow-rule `listen.mjs start` or `stop`; to keep each turn from
      stopping on a prompt, the person may add one allow rule for exactly
      `node <skill base>/scripts/listen.mjs wait`, which lets a session read
-     heard text unprompted while the listener runs (O19, Decisions taken); the
+     heard text unprompted while the listener runs (O19, Decisions taken). In
+     observe-only mode, one more allow rule for exactly
+     `node <skill base>/scripts/observe.mjs add` keeps each log line from
+     prompting; it lets a session append lines to the observe log unprompted
+     (O20, Decisions taken), and `freeze` stays prompted; the
      mic is muted while Linux-side audio plays, so talking over the session
      is not heard; sound from the Windows side (a browser, a call, media) is
      not muted and is heard as speech, so keep it off or use a headset;
@@ -1223,6 +1227,13 @@ is the speak gate's eval set. A System One model is a later option that must
 beat the plain gate on that set and never decides whether a yes counts,
 because of the drift risk the owner named. No model is in this change.
 
+The lead, at level 3 (2026-11-12), took all four of 1.5's fixes for round 2's
+mediums, and O20: README step 6 names one allow rule for exactly
+`node <skill base>/scripts/observe.mjs add`, with `freeze` always prompted,
+and the observe log keeps 30 days. Adding the rule to any settings file
+stays the owner's step. The residual: a steered session can append lines to
+the observe log unprompted.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -1248,9 +1259,9 @@ them.
   owner's own number, and whether the whole felt time gets a target too,
   given before the practice run; until then 2.5 s stands.
 - **O20.** The allow rule for exactly `node <skill base>/scripts/observe.mjs
-  add` (S4.4): drafted as an optional owner's step, like O19's; without it,
-  each log line is prompted. Open: whether the observe log's 30 days suit
-  the owner.
+  add` and the log's 30-day keep (S4.4): taken by the lead at level 3
+  (Decisions taken); adding the rule to any settings file stays the owner's
+  step.
 - **O18.** The two ambient-speech classes (S8): accepted for the build by
   the owner ("Accept both", relayed, Decisions taken). Each lands only on a
   merge the owner confirms in their own chat; on a no at merge, the change
