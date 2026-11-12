@@ -20,18 +20,18 @@ project's script, including every `innerHTML` call and the `esc` function.
 It is **not** a required check. A check that blocks on findings nobody has
 triaged is one people learn to route around.
 
-### Its first findings
+### The `strip` function
 
-The first scan raised two high alerts, both
-`js/incomplete-multi-character-sanitization`, on one function copied into two
-files. `strip` removed HTML tags from a label in a single pass.
+`strip` is one function copied into two files. It removes HTML tags from a
+label. CodeQL's `js/incomplete-multi-character-sanitization` query flags a
+single-pass form of it.
 
 - **The output never reaches HTML.** `strip` feeds a Markdown export, which
   lands in a `<textarea>` value and the clipboard, and a console line. Neither
   is an HTML sink.
 - **A bypass is hard to build anyway.** `<[^>]+>` matches from the first `<` to
   the first `>`, so `<scr<script>ipt>` is consumed whole.
-- **It was fixed regardless.** The safe form repeats the replacement until the
+- **The safe form is used regardless.** It repeats the replacement until the
   string stops changing. `scripts/check.mjs` fails if the single-pass form
   returns.
 
@@ -66,8 +66,7 @@ this pin**: it reads `uses:` lines, and the scanner is installed from a `run:`
 line. A bump is a reviewed pull request.
 
 **The pin covers SkillSpector's own code only.** Fifteen of its dependencies
-are version ranges, which resolve fresh on every run. That was as true of
-2.11.0, and the [threat model](threat-model.md) carries it as residual risk.
+are version ranges, which resolve fresh on every run. The [threat model](threat-model.md) carries it as residual risk.
 
 **Static analysis only.** The workflow runs `--no-llm`: patterns, AST and YARA,
 with no model call, no API key and no secret. The semantic pass, which compares
@@ -179,16 +178,9 @@ from the tree on every run, so a new skill cannot go unscanned. One job named
 `scan` passes only when every skill did. Each skill's result goes into the run
 summary as a table.
 
-The root scan was dropped under 2.11.0, because it stopped fitting inside the
-scanner. 2.11.0 capped a whole scan at sixty seconds and one internal step at
-five, and neither could be changed from outside. The root scan took about sixty
-seconds on a runner, and under load the five-second step overran every time.
-Either overrun marked a clean tree as partly read, and `main` went red on it
-three times in a day. One skill scans in five to eight seconds.
-
-2.11.1 raised the whole-scan deadline to 600 seconds and made it configurable
-through `SKILLSPECTOR_MAX_WORKFLOW_SECONDS`. The root scan stays dropped for the
-first reason above: a skill directory is what installs.
+The scanner's whole-scan deadline is 600 seconds, and
+`SKILLSPECTOR_MAX_WORKFLOW_SECONDS` sets it. One skill scans in five to eight
+seconds.
 
 ### Partial reads
 
@@ -219,25 +211,24 @@ root's entries stay rule-wide, for a scan of the whole repository.
 | Rule | Name | Why it is suppressed |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` warns that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not remove one. |
-| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only since 2026-10-17.** From 2.12.0 it no longer fires when a skill is scanned on its own, so `eagle-eye` and `head-chef` dropped their entries; it still fires in a scan of the whole repository, on those two skills' contracts among other files. **Narrowed to path mentions** with `message: "skills/*/SKILL.md"`: every hit in a whole-repository scan is the text of a skill's own file path, which is the finding text the scanner matches. A line that tells an agent to enumerate or read other installed skills, without naming such a path, is no longer suppressed. A line that does name one still is. |
-| `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead; `head-chef`'s cleanup, which at levels 1 and 2 acts at once on the owner's words naming each session, without a second yes; and `head-chef`'s level 3, which acts toward a goal without a per-act word once a press of the slider or the level command sets level 3, and follows the owner's user-level instructions file for what waits (since head-chef 0.17.0, issue 416; reworded in issue 504): **accepted, not a false positive**, on the owner's word of 2026-10-28, reworded on 2026-11-04. On `contract` its five entries name the three bindings, the change log and `references/CONTRACT.md`; `SKILL.md` and the template that seeds every file it generates are named by none. The owner accepted the whole-skill breadth on 2026-09-27 and narrowed it to those files on 2026-10-18; see below the table. On `head-chef` its three entries name `SKILL.md`, `references/CONTRACT.md` and `README.md`, the first two added on 2026-10-21 and the README on 2026-11-08 (issue 540: it says a session it starts has no approval card to accept). |
-| `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts, and the same text in `contract`'s `assets/OFL.txt`, beside the hiring page's fonts. A legal text we must carry verbatim. On `contract` its entry names that one file, accepted on 2026-10-18. |
+| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only.** It does not fire when a skill is scanned on its own; it fires in a scan of the whole repository, on `eagle-eye`'s and `head-chef`'s contracts among other files. **Narrowed to path mentions** with `message: "skills/*/SKILL.md"`: every hit in a whole-repository scan is the text of a skill's own file path, which is the finding text the scanner matches. A line that tells an agent to enumerate or read other installed skills, without naming such a path, is not suppressed. A line that does name one still is. |
+| `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead; `head-chef`'s cleanup, which at levels 1 and 2 acts at once on the owner's words naming each session, without a second yes; and `head-chef`'s level 3, which acts toward a goal without a per-act word once a press of the slider or the level command sets level 3, and follows the owner's user-level instructions file for what waits: **accepted, not a false positive**, on the owner's word. On `contract` its five entries name the three bindings, the change log and `references/CONTRACT.md`; `SKILL.md` and the template that seeds every file it generates are named by none. Its breadth is narrowed to those files; see below the table. On `head-chef` its three entries name `SKILL.md`, `references/CONTRACT.md` and `README.md`; the README says a session it starts has no approval card to accept. |
+| `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts, and the same text in `contract`'s `assets/OFL.txt`, beside the hiring page's fonts. A legal text we must carry verbatim. On `contract` its entry names that one file. |
 | `MP3` | Memory Manipulation | A template comment describing how **Reset** discards a reader's overrides and **Undo** offers them back. |
-| `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving it fires. **Accepted, not a false positive:** `eagle-eye`'s usage log, after a yes in chat, and `contract`'s bindings naming the folders where a person's agents live, where a built agent loads in later sessions; the skill asks before any write that would install. Also accepted: `contract`'s `README.md`, which tells a person the hiring page keeps their answers in the browser until Reset, unencrypted, the accepted risk of 2026-10-18. On `contract` its entries name `references/binding-codex.md` and `README.md`, each whole; added on 2026-10-15 for the whole skill, narrowed to the binding on 2026-10-18, and the `README.md` entry accepted the same day. |
+| `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving it fires. **Accepted, not a false positive:** `eagle-eye`'s usage log, after a yes in chat, and `contract`'s bindings naming the folders where a person's agents live, where a built agent loads in later sessions; the skill asks before any write that would install. Also accepted: `contract`'s `README.md`, which tells a person the hiring page keeps their answers in the browser until Reset, unencrypted, an accepted risk. On `contract` its entries name `references/binding-codex.md` and `README.md`, each whole. |
 | `RP1` | Unpinned MCP server | The `README.md` install command. `skills` is the Vercel Labs installer, not an MCP server. |
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message, which tells a user a project `.env` is **not** read. |
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
-| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole of `SKILL.md`**, so an instruction hidden there in a comment, a link-reference comment or a base64 data link would pass the scan; rule 2c refuses invisible characters. Added on 2026-10-15 for the whole skill, narrowed to `SKILL.md` on 2026-10-18. `head-chef`'s `SKILL.md` carries the same fences since 0.9.0, and **on `head-chef` it is off for the whole of `SKILL.md`** too; added on 2026-10-21. |
-| `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
-| `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. The rule reads only a skill's frontmatter, so a file glob alone would narrow nothing. The entry also carries a `message` value with no wildcard: the clause exactly as the scanner quotes it, which for a long sentence is a window of up to 120 characters either side of the slash command. TR2 still fires on any other clause, in any skill, and on this one once any word inside that window changes, an addition included. Words outside the window are not read by TR2 at all, and the match ignores case. Added on 2026-10-17. |
-| `LP3` | MCP Least Privilege | **Accepted.** No skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL; its entry names `SKILL.md`, where the rule lands in `eagle-eye`, and that was not measured on such a mount. On `contract` it fires on `SKILL.md`, because the skill ships scripts, and its entry names that file; accepted on 2026-10-18. |
+| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole of `SKILL.md`**, so an instruction hidden there in a comment, a link-reference comment or a base64 data link would pass the scan; rule 2c refuses invisible characters. `head-chef`'s `SKILL.md` carries the same fences, and **on `head-chef` it is off for the whole of `SKILL.md`** too. |
+| `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else. |
+| `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. The rule reads only a skill's frontmatter, so a file glob alone would narrow nothing. The entry also carries a `message` value with no wildcard: the clause exactly as the scanner quotes it, which for a long sentence is a window of up to 120 characters either side of the slash command. TR2 still fires on any other clause, in any skill, and on this one once any word inside that window changes, an addition included. Words outside the window are not read by TR2 at all, and the match ignores case. |
+| `LP3` | MCP Least Privilege | **Accepted.** No skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL; its entry names `SKILL.md`, where the rule lands in `eagle-eye`, and that was not measured on such a mount. On `contract` it fires on `SKILL.md`, because the skill ships scripts, and its entry names that file. |
 
 **Narrower suppression for one skill.** A skill's entry may be narrower than the
 root's, for a scan of that skill's folder, and never broader. `eagle-eye`,
 `groundtrack`, `head-chef` and `contract` do it: each entry, except
 `head-chef`'s `TR2` and `contract`'s `MP1`, names the one file its rule fired
-on, as an exact path with no wildcard, measured with SkillSpector v2.13.0 on
-2026-10-17, `contract`'s on 2026-10-18, and `head-chef`'s `P2` and `EA2` on 2026-10-21. `TR2` keeps the root's
+on, as an exact path with no wildcard, measured with SkillSpector v2.13.0. `TR2` keeps the root's
 `*SKILL.md` and exact clause, and `MP1` the root's `*contract.changelog.md`. The scanner matches the path ignoring letter case, so a finding
 of the same rule in any other file is reported and fails the build. The
 entries assume v2.13.0's matcher: a scanner that matches `file` against another
@@ -258,8 +249,7 @@ providers receive a box's text and the key: a test in `tests/audit.test.mjs`
 holds the hosts written as URLs in `audit.mjs`'s source to two, all `https`,
 and review holds the rest.
 
-The `contract` skill's `EA2`, `P2` and `RA2` entries were whole-skill until
-2026-10-18, when the owner narrowed them to the files they fire on (#343). An
+The `contract` skill's `EA2`, `P2` and `RA2` entries name the files they fire on. An
 entry that names a file covers all of that file. With `P2` off for `SKILL.md`,
 an instruction hidden there in a comment, a link-reference comment or a base64
 data link would pass the scan; rule 2c refuses invisible characters. With
@@ -268,8 +258,7 @@ persist on the person's machine: a scheduled job, a startup or profile file, a
 background process or a hidden folder. `RA2` also covers all of its
 `README.md`, and `EA3` all of `assets/OFL.txt`. Review holds those files.
 `references/template.md`, which seeds every file the skill builds, is named by
-no entry. A whole-skill entry also held for `head-chef`'s `AS3`, added in
-#206, until it was dropped on 2026-10-17. `contract`'s `MP1` entry names the
+no entry. `contract`'s `MP1` entry names the
 one file it fires on, `contract.changelog.md`, and it still fires anywhere else. `TR2` is not shared either. It reads only a skill's frontmatter, so a file
 glob would narrow nothing, and its entry also carries a `message` with no
 wildcard: the one clause of `head-chef`'s description it is about, exactly as
@@ -311,7 +300,7 @@ rewritten constantly, it would expire without telling anyone. A rule key
 survives a rewording, but at the root it also suppresses that rule everywhere. The written
 reasons are the price of that breadth.
 
-**Nothing was reworded to satisfy a pattern matcher.** Two findings sit on a
+**Nothing is reworded to satisfy a pattern matcher.** Two findings sit on a
 security rule in `CONTRIBUTING.md` and on the test that proves it. Letting a
 regex edit that prose is the trap.
 
@@ -336,9 +325,9 @@ says a baseline was shipped. `--use-shipped-baseline` applies it, and
 
 ### The Security tab
 
-GitHub code scanning ignores SARIF's `suppressions` property. When the full
-report was uploaded, every baselined finding opened as an alert: twenty-three of
-them, while every workflow run was green. A tab full of findings already
+GitHub code scanning ignores SARIF's `suppressions` property. Uploading the
+full report would open every baselined finding as an alert, while every
+workflow run is green. A tab full of findings already
 reasoned about is a tab nobody reads.
 
 So [`scripts/skillspector-strip-suppressed.mjs`](../../scripts/skillspector-strip-suppressed.mjs)
@@ -350,7 +339,7 @@ drops suppressed results before upload, tested by
   place, with its descriptor text set to its id, because the scanner can fill a
   descriptor with the message of the first finding under the rule, suppressed or
   not. A rule that keeps a result gets the same for a descriptor that quotes a
-  dropped result's message. Measured on v2.13.0 (2026-10-17): a static rule's
+  dropped result's message. Measured on v2.13.0: a static rule's
   descriptor is the rule's fixed name, which quotes no finding, and a rule whose
   message is the matched clause, such as `TR2`, quotes the first finding's clause.
 - It never drops a result it cannot read. That result is kept and printed.
@@ -425,10 +414,9 @@ the config file.) If a suppression is ever needed, it has a cost: zizmor has no
 field for a reason, so `scripts/check.mjs` would have to grow a rule requiring
 one, the way it already holds the SkillSpector baselines.
 
-**When it arrived**, it found two `artipacked` and two `excessive-permissions`
-findings, all fixed rather than suppressed. The checkouts in `check.yml` and
+**Its findings are fixed, not suppressed.** The checkouts in `check.yml` and
 `pages.yml` set `persist-credentials: false`. In `pages.yml`, `pages: write`
-and `id-token: write` moved from the workflow onto the `deploy` job, and the
+and `id-token: write` sit on the `deploy` job, not the workflow, and the
 `build` job keeps only `pages: read`.
 
 **Stricter personas are not adopted.** `--persona=pedantic` adds twelve style
@@ -447,9 +435,8 @@ ignore in silence. Neither replaces the other.
 **Three runs, named one by one.** The job validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
 fails at the end, so one red target cannot hide the next. What one run covers
-depends on the version: on 2.1.289, `.` read only the marketplace manifest. On
-2.1.296 and 2.1.314 it also reads the plugin manifest and `hooks/hooks.json`,
-and still not `skills/`.
+depends on the version: on 2.1.314, `.` reads the marketplace manifest, the
+plugin manifest and `hooks/hooks.json`, and not `skills/`.
 
 **The exit code is the gate.** On 2.1.314 a missing path, a mistyped path, an
 empty folder and a file that is not JSON all exit `1`, so no output is parsed.
@@ -462,7 +449,7 @@ Measured on 2.1.314, in athanor's image with no network:
   not valid JSON. The unknown field fails only under `--strict`: without the
   flag it is a warning and the run exits `0`.
 - **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, a skill
-  folder with no `SKILL.md` at all, or, since the bump from 2.1.296, a
+  folder with no `SKILL.md` at all, or a
   `SKILL.md` whose frontmatter does not parse. `skills/` is a weak check. The
   first two are `scripts/check.mjs`'s to catch, and it does: it refuses a
   missing `SKILL.md`, and a frontmatter key outside its allow-list.
@@ -488,9 +475,7 @@ Measured on 2.1.314, in athanor's image with no network:
   tarball's sha512, which the build checks before it unpacks anything.
 
 Each version step fails on any other output, so a missing binary or a wrong
-version fails before the gate can read as clean. 2.1.296 was the pin before
-2.1.314: it cannot run the mod's tests, because it refuses a `Text` prop the
-pane draws.
+version fails before the gate can read as clean.
 
 ### The mod's tests
 
@@ -498,7 +483,7 @@ The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
 `plugin-test-linux` job runs it on a Linux one. A failing test and a test file
 that does not load both exit `1`, so the exit code is the gate. It needs no
 sign-in and makes no model call, measured on 2.1.314 with an empty config
-folder and no API key. The tests' world follows its host (#481): its paths are
+folder and no API key. The tests' world follows its host: its paths are
 the host's, and the tests that build a junction run on Windows only, since
 Linux has none and their recorded answers come from Windows. Off Windows they
 are not declared, and the run prints each one's title as skipped. athanor runs
@@ -519,7 +504,7 @@ deferred until the job gains a token, a secret or a write permission, or a
 registry incident touches this package. Row 9 of the
 [threat model](threat-model.md) records the gap. athanor's image is the
 exception: it is built and run on your own machine, which the deferral never
-covered, so its fetch is held to the tarball's sha512 (#477).
+covered, so its fetch is held to the tarball's sha512.
 
 **Dependabot does not watch it**: the CLI arrives through a `run:` line. A bump
 is a reviewed pull request.

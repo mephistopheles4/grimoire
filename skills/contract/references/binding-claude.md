@@ -94,13 +94,13 @@ situation, and nothing sends it off.
 
 | Capability | In the file | Source |
 |---|---|---|
-| Read files | `Read`, `Glob`, `Grep` | Docs, read 2026-09-30 |
-| Create files | `Write` | Docs, read 2026-09-30 |
-| Change files | `Edit` | Docs, read 2026-09-30 |
-| Run commands | `Bash`, or `PowerShell` on Windows | Docs, read 2026-09-30 |
-| Fetch web pages | `WebFetch` | Docs, read 2026-09-30 |
-| Search the web | `WebSearch` | Docs, read 2026-09-30 |
-| Use a connected server's tools | `mcp__<server>__*` | Load test, 2026-10-10 |
+| Read files | `Read`, `Glob`, `Grep` | Docs |
+| Create files | `Write` | Docs |
+| Change files | `Edit` | Docs |
+| Run commands | `Bash`, or `PowerShell` on Windows | Docs |
+| Fetch web pages | `WebFetch` | Docs |
+| Search the web | `WebSearch` | Docs |
+| Use a connected server's tools | `mcp__<server>__*` | Load test |
 
 The main agent file names none of these.
 

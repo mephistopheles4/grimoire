@@ -4,7 +4,7 @@ This page is part of the threat model in [`threat-model.md`](threat-model.md). A
 
 ## The hiring interview, its data and its limits
 
-The contract skill's second way in (#343, #344) renders a local page from a
+The contract skill's second way in renders a local page from a
 draft, keeps the person's answers in the browser, and reads back the one
 block the person pastes. What it holds, where, and for how long:
 
@@ -21,7 +21,7 @@ the old draft's key to the new one, reading only the key the draft's
 when `previous` names another stored contract. A rewrite of an older-shape
 contract copies every row of the old change log word for word into the new
 change-log file, shows the change list before any write, and deletes the old
-root contract in the same commit (claim 23 on #313).
+root contract in the same commit.
 
 **The limits.** Set by ADR 0004's method against the contract skill's own
 contract, drafted fresh as `docs/limits/contract-skill.measured.json`

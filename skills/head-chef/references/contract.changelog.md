@@ -259,3 +259,4 @@ Each row of issue 450's rule table, with its class there (a leading, b a harness
 | P15 | Every question to the lead as q<n> | a | kept | the start prompt | |
 | P16 | The classifier-block exception | b | dropped | nothing: the classifier's own fallback | — (*Proposed*, 0.14.0, issue 335) |
 | P17 | The kept-local exception | c | kept, widened to messages (q7 A on 452); removed in 1.7.0 (issue 486) | the start prompt | |
+| 1.35.1 | 2026-11-12 | No clause changed. The contract states what holds now: dates, issue numbers, decision and round ids, owner-quote trails and repeated status marks leave its text, and each answer keeps one mark. One sentence about the Brigade merge subject keeps its issue number, because a test reads it. `SKILL.md` does not change. | Issue 597: a contract says what holds now, and its history lives in this change log. | all | — |
