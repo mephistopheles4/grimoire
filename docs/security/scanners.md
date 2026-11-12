@@ -66,7 +66,7 @@ this pin**: it reads `uses:` lines, and the scanner is installed from a `run:`
 line. A bump is a reviewed pull request.
 
 **The pin covers SkillSpector's own code only.** Fifteen of its dependencies
-are version ranges, which resolve fresh on every run. The [threat model](threat-model.md) carries it as residual risk.
+are version ranges, which resolve fresh on every run. The [threat model](threat-model.md) carries it as an open issue of R3.
 
 **Static analysis only.** The workflow runs `--no-llm`: patterns, AST and YARA,
 with no model call, no API key and no secret. The semantic pass, which compares
@@ -430,7 +430,7 @@ runs `claude plugin validate --strict` on every pull request and every push to
 `main`. `scripts/check.mjs` checks the rules that span files, such as the two
 manifests agreeing. The validator checks each file against the schema Claude
 Code itself loads, and `--strict` fails on an unknown field the runtime would
-ignore in silence. Neither replaces the other.
+ignore in silence. Neither replaces the other. It is not a required check.
 
 **Three runs, named one by one.** The job validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
@@ -501,8 +501,8 @@ outside a lockfile, and a lockfile is the manifest this repository refuses.
 number, so this is close to a content pin and is not one. Checking the
 tarball's sha512 against a hash in the workflow would make it one. That is
 deferred until the job gains a token, a secret or a write permission, or a
-registry incident touches this package. Row 9 of the
-[threat model](threat-model.md) records the gap. athanor's image is the
+registry incident touches this package. The
+[threat model](threat-model.md) records the gap in R4. athanor's image is the
 exception: it is built and run on your own machine, which the deferral never
 covered, so its fetch is held to the tarball's sha512.
 

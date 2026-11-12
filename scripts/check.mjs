@@ -191,7 +191,7 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 // api/Users/42 passes. A `$` after a root is a template or shell variable
 // joined to it. `\r?$` because a CRLF checkout leaves `\r` on every
 // line split here. The rule reads text as written; what it does not catch,
-// and why, is threat-model row 17, the one list of those to keep in step.
+// and why, is the threat model's R3 and R9, the one list of those to keep in step.
 const FIXED = [
   /~\/\.claude/,
   /\/home\/[a-z$]/i,
@@ -756,7 +756,7 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
 // fetch at another registry; CI's fetches run outside the checkout, and this
 // keeps the file off main. Nothing here runs Yarn: .yarnrc.yml is refused on
 // the issue's ask. .yarnrc, .pnpmfile.cjs and bunfig.toml are not refused;
-// they are candidate P10 in the threat model. .gitignore lists both names, so
+// they are an open issue of the threat model. .gitignore lists both names, so
 // the walk skips a contributor's own copy and rule 2b fails a force-added one;
 // this rule fires when a branch drops those ignore lines. The walk's ignore
 // reader is case-sensitive, so on a checkout that folds case a contributor's
@@ -1034,7 +1034,7 @@ for (const e of readdirSync(join(root, '.claude-plugin'))) {
 // file does, whatever the engine does with it today, so a key the engine adds
 // later fails until someone reads what it does.
 //
-// Two gaps are accepted in threat-model row 13: a duplicate key is read as
+// Two gaps are accepted in the threat model's class “Review is the guard for scanner gaps”: a duplicate key is read as
 // JSON.parse reads it, the last one kept, and a root name is compared across
 // case only, not across the other ways a file system can equate two names.
 //
@@ -1084,7 +1084,7 @@ for (const e of readdirSync(root, { withFileTypes: true })) {
 // does with it. This runs when the check does, which is after the hook has
 // already fired for a session opened on the branch, so it protects the merge
 // and not the reader; CONTRIBUTING tells a reader to read a branch's hooks
-// first. The threat-model row proposed for issue 377 is the owner's decision.
+// first. The threat model's R10 is the owner's decision.
 //
 // The file is compared as text as well as parsed: JSON.parse keeps the last of
 // a repeated key, and Claude Code's reader may pick another, so a file that

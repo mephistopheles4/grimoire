@@ -305,7 +305,7 @@ test('Reset removes every key under the contract\'s prefix and no other key, the
   assert.deepEqual([...store.map.keys()].sort(), ['aviation-scheme', other]);
   assert.equal(Interview.forget(null, base()), 0);
 });
-test('the key shapes equal the masking the threat model\'s row 14 names, in scripts/practice.mjs, so the two copies cannot drift', () => {
+test('the key shapes equal the masking in scripts/practice.mjs that the threat model\'s R11 names, so the two copies cannot drift', () => {
   const src = readFileSync(join(root, 'scripts', 'practice.mjs'), 'utf8');
   const block = /const START = (String\.raw`[^`]*`);\nconst KEY_SHAPES = (\[[\s\S]*?\n\]);/.exec(src);
   assert.ok(block, 'practice.mjs still holds START and KEY_SHAPES in this shape');

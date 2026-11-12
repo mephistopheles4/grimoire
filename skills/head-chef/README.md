@@ -166,7 +166,7 @@ and reports to that name. Since 1.10.0 the prompt carries no rule: how the
 session treats a message under that name, and what it reports, follow its
 own rules. A program of yours, or another session that holds the lead's
 name, can pass as the lead, or name a new lead and redirect the reports: the
-threat model lists that under class C5 as candidate P8. The head chef tells
+threat model lists that as an open issue. The head chef tells
 you at once when a session reports a decision it never sent.
 
 Before the lead is renamed or handed off, the head chef tells each session

@@ -75,7 +75,7 @@ stopped one. What the cleaner kept for a recovery is its own promise.
 
 After its worktree has gone, or after saving what it holds, the owner runs
 `claude rm <id>` by hand. `claude rm` deletes the worktree with whatever is
-left in it. Grimoire's threat model says it keeps the transcript; what
+left in it. It keeps the transcript; what
 it keeps of the job's own store is not checked.
 
 ## What never happens

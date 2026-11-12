@@ -76,7 +76,7 @@ jobs:
       #
       # **How strong the pin is.** npm never re-publishes a version number, so
       # this is close to a content pin and is not one, the same as zizmor's
-      # PyPI pin. docs/security/threat-model.md row 9 records the gap.
+      # PyPI pin. docs/security/threat-model.md (R4) records the gap.
       - name: Fetch Claude Code
         run: |
           mkdir -p "$RUNNER_TEMP/claude"

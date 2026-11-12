@@ -122,7 +122,7 @@ The posture keeps the cheap, obvious mistakes out, and it catches some after
 the fact. It is not a sandbox. A skill is dangerous by default, and your
 trust in it is what lets it run
 ([ADR 0006](../adr/0006-skills-are-dangerous-by-default.md)). The threat
-model's [row 14](../security/threat-model.md) rates what the posture does not
+model's [R11](../security/threat-model.md) says what the posture does not
 stop.
 
 **What the posture does:**

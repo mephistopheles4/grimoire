@@ -11,7 +11,7 @@ Security tab. It reaches the maintainer and nobody else.
 Every convention below describes ordinary work. A public issue is the wrong
 surface for a vulnerability, and `gh issue create` publishes one, so hand the
 finding to the human and let them file it privately. See
-[`SECURITY.md`](../../SECURITY.md).
+[`SECURITY.md`](../../SECURITY.md). Before ruling on security here, read the [threat model](../security/threat-model.md), boundaries first.
 
 ## Conventions
 
@@ -22,7 +22,7 @@ finding to the human and let them file it privately. See
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+Infer the repo from `git remote -v`; `gh` does this automatically in a clone.
 
 ## Assign the issue to yourself before you work it
 
