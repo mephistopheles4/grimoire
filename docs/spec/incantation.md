@@ -1,10 +1,10 @@
 # Incantation: the spec
 
-Draft 0.7, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.8, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
-and 0.7 fold in the owner's answers (Decisions taken).
+to 0.8 fold in the answers (Decisions taken).
 
 ## S1. Objective
 
@@ -317,7 +317,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     answer, and nothing else is tried.
 
 Claims 7 to 13 and 15 to 17 are Node tests. The ticket closes on the owner's
-practice run (O7).
+practice run. Once Test passes, the build session proposes its steps, each
+with a pass or fail, in WSL 2, and the owner picks the time then.
 
 ### S6.1 The eval cases
 
@@ -358,7 +359,7 @@ Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
     stdio MCP server in the case's fixture, which answers with a scripted
     heard line. The `absent` case runs without one.
 
-  If either can't be done, the claim it backs moves to the practice run (O7).
+  If either can't be done, the claim it backs moves to the practice run.
   The spec then records that.
 
 ## S7. Trade-offs
@@ -368,20 +369,22 @@ Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
   decisions kept for the owner need a typed yes. Driver: cheaper to reverse.
 - **Guard against dependency.** A guard keeps grimoire free of VoiceMode's
   install, at the cost of a check on each start. Owner's call, taken.
-- **Port 8765 probe (open, Hardening).** The guard could also refuse when
-  anything answers on 8765. The rule in S4.1 (e) is prose and a test of the
-  skill's text; the probe would be a guard for a path outside the base threat
-  model's actors. The owner's word (A10).
+- **Port 8765 probe: skipped (A10).** The guard could also refuse when
+  anything answers on 8765. It is Hardening at limit 0, so it is not built; it
+  is recorded as an accepted-risk candidate in S8. The rule in S4.1 (e) stays:
+  prose and a test of the skill's text.
 
 ## S8. Threat model
 
-Candidate entries, each for the owner's word. Changing the threat model's scope
-is the owner's call.
+The lead accepted these entries at level 3 (2026-11-12), with the proxy, the
+socket-only engines and the 0.4 controls in place. The build adds them to
+`docs/security/threat-model.md`. AGENTS.md keeps a change to that file's scope
+and accepted risks for the owner, so the merge that adds them waits for the
+owner's confirm.
 
 - **Local speech services.** Services Incantation relies on but does not
   control. Controls: the proxy (S4.2), engines on sockets only, and the S4.1
-  settings as defence in depth. The owner chose the proxy on 2026-11-12; the
-  entry's wording is still the owner's (O8).
+  settings as defence in depth.
 - **The microphone.** Heard text from anyone audible (people in the room, a
   call on speakers, played media) reaching acts short of the typed-yes list.
   Controls: the hear-back shown in chat, the typed-yes list, the permission
@@ -390,6 +393,8 @@ is the owner's call.
   bystanders' words. Controls: README step 7; the guard's recording check.
 - **A risk row** for `guard.mjs` and `proxy.mjs`, shipped scripts that open
   and hold local connections, under "Keeping this page short".
+- **Accepted-risk candidate: port 8765.** Nothing in Incantation starts or
+  calls `voicemode serve`; the guard does not probe for it (S7).
 
 The security pair runs on the diff at Test as well.
 
@@ -423,7 +428,17 @@ The owner then accepted these picks by typing `/make-it-so` in the lead's chat
 - O9.1, the proxy's path allow-list;
 - O9.2, `/incantation` starts the proxy when `/health` does not answer;
 - O5, the target is WSL 2, and native Windows is out of scope for now;
-- O6, an eval budget of $1 (S6.1);
+- O6, an eval budget of $1 (S6.1).
+
+The lead, at level 3 under the owner's standing goal, then answered the rest
+(2026-11-12):
+
+- O7, the practice run's steps come from the build session once Test passes,
+  and the owner picks the time then (S6);
+- O8, the local-services acceptance is re-taken with the proxy, socket-only
+  engines and the 0.4 controls in place, and all the S8 entries are added;
+- A10, the port 8765 probe is skipped as Hardening and recorded as an
+  accepted-risk candidate (S7, S8).
 - the twelve round-1 security rows as drafted in 0.4: the repo controls on
   `plugins/<name>/`; the guard reading VoiceMode's settings; kept speech; the
   security pair at Test; the guard's pinned path; the read-back shown in chat;
@@ -433,9 +448,4 @@ The owner then accepted these picks by typing `/make-it-so` in the lead's chat
 
 ## Open
 
-- **O7.** When the practice run happens, and its steps with a pass or fail for
-  each.
-- **O8.** The S8 candidates, and the re-take of the local-services acceptance
-  with the proxy in place.
-- **A10.** The port 8765 probe, a trade-off under Hardening (S7).
-- Nothing is filed upstream.
+None. Nothing is filed upstream, and any future report stays private.
