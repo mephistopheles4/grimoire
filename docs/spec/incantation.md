@@ -1018,6 +1018,13 @@ both". The two classes in S8 hold for the build; each still lands in the
 threat model only on a merge the owner confirms in their own chat, and #208
 stays a draft pull request.
 
+The owner then answered O13 (2026-11-12, relayed by the lead, after the lead
+showed the two S8 scope lines on long-running local processes and new actors
+word for word): "Accept the scope lines." The third scope line, heard text
+reaching the provider, is covered by "Accept both". The scope changes hold
+for the build; the threat-model edit still lands only on a merge the owner
+confirms.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -1030,8 +1037,8 @@ them.
   session's steps, before anything is built. It covers all of S9's first
   checks, the audio and wake checks included, which need a WSL 2 machine
   with a mic and speakers.
-- **O13.** When does the owner rule on each S8 scope change? Drafted: before
-  the build starts.
+- **O13.** The S8 scope changes: accepted for the build by the owner
+  ("Accept the scope lines.", relayed, Decisions taken).
 - **O14.** The lead-session signal: head-chef gains a readable lead marker in
   this change, or the build stops and asks?
 - **O15.** The port 8765 probe, drafted back in against A10.
