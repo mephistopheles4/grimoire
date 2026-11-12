@@ -460,10 +460,12 @@ permission mode in force.
 listener waits out the silence and transcribes, Claude Code wakes the
 session, the model replies, and the reply starts to play.
 
-- **Budget, drafted (O17):** the end-of-speech wait, plus transcription,
-  plus `converse`'s time to first audio, at most 2.5 s as the median of 10
-  turns. The listener's `timing` line gives the first two, and `converse`
-  reports the third.
+- **Target, measured, not a merge gate (O17):** the end-of-speech wait,
+  plus transcription, plus `converse`'s time to first audio, 2.5 s as the
+  median of 10 turns. The listener's `timing` line gives the first two, and
+  `converse` reports the third. The owner expects speed to need tuning after
+  this change (2026-11-12, relayed by the lead), so the build records the
+  timings it gets, and a miss is reported, not a failure.
 - The practice run also reports the whole time the person feels, from the
   end of their speech to the first sound of the reply, split into the
   listener's wait and transcription, the wake and the model together, and
@@ -721,8 +723,9 @@ are fixed:
   close is delivered to a later session;
 - **round trip:** ten turns, each with the listener's timings and
   `converse`'s; the median of the end-of-speech wait plus transcription plus
-  time to first audio is within the budget (S4.3), and the whole felt time
-  is reported, split as S4.3 says.
+  time to first audio, and the whole felt time split as S4.3 says, are
+  recorded against the 2.5 s target; this step reports, it does not pass or
+  fail.
 
 The practice record holds pass or fail, counts and timings, never heard
 text.
@@ -1009,10 +1012,11 @@ them.
 - **O15.** The port 8765 probe, drafted back in against A10.
 - **O16.** The pull request from a fresh branch, and deleting this branch on
   origin.
-- **O17.** The round-trip budget (S4.3): drafted at 2.5 s, the median of 10
-  turns, for the speech side only, and whether the whole felt time gets a
-  budget too. The owner's number, given before the practice run; until then
-  the draft stands.
+- **O17.** The round-trip target (S4.3): 2.5 s, the median of 10 turns, for
+  the speech side, measured and recorded, not a merge gate (the owner,
+  2026-11-12, relayed: speed needs tuning after this change). Open: the
+  owner's own number, and whether the whole felt time gets a target too,
+  given before the practice run; until then 2.5 s stands.
 - **O18.** The two ambient-speech classes (S8): pending. Asked of the owner
   before the build, with O13; each lands only on a merge the owner confirms
   in their own chat. On a no to either before the build, the build takes
