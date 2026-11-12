@@ -2,7 +2,7 @@
 
 This page holds detail behind the controls the [threat model](threat-model.md) names. An edit that weakens a control it names is a removed control.
 
-Each section below holds one scenario, told from the attacker's side, with what stops it today, what still gets through and its framework tags. The threat model's controls name the risks (R1 to R12) these rows detail.
+Each section below holds one scenario, told from the attacker's side, with what stops it today, what still gets through and its framework tags. The threat model's controls name the controls (R1 to R12) these rows detail.
 
 ## Row 1
 

@@ -848,8 +848,8 @@ export function appLink(c: Card, found: string | undefined): string | undefined 
 /** The host systems the link route has an opener for. */
 export type HostOs = 'windows' | 'macos' | 'linux'
 
-// The link route's programs. Windows' is looked up by name, as measured in the
-// threat model's R6. The other two are absolute, root-owned on a normal
+// The link route's programs. Windows' is looked up by name, as measured in
+// `docs/security/brigade.md` row 15. The other two are absolute, root-owned on a normal
 // install, so neither the user's PATH nor the project folder can supply a
 // stand-in for the opener itself. On Linux the opener then starts its desktop
 // helper, or a fallback browser, by name on the inherited PATH, from the

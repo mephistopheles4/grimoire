@@ -33,7 +33,7 @@ question on one clause is refused, so questions are bounded by clauses. The
 page rendered from that draft measured 381,464 bytes on 2026-10-18, and a
 test holds it within four times that, 1,525,856 bytes.
 
-The saved answers' copies on disk and in the browser are the machine's. A folder the person names, once synced or backed up, is the class “Data leaves the machine as the owner accepted”. The interview's
+The saved answers' copies on disk and in the browser are the machine's; another page from disk or an extension reading them is an open issue. A folder the person names, once synced or backed up, is the class “Data leaves the machine as the owner accepted”. The interview's
 saved answers sit unencrypted in the browser profile, where other pages
 opened from disk in the same browser, extensions with file access, processes
 running as the person and profile backups can read them. The scratch

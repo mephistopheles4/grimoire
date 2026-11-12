@@ -14,8 +14,8 @@ The owner's words, 2026-11-12, on the-pact issue 542:
 words, counted by whitespace over the whole file, and `tests/threat-model-cap.test.mjs`
 holds it. It starts with the boundaries, each with what crosses it, the
 controls that hold it by source (the harness, GitHub, the pact, this
-repository's own tools) with when each does not hold, and the residual, one
-accepted class each. Its scope names the machine as out: the owner's own
+repository's own tools) with when each does not hold, and the residual, as
+accepted classes. Its scope names the machine as out: the owner's own
 computer or a sandbox run on it, with everything made there. Raising the cap is
 a spec change.
 
@@ -45,5 +45,5 @@ the old classes C7 and K2 sit under one class on the data boundary.
 
 **Amends.** [ADR 0006](0006-skills-are-dangerous-by-default.md) cites the old
 class C1 by anchor. The class now reads "Text steers a session", and the ADR
-keeps its old link as history. The guide the file is read with is the pact's
+keeps its old link as history. It also contradicts that ADR's rule that a finding gets a threat-model row and a rating, a new script gets a risk row and any other finding waits as a candidate: the model's procedure replaces it, and a finding no class covers is an open issue for the owner. The guide the file is read with is the pact's
 `review.md`, The threat model section.

@@ -430,7 +430,7 @@ runs `claude plugin validate --strict` on every pull request and every push to
 `main`. `scripts/check.mjs` checks the rules that span files, such as the two
 manifests agreeing. The validator checks each file against the schema Claude
 Code itself loads, and `--strict` fails on an unknown field the runtime would
-ignore in silence. Neither replaces the other.
+ignore in silence. Neither replaces the other. It is not a required check.
 
 **Three runs, named one by one.** The job validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and

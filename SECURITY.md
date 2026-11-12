@@ -125,7 +125,7 @@ variable argument is the card's checked pull request number, on the command
 line, and the repository `gh` answered with is its `GH_REPO`, behind a constant `github.com/` host. It has the
 15-second limit and no rate limit, and `--web` hands the page to the program
 `GH_BROWSER`, `BROWSER` or `gh`'s own configuration names, which inherits the
-session's environment (accepted). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (widened, waiting on the owner's confirmed merge). A to-do's link may also be one comment or review on such an issue or pull request, with a numeric `#` fragment; the pane draws it as the engine's link on every surface, Desktop included, runs no process for it, and the Desktop app's own opener, not `gh`, picks the browser (widened by issue 567, accepted by the lead at level 3 in decision 487 and flagged big). Since 0.85.0 a card may carry `repo`,
+session's environment (an open issue of the threat model). Since 0.136.0 a press of a to-do's link button on Desktop runs `gh issue view <number> --web` or `gh pr view <number> --web` the same way, a third fixed list: the number and the owner/name come from a link in one closed github.com pattern that the lead writes in the roster, so the lookup can be in any github.com repository, under your GitHub sign-in (widened, waiting on the owner's confirmed merge). A to-do's link may also be one comment or review on such an issue or pull request, with a numeric `#` fragment; the pane draws it as the engine's link on every surface, Desktop included, runs no process for it, and the Desktop app's own opener, not `gh`, picks the browser (widened by issue 567, accepted by the lead at level 3 in decision 487 and flagged big). Since 0.85.0 a card may carry `repo`,
 the owner/name of its pull request's repository when that is not the lead's
 own; `set_roster` refuses any other value, and a roster file holding one fails
 its read. The roster file keeps the field at rest with the rest of the card,
@@ -202,7 +202,8 @@ words. It asks no permission. What follows from it:
   - the summary read follows a link swapped in after the path check, as the
     transcript read does, and keeps only checked numbers (an open issue of the threat model, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
-    a session with no working folder included (an open issue of the threat model, not accepted);  - a writer whose files keep failing a check with fresh times freezes its
+    a session with no working folder included (an open issue of the threat model, not accepted);
+  - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so (a reliability note, not a threat).
 
 **Since 0.81.0 a lead writes a decision log, and the pane writes the
@@ -437,12 +438,10 @@ the goal and where the owner's user-level instructions file lets a standing
 goal decide even what it keeps, also accepts risks, records accepted risks,
 decides threat classes and a guard's stop, each logged and a big one flagged;
 a repository's or member's rule that keeps those risk calls for the owner no
-longer holds them at 3, and `read_autonomy` says the same. What the threat model's
-"A forged or misled session can speak for the lead" and "GitHub acts on the owner's word" classes
+longer holds them at 3, and `read_autonomy` says the same. What the threat model's controls for the lead's chat (R5) and for merges and acts
 keep waiting still waits: an install, a post carrying
-private work, a merge that changes the threat model's scope or accepted risks,
-and an edit to its scope, its naming line, or an accepted risk that removes
-the rules on secrets and personal data or widens the level-3 leave. The control is the
+private work, a merge that changes the threat model's scope or accepted classes,
+and an edit to its scope, its naming line, or an accepted class that widens the level-3 leave. The control is the
 log and the flag, which the owner reviews after the fact; the log rests on
 the decision files, whose planting by another plugin is still an open
 issue of the threat model. A 3 it sets carries its goal, which is
@@ -527,7 +526,7 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
-machine: the [row 15 section](docs/security/brigade.md#row-15) of the threat model (its classes include “Other plugins share the mod's trust”, “A forged or misled session can speak for the lead”, “Data leaves the machine as the owner accepted” and “The mod's tools run with no permission prompt”)
+machine: the [row 15 section](docs/security/brigade.md#row-15) of `brigade.md` (the threat model's classes it cites include “Other plugins share the mod's trust”, “A forged or misled session can speak for the lead”, “Data leaves the machine as the owner accepted” and “The mod's tools run with no permission prompt”)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
@@ -586,7 +585,7 @@ chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
 any device signed in to the owner's account.
-The [row 16 section](docs/security/brigade.md#row-16) of the threat model (its classes include “Text steers a session”, “A forged or misled session can speak for the lead”, “GitHub acts on the owner's word are irreversible and public” and “Data leaves the machine as the owner accepted”) has the
+The [row 16 section](docs/security/brigade.md#row-16) of `brigade.md` (the threat model's classes it cites include “Text steers a session”, “A forged or misled session can speak for the lead”, “GitHub acts on the owner's word are irreversible and public” and “Data leaves the machine as the owner accepted”) has the
 guards and the gaps.
 
 One script can send data, and only when somebody runs it. eagle-eye's
