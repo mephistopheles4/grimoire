@@ -29,8 +29,9 @@ cleans it up by hand.
    does not show, write the question with short typed answers. At level 3
    the owner's user-level instructions file decides: where it allows
    cleanup, log the decision and go on; where it keeps it, log a waiting
-   entry that names the cleanup by repository and title only, add the fixed
-   to-do text for a waiting entry, and carry on with other work.
+   entry that names the cleanup by repository and title only, add a
+   to-do for it that names the cleanup by its verb and the card's title, as
+   `roster.md` holds a to-do, and carry on with other work.
 2. **Archive or stop.** Archive each Desktop session with Desktop's archive
    tool, and stop each background session with `stop_background_session` and
    the card's title. A session already archived or stopped goes on to step
