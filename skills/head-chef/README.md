@@ -62,7 +62,8 @@ or type `/brigade` to open it.
   fields, so there is no approval card to accept. The model and effort
   come from your words or your own process. Its start prompt is one sentence
   pair: the issue, which holds the brief, and the lead to send questions and
-  reports to. You open it from its card in the Brigade pane, from the
+  reports to. It may add one short note from the head chef, labelled as the
+  head chef's words and not yours. You open it from its card in the Brigade pane, from the
   claude.ai session list on the phone, or with `claude attach <name>` in a
   terminal.
 - **Starts a Desktop session only on your words.** Say "as a Desktop

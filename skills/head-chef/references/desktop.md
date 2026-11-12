@@ -13,7 +13,9 @@ Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and 
    default of its own. Set no permission mode: the session takes the default
    unless the owner's words name one.
 2. **Give it the start prompt** in "The start prompt" in `SKILL.md`, filled
-   in. A hand-off is the same start, with the effort's context on the issue.
+   in. You may add the same note, with the same label and under the same
+   bounds as "The start prompt" gives; you write and check it yourself, as no
+   tool does. A hand-off is the same start, with the effort's context on the issue.
    Send later updates to the session as messages, by its name.
 3. **Keep its Desktop id** from the start tool's result, in this chat only,
    for its card and the archive. Keep its folder and branch too, as the start

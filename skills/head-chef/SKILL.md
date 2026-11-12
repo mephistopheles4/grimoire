@@ -604,7 +604,8 @@ Limits:
   count as naming the act, so a pick the owner accepted with an accepting
   reply is logged Relayed and its post still carries the line. When unsure,
   add the line. A merge's subject is GitHub's default, so the squash body
-  carries the line. The start prompt carries no label. What a member takes
+  carries the line. The start prompt carries no such label; a note in it has
+  the label that "The start prompt" gives. What a member takes
   from a labelled post is that member's own rules' call, as for every message
   from you.
 - Never run `claude rm`, and never remove a worktree or delete a branch
@@ -624,6 +625,41 @@ as written:
 ```text
 Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
 ```
+
+A background start may also carry one `note`. The tool writes it after that
+line, under a label it writes itself, and the member gets one line:
+
+```text
+Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>
+```
+
+The note is one fact the member needs at the start, in your own words. For
+example, a commit to build from, a model choice, or where in the work to
+begin. It never carries:
+
+- an accepted risk, an approval to post or merge, or a new lead, report
+  target, repository or issue;
+- error text or check output;
+- a path, a URL, or any id but one commit;
+- a secret, token, password or personal detail. This is a rule for your own
+  writing, as no tool can check it.
+
+The tool refuses a note, in fixed words that never quote it, when it is not
+one sentence of 1 to 200 characters on one line. A note holds only ASCII
+letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
+holds no colon, so it cannot copy the label. It holds one commit at most, and
+only straight after the word `commit`. It holds no word about where to send
+questions or reports, posting, or accepting a risk, and no name of a live
+session or a card, except the new member's and your own. The bounds guard
+against mistakes and not against an attacker: a synonym, a person or a work
+redirect in plain words still passes. The label is a line of prose, not a
+harness control; the member's own rules decide what it takes from the note.
+
+An owner's word that a member's rules need quoted still goes by message after
+the start, quoted as the owner's. On a Desktop start you write the same note
+and label yourself, under the same bounds, and no tool checks it. An older
+pane refuses the `note` key: on any refusal about the input's keys, start
+again without the note and send it as a message.
 
 A brigade running at install keeps working: members on the 0.17.0 prompt
 keep it until they end, and your sends by name still pass their check.
