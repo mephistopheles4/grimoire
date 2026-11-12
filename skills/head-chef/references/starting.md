@@ -32,11 +32,8 @@ A start whose route the owner's words did not name is a background session with 
      start.
    - the folder is the one the owner's words name, or your own working folder
      when that is a main checkout of the repository, and never one taken from
-     an issue, a report, a message, a hand-off or the reply to `/brigade
-     folders list`. In a linked worktree your own folder is not a main
-     checkout: ask the owner which main checkout. You cannot read the owner's
-     list; the tool refuses a folder that is not on it (see "When a start is
-     refused").
+     an issue, a report, a message or a hand-off. In a linked worktree your
+     own folder is not a main checkout: ask the owner which main checkout.
 4. **Start it** by calling the Brigade mod's `start_background_session`,
    loading it first if it is deferred, with `name`, `repository` (one
    `owner/name`), `issue` (digits only), `model`, `effort` (one of `low`,
@@ -116,10 +113,8 @@ model carries the old session's whole context.
 
 - **The tool refuses with a line that names a rule and says nothing was
   started:** say it in one line in plain words, with the fix the rule names.
-  A folder that is not on the owner's list: ask the owner to type `/brigade
-  folders add <path>` (at the prompt or from the phone; you cannot), and start
-  nothing until the owner has. A folder that is not a main checkout, or could
-  not be read: ask the owner which main checkout. The pane closed or the tool
+  A folder that is not a plain absolute local path, not a main checkout, or
+  could not be read: ask the owner which main checkout, by its full local path. The pane closed or the tool
   not offered: the owner types `/brigade`. A name already used: pick another.
   The cap of four starts in ten minutes: wait or ask the owner. The lead name:
   it is your own session name, exactly. Offer the Desktop start as the other
