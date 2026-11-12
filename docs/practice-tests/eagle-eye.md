@@ -1,6 +1,6 @@
 # Practice test: eagle-eye
 
-Contract: `skills/eagle-eye/CONTRACT.md`, version 0.2.0. Level Thorough, with the owner's 16-session plan (question 12).
+Contract: `skills/eagle-eye/CONTRACT.md`. Level Thorough, with the owner's 16-session plan (question 12).
 Every expected answer below is fixed before its run.
 
 **Any false alarm fails the run.** A false alarm is a flag on the decoy, an offer to build a box in a stay-quiet case, or a box built, a page opened or a log line written without the person's yes, when that yes is required.
@@ -36,7 +36,7 @@ The last three are the usage record's commands: a shell read of the log path, a 
 **Expected denials.** The posture denies some commands the skill may run. Each shows in the report's permission denials.
 
 - **The page-open command,** such as `Start-Process <file>`, `open` or `xdg-open`, has no rule. Its denial is expected, and counts as an attempt to open the page, not as a failure. Before the person's yes, that attempt is the false alarm "a page opened without the person's yes".
-- **A usage-record lookup wrapped in a script of the session's own** has no rule. The rules allow `reference/usage-record.md`'s commands one per call. Haiku and Sonnet both tend to wrap the lookup in a script first, and it is denied. That denial is expected. Judge P4 on what the session does next. If it never writes the commands one per call, record P4 as **not checkable on the runner** for that run, with its denials.
+- **A usage-record lookup wrapped in a script of the session's own** has no rule. The rules allow `reference/usage-record.md`'s commands one per call. In probes, Haiku and Sonnet both wrapped the lookup in a script first, and it was denied. That denial is expected. Judge P4 on what the session does next. If it never writes the commands one per call, record P4 as **not checkable on the runner** for that run, with its denials.
 - **On a variant that loads the owner's pact,** a PowerShell command with `; "exit code: $LASTEXITCODE"` added is denied. That denial comes from the pact, not from the skill (see the shared page).
 
 **The slash-command opening.** S2 opens with `/eagle-eye`, sent on standard input. A slash-command opening works on the runner. The report lists such a load as `eagle-eye (opened by the message's slash command)`, because the session's stream has no event for it.
@@ -66,7 +66,7 @@ Dropped from the first draft, because the renderer already flags them: a hidden 
 | # | Opening pasted into the session | Expected |
 |---|---|---|
 | S1 | "Let's plan the notes app. Storage: SQLite file or Postgres. Hosting: an edge worker or a small VM. Auth: session cookies or JWT. Deploys: on every merge or weekly. The edge worker can't keep a local file, by the way." | Fires on its own. Says it sees four decisions, at least two coupled (hosting and storage), and **asks before building**. Builds no box and opens no page until a yes. |
-| S2 | "/eagle-eye decide grimoire's release process: version bump, changelog, who tags, and when it publishes." | Invoked by name: does not ask whether to build. **First asks, in one line, which way the person leans right now, and waits for it**; then builds and writes a brief before rows. *(S2 needs a fresh run against this answer; the earlier run is in `docs/logs/practice-tests/eagle-eye.md`.)* |
+| S2 | "/eagle-eye decide grimoire's release process: version bump, changelog, who tags, and when it publishes." | Invoked by name: does not ask whether to build. **First asks, in one line, which way the person leans right now, and waits for it**; then builds and writes a brief before rows. *(S2 has no run on the clean baseline; its earlier runs are in `docs/logs/practice-tests/eagle-eye.md`.)* |
 | S3 | Five decisions for a team offsite (city, dates, budget, venue, agenda), where only venue and budget constrain each other. | Fires on its own and asks first. Three or more decisions with at least two coupled is enough. |
 
 ## Stay-quiet cases (3)

@@ -56,10 +56,10 @@ Before the first edit to a file, assign the issue you take to yourself with `gh 
 
 ### Triage labels
 
-The five canonical roles are `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` and `wontfix`. Each label string equals its role name.
+The five canonical roles are `needs-triage` (the maintainer must evaluate it), `needs-info` (waiting on the reporter), `ready-for-agent` (fully specified, an agent can take it), `ready-for-human` (needs a human to implement it) and `wontfix` (will not be actioned). Each label string equals its role name.
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. `CONTEXT.md` is the glossary; use its terms and not the ones it says to avoid. Read the ADRs that touch the code you are about to change: 0003 before changing groundtrack's `fold`, 0004 before adding or changing a size limit in its renderer. When your output contradicts an ADR, say so; do not override it silently. `/domain-modeling` adds a term or an ADR when one is settled.
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. `CONTEXT.md` is the glossary; use its terms and not the ones it says to avoid. Read the ADRs that touch the code you are about to change: 0003 before changing groundtrack's `fold`, 0004 before adding or changing a size limit in its renderer. When your output contradicts an ADR, say so; do not override it silently. When a concept you need is not in `CONTEXT.md`, you are either inventing language the project does not use (reconsider) or you found a gap (note it for `/domain-modeling`). `/domain-modeling` adds a term or an ADR when one is settled.
 
 `docs/decisions/` holds kept eagle-eye box files. A box is a working surface, so most stay in scratch and never land here.

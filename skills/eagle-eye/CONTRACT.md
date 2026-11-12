@@ -8,7 +8,7 @@ Version: 0.2.5
 
 ## Target
 
-**Confirmed** The rendered page of `docs/decisions/publish-eagle-eye.box.json` ("Publish eagle-eye as a public repo": 8 decisions, 34 options, 11 edges, 5 presets), together with the findings in chat, led by the problem. It was offered as an existing real output. No samples were drafted. The owner: "that page is the target, I don't think anything is wrong with it at the moment."
+**Confirmed.** The rendered page of `docs/decisions/publish-eagle-eye.box.json` ("Publish eagle-eye as a public repo": 8 decisions, 34 options, 11 edges, 5 presets), together with the findings in chat, led by the problem. It was offered as an existing real output. No samples were drafted. The owner: "that page is the target, I don't think anything is wrong with it at the moment."
 
 ---
 
@@ -16,7 +16,7 @@ Version: 0.2.5
 
 **Name:** eagle-eye. **Decided**
 
-**What it does, and for whom.** **Decided** "A problem-solving technique for whenever you want to solve a problem, by judging your options and seeing the trade-offs between those options."
+**What it does, and for whom.** **Decided.** "A problem-solving technique for whenever you want to solve a problem, by judging your options and seeing the trade-offs between those options."
 
 **When it steps in.**
 
@@ -25,16 +25,16 @@ Version: 0.2.5
 
 **When it stays out.**
 
-- The person insists on the quick route. Then find the quickest way to meet their intent, and move on. Eagle-eye exists to force slow, deliberate (System 2) thinking, so it does not fire on a person who is clearly in a hurry. **Decided** How a hurry shows (the owner, after the build check): "when the user is in a hurry it would be pretty explicit, like 'nah we don't need a box'." The familiar judges it; the built file lists no trigger phrases. **Decided**
+- The person insists on the quick route. Then find the quickest way to meet their intent, and move on. Eagle-eye exists to force slow, deliberate (System 2) thinking, so it does not fire on a person who is clearly in a hurry. **Decided.** How a hurry shows (the owner, after the build check): "when the user is in a hurry it would be pretty explicit, like 'nah we don't need a box'." The familiar judges it; the built file lists no trigger phrases. **Decided**
 - Two independent choices. *Proposed* (follows from "three or more open decisions" above and the depth rule in question 3).
 
-**How these lines build the description.** *Proposed.* The built file's description takes its triggers from "when it steps in" and "when it stays out" only. The owner chose the narrow trigger over "any problem", so the purpose sentence above goes in the body, not the description.
+**How these lines build the description.** *Proposed.* The built file's description takes its triggers from "when it steps in" and "when it stays out" only. The owner chose the narrow trigger over "any problem". The purpose sentence above goes in the body, not in the description.
 
 **The nearest situation where it would be wrong.** *Proposed* — left open by the owner (hardest to defend). Draft: a person racing to ship, with one decision that has a few options.
 
 ## 2. What does it notice that nothing else does?
 
-**Decided** "How options link together, and evaluating trade-offs."
+**Decided.** "How options link together, and evaluating trade-offs."
 
 ## 3. Who does what?
 
@@ -62,11 +62,11 @@ Version: 0.2.5
 
 | Clause | Held by | Mark |
 |---|---|---|
-| When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** (replaces the baseline's "say it, then build") |
+| When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** |
 | When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. | Promised | **Confirmed** |
 | When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
 | When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker. | Promised | **Decided** (derived from questions 6 and 13) |
-| When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided** (asked before the box is shown, so the answer is a true "before") |
+| When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided** (it asks before it shows the box, so the answer is a true "before") |
 
 **What makes it fire.** **Decided**
 
@@ -103,32 +103,32 @@ The history is in `contract.changelog.md` beside this file.
 
 ## 9. A real example of it at its best
 
-**Decided** `docs/decisions/publish-eagle-eye.box.json` (the target). A real decision, from the owner's own work, kept on purpose. The owner has made much bigger and more complex boxes (in the-pact) that may be better examples, "but I don't think the optimization here really matters." Scratch folders are temporary, so those boxes may not last.
+**Decided.** `docs/decisions/publish-eagle-eye.box.json` (the target). A real decision, from the owner's own work, kept on purpose. The owner has made much bigger and more complex boxes (in the-pact) that may be better examples, "but I don't think the optimization here really matters."
 
 ## 10. What does it need to start?
 
-**Confirmed** The discussion or plan that holds the decisions, and each option's source (a ticket, a document, a chat turn).
+**Confirmed.** The discussion or plan that holds the decisions, and each option's source (a ticket, a document, a chat turn).
 
 - **Refuse:** no problem it can state (the renderer refuses a box with no `problem`).
 - **Point out:** an option with no source (it stays argued), a row with no strawman, an edge with no reason. It names the gap; it does not fill it with a guess.
 
 ## 11. Where does a person decide?
 
-**Confirmed** The person accepts a chosen set; eagle-eye's debrief closes the loop in chat. A decision the project keeps goes into its own decision records (`docs/decisions/`, `docs/adr/`), never the box by default. A pasted restore code is said back in words before it acts (question 3's stop).
+**Confirmed.** The person accepts a chosen set; eagle-eye's debrief closes the loop in chat. A decision the project keeps goes into its own decision records (`docs/decisions/`, `docs/adr/`), never the box by default. A pasted restore code is said back in words before it acts (question 3's stop).
 
 ## 12. Practice test
 
 **Confirmed** (the 16-session plan). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Expected answers are written before any run. Not sealed. Each session runs on the clean baseline, through the repository's practice runner (`docs/practice-tests/procedure.md`). Usage-record cases P5 to P9 are in sessions 9 and 10, and the owner decides when to run them.
 
-**Deviation from Thorough.** The template asks for 3 full runs; this test runs 16 sessions, to hold token cost. Two problem cases are left out because the renderer already flags them (hidden chain, missing strawman); two look-alike quiet cases are merged.
+**Deviation from Thorough.** The template asks for 3 full runs. This test runs 16 sessions, to hold token cost. The renderer already flags two problem cases (hidden chain, missing strawman), so the test has none for them. It merges two look-alike quiet cases.
 
 ## 14. How hard should it think?
 
-**Confirmed** It runs on the model already in use. The optional audit calls other models; they only rank argued edges for rereading. A score never changes a tier and never goes into the box file.
+**Confirmed.** It runs on the model already in use. The optional audit calls other models; they only rank argued edges for rereading. A score never changes a tier and never goes into the box file.
 
 ## 15. How does it write?
 
-**Confirmed.** Follow ASD-STE100, and keep sentences short. One rule stays by name: no idiom, no metaphor, no analogy. Reason (the owner): current models rarely fill text with idioms such as "load-bearing" and "foot-gun", so the standard's other rules are detail, not a checklist. Test: ISO 24495-1 — can the reader find it, understand it, and use it?
+**Confirmed.** Follow ASD-STE100, and keep sentences short. One rule stays by name: no idiom, no metaphor, no analogy. Reason (the owner): current models rarely use idioms such as "load-bearing" and "foot-gun". The standard holds the other rules as detail, not a checklist. Test: ISO 24495-1 — can the reader find it, understand it, and use it?
 
 Row names and short names in chat, never ids; ids only in the box file and the restore code. **Confirmed.**
 
@@ -148,9 +148,9 @@ Why a review and not a cut: in the clinical-alert evidence, the share of appropr
 **How its record is kept.** **Confirmed** (the owner: "your recommendation looks good").
 
 - **What it records:** one finished use per box: whether the box was offered or invoked by name, declined, built or left unanswered, whether any row changed, and the person's answer before the box beside the decision after it. A built box writes a start line when it is first shown, and an end line with the same key at the debrief. A declined offer writes one line. **Decided.**
-- **Where:** the file named by the `EAGLE_EYE_LOG` environment variable; otherwise `.grimoire/eagle-eye/log.jsonl` in the person's home folder. A log at `.eagle-eye/log.jsonl` is ignored: never read, moved or deleted. Never inside the skill's folder, because the seal covers that folder. **Decided.** The owner keeps other logs under `.grimoire/`; the consent question names only what is built today.
+- **Where:** the file named by the `EAGLE_EYE_LOG` environment variable; otherwise `.grimoire/eagle-eye/log.jsonl` in the person's home folder. A log at `.eagle-eye/log.jsonl` is ignored: never read, moved or deleted. Never inside the skill's folder, because the seal covers that folder. **Decided.** The owner keeps other logs under `.grimoire/`. The consent question names only the log that exists today.
 - **Consent:** when no log exists, it asks once, and says why: to check that it fires when needed and to tell the person when it should be retired. On a no, it writes one "declined" marker at the log path and never asks again, and records no use. **Decided.** On a yes, it writes one consent marker at once, so a parallel session sees the yes before any use ends. When two sessions asked at once and the log holds both markers, the later line holds. **Decided.** It appends only to a file that already holds eagle-eye lines; any other file at the path is left alone, and it asks.
-- **Unanswered boxes:** a start line with no end line is an open box. At the next use, it asks the person whether each open box is still open. On a no, it appends an end line with the outcome "unanswered". On a yes, or no answer, it writes nothing. **Decided.** A box asked for and never answered is a signal, and with parallel sessions an open box can still be live.
+- **Unanswered boxes:** a start line with no end line is an open box. At the next use, it asks the person whether each open box is still open. On a no, it appends an end line with the outcome "unanswered". On a yes, or no answer, it writes nothing. **Decided.** A box asked for and never answered is a signal. With parallel sessions, an open box can still be live.
 - **When it cannot keep a record** (the latest marker is the declined marker, or a place that will not last, such as a temporary cloud session): it writes no line of any kind, and the debrief states the before and after in chat.
 - **Review:** at 10 recorded uses, and every 10 after, it reports the four counts to the person. It proposes; it changes nothing by itself. Each proposal becomes a change-log row. *Proposed;* the fourth count is **Decided.**
 

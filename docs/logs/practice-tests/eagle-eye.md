@@ -2,8 +2,6 @@
 
 The dated runs of the practice test in `docs/practice-tests/eagle-eye.md`. They came before the clean baseline existed, so they are not in that file's results grid.
 
-The results below came before the clean baseline existed. They are not in the grid.
-
 **Two-case try, 2026-09-30** (the template's "try it before you review it twice"; not a counted run). Each case ran once, in a fresh Claude Code session, in an empty scratch repository, with the rebuilt skill installed through a junction and the old copy moved out of the skills folder.
 
 | Case | Result | What it said |

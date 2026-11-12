@@ -128,9 +128,8 @@ need, without overwhelming me or showing me too much.
     lead says so in one line and offers `/brigade` or the Desktop route. It
     does not type the command.
   - **The card.** The tool writes no card. The lead writes the card with `set_roster` in the same turn,
-    as it does today, with the tool's job id as `bgId`, and the mod's roster
-    reminder fires after a start as it does after a send. The pull request
-    names this for the owner to read.
+    with the tool's job id as `bgId`, and the mod's roster
+    reminder fires after a start as it does after a send.
 - *Proposed*. The tool takes no permission mode, and the lead passes none. When the owner's words name one, the lead says in one
   line that the tool takes none, starts nothing in the background, and offers
   the Desktop route. **Confirmed**: a background
@@ -776,7 +775,7 @@ the skill so that every head chef behaves the same.
   `idle`, `done` or `stopped`. It writes `idle` for a member that has
   reported and waits on the owner or on the lead, and `working` again when it
   resumes; what the owner must do goes in a to-do, not in the status. It never writes `needs-you`; the pane
-  still reads that word as `idle`.
+  reads that word as `idle`.
 - **Confirmed.** **The owner answers in the lead's chat.** The
   start prompt tells members to send their questions to the lead. The owner
   may still type to a member directly: those words, in the member's own

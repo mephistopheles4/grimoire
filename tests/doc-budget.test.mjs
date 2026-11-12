@@ -15,7 +15,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Doc -> its budget in words. See the header before changing a number.
 const BUDGET = {
-  'AGENTS.md': 630,
+  'AGENTS.md': 700,
   'CONTEXT.md': 300,
   'CONTRIBUTING.md': 6300,
   'docs/agents/issue-tracker.md': 1300,

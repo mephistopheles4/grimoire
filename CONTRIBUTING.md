@@ -361,7 +361,7 @@ The agent-facing docs are counted. `tests/doc-budget.test.mjs` holds a budget in
 words for each, and fails when a doc grows past its budget or a listed doc is
 gone. A doc says what holds now: the history of a rule (the issue or decision
 that raised it, the version that changed it, the date it was settled) belongs in
-an ADR, a change log or a dated log, never in the doc. To add to a doc past its
+an ADR, a change log or a dated log (`docs/logs/`), never in the doc. To add to a doc past its
 budget, cut something in the same change. **Raising a budget is a spec change:**
 it needs the owner's yes in the issue, and only review holds that line.
 

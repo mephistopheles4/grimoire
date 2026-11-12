@@ -1,6 +1,6 @@
 # Change log: eagle-eye
 
-The history of `CONTRACT.md` beside this file: each change with its date and source, then the interview's flag log and checkpoint log. The contract holds only what holds now.
+This file holds the history of `CONTRACT.md`: each change with its date and source, then the interview's flag log and checkpoint log. The contract holds only what holds now.
 
 ## What changed, and why
 

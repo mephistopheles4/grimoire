@@ -30,8 +30,7 @@ _Avoid_: decision register, audit log
 
 **Decision source**:
 Who a decision log entry says decided: Owner (a press of the slider, or the
-owner's `/brigade level` command), Pane (a level reset at a reload of the mod;
-the entry's why says which), Not from a press (a level change no press made; the mod reads
+owner's `/brigade level` command), Pane (a level reset at a reload of the mod), Not from a press (a level change no press made; the mod reads
 it in an old log and writes none), Lead (the lead's own pick) or Relayed (the
 owner's answer as the lead passed it on).
 _Avoid_: author, origin

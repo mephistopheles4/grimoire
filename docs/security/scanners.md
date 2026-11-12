@@ -459,7 +459,7 @@ Measured on 2.1.314, in athanor's image with no network:
 
 ### The pin
 
-**Claude Code 2.1.314**, set on 2026-10-31, in four places that move together:
+**Claude Code 2.1.314**, set on 2026-10-31. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in four places that move together:
 
 - the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.314`, written
   three times (the package in the fetch step, the tarball's file name below
