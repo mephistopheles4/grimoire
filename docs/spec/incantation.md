@@ -1,11 +1,11 @@
 # Incantation: the spec
 
-Draft 0.9, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 1.0, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
-to 0.8 fold in the answers (Decisions taken), and 0.9 holds the fixes drafted
-after spec round 2. None of the round-2 fixes is accepted yet.
+to 0.8 fold in the answers (Decisions taken), 0.9 holds the fixes drafted after
+spec round 2, and 1.0 folds in the lead's answers to them.
 
 ## S1. Objective
 
@@ -30,7 +30,8 @@ both speech engines and the proxy all run inside one WSL 2 distribution.
 Native Windows is out of scope for now, and so is Claude Code on Windows
 talking to VoiceMode inside WSL. The spec and the README both say so. The
 end-to-end step: in the distribution, install VoiceMode, apply the README
-settings, the engines listen on sockets, `/incantation` starts the proxy, the
+settings, `launch.mjs` starts the engines on sockets, `/incantation` starts the
+proxy, the
 guard prints `ok`, the greeting is heard.
 
 - **Networking.** WSL 2 in its default NAT mode. Mirrored mode is not
@@ -65,8 +66,8 @@ no speech); changes to VoiceMode;
 clearing VoiceMode's logs for the person; a hook that runs on every session
 start; running Incantation in a head-chef lead session (S4 step 7).
 
-This spec replaces the old tickets #593 and #594. Closing them is the owner's
-call.
+This spec replaces the old tickets #593 and #594. The lead closes them as
+replaced once the spec is approved.
 
 ## S4. What `/incantation` does
 
@@ -127,15 +128,16 @@ call.
 - **(a) The speech services answer only through the proxy (S4.2).** The
   speech-to-text and text-to-speech engines listen on a local socket each, in
   `~/.incantation/run/` (owned by the person, mode 0700, no group or other
-  bits), and on no TCP port. Whether both engines can do this in WSL 2, and
-  whether the setup step that does it is in scope (O10), is the build's first
+  bits), and on no TCP port. Incantation ships `launch.mjs`, which starts each
+  engine on its socket; it never edits a file VoiceMode installed (O10).
+  Whether both engines can listen on a socket in WSL 2 is the build's first
   check, before anything else is built; S9 stops the work if it fails. The proxy owns the
   loopback TCP ports VoiceMode calls (2022 and 8880, or the ports in the
-  speech URLs) and forwards to the sockets. The README gives the settings for
-  this as plain setup steps ("set X to Y"), for each engine and each target
-  system, with no word on why or on what the default is. It says to change
-  every place a setting appears, then restart the engine, and that a VoiceMode
-  update may undo it.
+  speech URLs) and forwards to the sockets. The README gives this as plain
+  setup steps, with no word on why or on what the default is: turn off
+  VoiceMode's own engine services, then start the engines with `launch.mjs`.
+  It says a VoiceMode update may turn those services back on, and that the
+  guard then fails until they are turned off again.
 - **(b) The text-to-speech service serves speech only.** As defence in depth
   behind the proxy, the README sets its web player and its cross-origin access
   off, as plain setup steps.
@@ -278,6 +280,13 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 - `plugins/incantation/skills/incantation/SKILL.md`, built through `contract`
 - `plugins/incantation/skills/incantation/scripts/guard.mjs` (S4.1 d)
 - `plugins/incantation/skills/incantation/scripts/proxy.mjs` (S4.2)
+- `plugins/incantation/skills/incantation/scripts/launch.mjs` (S4.1 a): runs
+  each engine's program from where VoiceMode installed it, with its own
+  arguments, listening on its socket in `~/.incantation/run/`. It edits no
+  file VoiceMode installed. It writes its PIDs into `~/.incantation/run/`;
+  `launch.mjs stop` signals each only after checking it is an engine it
+  started, owned by the person. After a restart the person runs it again, and
+  the guard's socket check says so.
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
   free ports, Node's built-in test runner. It skips on win32 and says so.
 - `plugins/incantation/README.md`. It opens with the target: WSL 2, with
@@ -286,7 +295,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
   1. install VoiceMode (the exact lines, with the commit they came from), and
      set up audio in WSL 2;
   2. run its service setup;
-  3. the S4.1 (a) and (b) settings;
+  3. turn off VoiceMode's engine services, start the engines with
+     `launch.mjs` (S4.1 a), and the S4.1 (b) settings;
   4. the S4.1 (c) settings;
   5. the proxy:
      - `/incantation` starts it, and it keeps running after the session;
@@ -387,8 +397,11 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     its own PID.
 17. With the proxy stopped, its ports refuse a connection. Whether VoiceMode
     then tries nothing else is a practice-run step.
+18. `launch.mjs`, run with fake engine programs, starts each with a socket in
+    `~/.incantation/run/` and no TCP port, writes nothing outside
+    `~/.incantation/`, and `stop` signals only the engines it started.
 
-Claims 7 to 13 and 15 to 17 are Node tests. The ticket closes on the owner's
+Claims 7 to 13 and 15 to 18 are Node tests; the socket ones skip on win32. The ticket closes on the owner's
 practice run. Once Test passes, the build session proposes its steps, each
 with a pass or fail, in WSL 2, and the owner picks the time then.
 
@@ -432,7 +445,8 @@ also grades one thing per turn.
   - **How the guard passes (O11).** The `present` cases need a passing guard
     with no bypass. The fixture runs the real `proxy.mjs`, in front of fake
     engines on sockets, under a fixture home folder that holds local-only
-    settings. Fixtures use invented heard lines only.
+    settings. If that cannot run in the eval sandbox, claims 2 to 6 move to
+    the practice run. Fixtures use invented heard lines only.
   - **How `converse` gets in.** A case gets `converse` from a test-only fake
     stdio MCP server in the case's fixture, which answers with a scripted
     heard line. The `absent` case runs without one.
@@ -495,10 +509,10 @@ The security pair runs on the diff at Test as well.
 - **Rollback:**
   - Remove the marketplace entry and `plugins/incantation/`.
   - The widened check rules stay, since they hold with one plugin.
-  - On the person's machine, undo README steps 3 to 5 so the engines run as
-    VoiceMode set them up.
+  - On the person's machine, `launch.mjs stop` and `proxy.mjs stop`, then
+    turn VoiceMode's engine services back on.
 - **Stop if:** the build's first check (S4.1 a) finds an engine that cannot
-  listen on a socket through an in-scope setup step; or VoiceMode will not
+  listen on a socket at all; or VoiceMode will not
   run on a target system; or the practice run
   shows a spoken yes starting a typed-yes act; or the guard cannot read the
   settings VoiceMode uses on a target system; or an engine cannot listen on a
@@ -543,6 +557,18 @@ The lead, at level 3 under the owner's standing goal, then answered the rest
 - A10, the port 8765 probe is skipped as Hardening and recorded as an
   accepted-risk candidate (S7, S8).
 
+The lead, at level 3 under the owner's standing goal, then took every
+round-2 row as drafted in 0.9 (2026-11-12, decision 168), and answered:
+
+- O10, Incantation ships `launch.mjs`, which starts each engine on its socket
+  and never edits a file VoiceMode installed, so S3 stands; if an engine
+  cannot listen on a socket at all, S9 stops the work;
+- O11, the eval fixture runs the real proxy in front of fake engines, with no
+  bypass, and falls back to the practice run (S6.1);
+- the branch history: a squash merge with `--delete-branch`, and no
+  force-push;
+- #593 and #594: the lead closes them as replaced once the spec is approved.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -550,10 +576,4 @@ them.
 
 ## Open
 
-- **O10.** If moving the engines onto sockets means editing files VoiceMode
-  installed, is that in scope? S3 puts changes to VoiceMode out.
-- **O11.** The eval cases' passing guard (S6.1): the real proxy and fake
-  engines in the fixture. If that can't run in the eval sandbox, should
-  claims 2 to 6 move to the practice run?
-
-Nothing is filed upstream, and any future report stays private.
+None. Nothing is filed upstream, and any future report stays private.
