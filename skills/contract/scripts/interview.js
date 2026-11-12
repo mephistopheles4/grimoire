@@ -80,6 +80,152 @@ const Interview = (() => {
    * refused once, at `type`, and gates no kind. */
   const TYPE_FAULT = kind => `this draft's type cannot hold this kind; it is for ${kind.types.join(' and ')}`;
 
+  /* -- the schedule kind -----------------------------------------------------
+   *
+   * A schedule holds the text of one section of a built file, names the body
+   * clauses it carries out, and names the section's home: SKILL.md, or one
+   * reference. The contract skill writes the home file, so the grammar below
+   * is the first of the stops that keep that write inside the skill it builds.
+   * The part is the one a draft may leave out: a draft saved before it existed
+   * carries no `schedules` key, and the check adds the part, empty. */
+  const SCHEDULE = 'schedule';
+  const SCHEDULES = 'schedules';
+  const partList = (draft, part) => (Object.hasOwn(draft.parts, part) ? draft.parts[part] : []);
+
+  /* The home grammar. The file name is matched in any letter case first, so a
+   * contract, a change log or a device name written in capitals is named for
+   * what it is; a name in capitals still fails the lowercase grammar. */
+  const HOME_FILE = /^references\/([^/]*)\.md$/i;
+  const DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+  const HOME_GRAMMAR = 'must be SKILL.md or references/<file>.md, where <file> is 1 to 40 characters of a-z, 0-9 and -';
+  function homeFault(home) {
+    if (home === 'SKILL.md') return null;
+    const m = HOME_FILE.exec(home);
+    if (m) {
+      const stem = m[1].toLowerCase();
+      if (stem === 'contract' || stem === 'contract-changelog') return 'names the contract or its change log, which is never a home';
+      if (DEVICE.test(stem)) return 'names a Windows device name, which is never a home';
+      if (/^[a-z0-9-]{1,40}$/.test(m[1]) && home.endsWith('.md')) return null;
+    }
+    return HOME_GRAMMAR;
+  }
+
+  /* A name is the heading of its home section, written exactly; a piece of a
+   * split section adds " (n of m)" at the end, and the suffix is stripped
+   * before the heading is matched. */
+  const PIECE = /^(.*) \((\d+) of (\d+)\)$/;
+  /** Why a label cannot stand as one line of a heading or a bold label, or null. */
+  function oneLineFault(name) {
+    if (/[\r\n\u{85}\u{2028}\u{2029}]/u.test(name)) return 'holds a line break; a name is one line';
+    if (name.startsWith('#')) return 'may not start with #';
+    if (name.includes('<!') || name.includes('<?')) return 'may not hold <! or <?, which hides text when it is read as Markdown';
+    return null;
+  }
+  function scheduleNameFault(name) {
+    if (name.length === 0) return 'is empty';
+    if (name.length > 120) return 'is longer than 120 characters';
+    return oneLineFault(name);
+  }
+
+  /* A text may not hold a line that would read as a heading, hide a comment
+   * or define a link. Each rule is applied to every line, a line inside a
+   * code fence too, since a fence may be left open and swallow what follows. */
+  const ATX = /^ {0,3}#{1,6}(?:[ \t]|$)/;
+  const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/;
+  const DEFINITION = /^[ \t]*\[(?:[^\]\\\n]|\\.)+\]:/;
+  const MARKER = /^[ \t]*(?:>|[-+*](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$))/;
+  /** A line with its quote and list markers taken off, one at a time, so each
+   *  rule below reads what a quote or a list item holds as it reads a line of
+   *  its own. The rest is left-trimmed when a marker was taken off. */
+  function unwrapped(line) {
+    let rest = line;
+    for (let m = MARKER.exec(rest); m; m = MARKER.exec(rest)) rest = rest.slice(m[0].length);
+    return rest === line ? line : rest.trimStart();
+  }
+  /** A label a link reference definition may spread over lines: a line that
+   *  opens one and does not close it, or closes one it never opened. */
+  function splitLabel(line) {
+    /* A bracket with a backslash before it is no bracket of the label's. */
+    const bare = (ch, from = 0, then = '') => {
+      for (let i = line.indexOf(ch, from); i >= 0; i = line.indexOf(ch, i + 1)) {
+        if (line[i - 1] !== '\\' && line.startsWith(then, i + 1)) return i;
+      }
+      return -1;
+    };
+    const open = bare('[');
+    if (open >= 0 && line.slice(0, open).trim() === '') return bare(']', open) < 0;
+    const close = bare(']', 0, ':');
+    return close >= 0 && (open < 0 || open > close);
+  }
+  function scheduleTextFault(text) {
+    const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const inner = unwrapped(line);
+      const n = `line ${i + 1}`;
+      if (ATX.test(line) || ATX.test(inner)) return `${n} is a heading line; a schedule cannot break the contract's outline`;
+      const under = SETEXT.test(line) || SETEXT.test(inner);
+      if (under && i > 0 && lines[i - 1].trim() !== '' && unwrapped(lines[i - 1]).trim() !== '') return `${n} is a setext underline of = or -, which makes the line above it a heading`;
+      if (line.includes('<!') || line.includes('<?')) return `${n} holds <! or <?, which opens an HTML comment, a declaration, CDATA or a processing instruction`;
+      if (DEFINITION.test(inner)) return `${n} is a link reference definition`;
+      if (splitLabel(inner)) return `${n} opens or closes a link reference definition's label, which may spread over lines`;
+    }
+    return null;
+  }
+
+  /** Why a schedule's field is refused, or null. */
+  function scheduleFault(field, value) {
+    if (field === 'home') return homeFault(value);
+    if (field === 'name') return scheduleNameFault(value);
+    return scheduleTextFault(value);
+  }
+
+  /** A schedule's name as a piece of a split section: { base, n, m }, or null. */
+  function pieceOf(fields) {
+    const m = isObj(fields) && typeof fields.name === 'string' ? PIECE.exec(fields.name) : null;
+    return m ? { base: m[1], home: fields.home, n: Number(m[2]), m: Number(m[3]) } : null;
+  }
+
+  /** The cut a section longer than one field takes: pieces of at most `limit`
+   *  characters, cut only on an empty line outside a code fence. The blank
+   *  line goes with neither piece, and joining the pieces with one blank line
+   *  gives the section back, byte for byte. Throws when no cut fits. */
+  function cutSection(text, limit = LIMITS.fieldChars) {
+    const lines = text.split('\n');
+    const cuts = [];
+    let fence = null;
+    lines.forEach((line, i) => {
+      const inside = fence !== null;
+      /* A fence behind a quote marker, a list marker or an indent opens and
+       * closes as one at the left edge does. Being wide here only costs a
+       * cut: a line that is no fence and reads as one keeps the empty lines
+       * after it from being cut points. */
+      const inner = unwrapped(line);
+      if (fence) {
+        const close = new RegExp(`^${fence.ch}{${fence.len},}[ \\t]*$`).exec(inner.trimStart());
+        if (close && (fence.nested || (inner === line && /^ {0,3}\S/.test(line)))) fence = null;
+      } else {
+        const open = /^(`{3,}|~{3,})(.*)$/.exec(inner.trimStart());
+        if (open && !(open[1][0] === '`' && open[2].includes('`'))) fence = { ch: open[1][0], len: open[1].length, nested: inner !== line || !/^ {0,3}\S/.test(line) };
+      }
+      if (!inside && line === '' && i > 0 && i < lines.length - 1) cuts.push(i);
+    });
+    const before = [0];
+    for (const line of lines) before.push(before[before.length - 1] + line.length + 1);
+    const size = (a, b) => before[b] - before[a] - 1;
+    const pieces = [];
+    let start = 0;
+    while (size(start, lines.length) > limit) {
+      let best = -1;
+      for (const c of cuts) if (c > start && size(start, c) <= limit) best = c;
+      if (best < 0) throw new Error(`no empty line outside a code fence falls within ${count(limit)} characters of the piece that starts at line ${start + 1}`);
+      pieces.push(lines.slice(start, best).join('\n'));
+      start = best + 1;
+    }
+    pieces.push(lines.slice(start).join('\n'));
+    return pieces;
+  }
+
   /* Why a name is refused: only what breaks the storage key or a command
    * (q22 on #313). Anything else outside the name format is a warning. */
   function nameFault(name) {
@@ -229,7 +375,10 @@ const Interview = (() => {
         }
         const at = `${path}.${f.name}`;
         if (f.type === 'choice') oneOf(at, fields[f.name], K.choices.get(f.name));
-        else isText(at, fields[f.name]);
+        else if (isText(at, fields[f.name]) && kind.id === SCHEDULE) {
+          const why = scheduleFault(f.name, fields[f.name]);
+          if (why) refuse(at, why);
+        }
       }
     };
     const nameOk = (path, v) => {
@@ -253,6 +402,10 @@ const Interview = (() => {
     const { isText, oneOf, keys, fieldsOf, nameOk } = checks(draft, refuse, K);
 
     if (!keys('file', draft, TOP)) return { refusals, warnings };
+    /* A draft saved before the schedules part existed has no such key. It
+     * loads as an empty part, added here to the draft itself, so the page and
+     * the script that read the same object after this check see nine parts. */
+    if (isObj(draft.parts) && !Object.hasOwn(draft.parts, SCHEDULES)) draft.parts[SCHEDULES] = [];
     if (draft.format !== 1) refuse('format', 'unknown format; this script reads format 1');
     isText('title', draft.title);
     oneOf('type', draft.type, TYPES);
@@ -320,15 +473,41 @@ const Interview = (() => {
             if (!Array.isArray(c.refs)) refuse(`${path}.refs`, 'expected an array of clause ids');
             else c.refs.forEach((r, j) => isText(`${path}.refs[${j}]`, r));
           }
+          if (c.kind === SCHEDULE && hasFields && !(Array.isArray(c.refs) ? c.refs.length : Object.hasOwn(c, 'refs'))) {
+            refuse(`${path}.refs`, 'a schedule names the body clauses it carries out in refs, and this one names none');
+          }
           if (idOk) clauses.set(c.id, { c, kind, part, path });
         });
       }
     } else refuse('parts', 'expected an object');
-    for (const { c, path } of clauses.values()) {
+    for (const { c, kind, path } of clauses.values()) {
       if (Array.isArray(c.refs)) c.refs.forEach((r, j) => {
-        if (typeof r === 'string' && !clauses.has(r)) refuse(`${path}.refs[${j}]`, 'names no clause in this draft');
+        if (typeof r !== 'string') return;
+        if (!clauses.has(r)) refuse(`${path}.refs[${j}]`, 'names no clause in this draft');
+        else if (kind.id === SCHEDULE && clauses.get(r).part === SCHEDULES) refuse(`${path}.refs[${j}]`, 'names a clause outside the eight body parts; a schedule carries out body clauses only');
       });
     }
+    /* The pieces of a split section run in order, each one the next's
+     * neighbour, with the same home and name, and the run is whole. */
+    let open = null;
+    const closeRun = () => {
+      if (open) refuse(open.path, `piece ${open.n} of ${open.m} is not followed by piece ${open.n + 1} of ${open.m}`);
+      open = null;
+    };
+    if (isObj(draft.parts) && Array.isArray(draft.parts[SCHEDULES])) draft.parts[SCHEDULES].forEach((c, i) => {
+      const piece = c && c.kind === SCHEDULE ? pieceOf(c.fields) : null;
+      if (!piece) return closeRun();
+      const path = `parts.schedules[${i}].fields.name`;
+      const { n, m } = piece;
+      if (n < 1 || n > m) { closeRun(); return refuse(path, `piece ${n} of ${m} is not a place in a run of ${m}`); }
+      if (open && open.home === piece.home && open.base === piece.base && open.m === m && open.n + 1 === n) open = null;
+      else {
+        closeRun();
+        if (n !== 1) return refuse(path, `piece ${n} of ${m} does not follow piece ${n - 1} of ${m} with the same home and name`);
+      }
+      open = n < m ? { ...piece, path } : null;
+    });
+    closeRun();
 
     /* -- the questions -------------------------------------------------------- */
     if (Array.isArray(draft.questions)) {
@@ -386,7 +565,7 @@ const Interview = (() => {
    *  question by the clause it asks about. */
   function draftIndex(draft, K) {
     const clauses = new Map();
-    for (const part of K.parts) for (const c of draft.parts[part]) clauses.set(c.id, { c, kind: K.byId.get(c.kind), part });
+    for (const part of K.parts) for (const c of partList(draft, part)) clauses.set(c.id, { c, kind: K.byId.get(c.kind), part });
     const questions = new Map();
     for (const q of draft.questions) questions.set(q.clause, q);
     return { clauses, questions };
@@ -525,9 +704,26 @@ const Interview = (() => {
        * export remove them. */
       const live = new Map([...ix.clauses].map(([id, e]) => [id, { part: e.part, kind: e.c.kind }]));
       const dropSchedule = (part, kindId) => { for (const [id, x] of [...live]) if (x.part === part && x.kind === kindId) live.delete(id); };
+      /* A schedule still standing that carries out one of these clauses, as
+       * { schedule, ref }, or null. Only a clause from the draft has refs. */
+      const carriedOut = ids => {
+        for (const [sid, x] of live) {
+          const c = x.part === SCHEDULES && ix.clauses.has(sid) ? ix.clauses.get(sid).c : null;
+          const ref = c && Array.isArray(c.refs) ? c.refs.find(r => ids.includes(r)) : undefined;
+          if (ref !== undefined) return { schedule: sid, ref };
+        }
+        return null;
+      };
+      const ofKind = (part, kindId) => [...live].filter(([, x]) => x.part === part && x.kind === kindId).map(([id]) => id);
+      /* Refuse an edit that takes away a clause a schedule carries out. */
+      const keepCarried = (at, ids) => {
+        const held = carriedOut(ids);
+        if (held) refuse(at, `schedule ${held.schedule} carries out ${held.ref}, so it cannot go while the schedule stands; remove the schedule first`);
+        return held === null;
+      };
       const ids = new Set(ix.clauses.keys());
       for (const q of draft.questions) { ids.add(q.id); for (const o of q.options) ids.add(o.id); }
-      const perPart = new Map(K.parts.map(p => [p, draft.parts[p].length]));
+      const perPart = new Map(K.parts.map(p => [p, partList(draft, p).length]));
       const asked = K.levels.get(draft.level);
       /* A part the level does not ask holds no clauses (spec v4 S6), so an
        * edit cannot add one there or agree a none in it. */
@@ -563,6 +759,9 @@ const Interview = (() => {
         if (Object.hasOwn(e, 'restored') && e.restored !== true) refuse(`${path}.restored`, 'expected true, or no restored');
         if (e.op === 'add') {
           const kind = kindIn(path, e.part, e.kind);
+          /* A schedule names the body clauses it carries out, and an edit has
+           * no refs to name them with. */
+          if (kind && kind.id === SCHEDULE && e.none !== true) refuse(`${path}.kind`, 'a schedule names the body clauses it carries out; add it to the draft, since an entry added on the page cannot name them');
           const inAsked = kind !== null && askedPart(path, e.part);
           if (isText(`${path}.id`, e.id)) {
             if (!ID.test(e.id)) refuse(`${path}.id`, 'an id is 1 to 64 characters of a-z, 0-9 and -, starting with a letter or digit');
@@ -587,14 +786,17 @@ const Interview = (() => {
             }
           }
         } else if (e.op === 'none') {
-          if (kindIn(path, e.part, e.kind) && askedPart(path, e.part)) dropSchedule(e.part, e.kind);
+          if (kindIn(path, e.part, e.kind) && askedPart(path, e.part) && keepCarried(`${path}.kind`, ofKind(e.part, e.kind))) dropSchedule(e.part, e.kind);
         } else if (e.op === 'rename' && Object.hasOwn(e, 'id')) refuse(path, 'a rename names a schedule by part and kind; an entry has no name of its own');
         else if (target(path, e)) {
-          if (e.op === 'rename') isText(`${path}.name`, e.name);
+          if (e.op === 'rename' && isText(`${path}.name`, e.name)) {
+            const why = oneLineFault(e.name);
+            if (why) refuse(`${path}.name`, why);
+          }
           if (e.op === 'move' && !(Number.isInteger(e.to) && e.to >= 0)) refuse(`${path}.to`, 'expected an index, 0 or more');
           if (e.op === 'remove') {
-            if (Object.hasOwn(e, 'id')) live.delete(e.id);
-            else dropSchedule(e.part, e.kind);
+            if (Object.hasOwn(e, 'id')) { if (keepCarried(`${path}.id`, [e.id])) live.delete(e.id); }
+            else if (keepCarried(`${path}.kind`, ofKind(e.part, e.kind))) dropSchedule(e.part, e.kind);
           }
         }
       });
@@ -756,7 +958,7 @@ const Interview = (() => {
   /* -- the export --------------------------------------------------------------
    *
    * The contract the answers make, in the template's shape: the title block,
-   * then all eight part headings in order, a part the level does not ask left
+   * then all nine part headings in order, a part the level does not ask left
    * empty. Each part lists its clauses kind by kind, each kind under its own
    * name, each clause in its plain frame with its mark. Three kinds are table
    * rows, with the template's columns; the mark folds into each row's last
@@ -805,12 +1007,12 @@ const Interview = (() => {
     const ix = draftIndex(draft, K);
     const answered = new Map(block.answers.map(a => [a.id, a]));
     const parts = new Map(K.parts.map(p => [p, []]));
-    for (const part of K.parts) for (const c of draft.parts[part]) {
+    for (const part of K.parts) for (const c of partList(draft, part)) {
       const a = answered.get(c.id);
       const kind = K.byId.get(c.kind);
       let fields = c.fields;
       if (a) fields = Object.hasOwn(a, 'option') ? ix.questions.get(c.id).options.find(o => o.id === a.option).fields : a.fields;
-      parts.get(part).push({ id: c.id, kind, fields, none: c.none === true, gate: c.gate, freedom: c.freedom, mark: a ? a.mark : c.kind === 'why' ? null : 'Proposed' });
+      parts.get(part).push({ id: c.id, kind, fields, none: c.none === true, gate: c.gate, freedom: c.freedom, refs: c.refs, mark: a ? a.mark : c.kind === 'why' ? null : 'Proposed' });
     }
     const names = new Map(); // "part/kind" -> schedule name
     const order = new Map(K.parts.map(p => [p, []])); // schedule order per part
@@ -840,16 +1042,76 @@ const Interview = (() => {
     return { parts, names, order };
   }
 
+  /* The schedules part opens with a table of contents, one line for each
+   * schedule's title and home, then holds one `### <home>: <name>` schedule
+   * each, in the order the clauses stand. A schedule's text is written as it
+   * stands, with no heading of its own, and runs to the next `###` or `##`
+   * line. Pieces of a split section that form a whole run, with the same home
+   * and name, are joined with one blank line into one schedule, which takes
+   * the weakest of their marks. A run the edits left incomplete is written as
+   * it stands, suffix and all, so the repository's drift test finds it. The
+   * clauses a schedule carries out are quoted by the bold label the body
+   * writes for each, which `label` gives. */
+  const STRENGTH = { Proposed: 0, Confirmed: 1, Decided: 2 };
+  const weakest = marks => marks.reduce((a, b) => ((STRENGTH[b] ?? 0) < (STRENGTH[a] ?? 0) ? b : a));
+  function scheduleLines(list, label) {
+    const entries = [];
+    for (let i = 0; i < list.length;) {
+      const x = list[i];
+      if (x.none) {
+        entries.push({ none: true, mark: x.mark });
+        i++;
+        continue;
+      }
+      const piece = pieceOf(x.fields);
+      let run = [x];
+      let name = x.fields.name;
+      if (piece && piece.n === 1) {
+        const next = list.slice(i, i + piece.m);
+        const whole = next.length === piece.m && next.every((y, j) => {
+          const q = y.none ? null : pieceOf(y.fields);
+          return q && q.base === piece.base && q.home === piece.home && q.m === piece.m && q.n === j + 1;
+        });
+        if (whole) { run = next; name = piece.base; }
+      }
+      const refs = [...new Set(run.flatMap(y => y.refs || []).map(label))];
+      entries.push({ home: x.fields.home, name, refs, mark: weakest(run.map(y => y.mark)), text: run.map(y => y.fields.text).join('\n\n') });
+      i += run.length;
+    }
+    const out = [];
+    for (const e of entries) if (!e.none) out.push(`- ${e.home}: ${e.name}. Home: \`${e.home}\`.`);
+    if (out.length) out.push('');
+    for (const e of entries) {
+      if (e.none) {
+        out.push(`- None. ${markText(e.mark)}`, '');
+        continue;
+      }
+      const carries = e.refs.length ? ` Carries out: ${e.refs.map(r => `"${r}"`).join(', ')}.` : '';
+      out.push(`### ${e.home}: ${e.name}`, '', `Home: \`${e.home}\`, the section "${e.name}".${carries}`, markText(e.mark), '');
+      if (e.text !== '') out.push(e.text, '');
+    }
+    return out;
+  }
+
   /** The contract as Markdown. */
   function exportContract(draft, kinds, block) {
     const K = kindsIndex(kinds);
     const words = kinds.words || {};
     const { parts, names, order } = finalClauses(draft, K, block);
+    /* The bold label the body writes for a clause: its kind's heading, as a rename leaves it. */
+    const labelOf = id => {
+      for (const [part, list] of parts) {
+        const x = list.find(y => y.id === id);
+        if (x) return names.get(`${part}/${x.kind.id}`) || capital(x.kind.kind);
+      }
+      return id;
+    };
     const version = draft.rewrite ? `${Number(draft.rewrite.version.split('.')[0]) + 1}.0.0` : '0.1.0';
     const out = [`# Contract: ${draft.name}`, '', `Version: ${version}`, `Kind: ${draft.type}`, `Level: ${draft.level}`, ''];
     for (const part of K.parts) {
       out.push(`## ${part}`, '');
       const list = parts.get(part);
+      if (part === SCHEDULES) { out.push(...scheduleLines(list, labelOf)); continue; }
       const kindsHere = [];
       for (const k of order.get(part)) if (list.some(x => x.kind.id === k)) kindsHere.push(k);
       for (const x of list) if (!kindsHere.includes(x.kind.id)) kindsHere.push(x.kind.id);
@@ -1047,6 +1309,6 @@ const Interview = (() => {
     return { high, proposal: shown, fields: shown };
   }
 
-  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally, view, sentence, reveal };
+  return { LIMITS, cutSection, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally, view, sentence, reveal };
 })();
 if (typeof module !== 'undefined') module.exports = Interview;
