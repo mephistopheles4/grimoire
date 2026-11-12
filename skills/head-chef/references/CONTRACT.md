@@ -1129,8 +1129,10 @@ The tool refuses a note, in fixed words that never quote it, when it is not
 one sentence of 1 to 200 characters on one line. A note holds only ASCII
 letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
 holds no colon, so it cannot copy the label. It holds one commit at most, and
-only straight after the word `commit`. It holds no word about where to send
-questions or reports, posting, or accepting a risk, and no name of a live
+only straight after the word `commit`. It holds none of a fixed list of
+words, such as lead, report, send, message, instead, ask, reply, answer,
+question, post, comment, publish, risk, accept and merge, in the forms the
+tool lists. It holds no name of a live
 session or a card, except the new member's and the lead's own. The bounds
 guard against mistakes and not against an attacker: a synonym, a person or a
 work redirect in plain words still passes. The label is a line of prose, not a
@@ -1139,8 +1141,8 @@ harness control; the member's own rules decide what it takes from the note.
 An owner's word that a member's rules need quoted still goes by message after
 the start, quoted as the owner's. On a Desktop start the lead writes the same
 note and label itself, under the same bounds, and no tool checks it. An older
-pane refuses the `note` key: any refusal on the input's keys means the lead
-starts again without the note and sends it as a message.
+pane refuses the `note` key: a refusal on the input's keys that does not name
+`note` means the lead starts again without the note and sends it as a message.
 
 **What the prompt leaves to each member** (**Confirmed**, issue 503, decision
 547, the lead's own pick under level 3): the harness labels a message from

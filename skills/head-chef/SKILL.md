@@ -648,8 +648,10 @@ The tool refuses a note, in fixed words that never quote it, when it is not
 one sentence of 1 to 200 characters on one line. A note holds only ASCII
 letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
 holds no colon, so it cannot copy the label. It holds one commit at most, and
-only straight after the word `commit`. It holds no word about where to send
-questions or reports, posting, or accepting a risk, and no name of a live
+only straight after the word `commit`. It holds none of a fixed list of
+words, such as lead, report, send, message, instead, ask, reply, answer,
+question, post, comment, publish, risk, accept and merge, in the forms the
+tool lists. It holds no name of a live
 session or a card, except the new member's and your own. The bounds guard
 against mistakes and not against an attacker: a synonym, a person or a work
 redirect in plain words still passes. The label is a line of prose, not a
@@ -658,8 +660,8 @@ harness control; the member's own rules decide what it takes from the note.
 An owner's word that a member's rules need quoted still goes by message after
 the start, quoted as the owner's. On a Desktop start you write the same note
 and label yourself, under the same bounds, and no tool checks it. An older
-pane refuses the `note` key: on any refusal about the input's keys, start
-again without the note and send it as a message.
+pane refuses the `note` key: on a refusal about the input's keys that does
+not name `note`, start again without the note and send it as a message.
 
 A brigade running at install keeps working: members on the 0.17.0 prompt
 keep it until they end, and your sends by name still pass their check.

@@ -9871,6 +9871,7 @@ test('578 C2/C4: a note that passes rides as the last argv element behind the to
   ])
   expect(sets).toEqual([])
   expect(w.log.filter(l => l.includes('approved'))).toEqual([])
+  expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
   expect(JSON.stringify(w.roster)).not.toContain('approved')
 })
 
@@ -9996,6 +9997,10 @@ test('543 C11: the tool is offered with the others, with the spec\'s description
   const { w } = await startWorld(on, $)
   expect(w.registered.filter(n => n === 'start_background_session')).toEqual(['start_background_session'])
   expect(w.descriptions.get('start_background_session')).toBe(START_DESCRIPTION)
+  // 578: the declared input holds the optional note, at 200 characters, and requires only the seven fields.
+  const schema = w.schemas.get('start_background_session')
+  expect(schema.properties.note).toEqual({ type: 'string', maxLength: 200 })
+  expect(schema.required).toEqual(['name', 'repository', 'issue', 'model', 'effort', 'lead', 'folder'])
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
   await $.classic.SessionStart({ source: 'resume', session_id: SID, transcript_path: TRANSCRIPT })
   await brigade($)

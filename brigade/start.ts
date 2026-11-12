@@ -32,7 +32,7 @@ export const CAP_REASON = 'cap: four background starts in ten minutes were reach
 export const ORIGIN_TIMEOUT_MS = 15000
 export const START_TIMEOUT_MS = 60000
 
-/** What the lead still reads after a compaction (S2.0). */
+/** What the lead still reads after a compaction (issue 543 S2.0, amended by issue 578 S3.4). */
 export const DESCRIPTION =
   'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository that the owner listed with /brigade folders add). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
 
@@ -83,7 +83,9 @@ export const NOTE_REASONS = {
   names: 'note: names a session or a card',
 }
 
-/** The words rule 4 refuses, each compared as a whole word, case-blind (S3.2). */
+/** The words rule 4 refuses, each compared as a whole word, case-blind: the table of issue 578 S3.2,
+ *  and no other form of a word. The owner accepted prompt injection as a threat class (the lead's
+ *  decision 66), so no detector for injected wording is added here until that merges. */
 const NOTE_WORDS: ReadonlySet<string> = new Set([
   // redirection
   'lead', 'leads', 'leader', 'leading', 'report', 'reports', 'reported', 'reporting', 'send', 'sends', 'sent', 'sending',
@@ -95,13 +97,15 @@ const NOTE_WORDS: ReadonlySet<string> = new Set([
   'risk', 'risks', 'accept', 'accepts', 'accepted', 'merge', 'merged',
 ])
 
-/** Rules 1 to 4 of S3.2, pure and in order; the first that fails answers. Explicit ASCII classes only. */
+/** Rules 1 to 4 of issue 578 S3.2, pure and in order; the first that fails answers. Explicit ASCII classes only. */
 function noteRules(note: string): string | undefined {
   // 1. Length: one line of printable ASCII (a space is the lowest), so no control character and nothing outside ASCII.
   if (note.length < 1 || note.length > MAX_NOTE || !/^[\x20-\x7E]+$/.test(note)) return NOTE_REASONS.length
   // 2. Characters: one sentence that ends in its only full stop.
   const body = note.slice(0, -1)
-  if (!note.endsWith('.') || !/^[A-Za-z0-9 ,;()'-]*$/.test(body) || /(?<![A-Za-z])'/.test(body) || body.startsWith(' ') || body.includes('  ')) return NOTE_REASONS.chars
+  // The sentence holds a letter or a digit, and neither its first nor its last character is a space.
+  if (!note.endsWith('.') || !/^[A-Za-z0-9 ,;()'-]*$/.test(body) || /(?<![A-Za-z])'/.test(body) || !/[A-Za-z0-9]/.test(body)) return NOTE_REASONS.chars
+  if (body.startsWith(' ') || body.endsWith(' ') || body.includes('  ')) return NOTE_REASONS.chars
   // 3. Ids: one commit straight after the word commit, and no other long hex or digit run.
   let commitSeen = false
   let previous: { text: string; end: number } | undefined
@@ -122,18 +126,20 @@ function noteRules(note: string): string | undefined {
   return undefined
 }
 
-/** Lower case, with every run of other characters as one space (S3.2, rule 5). */
+/** Lower case, with every run of other characters as one space (issue 578 S3.2, rule 5). */
 const normalised = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
 /** Rule 5: the note holds, as a whole run of words, no live session's name and no card's title.
  *  `names` are those names and titles; `own` are the two the fixed line already holds: the new
- *  member's and the lead's. It needs the roster, so the mod runs it beside `nameFresh`. */
+ *  member's and the lead's. A name is exempt only when it is one of those exactly, in lower case:
+ *  a live `grimoire-601` is never exempt for a new member called `grimoire_601`. It needs the
+ *  roster, so the mod runs it beside `nameFresh`. */
 export function noteNames(note: string, names: readonly string[], own: readonly string[]): Checked<true> {
-  const skip = new Set(own.map(normalised))
+  const skip = new Set(own.map(n => n.trim().toLowerCase()))
   const text = ` ${normalised(note)} `
   for (const n of names) {
     const norm = normalised(n)
-    if (norm === '' || skip.has(norm)) continue
+    if (norm === '' || skip.has(n.trim().toLowerCase())) continue
     if (text.includes(` ${norm} `)) return { why: NOTE_REASONS.names }
   }
   return { value: true }
@@ -151,7 +157,7 @@ function shape(raw: unknown): Checked<Inputs> {
   if (!isRecord(raw)) return { why: 'input: not an object' }
   const keys = Object.keys(raw)
   const hasNote = keys.includes('note')
-  // S3.1: the note's own two checks come first, then the key set.
+  // Issue 578 S3.1: the note's own two checks come first, then the key set.
   if (hasNote && typeof raw.note !== 'string') return { why: NOTE_REASONS.type }
   if (hasNote && raw.note === '') return { why: NOTE_REASONS.empty }
   if (keys.length !== KEYS.length + (hasNote ? 1 : 0) || !KEYS.every(k => keys.includes(k))) return { why: NOTE_REASONS.keys }
