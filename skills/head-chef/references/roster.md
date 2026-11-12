@@ -37,7 +37,7 @@ the file itself.
   ],
   "todos": [
     { "id": "approve-312", "text": "Tap Approve in build-312's chat.", "session": "build-312" },
-    { "id": "review-18", "text": "Review PR 18.", "link": "https://github.com/example-org/api/pull/18" }
+    { "id": "review-18", "text": "Review api PR 18", "link": "https://github.com/example-org/api/pull/18" }
   ]
 }
 ```
@@ -75,12 +75,24 @@ the file itself.
   A Desktop session's card carries `desktopId`, and a background session's
   card `bgId`, so leave `url` out.
 - `work` names the repository and the issue number only, as in the example.
-- A to-do is one line the owner takes in at a glance: at most 80 characters
-  (the 300 below is only the check's limit), one ask or one owner step, naming
-  the act or the place ("Answer in build-312's chat"), never the question or
-  the decision text. Put no facts, picks, commands or reasons in it; they stay
-  in your chat message or on the issue. A waiting entry's fixed text (below) is
-  the one exception. The pane draws a to-do on one line and cuts what does not fit.
+- A to-do is one line the owner takes in at a glance: at most 50 characters
+  (the 300 below is only the check's limit), one ask or one owner step. It
+  starts with a verb, then names the act and the work: "<verb> <repository>
+  issue N" or "... PR N", as in "Decide whether to merge app PR 71", or for a
+  session the card's title in place of the number, as in "Approve cleaning up
+  build-4". Name the repository by its name alone when a roster card holds that
+  repository and no other card's repository shares the name; otherwise by
+  `owner/name`. When the line does not fit, shorten the act to the verb of what is asked ("Merge app PR 71", "Clean up build-4"), then
+  cut a card's title at a whole word; never cut the number. When the
+  repository and number alone pass 50 characters, name the act and the number
+  only, and let the `link` carry the repository. A to-do may end with a count
+  of what waits, as in "(2 risks to accept)": your own count, never a number
+  from a report. Put no other facts, options, picks, reasons, commands, file
+  names, paths, error text or quoted text in it; they stay in your chat
+  message or on the issue. A decision id may follow in brackets as a reference
+  only, as in "(decision 32)", when it fits; when the to-dos of two waiting entries would read the same, end each with its id. A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule. The one exception is a carried decision, which `handoff.md` gives: "Answer carried <owner/name>: <title>", or "Answer a carried decision (decision N)" when `<owner/name>` alone does not fit. A waiting entry's
+  to-do follows this rule too, and replaces another to-do for that ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it. The pane draws a
+  to-do on one line and cuts what does not fit.
 - A to-do's `session` is a card's title: give it when the step is in that
   member's chat, and the row gets an Open button when the pane can open that
   session. A to-do's `link` is an issue or pull request on github.com, written
@@ -105,8 +117,8 @@ the file itself.
   the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
   or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
 - A card and a to-do hold what `SKILL.md`'s "What goes out" allows: other
-  plugins can read the pane's file. A waiting entry's to-do has fixed text:
-  "Decision <id> from <lead name> waits for you in the Decisions tab".
+  plugins can read the pane's file. A waiting entry's to-do is
+  written as the to-do bullet above says, and holds no more of the question.
 
 ## If the pane is rolled back
 

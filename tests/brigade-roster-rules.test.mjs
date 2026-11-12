@@ -1147,11 +1147,18 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.ok(examples.length > 0, 'the example call carries a link');
   for (const e of examples) assert.ok(parseLink(e), e);
   assert.match(ref, /its `link` at most 210/);
-  assert.match(ref, /one line the owner takes in at a glance: at most 80 characters/);
-  assert.match(ref, /naming the act or the place \("Answer in build-312's chat"\), never the question or the decision text/);
+  assert.match(ref, /one line the owner takes in at a glance: at most 50 characters/);
+  // Issue 580: a verb first, then the act and the work; a decision number alone is never a to-do.
+  assert.match(ref, /starts with a verb, then names the act and the work/);
+  assert.match(ref, /A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule\./);
+  assert.match(ref, /The one exception is a carried decision, which `handoff\.md` gives/);
+  assert.match(ref, /Put no other facts, options, picks, reasons, commands, file names, paths, error text or quoted text in it/);
+  const texts = [...ref.matchAll(/"text": "([^"]*)"/g)].map(m => m[1]);
+  assert.ok(texts.length >= 2, 'the example call carries to-dos');
+  for (const x of texts) assert.ok(x.length <= 50, `the example to-do "${x}" fits 50 characters`);
   assert.match(ref, /`https:\/\/github\.com\/owner\/name\/issues\/N` or `https:\/\/github\.com\/owner\/name\/pull\/N`/);
   assert.match(ref, /delete that session's roster file by hand/);
-  const rule = /one line of at most 80 characters, one ask or one owner step/;
+  const rule = /one line of at most 50 characters, one ask or one owner step\. It starts with a verb, then names the act and the work\. It names the question or the decision text only as the eased control below allows, and carries no facts but the count below/;
   assert.match(await read('SKILL.md'), rule);
   assert.match(await read('references/CONTRACT.md'), rule);
 });
@@ -1188,7 +1195,7 @@ test('#578 C5: the contract, the skill, the Desktop page and the README give the
   assert.match(await read('references/contract.changelog.md'), /\| 1\.32\.0 \| [0-9-]+ \| \*Proposed\.\* A background start may carry one `note`/);
 });
 
-test('#581 C10: the roster reference, the skill and the contract name the four statuses and write idle, never needs-you; the contract carries its 1.33.0 row', async () => {
+test('#581 C10: the roster reference, the skill and the contract name the four statuses and write idle, never needs-you; the contract carries its 1.34.0 row', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const roster = await read('references/roster.md');
@@ -1202,7 +1209,7 @@ test('#581 C10: the roster reference, the skill and the contract name the four s
   assert.match(contract, rule);
   assert.match(contract, /and `working` again when it resumes; what the owner must do goes in a to-do, not in the status/);
   assert.match(contract, /^# .*?Version: 1\.\d+\.\d+ /);
-  assert.match(await read('references/contract.changelog.md'), /\| 1\.33\.0 \| [0-9-]+ \| \*Proposed\.\*/);
+  assert.match(await read('references/contract.changelog.md'), /\| 1\.34\.0 \| [0-9-]+ \| \*Proposed\.\*/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {
