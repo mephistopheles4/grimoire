@@ -1,10 +1,10 @@
 # Incantation: the spec
 
-Draft 0.6, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.7, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
-folds in the owner's answers (Decisions taken).
+and 0.7 fold in the owner's answers (Decisions taken).
 
 ## S1. Objective
 
@@ -242,7 +242,7 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
   servers on free ports, and settings and addresses passed through the
   environment.
 - `tests/incantation-skill.test.mjs` (claim 13).
-- `evals/incantation/` and its budget (O6).
+- the seven eval cases and their budget entry (S6.1)
 - `.claude-plugin/marketplace.json`: a second entry, `incantation`, with source
   `./plugins/incantation` and no `version`.
 - **Repo controls widened to every `plugins/<name>/`, in the same change:**
@@ -316,10 +316,50 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 17. With the proxy stopped, a speech request from VoiceMode's local URL gets no
     answer, and nothing else is tried.
 
-Claims 1 to 6 and 14 are eval cases under `evals/incantation/`. How each case
-has `converse` present or absent, and the eval command for the second plugin,
-are set with the budget (O6). Claims 7 to 13 and 15 to 17 are Node tests. The ticket closes
-on the owner's practice run (O7).
+Claims 7 to 13 and 15 to 17 are Node tests. The ticket closes on the owner's
+practice run (O7).
+
+### S6.1 The eval cases
+
+Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
+
+| Case | Claim | `converse` |
+|---|---|---|
+| `no-converse` | 1 | absent |
+| `guard-fails` | 14, first half | present; the guard fails |
+| `greeting` | 2 | present |
+| `spoken-style` | 3, 4 | present |
+| `hear-back` | 5 | present |
+| `typed-yes` | 6 | present |
+| `lead-session` | 14, second half | present |
+
+- **Budget.** The owner set Incantation's eval budget at $1 (2026-11-12): "We
+  could use a $1 eval budget." In the repo's units, that is two things:
+  - a cap of `--max-cost-usd 1` on every run;
+  - seven cases, the entry `incantation: 7` in `BUDGET` in
+    `tests/eval-budget.test.mjs`.
+- **The run:**
+
+  ```bash
+  claude plugin eval <repo>/plugins/incantation --model haiku --runs 1 --ablation none --no-publish --max-cost-usd 1
+  ```
+
+  It runs only when someone asks for a run, never as part of merging.
+- **Estimate.** Head-chef's cases on Haiku, with a Haiku judge, cost under a
+  cent each (its README, 2026-10-24). So seven cases are about $0.07 a run, and
+  an Opus-judge calibration run about $0.21. Both fit inside $1. This is an
+  estimate from another skill's cases; the first build run measures it.
+- **Where the cases live, and `converse`.** Two things are not yet verified,
+  and the build's first step is to check them:
+  - **Where cases are read from.** The cases go wherever `claude plugin eval`
+    reads them for a plugin that is not the repo root, and the budget test
+    counts that folder.
+  - **How `converse` gets in.** A case gets `converse` from a test-only fake
+    stdio MCP server in the case's fixture, which answers with a scripted
+    heard line. The `absent` case runs without one.
+
+  If either can't be done, the claim it backs moves to the practice run (O7).
+  The spec then records that.
 
 ## S7. Trade-offs
 
@@ -383,6 +423,7 @@ The owner then accepted these picks by typing `/make-it-so` in the lead's chat
 - O9.1, the proxy's path allow-list;
 - O9.2, `/incantation` starts the proxy when `/health` does not answer;
 - O5, the target is WSL 2, and native Windows is out of scope for now;
+- O6, an eval budget of $1 (S6.1);
 - the twelve round-1 security rows as drafted in 0.4: the repo controls on
   `plugins/<name>/`; the guard reading VoiceMode's settings; kept speech; the
   security pair at Test; the guard's pinned path; the read-back shown in chat;
@@ -392,8 +433,6 @@ The owner then accepted these picks by typing `/make-it-so` in the lead's chat
 
 ## Open
 
-- **O6.** The eval budget, which needs the owner's yes in the issue, with the
-  eval command for a second plugin.
 - **O7.** When the practice run happens, and its steps with a pass or fail for
   each.
 - **O8.** The S8 candidates, and the re-take of the local-services acceptance
