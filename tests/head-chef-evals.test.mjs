@@ -178,3 +178,25 @@ test('"What goes out" names the title route, in the contract and the SKILL.md (i
     assert.ok(!/merge (title|subject)/.test(merging(text)), `${name}: the merging clause still has the lead write a merge title`);
   }
 });
+
+// Issue 580: a to-do names the act and the work, never only a decision number,
+// and the owner's chat asks follow the same rule. No file the skill or its
+// evals hold may still prescribe the old fixed text, and the new rule is in
+// both the contract and the SKILL.md. Each file is compared with whitespace
+// collapsed, so a wrapped copy of the old text counts.
+test('no head-chef file prescribes a to-do that names only a decision; the contract and SKILL.md carry the new rule (issue 580)', () => {
+  const walk = d => readdirSync(join(root, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : [`${d}/${e.name}`]);
+  const files = [...walk('skills/head-chef'), ...walk('evals/head-chef')].filter(f => !f.endsWith('/contract.changelog.md'));
+  const old = ['waits for you in the Decisions tab', 'fixed to-do text', 'fixed text is exempt', "waiting entry's fixed text", 'with the fixed text'];
+  for (const f of files) {
+    const text = flat(read(f));
+    for (const phrase of old) assert.ok(!text.includes(phrase), `${f} still holds "${phrase}"`);
+  }
+  const rule = 'A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule.';
+  const chat = 'No ids but a decision number given as a reference';
+  for (const f of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
+    const text = flat(read(f));
+    assert.ok(text.includes(rule), `${f} holds the to-do rule`);
+    assert.ok(text.includes(chat), `${f} holds the chat rule`);
+  }
+});

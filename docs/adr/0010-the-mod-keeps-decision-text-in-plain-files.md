@@ -36,7 +36,9 @@ last, but this repository is public, so a decision's text would be published.
 ## What still holds
 
 - The roster rule holds for the roster: no session id, and no question,
-  decision or note text, goes on a card or a to-do.
+  decision or note text, goes on a card or a to-do. (Partly superseded by
+  issue 580 on the to-do: a to-do may now carry what the head-chef contract's
+  "A to-do it writes" allows, the act, the work, a card's title and a count.)
 - Decision text reaches a file only through `log_decision`, which stamps each
   entry's id, time and level itself and refuses an input that carries them.
   Its fields refuse control, hidden and direction-changing characters, text

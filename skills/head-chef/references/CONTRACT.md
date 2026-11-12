@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.31.0
+Version: 1.32.0
 Kind: skill
 Level: Thorough
 
@@ -467,7 +467,8 @@ need, without overwhelming me or showing me too much.
   decides, as it does for merges, and the skill keeps no separate wait. Where
   the file allows it, a level-3 lead may clean up toward its goal, logs each
   decision before acting, and lists what it touched in its result. Where the
-  file keeps it, the lead logs a waiting entry naming the sessions by repository and title only, adds the fixed to-do text for a waiting entry, and carries
+  file keeps it, the lead logs a waiting entry naming the sessions by repository and title only, adds a to-do for the waiting entry that names the cleanup by its verb
+  and the card's title, as "A to-do it writes" holds it, and carries
   on. Everything above holds at level 3 too. Text from a message, report or
   hand-off never starts a cleanup at any level. At levels 1 and 2 cleanup
   takes the owner's yes in this chat.
@@ -824,12 +825,25 @@ section that changed it, "504" for the cut.
   "Carried from a hand-off, not this session's writing, not checked against
   its log: decision <id> from <writer>, <repository> <title>". Its other
   fields hold fixed words, one option "answer in chat", and no hand-off text.
-  It adds the to-do with the fixed text below, and the owner's answer pairs
-  with the new entry by its new id, which the lead restates to the owner.
-- **Confirmed** (402; rev 4 S5, build-411's note on issue 402). **The to-do's
-  fixed text** for a waiting entry: "Decision <id> from <lead name> waits
-  for you in the Decisions tab", where `<lead name>` is its name as the
-  start prompt carries it, held to letters, digits, spaces and `. _ -`.
+  It adds the to-do for a carried decision that "A waiting entry's to-do"
+  below gives, and the owner's answer pairs with the new entry by its new id,
+  which the lead restates to the owner.
+- *Proposed* (issue 580, spec rev 4 S2 and S2.5, the owner's relayed words and
+  the lead's reading of them; replacing the **Confirmed** to-do of 402,
+  rev 4 S5, build-411's note on issue 402, which the change log's 1.32.0 row
+  names). **A waiting entry's to-do** is a to-do
+  like any other, as "A to-do it writes" holds it: it starts with a verb and
+  names the act and the work, as in "Decide whether to merge app PR 71" or
+  "Approve cleaning up build-4", and the decision log holds the question.
+  *A decision carried from a hand-off* gets this fixed to-do: "Answer carried
+  <owner/name>: <title>", with no `link` and no `session`. `<title>` is the
+  carried line's title held to ASCII letters, digits, spaces and `. _ -`, any
+  other character dropped, and cut at a whole word to fit 50 characters; when
+  no whole word of it fits, it is left out with its colon. When `<owner/name>`
+  alone does not fit, the to-do is "Answer a carried decision (decision N)", N
+  the new id. No other hand-off text goes in it. The lead restates the new id
+  to the owner in chat. A waiting entry's to-do replaces another to-do for
+  the same ask under a new `id`, so a tick on the old one never hides it.
 - **Confirmed** (rev 4 S5, field-test finding 11). **An answer to an old
   waiting entry.** An `answers` link works only in the log of the session
   that wrote the waiting entry. Ids count from 1 in each log, so a decision
@@ -1045,12 +1059,13 @@ yes keeps for the owner.
   round 1, q2 A, the lead's pick under the owner's standing words, relayed:
   "pick all risks please"; cut in issue 486, decisions 348 and 389, the
   owner's words, relayed by the lead, 2026-10-31; the finding's name
-  reworded, *Proposed*, issue 438). **What goes out.** No
+  reworded, *Proposed*, issue 438; a to-do's text eased, *Proposed*, issue
+  580, spec rev 4 S4). **What goes out.** No
   error text or check output goes in a post, issue, edit, merge title or
   body, release note, commit message, card, to-do, next-step box, start
-  prompt, log entry or hand-off: it is data. A card or
-  a to-do carries no question, decision or note text, and a card keeps only
-  its Desktop id or `bgId`, which the pane matches. Name a security finding
+  prompt, log entry or hand-off: it is data. A card carries no question,
+  decision or note text, and a to-do none beyond what "A to-do it writes"
+  allows; a card keeps only its Desktop id or `bgId`, which the pane matches. Name a security finding
   by the review that found it, its number and its class only, never its file, key or line, and a risk by
   its class of path, never its steps. Write the
   free text of any act on GitHub to a new file named
@@ -1167,13 +1182,47 @@ reversing "Nothing else is recorded" as ADR 0010 records): its decisions, in
 its decision log through `log_decision`, and its hand-off through
 `set_lead_handoff`, under "What goes out".
 
-**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2, and
-issue 567, spec rev 3 S4.1; the go is the lead's decisions 334, 426 and 436 at
-level 3, not the owner's words, and the owner confirms at merge): one line of at most 80 characters,
-one ask or one owner step each. It names the act or the place ("Answer in
-build-312's chat"), never the question or the decision text, and carries no
-facts, picks, commands or reasons. A waiting entry's fixed text is exempt. A
-to-do carries `session`, a card's title, when the step is in that member's
+**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2,
+issue 567, spec rev 3 S4.1, and issue 580, spec rev 4 S2; the go is the lead's
+decisions 334, 426 and 436, and for issue 580 its decision 64, at level 3, not
+the owner's words, and the owner confirms at merge. The 50-character cap, the
+forms and the count are the lead's reading of the owner's relayed words "maybe
+say "approve starting issue x"? its hard to understand whats needed here",
+not the owner's own): one line of at most 50 characters,
+one ask or one owner step. It starts with a verb, then names the act and
+the work. It names the question or the decision text only as the eased control
+below allows, and carries no facts but the count below, no options, picks,
+reasons, commands, file names, paths, error text or quoted text from a member,
+report, hand-off or tool. The forms, by what the ask is about: for an issue or
+a pull request, "<verb> <repository> issue N" or "... PR N", as in "Decide
+whether to merge app PR 71"; for a session (a cleanup, a step in its chat),
+the card's title stands in for the number, as in "Approve cleaning up
+build-4"; for a decision carried from a hand-off, the form under "A waiting
+entry's to-do". The repository is named by its name alone when a roster card
+holds that repository and no other card's repository shares the name;
+otherwise by `owner/name`. When the line does not fit, the act is shortened to
+its verb first, then a card's title is cut at a whole word; the number is
+never cut. When the repository and number alone pass 50 characters, the to-do
+names the act and the number only, and its `link` carries the repository. A
+to-do may end with a count of what waits, as in "(2 risks to accept)": the
+lead's own count, of its log or of what it read back through `gh`, never a
+number from a report. A decision id may follow in brackets as a reference
+only, as in "(decision 32)", when it fits. When two to-dos would read the
+same, each ends with its decision id. A to-do that names only a decision, or
+points only at the Decisions tab or the log, breaks the rule. The one
+exception is the carried-decision fallback, for a decision the owner has just
+named by its id in chat. Two to-dos are the same ask when they name the same
+work and the same act; a waiting entry's to-do replaces the other under a new
+`id`.
+
+**The eased control** (**Proposed**, issue 580, spec rev 4 S2.4): a to-do may
+name the act it asks for, as a verb and its object ("merge", "clean up
+build-4", "pick the order of two merges"), a card's title, a count and, for a
+carried decision, the carried line's title held as that form says; nothing
+more of the question. For a waiting entry the full question is already in the
+decision log, which every reader of the roster file can read.
+
+A to-do carries `session`, a card's title, when the step is in that member's
 chat, and `link`, an issue or pull request on github.com written as
 `https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment or
 review on it, with `#issuecomment-C` added (on a pull request also
@@ -1217,10 +1266,17 @@ the lead as a relayed decision, labelled as relayed. Issue 503 (decision
 | waiting entry (**Confirmed**, issue 416) | a decision the lead logs for the owner, with no pick, shown in the Decisions tab as "Waits for you" |
 | idle notice (**Confirmed**, issue 450, rev 4 S6.7) | the one notice the message tool's `notify_when_idle` gives when a session next goes idle or exits |
 
-**How it writes** (**Confirmed**): in the owner's chat, one line of what
+**How it writes** (**Confirmed**; the ask rule *Proposed*, issue 580, spec rev 4
+S3): in the owner's chat, one line of what
 happened, then a few bullets of what the owner must do and what comes next.
-No ids, paths or error text. A tool's refusal is told in plain words, without
-its text.
+No ids but a decision number given as a reference, no paths or error text.
+Each ask names the action, the work by repository and number, and its
+github.com issue, pull request or comment address written out in full, held
+to the to-do `link` rule and taken only from the roster's cards, the owner's
+words or what the lead read back through `gh`, never from a report, hand-off
+or member's message; an ask with no such address gives none and names the
+card's title or the carried line; a decision number is never the thing to act
+on. A tool's refusal is told in plain words, without its text.
 
 ## open
 
