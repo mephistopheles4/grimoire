@@ -141,12 +141,7 @@ or type `/brigade` to open it.
   decides what it is sure of and sends you the rest as to-dos; at 3 it runs
   toward your goal and lists each decision in the Decisions tab for you to
   review. At levels 2 and 3 it follows your user-level instructions file:
-  what that file keeps for you waits. At level 3, inside the goal, where
-  that file lets its standing-goal rule decide what it keeps and names what
-  it keeps even toward a goal, the lead decides the rest of what it keeps
-  itself, flagged for you; what the file keeps even toward a goal, and a
-  publish that leaves your machine, other than issue and pull-request work
-  in your repositories or the goal's, still waits. Cleanup waits for your yes in chat at
+  what that file keeps for you waits. At level 3, inside the goal, where that file lets its standing-goal rule decide what it keeps and names, in one place, what it keeps even toward a goal, the lead itself decides the rest of what it keeps, flagged for you; what the file keeps even toward a goal, a publish that leaves your machine other than issue and pull-request work in your repositories or the goal's, and a few other calls the skill lists still wait. Cleanup waits for your yes in chat at
   levels 1 and 2, and a hand-off request or a fresh session a context figure
   prompts waits at every level.
 
