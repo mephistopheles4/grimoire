@@ -31,8 +31,7 @@ Native Windows is out of scope for now, and so is Claude Code on Windows
 talking to VoiceMode inside WSL. The spec and the README both say so. The
 end-to-end step: in the distribution, install VoiceMode, apply the README
 settings, `launch.mjs` starts the engines on sockets, `/incantation` starts the
-proxy, the
-guard prints `ok`, the greeting is heard.
+proxy, the guard prints `ok`, the greeting is heard.
 
 - **Networking.** WSL 2 in its default NAT mode. Mirrored mode is not
   supported yet.
@@ -147,8 +146,7 @@ replaced once the spec is approved.
   VoiceMode setting lives in that file: never in the MCP server's own
   environment, and never in a project-level VoiceMode settings file. It:
   - leaves `VOICEMODE_MCP_URL` and `VOICEMODE_MLX_AUDIO_BASE_URL` unset;
-  - turns off recording-to-disk, debug, the event log and the auto-start of a
-    speech engine;
+  - turns off the auto-start of a speech engine;
   - needs no OpenAI key;
   - does not install VoiceMode's heard hook.
 - **(d) `guard.mjs` checks all of it.** It is a Node script with no
@@ -176,11 +174,8 @@ replaced once the spec is approved.
         is not `http://127.0.0.1:<port>/…`;
       - `VOICEMODE_MCP_URL` set (tested for presence only);
       - `VOICEMODE_MLX_AUDIO_BASE_URL` set.
-    - These fail with `recording <setting>: see README step 4`:
-      - any of `VOICEMODE_SAVE_ALL`, `VOICEMODE_SAVE_AUDIO`,
-        `VOICEMODE_SAVE_TRANSCRIPTIONS`, `VOICEMODE_DEBUG` (any truthy value
-        or `trace`) or `VOICEMODE_AUTO_START_KOKORO` on;
-      - `VOICEMODE_EVENT_LOG_ENABLED` not `false`.
+    - `VOICEMODE_AUTO_START_KOKORO` on fails: `auto-start: turn it off, see
+      README step 4`.
     - The heard hook in any of `~/.claude/settings.json`,
       `.claude/settings.json` or `.claude/settings.local.json` fails: `heard
       hook: remove it, see README step 4`.
@@ -303,13 +298,9 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
      - `proxy.mjs stop` stops it;
      - VoiceMode used on its own needs it running;
   6. never run `voicemode serve`, and use a headset;
-  7. what is kept and who hears:
-     - people in the room are heard, and their words reach the model provider
-       as chat;
-     - VoiceMode keeps what is heard and said in local logs, unencrypted,
-       until the person deletes them;
-     - each log is named, with how to clear it;
-     - tell others in the room.
+  7. who hears: people in the room are heard, and their words reach the model
+     provider as chat. One plain line names where VoiceMode keeps what is
+     heard and said on the machine.
 - `tests/incantation-guard.test.mjs`: Node's built-in test runner, with fake
   servers on free ports, settings in a fixture home folder, and addresses
   passed through the guard's imported function.
@@ -362,11 +353,16 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 8. `guard.mjs` prints `ok` and exits 0 with local-only settings and fake servers
    on `127.0.0.1` only.
 9. `guard.mjs` prints `exposed …` and exits non-zero when a fake server listens
-   on all interfaces, using the test-only address list, so it runs in the
+   on all interfaces, using an address list passed through its imported
+   function, so it runs in the
    athanor container.
 10. `guard.mjs` prints `remote …` when either speech URL is unset anywhere, or
-    lists a non-loopback host; `project …` with a project-level settings file;
-    `recording …` with a recording or debug setting on.
+    lists anything but `http://127.0.0.1:<port>/…`, or when
+    `VOICEMODE_MCP_URL` or `VOICEMODE_MLX_AUDIO_BASE_URL` is set; `server env
+    …` with a `VOICEMODE_` key in an MCP server's `env` block; `project …`
+    with a project-level settings file; `auto-start …` with the engine
+    auto-start on; `heard hook …` with the hook in any of the three settings
+    files.
 11. `guard.mjs` prints `no proxy …` when a port answers without the proxy's
     marker, `proxy open …` when a foreign `Host`, a foreign `Origin` or an
     unlisted path gets through, `socket …` when an engine's socket is missing
@@ -493,10 +489,6 @@ The entries:
   call on speakers, played media) reaching acts short of the typed-yes list.
   Controls: the hear-back shown in chat, the typed-yes list, the permission
   mode in force, no lead sessions.
-- **Kept speech.** VoiceMode keeps what is heard and said, bystanders' words
-  included, in local logs that are unencrypted and kept until the person
-  deletes them; they reach the machine's backups and sync. One log cannot be
-  switched off. Controls: README step 7, and the guard's recording check.
 - **A risk row** for `guard.mjs` and `proxy.mjs`, shipped scripts that open
   and hold local connections, under "Keeping this page short".
 - **Accepted-risk candidate: port 8765.** Nothing in Incantation starts or
@@ -568,6 +560,14 @@ round-2 row as drafted in 0.9 (2026-11-12, decision 168), and answered:
 - the branch history: a squash merge with `--delete-branch`, and no
   force-push;
 - #593 and #594: the lead closes them as replaced once the spec is approved.
+
+The owner then narrowed D3 (2026-11-12, decision 169, relayed by the lead):
+speech kept in logs on the person's own machine is out of scope, since the
+machine itself is not something Incantation defends. The guard checks no log
+setting, S8 has no kept-speech entry, and README step 7 names where VoiceMode
+keeps speech, as information. A web page's path to those files stays in
+scope, and the proxy closes it. A risk wholly on the person's machine is out
+of scope unless it touches auth, crypto or data migrations.
 
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
