@@ -262,6 +262,7 @@ const HEAD_CHEF_PENDING = [
   'SKILL.md: The start prompt',
   "SKILL.md: Actions that need the owner's yes",
   'SKILL.md: The Brigade pane',
+  'SKILL.md: Rules',
   'SKILL.md: Additional resources',
   'references/starting.md: Starting a session',
   'references/starting.md: When the model changes',
@@ -276,6 +277,8 @@ const HEAD_CHEF_PENDING = [
   'references/desktop.md: Starting a Desktop session',
   'references/roster.md: The roster',
   'references/roster.md: The call',
+  'references/roster.md: If the pane is rolled back',
+  'references/roster.md: When to call it',
   'references/roster.md: The answers',
 ];
 
@@ -299,9 +302,15 @@ test('head-chef has a schedules part: 37 schedules, one for each section of SKIL
   const found = schedulesOf(lf(readFileSync(chef.file, 'utf8')));
   assert.equal(found.schedules.length, 37);
   assert.match(readFileSync(chef.file, 'utf8'), /^Version: 2\.\d+\.\d+$/m, 'the contract is 2.x');
-  // Every schedule listed as Proposed or pending at 1.36.1 is one of them, and no other schedule is.
+  // Every schedule listed as Proposed or pending at 1.36.1 is one of them and is Proposed; every
+  // other schedule is Confirmed. The count is exact, so a shortened list fails here.
   for (const title of HEAD_CHEF_PENDING) assert.ok(found.schedules.some(s => s.title === title), title);
-  assert.ok(HEAD_CHEF_PENDING.length >= 1);
+  assert.equal(HEAD_CHEF_PENDING.length, 34, 'the pending list holds 34 titles');
+  assert.equal(new Set(HEAD_CHEF_PENDING).size, 34, 'no title is listed twice');
+  for (const s of found.schedules) {
+    assert.equal(s.mark, HEAD_CHEF_PENDING.includes(s.title) ? 'Proposed' : 'Confirmed', `${s.title}: its mark follows the list`);
+  }
+  assert.equal(found.schedules.filter(s => s.mark === 'Confirmed').length, 3, 'three schedules are Confirmed');
 });
 
 test('every contract with a schedules part matches its homes (checks 1 to 7)', () => {

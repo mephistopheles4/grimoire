@@ -1119,7 +1119,7 @@ on that issue or pull request, as read back from GitHub through `gh`.
 ### SKILL.md: Rules
 
 Home: `SKILL.md`, the section "Rules". Carries out: "Sending and listening", "A record the owner can audit", "The pane's record", "The owner's yes".
-**Confirmed**
+*Proposed*: pending at 1.36.1 in "The owner's yes", where cleanup's yes at levels 1 and 2 is among the clauses the threat model's open issue R5 lists as pending the owner's word.
 
 The first rule is fixed, and so are the three after it.
 
@@ -1636,7 +1636,7 @@ the file itself.
 ### references/roster.md: If the pane is rolled back
 
 Home: `references/roster.md`, the section "If the pane is rolled back". Carries out: "The pane's record".
-**Confirmed**
+*Proposed*: not in 1.36.1: the contract held no clause for this rollback, whose text sat only in this reference.
 
 A pane from before the to-do `link` field refuses a roster that holds one, and
 a pane from before comment links refuses a roster that holds a link with a
@@ -1650,7 +1650,7 @@ plugin.
 ### references/roster.md: When to call it
 
 Home: `references/roster.md`, the section "When to call it". Carries out: "The pane's record".
-**Confirmed**
+*Proposed*: not in 1.36.1: the contract held the acts but not the clause that a cleanup removes the card.
 
 In the same turn as each act: a start, a report taken, a decision sent, a
 new question for the owner, a merge, a cleanup, which removes the card. A
