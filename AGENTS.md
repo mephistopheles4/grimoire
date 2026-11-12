@@ -16,7 +16,7 @@ you used the fallback. A sha512 mismatch in the image build also exits 125; it
 is not a Docker fault, so stop and tell the owner. Read
 [The agent guard](CONTRIBUTING.md#the-agent-guard) for the rest.
 
-## Three directories are called `scripts/`
+## Four directories are called `scripts/`
 
 `scripts/` at the repository root holds this repository's own checks — the one
 command, the site build, and the table that says which renderer owns which
@@ -24,7 +24,8 @@ artifact — and the two scripts that draw each skill README's sheets, with the 
 share in `scripts/lib/drafting.mjs`. `skills/groundtrack/scripts/` holds that skill's renderer and the one
 module it inlines into the page. `skills/contract/scripts/` holds the contract
 skill's interview script, the one module it shares with the hiring page, and
-the kinds table both read. The path always says which is which.
+the kinds table both read. `plugins/incantation/skills/incantation/scripts/` holds
+that plugin's scripts. The path says which.
 
 ## Head-chef and the rules it runs under
 

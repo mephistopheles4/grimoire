@@ -59,7 +59,7 @@ export function tree() {
   // The mod's folders travel too, when the tree has them: plugin.json names
   // the mod's contract and hooks/hooks.json names its module, and the check
   // fails a pointer to a file that is not there.
-  for (const part of ['brigade', 'hooks']) {
+  for (const part of ['brigade', 'hooks', 'plugins']) {
     if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }
   // The settings file that registers the agent guard. Only that file: the
@@ -144,6 +144,24 @@ export function fixtureSkill(dir, name, { body = '# Fixture\n\nBody text.\n' } =
   mkdirSync(skill);
   writeFileSync(join(skill, 'SKILL.md'), `---\nname: ${name}\ndescription: A fixture skill that exists only inside this test.\n---\n\n${body}`);
   return skill;
+}
+
+// A second plugin under plugins/<name>/, with its manifest, one skill and its
+// marketplace entry, written at run time and never committed, as the fixture
+// skill is. A test of a widened rule breaks one thing in it and expects the
+// check to say so. Returns the plugin's folder.
+export function fixturePlugin(dir, name = 'fixture-plugin') {
+  const base = join(dir, 'plugins', name);
+  mkdirSync(join(base, '.claude-plugin'), { recursive: true });
+  writeJson(join(base, '.claude-plugin', 'plugin.json'), { name, version: '0.1.0', description: 'A fixture plugin that exists only inside this test.' });
+  const skill = join(base, 'skills', name);
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, 'SKILL.md'), `---\nname: ${name}\ndescription: A fixture skill that exists only inside this test.\n---\n\n# Fixture\n\nBody text.\n`);
+  const p = join(dir, '.claude-plugin', 'marketplace.json');
+  const m = readJson(p);
+  m.plugins.push({ name, source: `./plugins/${name}`, description: 'A fixture plugin that exists only inside this test.' });
+  writeJson(p, m);
+  return base;
 }
 
 // The version-bump rule needs a merge base, so the tests in
