@@ -902,7 +902,7 @@ const Interview = (() => {
   /* -- the export --------------------------------------------------------------
    *
    * The contract the answers make, in the template's shape: the title block,
-   * then all eight part headings in order, a part the level does not ask left
+   * then all nine part headings in order, a part the level does not ask left
    * empty. Each part lists its clauses kind by kind, each kind under its own
    * name, each clause in its plain frame with its mark. Three kinds are table
    * rows, with the template's columns; the mark folds into each row's last
@@ -986,6 +986,47 @@ const Interview = (() => {
     return { parts, names, order };
   }
 
+  /* The schedules part: one `### <home>: <name>` schedule each, in the order
+   * the clauses stand. A schedule's text is written as it stands, with no
+   * heading of its own, and runs to the next `###` or `##` line. Pieces of a
+   * split section that form a whole run, with the same home and name, are
+   * joined with one blank line into one schedule, which takes the weakest of
+   * their marks. A run the edits left incomplete is written as it stands,
+   * suffix and all, so the repository's drift test finds it. A clause's refs
+   * are written as the ids the draft names them by. */
+  const STRENGTH = { Proposed: 0, Confirmed: 1, Decided: 2 };
+  const weakest = marks => marks.reduce((a, b) => ((STRENGTH[b] ?? 0) < (STRENGTH[a] ?? 0) ? b : a));
+  function scheduleLines(list) {
+    const out = [];
+    for (let i = 0; i < list.length;) {
+      const x = list[i];
+      if (x.none) {
+        out.push(`- None. ${markText(x.mark)}`, '');
+        i++;
+        continue;
+      }
+      const piece = pieceOf(x.fields);
+      let run = [x];
+      let name = x.fields.name;
+      if (piece && piece.n === 1) {
+        const next = list.slice(i, i + piece.m);
+        const whole = next.length === piece.m && next.every((y, j) => {
+          const q = y.none ? null : pieceOf(y.fields);
+          return q && q.base === piece.base && q.home === piece.home && q.m === piece.m && q.n === j + 1;
+        });
+        if (whole) { run = next; name = piece.base; }
+      }
+      const home = x.fields.home;
+      const refs = [...new Set(run.flatMap(y => y.refs || []))];
+      const carries = refs.length ? ` Carries out: ${refs.map(r => `"${r}"`).join(', ')}.` : '';
+      const text = run.map(y => y.fields.text).join('\n\n');
+      out.push(`### ${home}: ${name}`, '', `Home: \`${home}\`, the section "${name}".${carries}`, markText(weakest(run.map(y => y.mark))), '');
+      if (text !== '') out.push(text, '');
+      i += run.length;
+    }
+    return out;
+  }
+
   /** The contract as Markdown. */
   function exportContract(draft, kinds, block) {
     const K = kindsIndex(kinds);
@@ -996,6 +1037,7 @@ const Interview = (() => {
     for (const part of K.parts) {
       out.push(`## ${part}`, '');
       const list = parts.get(part);
+      if (part === SCHEDULES) { out.push(...scheduleLines(list)); continue; }
       const kindsHere = [];
       for (const k of order.get(part)) if (list.some(x => x.kind.id === k)) kindsHere.push(k);
       for (const x of list) if (!kindsHere.includes(x.kind.id)) kindsHere.push(x.kind.id);
@@ -1193,6 +1235,6 @@ const Interview = (() => {
     return { high, proposal: shown, fields: shown };
   }
 
-  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally, view, sentence, reveal };
+  return { LIMITS, cutSection, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally, view, sentence, reveal };
 })();
 if (typeof module !== 'undefined') module.exports = Interview;

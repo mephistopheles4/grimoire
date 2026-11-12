@@ -503,3 +503,137 @@ test('pieces of a split section are named (n of m) and must form a complete run 
   assert.match(at(withSchedules(schedule({ name: 'Tools (3 of 2)' })), 'parts.schedules[0].fields.name'), /piece 3 of 2/);
   assert.match(at(withSchedules(schedule({ name: 'Tools (0 of 2)' })), 'parts.schedules[0].fields.name'), /piece 0 of 2/);
 });
+
+/* -- the export of the schedules part ----------------------------------------- */
+
+/** The contract the draft and its answers make. */
+const exported = (d, answered = new Map(), edits = []) => Interview.exportContract(d, kinds, Interview.blockOf(d, kinds, hashes, { answers: answered, edits }));
+/** The text under one schedule's title, as the export wrote it. */
+const textOf = (md, title) => {
+  const head = `### ${title}\n\n`;
+  const from = md.indexOf(head);
+  assert.ok(from >= 0, `the export holds ${title}`);
+  const rest = md.slice(from + head.length);
+  const lines = rest.slice(0, rest.search(/\n\n(?:#{2,3} |$)/));
+  // Home and mark lines, a blank line, then the text.
+  const body = lines.split('\n');
+  const mark = body.findIndex(l => /^\*Proposed\*$|^\*\*(?:Confirmed|Decided)\*\*$/.test(l));
+  assert.ok(mark > 0, 'a mark line');
+  return { home: body.slice(0, mark).join('\n'), mark: body[mark], text: lines.split('\n').slice(mark + 2).join('\n') };
+};
+
+test('the export writes ## schedules after ## open, one ### <home>: <name> schedule each, with its home, the clauses it carries out, its mark and its text', () => {
+  const d = withSchedules(
+    schedule({ name: 'Starting a session', home: 'SKILL.md', text: 'Run the steps.\n\nThen stop.' }, { refs: ['duty-1', 'job'] }),
+    schedule({ name: 'Removing a worktree', home: 'references/cleanup.md', text: 'Ask first.' }, { id: 'sched-2', refs: ['stop-1'] }),
+  );
+  const md = exported(d);
+  assert.ok(md.indexOf('## open') < md.indexOf('## schedules'), 'schedules come after open');
+  assert.equal(md.split('\n').filter(l => l.startsWith('## ')).at(-1), '## schedules');
+  const part = md.slice(md.indexOf('## schedules'));
+  assert.equal(part, [
+    '## schedules',
+    '',
+    '### SKILL.md: Starting a session',
+    '',
+    'Home: `SKILL.md`, the section "Starting a session". Carries out: "duty-1", "job".',
+    '*Proposed*',
+    '',
+    'Run the steps.',
+    '',
+    'Then stop.',
+    '',
+    '### references/cleanup.md: Removing a worktree',
+    '',
+    'Home: `references/cleanup.md`, the section "Removing a worktree". Carries out: "stop-1".',
+    '*Proposed*',
+    '',
+    'Ask first.',
+    '',
+  ].join('\n'));
+  // An agreed none is written as none, with its mark.
+  const nothing = exported(withSchedules({ id: 'sched-none', kind: 'schedule', none: true, mark: 'Proposed' }));
+  assert.ok(nothing.endsWith('## schedules\n\n- None. *Proposed*\n'), nothing.slice(-80));
+  // A text with no characters writes no empty block after its mark.
+  assert.ok(exported(withSchedules(schedule({ text: '' }))).endsWith('\n*Proposed*\n'));
+});
+
+test('a schedule\'s mark follows its answer: changed words are Decided, an answer taken as drafted stays Proposed', () => {
+  const d = withSchedules(schedule(), schedule({ name: 'Other', text: 'Other text.' }, { id: 'sched-2' }));
+  const md = exported(d, new Map([
+    ['sched-1', { fields: { ...d.parts.schedules[0].fields, text: 'My own words.' } }],
+    ['sched-2', { fields: d.parts.schedules[1].fields }],
+  ]));
+  assert.equal(textOf(md, 'SKILL.md: Starting a session').mark, '**Decided**');
+  assert.equal(textOf(md, 'SKILL.md: Other').mark, '*Proposed*');
+});
+
+/** A section of the shape a home holds: paragraphs, a list, and a code fence that holds empty lines. */
+const section = () => {
+  const paras = [];
+  for (let i = 0; i < 40; i++) paras.push(`Paragraph ${i}. ${'The lead keeps the rule and says so once. '.repeat(8)}`.trim());
+  paras.splice(7, 0, ['```text', 'a fenced block', '', '', 'with empty lines in it', '```'].join('\n'));
+  paras.splice(20, 0, '- one\n- two\n\n- three');
+  // Two empty lines in a row, and a line of spaces, which is no cut.
+  return `${paras.join('\n\n')}\n\n\nA paragraph after two empty lines.\n\n   \n\nThe last one.`;
+};
+
+test('a section longer than one field is cut on an empty line outside a code fence, and joins back byte for byte', () => {
+  const text = section();
+  assert.ok(text.length > Interview.LIMITS.fieldChars * 2, `the section is long enough to need three pieces (${text.length})`);
+  const pieces = Interview.cutSection(text);
+  assert.ok(pieces.length >= 3, `${pieces.length} pieces`);
+  for (const p of pieces) assert.ok(p.length <= Interview.LIMITS.fieldChars, `a piece of ${p.length}`);
+  // The blank line that is cut goes with neither piece, and no fence is split.
+  for (const p of pieces) assert.equal((p.match(/^```/gm) || []).length % 2, 0, 'a fence cut in two');
+  assert.equal(pieces.join('\n\n'), text, 'the pieces join back to the section');
+  // Through the draft: pieces named (n of m), exported as one schedule, byte for byte.
+  const named = pieces.map((p, i) => schedule({ name: `Autonomy levels (${i + 1} of ${pieces.length})`, text: p }, { id: `sched-${i + 1}` }));
+  const d = withSchedules(...named);
+  assert.deepEqual(refusalsOf(d), []);
+  const md = exported(d);
+  const got = textOf(md, 'SKILL.md: Autonomy levels');
+  assert.equal(got.text, text, 'the exported schedule holds the section byte for byte');
+  assert.equal(md.split('\n').filter(l => l.startsWith('### ')).length, 1, 'the pieces are one schedule');
+  assert.match(got.home, /the section "Autonomy levels"\./, 'the suffix is stripped from the section name');
+  // A section that fits is one piece, unchanged.
+  assert.deepEqual(Interview.cutSection('short\n\ntext'), ['short\n\ntext']);
+  // Two empty lines in a row: one is the cut, the other stays with a piece.
+  assert.deepEqual(Interview.cutSection('a\n\n\nb', 3), ['a\n', 'b']);
+  assert.equal(Interview.cutSection('a\n\n\nb', 3).join('\n\n'), 'a\n\n\nb');
+});
+
+test('a cut that no empty line outside a fence allows is refused, and a fence is never cut', () => {
+  const fenced = ['```text', ...Array.from({ length: 300 }, (_, i) => `line ${i}${' x'.repeat(30)}`).flatMap(l => [l, '']), '```'].join('\n');
+  assert.ok(fenced.length > Interview.LIMITS.fieldChars);
+  assert.throws(() => Interview.cutSection(fenced), /no empty line outside a code fence/);
+  assert.throws(() => Interview.cutSection('x'.repeat(Interview.LIMITS.fieldChars + 1)), /no empty line outside a code fence/);
+  // A tilde fence and a longer fence close as CommonMark closes them.
+  const tilde = ['~~~', 'a', '', 'b', '~~~', '', 'c'].join('\n');
+  assert.deepEqual(Interview.cutSection(tilde, 12), ['~~~\na\n\nb\n~~~', 'c']);
+  const long = ['````', '```', '', 'a', '````', '', 'c'].join('\n');
+  assert.deepEqual(Interview.cutSection(long, 17), ['````\n```\n\na\n````', 'c']);
+});
+
+test('a joined schedule takes the weakest of its pieces\' marks', () => {
+  const pieces = ['one', 'two', 'three'].map((text, i) => schedule({ name: `Tools (${i + 1} of 3)`, text }, { id: `p-${i + 1}` }));
+  const d = withSchedules(...pieces);
+  const change = i => [`p-${i}`, { fields: { ...pieces[i - 1].fields, text: `${pieces[i - 1].fields.text}!` } }];
+  const mark = answered => textOf(exported(d, new Map(answered)), 'SKILL.md: Tools').mark;
+  assert.equal(mark([change(1), change(2), change(3)]), '**Decided**', 'every piece Decided');
+  assert.equal(mark([change(1), change(3)]), '*Proposed*', 'one piece never answered');
+  assert.equal(mark([change(1), change(2), ['p-3', { fields: pieces[2].fields }]]), '*Proposed*', 'one piece taken as drafted');
+  assert.equal(mark([]), '*Proposed*');
+  // The text carries the changed words of each piece, joined with one blank line.
+  assert.equal(textOf(exported(d, new Map([change(1), change(2), change(3)])), 'SKILL.md: Tools').text, 'one!\n\ntwo!\n\nthree!');
+  // Pieces of another home or name are separate schedules, each with its own mark.
+  const apart = withSchedules(schedule({ name: 'A (1 of 2)', text: 'a1' }, { id: 'a-1' }), schedule({ name: 'A (2 of 2)', text: 'a2' }, { id: 'a-2' }), schedule({ name: 'B', home: 'references/b.md', text: 'b' }, { id: 'b-1' }));
+  const md = exported(apart, new Map([['a-1', { fields: { ...apart.parts.schedules[0].fields, text: 'a1!' } }]]));
+  assert.equal(md.split('\n').filter(l => l.startsWith('### ')).join('|'), '### SKILL.md: A|### references/b.md: B');
+});
+
+test('a run of pieces the edits left incomplete is written as it stands, suffix and all, so the drift test sees it', () => {
+  const d = withSchedules(...[1, 2, 3].map(n => schedule({ name: `Tools (${n} of 3)`, text: `t${n}` }, { id: `p-${n}` })));
+  const md = exported(d, new Map(), [{ op: 'remove', id: 'p-2' }]);
+  assert.deepEqual(md.split('\n').filter(l => l.startsWith('### ')), ['### SKILL.md: Tools (1 of 3)', '### SKILL.md: Tools (3 of 3)']);
+});
