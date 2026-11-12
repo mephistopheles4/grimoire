@@ -96,18 +96,20 @@ loads, its hooks module code included.
 
 ### Harness controls
 
-**Proposed (issue 579); not in force until the merge the owner confirms.**
+**Proposed (issue 579); not in force until the merge.** Under the owner's goal the lead reworded the second bullet to keep another plugin in scope, and accepted the residuals of the R5 "background starts" bullet (decisions logged).
 
 - Grimoire never re-implements a control the harness already provides, such as
   folder trust, the permission mode, and allow and deny rules.
-- A local process running as the owner, one that can already write the owner's
+- A program the owner runs as themselves, one that can already write the owner's
   settings or plugin state, is out of scope. Guarding one key against it
-  protects nothing.
+  protects nothing. Another plugin is not such a program: it stays in scope.
 - Name the harness control a row relies on, instead of duplicating it.
 
 The second bullet means the out-of-scope actor of [P0](#candidates-for-the-owners-word):
 a program the owner runs. It does not cover another plugin, a branch's own code
-or a steered session. These stay in scope, as P0 says.
+or a steered session. These stay in scope, as P0 says. The owner's own words for
+the bullet were "A local process running as the owner"; the lead reworded them so
+another plugin stays in scope.
 
 ## Who is in scope
 
@@ -334,7 +336,7 @@ There are 63 candidate lines in ten groups, P0 to P9. None of these is in force.
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
-**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing. Issue 579 records its out-of-scope actor under [Harness controls](#harness-controls), in the owner's words: a local process running as the owner. That actor is a program the owner runs. Another plugin, a branch's own code and a steered session stay in scope, and the rest of P0 is unchanged.
+**P0. The scope line.** The proposed line in [Scope](#scope). The owner names it, rewords it, or leaves the base scope standing. Issue 579 records its out-of-scope actor under [Harness controls](#harness-controls), in the owner's words, reworded by the lead: a program the owner runs as themselves. That actor is a program the owner runs. Another plugin, a branch's own code and a steered session stay in scope, and the rest of P0 is unchanged.
 
 **P1. Same-user and plugin paths.** Under the four questions in [Scope](#scope), every line below has at least one yes. Another plugin, a branch's own code and a steered session all run as the owner, and each can take the same path. So the scope line drops none of these outright. Each line names the class it would widen. Answers: plugin · branch code · steered session · another account.
 
@@ -583,7 +585,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 
 - `skills/head-chef/SKILL.md` and its references, scanned with the other skills ([row 16](brigade.md#row-16))
 - sessions: background sessions with Remote Control, or Desktop sessions on the owner's words, started by the head chef, named from a plain set, never from an issue, no permission mode unless the owner's words name one ([row 16](brigade.md#row-16))
-- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the harness's folder trust, on which the start's folder relies (measured on claude 2.1.319 in issue 543 M2 and again on claude 2.1.322 in issue 579 T0), with the start tool's checkout and origin checks beside it, the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16)). Residual, proposed in issue 579 for the owner's confirmation in these words: a steered lead can name any main checkout the owner has trusted, of any GitHub repository, whose origin names the repository the lead passes (the tool binds the folder to no repository the owner chose). The start's own reads (the folder's metadata, its `packed-refs`, `git config` for its origin) run on any well-spelled local folder the lead names, before the harness's trust gate stops the run, with no prompt: a steered lead learns from the refusal whether a path exists, is a main checkout, or is one of a repository it names, and on Windows a link or mapped drive on the way can reach a network share before the alias check refuses it (not measured). When the owner's Claude Code version changes, T0's M2a and M2b are to be run again: nothing here checks the version. Trust on a plain parent folder did not reach a new checkout below it on 2.1.322, and a checkout under a trusted repository is refused for its `.git` above
+- background starts: the name, form and shell refusals, and since head-chef 1.20.0 the issue number, repository, permission mode and one-line prompt refusals, with the harness's folder trust, on which the start's folder relies (measured on claude 2.1.319 in issue 543 M2 and again on claude 2.1.322 in issue 579 T0), with the start tool's checkout and origin checks beside it, the one-argument prompt, the first-prompt compare, the two-row failed start ([row 16](brigade.md#row-16)). Residual, accepted by the lead under the owner's goal in issue 579, in these words: a steered lead can name any main checkout the owner has trusted, of any GitHub repository, whose origin names the repository the lead passes (the tool binds the folder to no repository the owner chose). The start's own reads (the folder's metadata, its `packed-refs`, `git config` for its origin) run on any well-spelled local folder the lead names, before the harness's trust gate stops the run, with no prompt: a steered lead learns from the refusal whether a path exists, is a main checkout, or is one of a repository it names, and on Windows a link or mapped drive on the way can reach a network share before the alias check refuses it (not measured; a link-free walk is [issue 588](https://github.com/mephistopheles4/grimoire/issues/588)). When the owner's Claude Code version changes, T0's M2a and M2b are to be run again, and so is the `.env` read of P10: nothing here checks the version ([issue 587](https://github.com/mephistopheles4/grimoire/issues/587)). Trust on a plain parent folder did not reach a new checkout below it on 2.1.322, and a checkout under a trusted repository is refused for its `.git` above
 - the fixed-form start prompt and what it tells each session ([row 16](brigade.md#row-16))
 - the sender check: shown name, status file, `from-session` and `from` pairing, form refusals, the kept id ([row 16](brigade.md#row-16))
 - the owner's yes for starts, cleanup and each GitHub act; anything else asked goes to the owner (stop 1) ([row 16](brigade.md#row-16))
