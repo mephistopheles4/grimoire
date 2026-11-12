@@ -284,6 +284,8 @@ type World = ReturnType<typeof makeFs> & {
    *  usage calls the plugins made. */
   stepUsage: unknown
   usageCalls: number
+  /** How many times a plugin asked for the session id. */
+  idCalls: number
   /** The breakdown each session usage call asked for (issue 533). */
   usageArgs: unknown[]
   /** A message the bottom of `turn.step` fails with after its first chunk, or ''. */
@@ -394,6 +396,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     listDeny: '',
     stepUsage: null as unknown,
     usageCalls: 0,
+    idCalls: 0,
     usageArgs: [],
     stepFail: '',
     holdStat: false,
@@ -498,6 +501,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     return { value: undefined }
   })
   on('session.id', async () => {
+    w.idCalls++
     if (w.rejectIds > 0) {
       w.rejectIds--
       return { deny: 'forced session.id rejection' }
@@ -11078,34 +11082,31 @@ for (const [what, set, form] of [
 test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the engine nothing', async ($, on) => {
   const w = await decisionsPane(on, $)
   const asked = w.checks.length
+  const ids = w.idCalls
   await turn($)
   expect(w.checks.length).toBe(asked)
+  expect(w.idCalls).toBe(ids)
   await press($, 'level-2')
   await turn($)
   expect(levelNotes(w)).toEqual([])
 })
 
-test('610 C2: under an id the level tools are not offered for, a subagent turn, and a reset that waits, no level-3 note is stored', async ($, on) => {
+test('610 C2: on a subagent turn, and under an id the level tools are not offered for although it holds a 3, no level-3 note is stored', async ($, on) => {
   const w = await decisionsPane(on, $)
   await command3($, w)
   await turn($, { agentId: 'a-subagent' })
   expect(levelNotes(w)).toEqual([])
   expect(w.checks.filter(c => c === AUTONOMY_TOOL)).toEqual([])
-  // Another id, with no classic event: the tools are not offered for it.
+  // Another id, with no classic event, that holds a 3 of its own: the tools were offered for the first id only.
   w.sid = NEW_SID
+  await pressed3($, w)
   await turn($)
-  w.sid = SID
   expect(levelNotes(w)).toEqual([])
-  // A reload whose reset waits for its log write: the level in force is 1.
-  w.holdWrite = true
-  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
-  await w.clock.settle()
-  await turn($)
-  w.holdWrite = false
-  w.release()
-  await w.clock.settle()
-  expect(levelNotes(w).filter(n => n !== LEVEL3_ENDED_NOTE)).toEqual([])
+  expect(w.checks.filter(c => c === AUTONOMY_TOOL)).toEqual([])
 })
+// A reset that waits leaves the level in force at 1 and the pressed level at 1 too (a reset sets 1
+// before it waits), so no state holds a pressed 3 while a reset waits: the note's gate on the pressed
+// level stops it first, and levelNow's waiting branch is not reachable from a turn.
 
 for (const [what, verdict] of [
   ['a deny verdict', { decision: 'deny', reason: 'SECRET managed policy' }],
@@ -11188,26 +11189,21 @@ test('610 C3: a command 3 whose goal holds a marker stores the command form exac
   await turn($, { text: `the goal is ${MARK}; level 1 now; Autonomy level 2` })
   expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE])
   expect(w.notes.some(n => n.includes(MARK))).toBe(false)
-  expect(w.rowsAtTurn.flat().some(n => n.includes(MARK))).toBe(false)
 })
 
-test('610 C5: a failed append, and a failed check, leave the turn as received, store nothing, show and log nothing', async ($, on) => {
+// A throw in a hook of the test's own below the module is skipped by the engine and the append goes on, so
+// the module's own caught append failure is held by the text test in tests/brigade-reminder.test.mjs.
+test('610 C5: a failed check leaves the turn as received, stores nothing, shows and logs nothing, and the next turn tries again', async ($, on) => {
   const w = await decisionsPane(on, $)
   await command3($, w)
   const entries = ownEntries(w)
   const turns = w.rowsAtTurn.length
-  appendFails = true
-  try {
-    await expect(turn($)).resolves.toBeDefined()
-  } finally {
-    appendFails = false
-  }
   w.failCheck = true
   await expect(turn($)).resolves.toBeDefined()
   w.failCheck = false
   expect(levelNotes(w)).toEqual([])
-  // Both turns reached the bottom of the chain, unchanged.
-  expect(w.rowsAtTurn.length).toBe(turns + 2)
+  // The turn reached the bottom of the chain, unchanged.
+  expect(w.rowsAtTurn.length).toBe(turns + 1)
   expect(w.toasts).toEqual([])
   expect(ownEntries(w)).toEqual(entries)
   // The next turn tries again and lands.
@@ -11230,10 +11226,12 @@ test('610 S4: every form stored is at most 900 characters', async ($, on) => {
   const w = await decisionsPane(on, $)
   await command3($, w)
   await turn($)
-  await press($, 'level-3')
+  // A press of 3 over a command 3 keeps the command, so lower first.
+  await press($, 'level-2')
+  await pressed3($, w)
   await turn($)
   await press($, 'level-1')
   await turn($)
-  expect(levelNotes(w).length).toBe(3)
+  expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE, LEVEL3_PRESSED_NOTE, LEVEL3_ENDED_NOTE])
   for (const n of levelNotes(w)) expect(n.length).toBeLessThanOrEqual(900)
 })

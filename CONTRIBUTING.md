@@ -272,7 +272,7 @@ removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
 imports it to check that a send after the last `set_roster` owes an update and
 which sends carry a message, and the two compaction lines, the
-shared exception string, the 0.9 margin and the once-per-cycle state. The background start tool's rules
+shared exception string, the 0.9 margin and the once-per-cycle state, and the level-3 note's three strings; it also reads `brigade/register.tsx`'s text for the note's wiring, and `SKILL.md`, the contract and the security page for what they say of it. The background start tool's rules
 module, `brigade/start.ts`, is the seventh: `tests/brigade-start.test.mjs`
 imports it to check the start tool's input rules and fixed words. A card's
 quick action module, `brigade/quick.ts`, is the eighth:
