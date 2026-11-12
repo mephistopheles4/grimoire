@@ -144,8 +144,9 @@ or type `/brigade` to open it.
   what that file keeps for you waits. At level 3, inside the goal, where
   that file lets its standing-goal rule decide what it keeps and names what
   it keeps even toward a goal, the lead decides the rest of what it keeps
-  itself, flagged for you; what the file keeps even toward a goal, and any
-  publish that leaves your machine, still waits. Cleanup waits for your yes in chat at
+  itself, flagged for you; what the file keeps even toward a goal, and a
+  publish that leaves your machine, other than issue and pull-request work
+  in your repositories or the goal's, still waits. Cleanup waits for your yes in chat at
   levels 1 and 2, and a hand-off request or a fresh session a context figure
   prompts waits at every level.
 
