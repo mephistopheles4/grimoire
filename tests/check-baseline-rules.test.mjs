@@ -280,10 +280,11 @@ const SHIPPED = {
     ['MP1', '*contract.changelog.md'],
     ['RA2', 'README.md'],
     ['EA3', 'assets/OFL.txt'],
+    ['AS3', 'references/template.md', 'skills/*/SKILL.md'],
   ],
 };
 
-test('each skill ships exactly its narrowed entries, none with a wildcard except head-chef TR2 and contract MP1', () => {
+test('each skill ships exactly its narrowed entries, none with a wildcard except head-chef TR2 and contract MP1 and AS3', () => {
   for (const [skill, want] of Object.entries(SHIPPED)) {
     const got = entriesOf(join(root, 'skills', skill, '.skillspector-baseline.yaml'));
     assert.deepEqual(
@@ -292,8 +293,8 @@ test('each skill ships exactly its narrowed entries, none with a wildcard except
       `${skill}: the shipped entries`,
     );
     for (const e of got) {
-      // Both keep the root's own wildcard, which a skill entry may repeat.
-      if (e.rule_id === 'TR2' || (skill === 'contract' && e.rule_id === 'MP1')) continue;
+      // These keep the root's own wildcard, which a skill entry may repeat.
+      if (e.rule_id === 'TR2' || (skill === 'contract' && (e.rule_id === 'MP1' || e.rule_id === 'AS3'))) continue;
       assert.doesNotMatch(`${e.file}${e.message ?? ''}`, /[*?[]/, `${skill} ${e.rule_id}: a wildcard in a narrowing`);
     }
   }
