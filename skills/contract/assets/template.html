@@ -184,7 +184,8 @@ button.flag{font-size:var(--av-t-annot);padding:2px 12px;border-color:var(--av-i
 button.flag:hover{border-color:var(--av-ink);color:var(--av-ink)}
 button.flag[aria-pressed="true"]{border-color:var(--av-caution);color:var(--av-caution);font-weight:600}
 .pop>.flag{margin-top:var(--av-s3)}
-.rec-foot .menu{margin-left:auto}
+.rec.has-menu{position:relative;padding-right:2.6em}
+.rec.has-menu>.menu{position:absolute;top:var(--av-s1);right:0}
 .fixed{font-size:var(--av-t-annot);color:var(--av-ink-70);margin:var(--av-s1) 0 0}
 /* A field: edited where it sits, styled as the document's text. */
 textarea.ed{transition:background-color .15s ease,border-color .15s ease;display:block;width:100%;border:0;border-bottom:var(--av-rule-hair) dashed var(--av-ink-30);background:transparent;padding:0 2px;resize:none;overflow:hidden;line-height:1.6;min-height:1.6em}
@@ -508,6 +509,7 @@ function render() {
     modalEl.querySelectorAll('*').forEach(el => { if (el.pageKey) keyed.set(el.pageKey, el); });
     if (!modalEl.open && modalEl.showModal) { if (!still()) modalEl.classList.add('opening'); modalEl.showModal(); }
     const body = modalEl.querySelector('.modal-body');
+    for (const el of modalEl.querySelectorAll('textarea.ed')) size(el);
     if (body) body.scrollTop = keepScroll;
   } else if (modalEl.open) {
     modalEl.close();
@@ -1226,7 +1228,8 @@ function record(x, where) {
     addEntry(partOf(x.id), x.kind);
   }) } }, 'Replace with an entry'));
   if (d && !x.none) foot.append(flagBox(x.id));
-  if (!x.none && where.schedule) foot.append(entryMenu(x, where.schedule));
+  // The menu sits at the entry's top right, out of the foot line.
+  if (!x.none && where.schedule) { rec.classList.add('has-menu'); rec.append(entryMenu(x, where.schedule)); }
   if (S.rekinding === x.id) rec.append(rekindPick(x));
   rec.append(foot);
   return rec;

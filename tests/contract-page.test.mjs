@@ -704,3 +704,16 @@ test('the answer block names a tapped chip by its place in the question, carries
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, new RegExp(`purpose/job picked .*; chip ${JSON.stringify(chips[1]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 });
+
+test('a field that holds more than a line wraps and grows, in the sheet as in the letter (#606)', () => {
+  // The sheet is filled after the letter is sized, so it is sized on its own.
+  assert.match(template, /modalEl\.querySelectorAll\('textarea\.ed'\)\) size\(el\)/);
+  assert.match(template, /textarea\.ed\{[^}]*overflow:hidden/);
+  assert.doesNotMatch(template, /h\('input', \{ class: 'ed'/);
+});
+
+test('an entry\'s menu sits at the entry\'s top right, not in its foot line (#606)', () => {
+  assert.match(template, /\.rec\.has-menu>\.menu\{position:absolute;top:[^;}]+;right:0\}/);
+  assert.match(template, /rec\.append\(entryMenu\(x, where\.schedule\)\)/);
+  assert.doesNotMatch(template, /foot\.append\(entryMenu/);
+});
