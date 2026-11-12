@@ -204,6 +204,16 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
   for (const s of carried) assert.ok(hand.includes(s), `handoff.md holds "${s}"`);
 });
 
+// #604 S6: the contract's schedules are matched to their homes by heading, so
+// no home holds a part fence, and the resources line names the contract's two
+// layers while keeping its reading condition word for word.
+test('no head-chef home holds a part fence, and SKILL.md describes the contract as intent plus schedules (#604 S6)', () => {
+  for (const f of ['SKILL.md', 'references/starting.md', 'references/cleanup.md', 'references/handoff.md', 'references/desktop.md', 'references/roster.md']) {
+    assert.doesNotMatch(read(`skills/head-chef/${f}`), /<!--[ \t]*contract:(begin|end)/, `${f} holds a part fence`);
+  }
+  assert.ok(flat(read('skills/head-chef/SKILL.md')).includes("- `references/CONTRACT.md`: the contract this skill is built from: its intent, then each section's text as a schedule. Read only to explain why a rule exists."));
+});
+
 // #604 S9: thirteen rules that only the contract held at 1.36.1 now stand in
 // SKILL.md or a reference, the owner having said "Yes, add all 13", and A14
 // moves "a new review" to the contract's confirmed "a new round". Each

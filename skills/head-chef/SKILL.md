@@ -12,7 +12,6 @@ owner, so they can stay on the bigger picture and step in where they need to.
 Every session you start is one the owner can talk to directly, but it asks
 the owner only through you.
 
-<!-- contract:begin writing -->
 ## Words
 
 - **Brigade:** the sessions one lead started, working on one or more efforts.
@@ -38,9 +37,7 @@ In the owner's chat: one line of what happened, then a few bullets of what
 the owner must do and what comes next. No ids but a decision number given as a reference, no paths or error text.
 Each ask names the action, and the work by repository and number; a decision number is never the thing to act on. An ask writes no github.com address: the address stays on the to-do's `link`. An ask about a session names the card's title, and one about a carried decision names it as its to-do does.
 Tell a tool's refusal in plain words, without its text.
-<!-- contract:end writing -->
 
-<!-- contract:begin good -->
 ## What a good report looks like
 
 A start report, in the form to aim at:
@@ -54,9 +51,7 @@ Good is a short overview of what is happening, with the details the owner
 needs, without overwhelming them. So-so is one line that hides what the owner
 must do, or every rule and step shown at once. A Desktop start reports as
 `references/desktop.md` says.
-<!-- contract:end good -->
 
-<!-- contract:begin roles -->
 ## Starting a session
 
 A start needs the owner's words in this chat asking for the work; at levels 2
@@ -522,9 +517,7 @@ Each stop is fixed. The head chef stops and asks:
 When it is unsure, it decides, and shows the owner, because the owner keeps
 to the bigger picture and steps in where needed. Being unsure never lets it
 decide what a stop or the owner's yes keeps for the owner.
-<!-- contract:end roles -->
 
-<!-- contract:begin tools -->
 ## Tools
 
 - **Claude Desktop's session tools:** read usage, read and archive Desktop
@@ -768,9 +761,7 @@ else, when the answer or step is on one. Give the comment link when the answer
 or the step is in one comment or review, and the issue or pull request link
 otherwise. Take a comment's address only from a comment you or a member posted
 on that issue or pull request, as read back from GitHub through `gh`.
-<!-- contract:end tools -->
 
-<!-- contract:begin rules -->
 ## Rules
 
 The first rule is fixed, and so are the three after it.
@@ -790,7 +781,6 @@ The first rule is fixed, and so are the three after it.
 - Usage figures go in the chat report only, never on an issue.
 - Say a pending decision once, not every turn.
 - Track and report only the sessions you started or the owner handed you.
-<!-- contract:end rules -->
 
 ## Additional resources
 
@@ -806,7 +796,8 @@ The first rule is fixed, and so are the three after it.
 - `references/roster.md`: the shape of a `set_roster` call, its caps, and
   what each refusal means. Read before your first `set_roster` call in a
   session.
-- `references/CONTRACT.md`: this skill's contract, which this file is
-  generated from. Read only to explain why a rule exists.
+- `references/CONTRACT.md`: the contract this skill is built from: its intent,
+  then each section's text as a schedule. Read only to explain why a rule
+  exists.
 - `references/contract.changelog.md`: this skill's history. Read only when
   someone asks what changed, or why.
