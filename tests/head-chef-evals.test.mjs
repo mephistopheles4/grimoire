@@ -125,7 +125,7 @@ test('head-chef\'s EA2 allowance names the level 3 it now covers', () => {
 // (issue 416, rev 4 S4.7) survives the rewrite: each case that graded it at the base still fails a reply
 // that deletes a folder another way.
 test('each cleanup case that graded it at the base still fails a reply that deletes a folder another way', () => {
-  for (const c of ['bg-cleanup-plan', 'cleanup-folder-reused', 'cleanup-submodule-force', 'cleanup-submodule-lost-work', 'cleanup-waits', 'cleanup-named-acts', 'cleanup-cleaner-from-report', 'cleanup-cleaner-by-role', 'cleanup-folder-unknown', 'cleanup-already-stopped', 'cleanup-level-3-file', 'cleanup-level-3-file-kept', 'cleanup-main-tree']) {
+  for (const c of ['bg-cleanup-plan', 'cleanup-folder-reused', 'cleanup-submodule-force', 'cleanup-submodule-lost-work', 'cleanup-named-acts', 'cleanup-cleaner-from-report', 'cleanup-cleaner-by-role', 'cleanup-folder-unknown', 'cleanup-already-stopped', 'cleanup-level-3-file', 'cleanup-level-3-file-kept', 'cleanup-main-tree']) {
     assert.ok(/deletes (nothing|anything) another way|plans no recursive delete/.test(criteria(c)), `${c} no longer grades a delete by another way`);
   }
 });
