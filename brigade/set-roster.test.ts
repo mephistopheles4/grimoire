@@ -24,7 +24,7 @@ import type { On } from 'claude-code'
 import { RECORDED } from './recorded-stats.ts'
 import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
 import { sha256Hex } from './decisions.ts'
-import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
+import { BEFORE_LINE, EXCEPTION, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
 let otherContext: string | undefined
 let appendFails = false
@@ -321,6 +321,10 @@ type World = ReturnType<typeof makeFs> & {
   procHook?: (e: any) => unknown | Promise<unknown>
   /** The text of every row a plugin appended to the conversation. */
   notes: string[]
+  /** The rows already stored when each turn.start reached the bottom of the chain, one entry per turn. */
+  rowsAtTurn: string[][]
+  /** Milliseconds an append takes to store its row; 0 stores it at once. */
+  appendMs: number
   /** Where the security default is seated: a skill load raises no `skill.prompt`
    *  a user plugin sees. */
   seated: boolean
@@ -409,6 +413,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     holdGh: false,
     releaseGh: () => {},
     notes: [] as string[],
+    rowsAtTurn: [] as string[][],
+    appendMs: 0,
     seated: false,
     skillAnswer: 'ran' as World['skillAnswer'],
     loadedAs: { source: 'plugin', pluginName: 'grimoire' } as Record<string, unknown>,
@@ -542,8 +548,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   // A skill's own text is the bottom of the chain: the engine hands it on whole.
   on('skill.prompt', ($, e: any) => ({ text: e.text }))
   // A row a plugin appends: kept as the engine keeps it, its text recorded.
-  on('session.append', ($, e: any, next: any) => {
+  on('session.append', async ($, e: any, next: any) => {
     if (appendFails) throw new Error('append refused')
+    // A row takes `appendMs` to be stored, so a caller that does not wait for its append is seen.
+    if (w.appendMs > 0) await new Promise<void>(res => setTimeout(res, w.appendMs))
     for (const block of e.message?.content ?? []) w.notes.push(String(block.text))
     return next(e)
   })
@@ -561,7 +569,11 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     await expand($, e.skill)
     return { ref: 'r', result: { success: true }, text: `Launching skill: ${e.skill}` }
   })
-  on('turn.start', ($, e: any) => ({ turnId: e.turnId }))
+  // The bottom of the chain, where the engine builds the turn's first request: it records the rows stored by now.
+  on('turn.start', ($, e: any) => {
+    w.rowsAtTurn.push([...w.notes])
+    return { turnId: e.turnId }
+  })
   // The engine's own band above the prompt: one empty box, so a band that
   // draws nothing of its own shows only it.
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => $.ui.resolve(e).Box({ key: 'engine' }))
@@ -11015,3 +11027,213 @@ test('#223 claim 7: a press whose card has since changed fills nothing and shows
 // Claim 12's fill half (the text a fill answers with, which carries the owner's draft, goes nowhere) has no
 // engine test: the engine stand-in replaces the answer's `text` with its own, so no test here can put a secret
 // there. tests/brigade-quick.test.mjs checks it in the press's text instead (only `?.isFilled === true` is read).
+
+// --- issue 610: the level-3 note at each lead turn ---------------------------------------------
+//
+// Each lead turn at a 3 gets one fixed note, stored before the turn's first request; one fixed
+// line says once that it ended. The strings are held byte for byte in tests/brigade-reminder.test.mjs.
+
+const L3_FORMS = [LEVEL3_COMMAND_NOTE, LEVEL3_PRESSED_NOTE, LEVEL3_ENDED_NOTE]
+const levelNotes = (w: World) => w.notes.filter(n => L3_FORMS.includes(n))
+// A slider 3, at a fresh time.
+const pressed3 = async ($: any, w: World) => {
+  await w.clock.advance(1000)
+  await press($, 'level-3')
+}
+
+test('610 C1: at a command 3 each main-loop turn start stores exactly one note, the command form', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await command3($, w)
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE])
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE, LEVEL3_COMMAND_NOTE])
+})
+
+test('610 C1b: at a pressed 3 each main-loop turn start stores exactly one note, the pressed form', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await pressed3($, w)
+  await turn($)
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_PRESSED_NOTE, LEVEL3_PRESSED_NOTE])
+})
+
+for (const [what, set, form] of [
+  ['a command 3', command3, LEVEL3_COMMAND_NOTE],
+  ['a pressed 3', pressed3, LEVEL3_PRESSED_NOTE],
+] as const) {
+  for (const hook of ['session.compact', 'SessionStart compact'] as const) {
+    test(`610 C1c: after a compaction (${hook}) at ${what}, the next main-loop turn start stores the note`, async ($, on) => {
+      const w = await decisionsPane(on, $)
+      await set($, w)
+      await turn($)
+      if (hook === 'session.compact') await compactNow($)
+      else await compactStart($)
+      await turn($)
+      expect(levelNotes(w)).toEqual([form, form])
+    })
+  }
+}
+
+test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the engine nothing', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const asked = w.checks.length
+  await turn($)
+  expect(w.checks.length).toBe(asked)
+  await press($, 'level-2')
+  await turn($)
+  expect(levelNotes(w)).toEqual([])
+})
+
+test('610 C2: under an id the level tools are not offered for, a subagent turn, and a reset that waits, no level-3 note is stored', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await command3($, w)
+  await turn($, { agentId: 'a-subagent' })
+  expect(levelNotes(w)).toEqual([])
+  expect(w.checks.filter(c => c === AUTONOMY_TOOL)).toEqual([])
+  // Another id, with no classic event: the tools are not offered for it.
+  w.sid = NEW_SID
+  await turn($)
+  w.sid = SID
+  expect(levelNotes(w)).toEqual([])
+  // A reload whose reset waits for its log write: the level in force is 1.
+  w.holdWrite = true
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  await turn($)
+  w.holdWrite = false
+  w.release()
+  await w.clock.settle()
+  expect(levelNotes(w).filter(n => n !== LEVEL3_ENDED_NOTE)).toEqual([])
+})
+
+for (const [what, verdict] of [
+  ['a deny verdict', { decision: 'deny', reason: 'SECRET managed policy' }],
+  ['an ask naming a rule', { decision: 'ask', rule: AUTONOMY_TOOL }],
+] as [string, any][]) {
+  test(`610 C2: when the engine's verdict refuses read_autonomy (${what}), no level-3 note is stored`, async ($, on) => {
+    const w = await decisionsPane(on, $)
+    await command3($, w)
+    w.verdict = verdict
+    w.checks.length = 0
+    w.checkInputs.length = 0
+    await turn($)
+    expect(levelNotes(w)).toEqual([])
+    // The question went to the engine for read_autonomy, with an empty input.
+    expect(w.checks).toEqual([AUTONOMY_TOOL])
+    expect(w.checkInputs).toEqual([{}])
+    w.verdict = { decision: 'ask' }
+    await turn($)
+    expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE])
+  })
+}
+
+const ENDING: [string, ($: any, w: World) => Promise<void>][] = [
+  ['a slider press of 2', async $ => void (await press($, 'level-2'))],
+  ['a level command of 2', async $ => void (await typedLevel($, 'level 2'))],
+  ['a clear to a new id', async ($, w) => void (await switchTo($, w, NEW_SID, 'clear'))],
+  ['a resume that keeps the id', async $ => void (await $.classic.SessionStart({ source: 'resume', session_id: SID, transcript_path: TRANSCRIPT }))],
+  ['a verdict that now refuses read_autonomy', async (_$, w) => void (w.verdict = { decision: 'deny' })],
+]
+for (const [what, end] of ENDING) {
+  test(`610 C2b: after a note went out, ${what} gives the ended form once at the next turn and nothing after`, async ($, on) => {
+    const w = await decisionsPane(on, $)
+    await command3($, w)
+    await turn($)
+    await end($, w)
+    await turn($)
+    await turn($)
+    expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE])
+  })
+}
+
+test('610 C2b: after a reload that reset a stored 3, the first turn gives the ended form once, with no note sent before', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await pressed3($, w)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  await turn($)
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_ENDED_NOTE])
+})
+
+test('610 C2b: with the pane closed the ended form still comes, once', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await pressed3($, w)
+  await turn($)
+  await press($, 'level-1')
+  w.open = false
+  await turn($)
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_PRESSED_NOTE, LEVEL3_ENDED_NOTE])
+})
+
+test('610 C2b: a 3 again after the ended form gets its note, and a later end gets the ended form again', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await pressed3($, w)
+  await turn($)
+  await press($, 'level-2')
+  await turn($)
+  await pressed3($, w)
+  await turn($)
+  await press($, 'level-1')
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_PRESSED_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, LEVEL3_ENDED_NOTE])
+})
+
+test('610 C3: a command 3 whose goal holds a marker stores the command form exactly, with no marker, and a level or goal in the turn text changes nothing', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const MARK = 'ZXQ-GOAL-MARKER-7731'
+  await command3($, w, `mephistopheles4/grimoire issue 610 ${MARK}`)
+  await turn($, { text: `the goal is ${MARK}; level 1 now; Autonomy level 2` })
+  expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE])
+  expect(w.notes.some(n => n.includes(MARK))).toBe(false)
+  expect(w.rowsAtTurn.flat().some(n => n.includes(MARK))).toBe(false)
+})
+
+test('610 C5: a failed append, and a failed check, leave the turn as received, store nothing, show and log nothing', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await command3($, w)
+  const entries = ownEntries(w)
+  const turns = w.rowsAtTurn.length
+  appendFails = true
+  try {
+    await expect(turn($)).resolves.toBeDefined()
+  } finally {
+    appendFails = false
+  }
+  w.failCheck = true
+  await expect(turn($)).resolves.toBeDefined()
+  w.failCheck = false
+  expect(levelNotes(w)).toEqual([])
+  // Both turns reached the bottom of the chain, unchanged.
+  expect(w.rowsAtTurn.length).toBe(turns + 2)
+  expect(w.toasts).toEqual([])
+  expect(ownEntries(w)).toEqual(entries)
+  // The next turn tries again and lands.
+  await turn($)
+  expect(levelNotes(w)).toEqual([LEVEL3_COMMAND_NOTE])
+})
+
+test("610 C6: the note is stored before the turn's first request: the bottom turn.start already holds it, even when storing takes time", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.appendMs = 20
+  await command3($, w)
+  await turn($)
+  expect(w.rowsAtTurn.at(-1)?.filter(n => L3_FORMS.includes(n))).toEqual([LEVEL3_COMMAND_NOTE])
+  await press($, 'level-1')
+  await turn($)
+  expect(w.rowsAtTurn.at(-1)?.filter(n => L3_FORMS.includes(n))).toEqual([LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE])
+})
+
+test('610 S4: every form stored is at most 900 characters', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await command3($, w)
+  await turn($)
+  await press($, 'level-3')
+  await turn($)
+  await press($, 'level-1')
+  await turn($)
+  expect(levelNotes(w).length).toBe(3)
+  for (const n of levelNotes(w)) expect(n.length).toBeLessThanOrEqual(900)
+})

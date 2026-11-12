@@ -234,7 +234,7 @@ import {
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { compactSign, endTurn, figuresOf, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
+import { compactSign, endTurn, figuresOf, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -2388,6 +2388,10 @@ const commanded = new Map<string, { at: number; goal: string }>()
 let lastLevelSid: string | undefined
 // Moves at every clear or resume, so a level command still being logged then never lands.
 let commandsVoided = 0
+// The level-3 note's one module-wide memory (issue 610): a note went out, or a
+// reload reset a stored 3, so the ended form is owed once the level is no longer
+// 3. It holds no text and no tool reads it. A reload's fresh module starts it false.
+let levelNoted = false
 
 let levelLock: Promise<unknown> = Promise.resolve()
 function levelTurn<T>(work: () => Promise<T>): Promise<T> {
@@ -2773,6 +2777,8 @@ async function resetLevel($: EngineInterface, why: ResetWhy) {
         levelTurns++
         pressedAt.delete(sid)
         const stored = storedLevel(await read($, autonomy), sid)
+        // A stored 3 this reload ends is one a level-3 note may have followed.
+        if (why === 'reload' && stored === 3) levelNoted = true
         const raised = raising.has(sid)
         if (stored === 1 && pressedOf(sid) === 1 && !raised) return false
         await setLevel($, sid, 1)
@@ -2850,6 +2856,32 @@ async function readAutonomy($: EngineInterface, e: Record<string, unknown>) {
   const sid = await levelSid($)
   if (sid === undefined) return { result: levelAnswer(LEVEL_1) }
   return levelTurn(async () => ({ result: levelAnswer(await levelState($, sid)) }))
+}
+
+// The level-3 note (issue 610), at a lead turn's start: one fixed string per
+// turn while a 3 holds, and the ended form once after it. The strings are
+// reminder.ts's constants, so nothing from the turn, a message, a file or the
+// goal reaches them; the level is read as read_autonomy reads it, and only
+// that read runs inside the lock. The cheap check comes first and asks the
+// engine nothing, so a session at 1 or 2 with no ended form owed pays nothing.
+// A refusal of read_autonomy's verdict counts as level 1. The append is
+// awaited, so the row is stored before the turn's first request. A throw is
+// the caller's to catch.
+async function levelNoteTurn($: EngineInterface) {
+  if (![...pressedLevel.values()].includes(3) && !levelNoted) return
+  let held: { level: Level; command: boolean } = { level: 1, command: false }
+  const sid = await levelSid($).catch(() => undefined)
+  if (sid !== undefined && pressedOf(sid) === 3 && toolsOfferedFor === sid && rulesAllowTool(await $.tool.check({ tool: AUTONOMY_NAME, input: {} }))) {
+    held = await levelTurn(async () => ({ level: levelNow(sid), command: (await commandNow($, sid)) !== undefined }))
+  }
+  const row = (text: string) => ({ message: { type: 'user' as const, content: [{ type: 'text' as const, text }] } })
+  if (held.level === 3) {
+    await $.session.append(row(held.command ? LEVEL3_COMMAND_NOTE : LEVEL3_PRESSED_NOTE))
+    levelNoted = true
+  } else if (levelNoted) {
+    await $.session.append(row(LEVEL3_ENDED_NOTE))
+    levelNoted = false
+  }
 }
 
 // --- read_context (issue 492, spec v3 S2.1) ----------------------------------------
@@ -3330,6 +3362,7 @@ export const register: Register = on => {
     ownerWrote.clear()
     paneWaits.clear()
     commanded.clear()
+    levelNoted = false
     lastLevelSid = undefined
     bandDismissed = undefined
     resetWaits = undefined
@@ -3595,13 +3628,22 @@ export const register: Register = on => {
   // A head-chef load whose pane was not shown, not yet listed, or opened
   // without its reads: each turn of the lead's own looks once, until the pane
   // is shown and listed, or gone. With no load waiting, or on a subagent's
-  // turn, it asks the engine nothing.
+  // turn, it asks the engine nothing. The level-3 note follows it (below).
   on('turn.start', async ($, e, next) => {
     if (lateOffer && e.agentId === undefined) {
       try {
         await lateTurn($)
       } catch {
         // No tool this turn: the next one looks again, and /brigade still works.
+      }
+    }
+    // The level-3 note, after the late-offer work and before the turn goes on,
+    // so its row is stored before the turn's first request (issue 610).
+    if (e.agentId === undefined) {
+      try {
+        await levelNoteTurn($)
+      } catch {
+        // Nothing is shown or logged: the turn goes on as received.
       }
     }
     return next(e)
