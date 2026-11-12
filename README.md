@@ -434,7 +434,8 @@ files you ask for:
   browser's storage until you press Reset.
 - **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
   pull requests its rows carry (and `gh pr view <number> --web`, or `gh issue view <number> --web`, when you press a
-  pull request pill or a to-do's link), and once a minute for each other repository a
+  pull request pill or a to-do's link; a to-do's link to a comment or review on an issue
+  or pull request is opened by the app or terminal itself, with no `gh` run), and once a minute for each other repository a
   row names, at most 6 runs a minute, the repositories taking turns past five,
   which uses your GitHub sign-in. Since 0.144.0 a quick-action button on
   Desktop reads your prompt box once, only to see whether it is blank, and then

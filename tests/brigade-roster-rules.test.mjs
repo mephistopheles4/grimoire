@@ -1023,16 +1023,23 @@ const GOOD_LINKS = [
   'https://github.com/O/R/issues/7',
   `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/issues/1`,
 ];
-// Refused: another scheme or host, a prefix trick, userinfo, a port, a query, a fragment, a path
+// Issue 567 (S1.1 to S1.3): a comment on an issue or a pull request, a review, a review comment.
+const ANCHORED = [
+  ['https://github.com/o/r/issues/560#issuecomment-1', { repo: 'o/r', kind: 'issue', number: '560', anchor: { kind: 'comment', id: '1' } }],
+  ['https://github.com/o/r/pull/18#issuecomment-123456789012', { repo: 'o/r', kind: 'pr', number: '18', anchor: { kind: 'comment', id: '123456789012' } }],
+  ['https://github.com/o/r/pull/18#pullrequestreview-99', { repo: 'o/r', kind: 'pr', number: '18', anchor: { kind: 'review', id: '99' } }],
+  ['https://github.com/o/r/pull/18#discussion_r5', { repo: 'o/r', kind: 'pr', number: '18', anchor: { kind: 'reviewcomment', id: '5' } }],
+];
+// Refused: another scheme or host, a prefix trick, userinfo, a port, a query, an unknown fragment, a path
 // that is not issues or pull, a name that is `..`-shaped or starts with `.` or `-`, a number with
 // a leading zero, a trailing slash, white space, a hidden or non-ASCII character, an uppercase
-// scheme or host, a claude.ai address, a string over 200 characters and a value that is not text.
+// scheme or host, a claude.ai address, a string over 210 characters and a value that is not text.
 const BAD_LINKS = [
   'http://github.com/o/r/issues/1', 'javascript:alert(1)', 'file:///etc/passwd', 'HTTPS://github.com/o/r/issues/1',
   'https://GITHUB.com/o/r/issues/1', 'https://github.com.evil.example/o/r/issues/1',
   'https://evil.example/https://github.com/o/r/issues/1', 'https://github.com@evil.example/o/r/issues/1',
   'https://user@github.com/o/r/issues/1', 'https://github.com:443/o/r/issues/1', 'https://github.com/o/r/issues/1?x=1',
-  'https://github.com/o/r/issues/1#issuecomment-5', 'https://github.com/o/r/issues/1#', 'https://github.com/o/r/issues/1/',
+  'https://github.com/o/r/issues/1#', 'https://github.com/o/r/issues/1/',
   'https://github.com/o/r/issues/1/foo', 'https://github.com/o/r/commit/abc', 'https://github.com/o/r/discussions/1',
   'https://github.com/o/r/issues/0', 'https://github.com/o/r/issues/007', 'https://github.com/o/r/issues/12345678',
   'https://github.com/o/.github/issues/1', 'https://github.com/o/-x/issues/1', 'https://github.com/o/a..b/issues/1',
@@ -1040,8 +1047,26 @@ const BAD_LINKS = [
   'https://github.com/-o/r/issues/1', 'https://github.com/o_x/r/issues/1', `https://github.com/${'a'.repeat(40)}/r/issues/1`,
   `https://github.com/o/${'r'.repeat(101)}/issues/1`, ' https://github.com/o/r/issues/1', 'https://github.com/o/r/issues/1 ',
   'https://github.com/o/r/issues/1\n', 'https://github.com/o /r/issues/1', 'https://github.com/o\u{200B}/r/issues/1',
-  'https://github.com/ö/r/issues/1', 'https://claude.ai/code/session_abc', 'https://github.com/o/r/issues/1'.padEnd(201, 'x'),
+  'https://github.com/ö/r/issues/1', 'https://claude.ai/code/session_abc', 'https://github.com/o/r/issues/1'.padEnd(211, 'x'),
   '', 7, null, undefined, ['https://github.com/o/r/issues/1'], { href: 'https://github.com/o/r/issues/1' },
+];
+// #567 C1: the anchored refusals. Each is a near-miss of an accepted shape.
+const BAD_ANCHORED = [
+  'https://github.com/o/r/issues/1#', 'https://github.com/o/r/issues/1#issuecomment-', 'https://github.com/o/r/issues/1#issuecomment',
+  'https://github.com/o/r/issues/1#issuecomment-0', 'https://github.com/o/r/issues/1#issuecomment-01', 'https://github.com/o/r/issues/1#issuecomment-007',
+  'https://github.com/o/r/issues/1#issuecomment-1234567890123', 'https://github.com/o/r/pull/1#issuecomment-1234567890123',
+  'https://github.com/o/r/pull/1#pullrequestreview-0', 'https://github.com/o/r/pull/1#pullrequestreview-', 'https://github.com/o/r/pull/1#discussion_r0',
+  'https://github.com/o/r/pull/1#discussion_r', 'https://github.com/o/r/pull/1#discussion_r01', 'https://github.com/o/r/pull/1#discussion_r1234567890123',
+  'https://github.com/o/r/issues/1#pullrequestreview-5', 'https://github.com/o/r/issues/1#discussion_r5',
+  'https://github.com/o/r/issues/1#issuecomment-5#issuecomment-6', 'https://github.com/o/r/issues/1#issuecomment-5#', 'https://github.com/o/r/issues/1##issuecomment-5',
+  'https://github.com/o/r/issues/1#issuecomment-5?x=1', 'https://github.com/o/r/issues/1?x=1#issuecomment-5', 'https://github.com/o/r/issues/1#x=issuecomment-5',
+  'https://github.com/o/r/issues/1/#issuecomment-5', 'https://github.com/o/r/pull/1/#pullrequestreview-5',
+  'https://github.com/o/r/issues/1#IssueComment-5', 'https://github.com/o/r/issues/1#issuecomment-5 ', ' https://github.com/o/r/issues/1#issuecomment-5',
+  'https://github.com/o/r/issues/1#issuecomment-5\n', 'https://github.com/o/r/issues/1#issuecomment-\u{0665}', 'https://github.com/o/r/issues/1#issuecomment-5\u{200B}',
+  'https://github.com/o/r/issues/1#issuecomment-5/', 'https://github.com/o/r/issues/1#note_5', 'https://github.com/o/r/issues/1#event-5',
+  'https://github.com/o/r/pull/1#diff-abc', 'https://github.com/o/r/pull/1#r5', 'https://github.com/o/r/pull/1#discussion_r5#discussion_r6',
+  'https://github.com/o/a..b/issues/1#issuecomment-5', 'https://github.com/o/../issues/1#issuecomment-5',
+  'https://claude.ai/code/session_abc#issuecomment-5', 'https://github.com/o/r/discussions/1#discussioncomment-5',
 ];
 
 test('#560 C3: a link is accepted only in the closed github.com issue or pull request shape', () => {
@@ -1050,11 +1075,36 @@ test('#560 C3: a link is accepted only in the closed github.com issue or pull re
 });
 
 test('#560 C3: every accepted link equals the address rebuilt from its parse, and the rebuild is on the constant prefix', () => {
-  for (const link of GOOD_LINKS) {
+  for (const link of [...GOOD_LINKS, ...ANCHORED.map(a => a[0])]) {
     const p = parseLink(link);
     assert.equal(linkUrl(p), link);
     assert.ok(linkUrl(p).startsWith('https://github.com/'));
   }
+});
+
+test('#567 C1: each anchored shape is accepted and parses to its anchor; a link with no fragment has no anchor key', () => {
+  for (const [link, parts] of ANCHORED) assert.deepEqual(parseLink(link), parts, link);
+  for (const link of GOOD_LINKS) assert.equal('anchor' in parseLink(link), false, link);
+});
+
+test('#567 C1: each near-miss of an anchored shape is refused, and #560\'s "any fragment" case flips on purpose', () => {
+  for (const link of BAD_ANCHORED) assert.equal(parseLink(link), undefined, JSON.stringify(link));
+  // #560 C3 refused every fragment; its case 'issues/1#issuecomment-5' is accepted now, by design (S1.1).
+  assert.ok(parseLink('https://github.com/o/r/issues/1#issuecomment-5'));
+  // The review and review-comment forms stay on a pull request (S1.2).
+  assert.equal(parseLink('https://github.com/o/r/issues/1#pullrequestreview-5'), undefined);
+  assert.equal(parseLink('https://github.com/o/r/issues/1#discussion_r5'), undefined);
+});
+
+test('#567 C8: the longest accepted link is 203 characters, MAX_LINK is 210, and a roster from the older skill is accepted', () => {
+  const longest = `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/pull/9999999#pullrequestreview-999999999999`;
+  assert.equal(longest.length, 203);
+  assert.ok(parseLink(longest));
+  assert.equal(linkUrl(parseLink(longest)), longest);
+  assert.equal(roster.MAX_LINK, 210);
+  const longestIssue = `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/issues/9999999#issuecomment-999999999999`;
+  assert.equal(longestIssue.length, 200);
+  assert.ok(parseLink(longestIssue));
 });
 
 test("#560 C3: every accepted link builds a Desktop run (the link's name set is the run's)", () => {
@@ -1069,6 +1119,15 @@ test("#560 C3: every accepted link builds a Desktop run (the link's name set is 
 test('#560 C6: the label names the repository and the number, from the parse alone', () => {
   assert.equal(linkLabel(parseLink('https://github.com/mephistopheles4/grimoire/issues/560')), '#560 mephistopheles4/grimoire');
   assert.equal(linkLabel(parseLink('https://github.com/o/r/pull/18')), 'PR 18 o/r');
+});
+
+test('#567 C7: each anchored label is built from the parse alone, names the repository and never holds the comment id', () => {
+  assert.equal(linkLabel(parseLink('https://github.com/mephistopheles4/grimoire/issues/560#issuecomment-4300000000')), '#560 comment mephistopheles4/grimoire');
+  assert.equal(linkLabel(parseLink('https://github.com/o/r/pull/18#issuecomment-5')), 'PR 18 comment o/r');
+  assert.equal(linkLabel(parseLink('https://github.com/o/r/pull/18#pullrequestreview-7')), 'PR 18 review o/r');
+  assert.equal(linkLabel(parseLink('https://github.com/o/r/pull/18#discussion_r9')), 'PR 18 review comment o/r');
+  // A look-alike repository shows in the label.
+  assert.equal(linkLabel(parseLink('https://github.com/mephistopheles/grimoire/pull/18#issuecomment-5')), 'PR 18 comment mephistopheles/grimoire');
 });
 
 test('#560 C4: an issue press builds gh issue view <number> --web with GH_REPO pinned behind github.com; the kind is one of two words', () => {
@@ -1087,7 +1146,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   const examples = [...ref.matchAll(/"link": "([^"]*)"/g)].map(m => m[1]);
   assert.ok(examples.length > 0, 'the example call carries a link');
   for (const e of examples) assert.ok(parseLink(e), e);
-  assert.match(ref, /its `link` at most 200/);
+  assert.match(ref, /its `link` at most 210/);
   assert.match(ref, /one line the owner takes in at a glance: at most 80 characters/);
   assert.match(ref, /naming the act or the place \("Answer in build-312's chat"\), never the question or the decision text/);
   assert.match(ref, /`https:\/\/github\.com\/owner\/name\/issues\/N` or `https:\/\/github\.com\/owner\/name\/pull\/N`/);
@@ -1095,6 +1154,24 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   const rule = /one line of at most 80 characters, one ask or one owner step/;
   assert.match(await read('SKILL.md'), rule);
   assert.match(await read('references/CONTRACT.md'), rule);
+});
+
+test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.31.0 with its row and go', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
+  const ref = await read('references/roster.md');
+  assert.match(ref, /`#issuecomment-C` added, or on a pull request `#pullrequestreview-C` or `#discussion_rC`/);
+  assert.match(ref, /Take a comment's address only from a comment you or a member posted on that issue or pull request, as read back from GitHub through `gh`/);
+  assert.match(ref, /If `set_roster` refuses a `link`, or the owner says the pane refused the roster file for one, send the roster again without links, and ask the owner to delete that session's roster file by hand/);
+  const use = /(?:Give|It gives) the comment link when the answer or the step is in one comment or review, and the issue or pull request link otherwise/;
+  assert.match(await read('SKILL.md'), use);
+  const contract = await read('references/CONTRACT.md');
+  assert.match(contract, use);
+  assert.match(contract, /^# .*?Version: 1\.31\.0 /);
+  assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
+  const log = await read('references/contract.changelog.md');
+  assert.match(log, /\| 1\.31\.0 \| [0-9-]+ \| \*Proposed\.\*/);
+  assert.match(log, /the lead's decisions 426, 436 and 487 at level 3, not the owner's words; the lead accepts the E84 widening there and flags it big/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {
@@ -1117,7 +1194,7 @@ test('#560 C3: a to-do may carry link from the file and from the tool; any other
   for (const link of BAD_LINKS.filter(l => l !== undefined)) {
     for (const source of ['file', 'tool']) {
       const r = checkRoster(todo({ link }), true, source);
-      assert.equal(r.error, 'to-do 1 link is not a github.com issue or pull request link', `${JSON.stringify(link)} ${source}`);
+      assert.equal(r.error, 'to-do 1 link is not a github.com issue, pull request or comment link', `${JSON.stringify(link)} ${source}`);
     }
   }
 });
