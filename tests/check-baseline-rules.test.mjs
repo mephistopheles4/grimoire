@@ -263,7 +263,6 @@ const SHIPPED = {
   'head-chef': [
     ['RP1', 'README.md'],
     ['TR2', '*SKILL.md', TR2_MESSAGE],
-    ['P2', 'SKILL.md'],
     ['EA2', 'SKILL.md'],
     ['EA2', 'references/CONTRACT.md'],
     ['EA2', 'README.md'],
@@ -297,6 +296,16 @@ test('each skill ships exactly its narrowed entries, none with a wildcard except
       assert.doesNotMatch(`${e.file}${e.message ?? ''}`, /[*?[]/, `${skill} ${e.rule_id}: a wildcard in a narrowing`);
     }
   }
+});
+
+// head-chef's SKILL.md and references hold no part fence, because its contract's schedules are
+// matched to their homes by heading, so its baseline holds no P2 entry. The root's P2 entry stays,
+// for the other generated skills that keep their fences. Removing the entry is a tightening.
+test('head-chef ships no P2 entry, and the other generated skills and the root keep theirs', () => {
+  const has = path => entriesOf(path).some(e => e.rule_id === 'P2');
+  assert.equal(has(join(root, 'skills', 'head-chef', '.skillspector-baseline.yaml')), false, 'head-chef');
+  for (const skill of ['contract', 'groundtrack']) assert.equal(has(join(root, 'skills', skill, '.skillspector-baseline.yaml')), true, skill);
+  assert.equal(has(join(root, '.skillspector-baseline.yaml')), true, 'the root');
 });
 
 // The root's own narrowed entries, pinned too: a skill entry may be narrower
