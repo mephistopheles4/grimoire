@@ -3534,15 +3534,15 @@ const stepUsage = (over = {}) => ({
 });
 
 test('a main-loop step with usage counts: its context, its new tokens, its cache and its window', () => {
-  assert.deepEqual(stepCall({}, { stopReason: 'tool_use', usage: stepUsage() }), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 });
+  assert.deepEqual(stepCall({}, { stopReason: 'tool_use', usage: stepUsage() }), { tokens: 151006, fresh: 1306, cache: true, window: 1000000, model: 'opus' });
   // No cache written or read: the flag is off. A Haiku 4 model has the 200k window, a Haiku 5 the 1M.
-  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-4-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 200000 });
-  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-5-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 1000000 });
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-4-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 200000, model: 'haiku' });
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-5-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 1000000, model: 'haiku' });
   // Cache read alone, or cache written alone, sets the flag.
   assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0 }) })?.cache, true);
   assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_read_input_tokens: 0 }) })?.cache, true);
   // A model the fixed table has no row for: no window.
-  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ model: 'claude-sonnet-4-6' }) }), { tokens: 151006, fresh: 1306, cache: true, window: undefined });
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ model: 'claude-sonnet-4-6' }) }), { tokens: 151006, fresh: 1306, cache: true, window: undefined, model: 'sonnet' });
 });
 
 test('a step outside the main loop, with no usage, or with no context records nothing', () => {
@@ -3673,7 +3673,7 @@ test('with no counted call since load there is no summary, so a turn end writes 
 test('a summary holds exactly the listed keys, in their order, with whole-millisecond times', () => {
   const s = summaryFrom(recordCall(newUsageMemory(), { tokens: 5, fresh: 5, cache: true, window: 200000 }, NOW - 1000.4), NOW - 0.6);
   assert.deepEqual(Object.keys(s), ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']);
-  assert.deepEqual(Object.keys(s), [...view.SUMMARY_KEYS]);
+  assert.deepEqual(Object.keys(s), view.SUMMARY_KEYS.filter(k => k !== 'model'));
   assert.equal(s.version, 1);
   assert.equal(s.lastAt, NOW - 1000);
   assert.equal(s.at, NOW);
@@ -3719,7 +3719,7 @@ test('the strict check refuses the wrong shape, a missing or unknown key, and an
     ['{}', 'an empty object'],
     [JSON.stringify({ cards: [], todos: [] }), 'a roster'],
     [JSON.stringify(missing), 'a key missing'],
-    [JSON.stringify({ ...s, model: 'claude-opus-5-5' }), 'an unknown key'],
+    [JSON.stringify({ ...s, extra: 1 }), 'an unknown key'],
     [`{"__proto__":{"x":1},${JSON.stringify(s).slice(1)}`, 'a __proto__ key'],
     [JSON.stringify({ ...s, version: 2 }), 'a newer version'],
     [JSON.stringify({ ...s, version: '1' }), 'a version as text'],
@@ -3843,7 +3843,7 @@ test('a hostile step whose model and extra usage fields hold path- and secret-sh
   const text = serializeSummary(summaryFrom(recordCall(newUsageMemory(), c, NOW - 1000), NOW)).value;
   assert.doesNotMatch(text, /victim|SECRET|sk-ant|ghp_|passwd|ssh|Users|settings|claude-|[\\/]/);
   assert.match(text, /^[{}[\]"a-zA-Z0-9:,]+$/, 'numbers, the listed keys and JSON punctuation only');
-  assert.deepEqual(Object.keys(JSON.parse(text)), view.SUMMARY_KEYS.filter(k => k !== 'window'));
+  assert.deepEqual(Object.keys(JSON.parse(text)), view.SUMMARY_KEYS.filter(k => k !== 'window' && k !== 'model'));
   assert.equal('window' in JSON.parse(text), false, 'a model id off the table gives no window key');
 });
 
@@ -5132,4 +5132,18 @@ test('#567 C4: a visit or link press on a parse with an anchor gives nothing, wh
     // The digest of the same address with no fragment does not open the anchored one either.
     assert.equal(visitPress([{ id: 'Review-18', link }], 0, 'review18', linkDigest(link.split('#')[0])), undefined, link);
   }
+});
+
+test('issue 598: a step with a well-formed model id writes it, and the reader gives the family when the card holds no settings', () => {
+  const c = stepCall({ agentId: undefined }, { stopReason: 'end_turn', usage: { ...stepUsage(), model: 'claude-sonnet-5-5' }, answer: '', toolUses: [] });
+  const written = JSON.parse(serializeSummary(summaryFrom(recordCall(newUsageMemory(), c, NOW - 1000), NOW)).value);
+  assert.equal(written.model, 'sonnet');
+  assert.equal(view.checkSummary(JSON.stringify(written)).value.model, 'sonnet');
+  assert.equal(view.settingsOrModel('', 'sonnet'), 'sonnet');
+  assert.equal(view.settingsOrModel('opus, high', 'sonnet'), 'opus, high');
+  assert.equal(view.compactSettings(view.settingsOrModel('', 'sonnet')).text, 'S');
+  assert.equal(view.familyOf('claude-opus-5-5'), 'opus');
+  assert.equal(view.familyOf('claude-other-1'), undefined);
+  assert.equal(view.compactSettings(view.settingsOrModel('', undefined)).text, '?');
+  assert.deepEqual([...view.modelLines([{ name: 'a', value: 'opus' }, { name: 'b', value: 'free text' }])], [['a', 'opus']]);
 });

@@ -173,6 +173,7 @@ import {
   contextMeter,
   contextMeterSvg,
   compactSettings,
+  settingsOrModel,
   settingsPopover,
   contextOutlook,
   contextOutlookSvg,
@@ -210,6 +211,7 @@ import {
   readCalls,
   readSessions,
   refusalLines,
+  modelLines,
   reportCount,
   reportNote,
   settleTicks,
@@ -286,6 +288,9 @@ const samples = atom({ plugin: 'grimoire', key: 'samples' } as const, [])
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 const meters = atom({ plugin: 'grimoire', key: 'meters' } as const, [])
 const refusals = atom({ plugin: 'grimoire', key: 'refusals' } as const, [])
+// Each member's model id from its own summary file, as name and value pairs; read again
+// through the model-id check before use (issue 598).
+const models = atom({ plugin: 'grimoire', key: 'models' } as const, [])
 const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 // The chosen view, the selected cards and the folded groups. Each is read
 // again through its fixed set or shape before use (view.ts).
@@ -581,6 +586,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       // plugin can rewrite (issue 492, spec v3 S2.1).
       polledMeters = found.meters
       await update($, refusals, () => found.refusals)
+      await update($, models, () => found.models)
 
       // A Remote Control session's claude.ai link sits in its transcript, in a
       // row the engine writes. Read only a roster member's, through the
@@ -3746,10 +3752,15 @@ export const register: Register = on => {
       return { element: e.element }
     }
     if (e.element === 'bardismiss') {
-      // Each selected title that is still a card and is not drawn idle.
+      // Each selected title that is still a card. An idle one is dismissed for this one
+      // wait, as its menu's Dismiss does; any other joins the dismissed list (issue 598).
       const chosen = new Set(pickedFrom(await read($, picked)))
       const moves = await movesOf($)
-      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && !isIdle(c, moves)).map(c => c.title)
+      const cardsNow = (await read($, roster)).cards.filter(c => chosen.has(c.title))
+      const idleNow = cardsNow.filter(c => isIdle(c, moves))
+      for (const c of idleNow) waitDismissed.set(c.title, c.since)
+      if (idleNow.length > 0) await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      const drop = cardsNow.filter(c => !isIdle(c, moves)).map(c => c.title)
       await update($, dismissed, list => [...list, ...drop.filter(t => !list.includes(t))])
       await update($, picked, () => [])
       return { element: e.element }
@@ -3883,6 +3894,7 @@ export const register: Register = on => {
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
     // Read once, only through the two kind words, by card title.
     const refused = refusalLines(await read($, refusals))
+    const modelOf = modelLines(await read($, models))
     // As stored: read through the fixed set of view words by chosenView.
     const tabChoices = await read($, tabs)
     const inbox = await read($, reports)
@@ -3949,9 +3961,9 @@ export const register: Register = on => {
     const popLive =
       popped !== undefined &&
       ([['working', working], ['finished', finished]] as const).some(([g, list]) => g === popoverGroup && list.some(x => x.i === popped.place && x.c.title === popoverTitle))
-    // The bar counts only picks a checkbox shows: a card drawn idle has none,
-    // and a title no shown card holds is no pick.
-    const pickable = new Set([...working, ...finished].filter(({ c }) => !isIdle(c, moves)).map(({ c }) => c.title))
+    // The bar counts only picks of a card the pane shows: a title no shown card
+    // holds is no pick. An idle card is as pickable as any other (issue 598).
+    const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
     const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
@@ -4009,6 +4021,8 @@ export const register: Register = on => {
     const pill = (n: string, state: string) => {
       const color = pillColor(state)
       const image = Image === undefined ? undefined : pillSvg(n, state)
+      // An image draws above the popover, so while one is open the pill is a blank of its size (issue 598).
+      if (Image !== undefined && image !== undefined && popLive) return <Box width={image.width} height={image.height} />
       if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
       return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
@@ -4187,14 +4201,6 @@ export const register: Register = on => {
     // A done or stopped card draws no views, ◆ line, bar, meter or sparkline: a
     // finished session's cache and context mean nothing. No card draws a nudge to
     // reply or hand off (issue 581).
-    // The last card the pane draws, in the last unfolded group that has cards (#581 S5): its
-    // popover opens upward, since nothing below it would show one that opens downward. Worked
-    // out on every draw, so a fold, a dismissal or a group change moves it.
-    const lastDrawn = (() => {
-      if (!folds.has('finished') && finished.length > 0) return finished[finished.length - 1]?.i
-      if (!folds.has('working') && working.length > 0) return working[working.length - 1]?.i
-      return undefined
-    })()
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
@@ -4238,7 +4244,8 @@ export const register: Register = on => {
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
-      const short = compactSettings(c.settings)
+      const shownSettings = settingsOrModel(c.settings, modelOf.get(c.title))
+      const short = compactSettings(shownSettings)
       // The settings mark on the Desktop second line's right (issue 545, row 9): the compact
       // mark at rest (`S·M`), the full line in the popover; `?` when the card holds none.
       const settingsLine = short.text
@@ -4254,8 +4261,8 @@ export const register: Register = on => {
       // once it answered, else the card's.
       const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // Desktop's `⋯` menu and its settings popover (issue 513, S5, S7, S8):
-      // each opens downward from its opener, one at a time; the last card drawn opens upward.
-      const pop = i === lastDrawn ? { bottom: 1 } : { top: 1 }
+      // each opens downward from its opener, one at a time, on every card (issue 598).
+      const pop = { top: 1 }
       const canSplit = toolSession(c) !== undefined
       const items = [...(canOpen ? [['openlink', 'Open']] : []), ...(canSplit ? [['split', 'Split']] : []), ['dismiss', 'Dismiss']] as const
       // One menu item (#513 S5; the approved prototype): a round clear border, one soft hover on
@@ -4270,8 +4277,25 @@ export const register: Register = on => {
           </Box>
         </Box>
       )
+      // The card's quick action (Ask, Merge, Clean up) is a menu item, so no action button sits
+      // beside the `⋯` (issue 598); its key and press are as they were.
+      const quickItem = () => {
+        if (quick === undefined) return null
+        const key = `${keyFor('quick', i, c.title)}-${quick.action}-${quickDigest(quick.action, c.title, quick.line)}`
+        return (
+          <Box key={`item-${key}`} borderStyle="round" borderColor={CLEAR_INK} paddingX={1} paddingY={0} overflow="hidden" hover={{ backgroundColor: MENU_HOVER }}>
+            <Text size="footnote">{quick.label}</Text>
+            <Box position="absolute" top={0} left={0} right={-100} bottom={0} flexDirection="column" overflow="hidden">
+              <Button key={key} plain onPress={noop}>
+                <Text color={CLEAR_INK}>{' '.repeat(PRESS_CELLS)}</Text>
+              </Button>
+            </Box>
+          </Box>
+        )
+      }
       const popRows = () => (
         <Box position="absolute" {...pop} right={0} width={13} flexDirection="column" alignItems="stretch" {...MENU_LOOK} paddingX="xs" paddingY="xs">
+          {quick !== undefined && quickItem()}
           {items.map(([verb, label]) => menuItem(verb, label))}
         </Box>
       )
@@ -4331,7 +4355,7 @@ export const register: Register = on => {
                 none: the bar's one action, Dismiss, never takes it.
                 On the terminal only; on a desktop the status mark below is
                 the checkbox. */}
-            {terminal && !needs && (
+            {terminal && (
               <Box flexShrink={0}>
                 {isPicked ? (
                   <Button key={keyFor('pick', i, c.title)} onPress={noop}>
@@ -4352,8 +4376,6 @@ export const register: Register = on => {
                     glyph, which reads without colour. */}
                 <Box flexShrink={0}>
                   {terminal ? (
-                    <Text color={markLook.color}>{markLook.glyph}</Text>
-                  ) : needs ? (
                     <Text color={markLook.color}>{markLook.glyph}</Text>
                   ) : (
                     // On a desktop the dot is the card's checkbox, drawn as
@@ -4397,13 +4419,6 @@ export const register: Register = on => {
                     </Text>
                   </Box>
                 )}
-                {pointer && quick !== undefined && (
-                  <Box flexShrink={0}>
-                    <Button key={`${keyFor('quick', i, c.title)}-${quick.action}-${quickDigest(quick.action, c.title, quick.line)}`} plain onPress={noop}>
-                      {quick.label}
-                    </Button>
-                  </Box>
-                )}
                 {pointer && menuButton}
               </Box>
               {!pointer && (
@@ -4433,7 +4448,7 @@ export const register: Register = on => {
                       <Button key={keyFor('set', i, c.title)} plain dimColor onPress={noop}>
                         <Text mono>{settingsLine}</Text>
                       </Button>
-                      {setOpen && popText(settingsPopover(c.settings))}
+                      {setOpen && popText(settingsPopover(shownSettings))}
                     </Box>
                     {views.length < 2 && pillBlock}
                   </Box>
@@ -5106,7 +5121,7 @@ export const register: Register = on => {
 
     // The selection bar, the same island on every tab: the count, Dismiss and ✕.
     const island = (count: number, dismissKey: string, clearKey: string) => (
-      <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
+      <Box position="absolute" left={0} right={0} bottom={1} flexDirection="row" justifyContent="center">
         <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: DARK_FILLS.tip, backgroundColor: DARK_FILLS.hover })}>
           <Text>{`${count} selected`}</Text>
           <Button key={dismissKey} plain onPress={noop}>

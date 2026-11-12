@@ -908,6 +908,16 @@ export function compactSettings(settings: unknown): { text: string; full: string
   return { text: text === '' ? '?' : text, full: oneLine(line, 80) || 'No settings on the card.' }
 }
 
+/** A card's settings line, or when the card holds none the model family its
+ *  member's own summary names (`sonnet`), so the card
+ *  never shows `?` for a model the member itself reported (issue 598). The
+ *  card's own line always wins. */
+export function settingsOrModel(settings: unknown, model: unknown): string {
+  const line = typeof settings === 'string' ? settings : ''
+  if (oneLine(line, 80) !== '' || typeof model !== 'string' || !MODEL_FAMILIES.includes(model)) return line
+  return model
+}
+
 /** The settings popover's words (issue 513, S8): the card's settings split on
  *  commas, each part cleaned and trimmed with its first letter capital, joined
  *  by ` - ` and cut to fit; `No settings on the card.` with none. */
@@ -1405,6 +1415,13 @@ export type CallSeries = { last: LastCall; window?: number; burn: number[]; cont
 // The model id a window is looked up for, and the table, matched from the
 // start in order. A fixed list, never a lookup keyed by the file's text.
 const MODEL_ID = /^claude-[a-z0-9-]{1,60}$/
+/** The model families a summary names (issue 598): one word from this fixed list, so no free text reaches the pane. */
+export const MODEL_FAMILIES: readonly string[] = ['opus', 'sonnet', 'haiku', 'fable']
+/** The family word of a model id (`claude-sonnet-5-5` gives `sonnet`), from the fixed list, or undefined. */
+export function familyOf(model: unknown): string | undefined {
+  if (typeof model !== 'string' || !MODEL_ID.test(model)) return undefined
+  return MODEL_FAMILIES.find(f => model.startsWith(`claude-${f}-`))
+}
 const WINDOW_TABLE: readonly (readonly [string, number])[] = [
   ['claude-opus-5', 1000000],
   ['claude-sonnet-5', 1000000],
@@ -2427,6 +2444,18 @@ export function refusalLines(stored: unknown): Map<string, string> {
   return out
 }
 
+/** The members' model ids from their summary files, by card title, read once per
+ *  render, from the stored name and family pairs; only a family from the fixed list counts (issue 598). */
+export function modelLines(stored: unknown): Map<string, string> {
+  const out = new Map<string, string>()
+  if (!Array.isArray(stored)) return out
+  for (const p of stored.slice(0, MAX_REFUSALS_LOOKED)) {
+    if (!isRecord(p) || typeof p.name !== 'string' || typeof p.value !== 'string' || !MODEL_FAMILIES.includes(p.value)) continue
+    out.set(p.name, p.value)
+  }
+  return out
+}
+
 // What one member's summary read decided: a summary to draw from; none, so
 // the card comes from the transcript; or a refusal line, and the card from
 // the transcript.
@@ -2543,11 +2572,12 @@ async function checkedSummary(file: string, size: number, mtimeMs: number | unde
 // fixed hour when a call wrote or read cache and unknown otherwise, and the
 // meter record, through the meter check, its window left out when the file
 // has none.
-function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Meter } {
+function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Meter; model?: Pair } {
   const warmth: Warmth = { name, kind: 'call', at: s.lastAt, tokens: s.lastTokens }
   if (s.cache === 1) warmth.windowMs = HOUR_SUMMARY_MS
   const meter = metersFrom([{ name, at: s.at, window: s.window, burn: s.burn, context: s.context }])[0]
-  return meter === undefined ? { warmth } : { warmth, meter }
+  const model = s.model === undefined ? {} : { model: { name, value: s.model } }
+  return meter === undefined ? { warmth, ...model } : { warmth, meter, ...model }
 }
 
 /** The live poll's summary and transcript reads, and the records they
@@ -2587,7 +2617,7 @@ export async function readCalls(
   io: PollIo,
   finder: Finder = newFinder(),
   summaries?: SummaryReads,
-): Promise<{ warmth: Warmth[]; meters: Meter[]; refusals: Pair[] } | undefined> {
+): Promise<{ warmth: Warmth[]; meters: Meter[]; refusals: Pair[]; models: Pair[] } | undefined> {
   const members = new Set(titles)
   const byName = new Map<string, SessionRow[]>()
   for (const r of rows) {
@@ -2596,7 +2626,7 @@ export async function readCalls(
   // Each member's place in the output, in roster order: a record already
   // known, with a meter when a summary file gave it, or a transcript to read
   // from.
-  type Slot = { warmth: Warmth; meter?: Meter } | { name: string; working: boolean; path: string; mtimeMs: number }
+  type Slot = { warmth: Warmth; meter?: Meter; model?: Pair } | { name: string; working: boolean; path: string; mtimeMs: number }
   const slots: Slot[] = []
   const refusals: Pair[] = []
   const named = new Set<string>()
@@ -2700,10 +2730,12 @@ export async function readCalls(
 
   const warmth: Warmth[] = []
   const meters: Meter[] = []
+  const models: Pair[] = []
   for (const s of slots) {
     if ('warmth' in s) {
       warmth.push(s.warmth)
       if (s.meter !== undefined) meters.push(s.meter)
+      if (s.model !== undefined) models.push(s.model)
       continue
     }
     const had = memory.get(s.path)
@@ -2724,7 +2756,7 @@ export async function readCalls(
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
   // A held key is `<folder>/<session id>` (see `SummaryMemory`); a folder name holds no `/`.
   if (summaries !== undefined) for (const key of [...summaries.held.keys()]) if (!ids.has(key.slice(key.indexOf('/') + 1))) summaries.held.delete(key)
-  return { warmth, meters, refusals }
+  return { warmth, meters, refusals, models }
 }
 
 /** What the link read does for a member the finder looked for this poll,
@@ -2873,8 +2905,8 @@ export async function readSessions(config: string, io: PollIo): Promise<Sessions
 /** One counted step: its context tokens (input, cache writes and cache
  *  reads), its new tokens (input, cache writes and output), whether it wrote
  *  or read cache, and its model's window from the fixed table (undefined when
- *  the table has none). Numbers only: the model id goes no further. */
-export type StepCall = { tokens: number; fresh: number; cache: boolean; window: number | undefined }
+ *  the table has none), and its model family from the fixed list (issue 598). */
+export type StepCall = { tokens: number; fresh: number; cache: boolean; window: number | undefined; model: string | undefined }
 
 /** The step as the writer counts it, or undefined when it records nothing.
  *  `input` is the step's input, `result` the step's result. A step outside
@@ -2902,7 +2934,8 @@ function countStep(input: { agentId?: unknown }, result: { usage?: unknown }): S
   if (input_ === undefined || made === undefined || cached === undefined || output === undefined) return undefined
   const tokens = input_ + made + cached
   if (tokens === 0) return undefined
-  return { tokens, fresh: input_ + made + output, cache: made > 0 || cached > 0, window: windowOf(u.model) }
+  const model = familyOf(u.model)
+  return { tokens, fresh: input_ + made + output, cache: made > 0 || cached > 0, window: windowOf(u.model), model }
 }
 
 /** What the writer remembers of the calls it counted since the module
@@ -2914,13 +2947,14 @@ export type UsageMemory = {
   calls: number
   last: { at: number; tokens: number } | undefined
   window: number | undefined
+  model: string | undefined
   context: number[]
   burn: { minute: number; sum: number }[]
   cache: boolean
 }
 
 /** Memory with no call counted: what a module load starts from. */
-export const newUsageMemory = (): UsageMemory => ({ calls: 0, last: undefined, window: undefined, context: [], burn: [], cache: false })
+export const newUsageMemory = (): UsageMemory => ({ calls: 0, last: undefined, window: undefined, model: undefined, context: [], burn: [], cache: false })
 
 // The minute a time falls in, as `callSeries` buckets it: minute m holds the
 // times after (m - 1) minutes and up to m minutes.
@@ -2940,6 +2974,7 @@ export function recordCall(mem: UsageMemory, call: StepCall, at: number): UsageM
     calls: mem.calls + 1,
     last: { at: stamp, tokens: call.tokens },
     window: call.window,
+    model: call.model,
     context: [...mem.context, call.tokens].slice(-SERIES_CALLS),
     burn,
     cache: mem.cache || call.cache,
@@ -2962,16 +2997,18 @@ export const SUMMARY_VERSION = 1
  *  so the reader passes the file's meter to `metersFrom` as it is. Every other
  *  key is always there. `at` is the end of the minute the write fell in, up
  *  to 60 s after it. */
-export const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache'] as const
+export const SUMMARY_KEYS = ['version', 'at', 'window', 'model', 'burn', 'context', 'lastAt', 'lastTokens', 'cache'] as const
 
 // The one key a summary may leave out.
-const OPTIONAL_KEYS: ReadonlySet<string> = new Set(['window'])
+// The keys a summary may leave out: `window`, and `model` (issue 598), the last call's model family word.
+const OPTIONAL_KEYS: ReadonlySet<string> = new Set(['window', 'model'])
 
 /** One summary file, as the writer builds it and the pane reads it. */
 export type Summary = {
   version: number
   at: number
   window?: number
+  model?: string
   burn: number[]
   context: number[]
   lastAt: number
@@ -2993,6 +3030,7 @@ export function summaryFrom(mem: UsageMemory, now: number): Summary | undefined 
     version: SUMMARY_VERSION,
     at: end * MIN_MS,
     window: mem.window,
+    model: mem.model,
     burn,
     context: [...mem.context],
     lastAt: mem.last.at,
@@ -3051,6 +3089,8 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
   }
   const hasWindow = Object.hasOwn(p, 'window')
   if (hasWindow && (typeof p.window !== 'number' || !WINDOW_SIZES.has(p.window))) return { error: 'the summary window is not one the table gives' }
+  const hasModel = Object.hasOwn(p, 'model')
+  if (hasModel && (typeof p.model !== 'string' || !MODEL_FAMILIES.includes(p.model))) return { error: 'the summary model is not a model family' }
   const burn = seriesFrom(p.burn, true)
   const context = seriesFrom(p.context, false)
   if (burn === undefined || context === undefined || context.length === 0) {
@@ -3063,6 +3103,7 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
       version: SUMMARY_VERSION,
       at: p.at,
       ...(hasWindow ? { window: p.window as number } : {}),
+      ...(hasModel ? { model: p.model as string } : {}),
       burn,
       context,
       lastAt: p.lastAt,
