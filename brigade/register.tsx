@@ -2980,7 +2980,8 @@ const parentOf = (path: string): string | undefined => {
 // S4 steps 2 and 3, the first reads that touch the folder: it is a directory with no
 // link or alias between the string and it, `.git` there is a directory, and no
 // directory above holds a `.git`. The caller has already checked the spelling, so
-// no file-system call sees a network or badly spelled folder.
+// no file-system call sees a folder spelled as a network or badly spelled path; a link
+// or mapped drive on the way can still reach a share.
 type CheckoutReply = 'notMain' | 'unreadable'
 async function checkoutFacts($: EngineInterface, folder: string, platform: Platform): Promise<{ resolved: string } | { reply: CheckoutReply }> {
   const dir = await statPath($, folder)

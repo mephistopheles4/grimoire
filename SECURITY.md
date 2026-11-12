@@ -559,7 +559,7 @@ Brigade no longer intercepts; an archive removes nothing and can be undone. Sinc
 starts every session as a background session with Remote Control, and since
 head-chef 1.28.0 (issue 543, proposed; it waits on the owner's confirmed merge) with the mod's
 `start_background_session`, which runs a fixed `claude --bg` command with no shell
-in a main checkout of the repository (the harness refuses a folder you have not trusted), takes no permission
+in a main checkout the harness lets it start (the harness refuses a folder you have not trusted, and the tool binds the folder to no repository you chose, so a main checkout of any repository you trusted can be named, [row 15](docs/security/brigade.md#row-15)), takes no permission
 mode and writes no card, with no permission prompt and no classifier view (a candidate under class C8, for the owner's merge decision), and a Desktop session only on the owner's words naming that
 route, so every background member's whole conversation reaches claude.ai and
 every device signed in to the owner's account (the threat model's
