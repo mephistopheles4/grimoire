@@ -1,6 +1,6 @@
 # Incantation: the spec
 
-Draft 1.5, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
+Draft 1.6, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
@@ -583,6 +583,30 @@ session itself judges.
   - `observe.mjs` gets the same permission prompt as any command; an allow
     rule for exactly `node <skill base>/scripts/observe.mjs add`, like O19's,
     is the owner's step (O20).
+- **The gate's eval set.** A fixed sample of the observe-only log, each line
+  labelled once by the person (should it have been spoken, and was it aimed
+  at them), is the eval set for the speak gate. Once labelled it is frozen:
+  nothing is trained or retrained on it, and new lines never change it; a
+  new set is a new, separately named sample.
+  - `observe.mjs freeze <n>` copies a random sample of `n` lines into
+    `~/.incantation/observe/eval/`, which the 30-day drop never touches.
+  - It stays on the machine like the log, and is never posted; only its
+    scores are recorded, as counts.
+  - Building it is not in this change's ticket. The practice run only fills
+    the log.
+- **Later, not now: a decision model.** The owner (2026-11-12, relayed;
+  decision on #208): "I feel like using system models wrong creates
+  opportunities for AI drift because the system model will tilt towards the
+  drift based on the data we give it. I feel like starting small and keeping
+  that as an idea for later." So this change has no model or classifier.
+  - A System One model answering the gate's typed questions (is there
+    something the person must act on? is the turn aimed at the session? is
+    it a backchannel?) is a future option only.
+  - It gets a vote only after it beats the plain scored gate on the frozen
+    eval set, which it was never trained on.
+  - It never decides whether a spoken yes counts, a stop or wait, or
+    anything in S4 steps 4 to 6.
+  - Adding it is its own change, with its own spec.
 - **What the practice runs measure,** as counts only, each reported, not pass
   or fail; the record quotes no heard or spoken turn:
   - unneeded speech: spoken turns the person did not need, as the person
@@ -626,7 +650,7 @@ Neither applies here, and neither is carried.
   speech policy's settings and example phrases, each marked as a starting
   point; the skill reads it at start.
 - `plugins/incantation/skills/incantation/scripts/observe.mjs` (S4.4): the
-  observe-only log, `add` only; no dependencies.
+  observe-only log, `add` and `freeze`; no dependencies.
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
   free ports, Node's built-in test runner. It skips on win32 and says so.
 - `tests/incantation-listen.test.mjs`: a fake recorder that plays synthetic
@@ -1192,6 +1216,12 @@ read:
 - the link rule checks the link's folder;
 - only the first marked turn after a playback skips the cap;
 - practice measures as counts.
+
+Draft 1.6 (2026-11-12) adds the owner's word on decision models (relayed;
+decision on #208). A frozen, once-labelled sample of the observe-only log
+is the speak gate's eval set. A System One model is a later option that must
+beat the plain gate on that set and never decides whether a yes counts,
+because of the drift risk the owner named. No model is in this change.
 
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
