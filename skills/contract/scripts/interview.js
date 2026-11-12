@@ -114,13 +114,17 @@ const Interview = (() => {
    * split section adds " (n of m)" at the end, and the suffix is stripped
    * before the heading is matched. */
   const PIECE = /^(.*) \((\d+) of (\d+)\)$/;
+  /** Why a label cannot stand as one line of a heading or a bold label, or null. */
+  function oneLineFault(name) {
+    if (/[\r\n\u{85}\u{2028}\u{2029}]/u.test(name)) return 'holds a line break; a name is one line';
+    if (name.startsWith('#')) return 'may not start with #';
+    if (name.includes('<!') || name.includes('<?')) return 'may not hold <! or <?, which hides text when it is read as Markdown';
+    return null;
+  }
   function scheduleNameFault(name) {
     if (name.length === 0) return 'is empty';
     if (name.length > 120) return 'is longer than 120 characters';
-    if (/[\r\n]/.test(name)) return 'holds a line break; a name is one line';
-    if (name.startsWith('#')) return 'may not start with #';
-    if (name.includes('<!--')) return 'may not hold <!--';
-    return null;
+    return oneLineFault(name);
   }
 
   /* A text may not hold a line that would read as a heading, hide a comment
@@ -141,9 +145,16 @@ const Interview = (() => {
   /** A label a link reference definition may spread over lines: a line that
    *  opens one and does not close it, or closes one it never opened. */
   function splitLabel(line) {
-    const open = line.indexOf('[');
-    if (open >= 0 && line.slice(0, open).trim() === '') return !line.includes(']', open);
-    const close = line.indexOf(']:');
+    /* A bracket with a backslash before it is no bracket of the label's. */
+    const bare = (ch, from = 0, then = '') => {
+      for (let i = line.indexOf(ch, from); i >= 0; i = line.indexOf(ch, i + 1)) {
+        if (line[i - 1] !== '\\' && line.startsWith(then, i + 1)) return i;
+      }
+      return -1;
+    };
+    const open = bare('[');
+    if (open >= 0 && line.slice(0, open).trim() === '') return bare(']', open) < 0;
+    const close = bare(']', 0, ':');
     return close >= 0 && (open < 0 || open > close);
   }
   function scheduleTextFault(text) {
@@ -778,7 +789,10 @@ const Interview = (() => {
           if (kindIn(path, e.part, e.kind) && askedPart(path, e.part) && keepCarried(`${path}.kind`, ofKind(e.part, e.kind))) dropSchedule(e.part, e.kind);
         } else if (e.op === 'rename' && Object.hasOwn(e, 'id')) refuse(path, 'a rename names a schedule by part and kind; an entry has no name of its own');
         else if (target(path, e)) {
-          if (e.op === 'rename') isText(`${path}.name`, e.name);
+          if (e.op === 'rename' && isText(`${path}.name`, e.name)) {
+            const why = oneLineFault(e.name);
+            if (why) refuse(`${path}.name`, why);
+          }
           if (e.op === 'move' && !(Number.isInteger(e.to) && e.to >= 0)) refuse(`${path}.to`, 'expected an index, 0 or more');
           if (e.op === 'remove') {
             if (Object.hasOwn(e, 'id')) { if (keepCarried(`${path}.id`, [e.id])) live.delete(e.id); }

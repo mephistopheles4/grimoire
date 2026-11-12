@@ -415,8 +415,14 @@ test('a home outside the grammar is refused with its field path, the contract, i
 test('a name is one line of 1 to 120 characters that starts with no # and holds no <!--', () => {
   const bad = ['', 'x'.repeat(121), 'one\ntwo', 'one\rtwo', '# Heading', '#x', 'a <!-- b', '<!--', 'Autonomy levels (2 of 3) <!-- x -->'];
   for (const name of bad) assert.ok(at(withSchedules(schedule({ name })), 'parts.schedules[0].fields.name'), `refused: ${JSON.stringify(name)}`);
-  for (const name of ['x', 'x'.repeat(120), 'Starting a session', 'Tools (1 of 1)', 'a # b', 'Stop 1 <! no']) {
+  for (const name of ['x', 'x'.repeat(120), 'Starting a session', 'Tools (1 of 1)', 'a # b', 'Stop 1 < no']) {
     assert.equal(at(withSchedules(schedule({ name })), 'parts.schedules[0].fields.name'), undefined, `accepted: ${JSON.stringify(name)}`);
+  }
+});
+
+test('a name holding <! or <? anywhere is refused, as the text rules refuse it', () => {
+  for (const name of ['a <!x y> b', '<!DOCTYPE', 'Stop 1 <! no', 'a <?php b ?>', '<?xml']) {
+    assert.ok(at(withSchedules(schedule({ name })), 'parts.schedules[0].fields.name'), `refused: ${JSON.stringify(name)}`);
   }
 });
 
@@ -447,6 +453,8 @@ const BAD_TEXT = {
   'a label that opens and never closes on its line': 'see\n\n[ an open label',
   'a label closed on a later line, after a quote marker': '> [label\n> continued]: https://example.org',
   'a label opened in a list item': '- [label\n  continued]: https://example.org',
+  'an escaped bracket closing line one and another opening line two': 'text\n\n[a\\]\nb\\[c]: https://example.org "hidden"',
+  'the same over three lines': 'text\n\n[a\\]\nb\n\\[c]: https://example.org',
   'a closing line with no opening bracket': 'a\n\ncontinued]: https://example.org',
   'a heading in a quote': '> ## Heading',
   'a heading in a list item': '- # Heading',
@@ -520,6 +528,17 @@ test('a clause a schedule carries out cannot be removed on the page, by id or wi
   assert.deepEqual(Interview.checkBlock(block([{ op: 'remove', id: 'stop-2' }]), d, kinds, h).refusals, []);
   assert.deepEqual(Interview.checkBlock(block([{ op: 'remove', id: 'sched-1' }, { op: 'remove', id: 'duty-1' }]), d, kinds, h).refusals, []);
   assert.match(refused([{ op: 'remove', id: 'duty-1' }, { op: 'remove', id: 'sched-1' }], 'edits[0].id'), /carries out duty-1/);
+});
+
+test('a rename on the page is one line, so a label cannot carry a schedule into the export', () => {
+  const d = withSchedules(schedule({}, { refs: ['duty-1', 'job'] }));
+  const h = { draft: 'a'.repeat(64), kinds: hashes.kinds };
+  const rename = name => ({ format: 1, draft: h.draft, kinds: h.kinds, answers: [], edits: [{ op: 'rename', part: 'roles', kind: 'duty', name }] });
+  const refused = name => (Interview.checkBlock(rename(name), d, kinds, h).refusals.find(([p]) => p === 'edits[0].name') || [])[1];
+  const payload = 'What it owns"' + ' '.repeat(300) + '\n\n### references/notes.md: X\n\ntext';
+  for (const name of [payload, 'a\nb', 'a\r\nb', '# Heading', 'a <!-- b', 'a <?x', 'a <!x']) assert.ok(refused(name), `refused: ${JSON.stringify(name.slice(0, 20))}`);
+  for (const name of ['What it owns', 'a # b', 'Stop 1 < no']) assert.equal(refused(name), undefined, `accepted: ${name}`);
+  assert.deepEqual(Interview.checkBlock(rename('What it owns'), d, kinds, h).refusals, []);
 });
 
 test('the schedule kind is for skills: an agent or a CLAUDE.md draft refuses one, and an edit cannot add one there', () => {
@@ -678,8 +697,8 @@ test('a fence behind a list indent or a quote marker is never cut either', () =>
   // after the fence are right, and an empty line inside the fence would be the
   // last cut to fit were the fence not seen.
   const fences = {
-    'a list item': ['  ```text', '  a', '', '  b', '  ```'],
-    'a numbered item': ['   ```text', '   a', '', '   b', '   ```'],
+    'an indent of two spaces': ['  ```text', '  a', '', '  b', '  ```'],
+    'an indent of three spaces': ['   ```text', '   a', '', '   b', '   ```'],
     'a deep indent': ['      ~~~text', '      a', '', '      b', '      ~~~'],
     'a quote': ['> ```text', '> a', '', '> b', '> ```'],
     'a list item in a quote': ['> - ```text', '>   a', '', '>   b', '>   ```'],
@@ -696,7 +715,7 @@ test('a fence behind a list indent or a quote marker is never cut either', () =>
     assert.deepEqual(Interview.cutSection(['intro', '', body, '', 'c'].join('\n'), body.length + 2), ['intro', body, 'c'], inner);
   }
   // A fence left open is cut nowhere.
-  assert.throws(() => Interview.cutSection('- x\n\n  ```text\n  a\n\n  b', 12), /no empty line outside a code fence/);
+  assert.throws(() => Interview.cutSection('- x\n\n  ```text\n  a\n\n  b', 14), /no empty line outside a code fence/);
 });
 
 test('a joined schedule takes the weakest of its pieces\' marks', () => {
