@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.35.1
+Version: 1.36.0
 Kind: skill
 Level: Thorough
 
@@ -692,7 +692,7 @@ another mark.
   fields hold fixed words, one option "answer in chat", and no hand-off text.
   It adds the to-do for a carried decision that "A waiting entry's to-do"
   below gives, and the owner's answer pairs with the new entry by its new id,
-  which the lead restates to the owner. *Flagged lines:* the section also carries every flagged pick the lead logged since its goal began, as `flagged decision <id> from <lead name>: <repository> <kind of call>`, until the owner's words in chat say they reviewed it, whatever goal is current; the lead then logs a Relayed entry, with no `answers`, naming the reviewed ids in its question. The pane's Read or Unflag marks do not count. Waiting lines take the 20 lines first. The count line counts waiting and flagged lines apart and lists the flagged ids it could not fit, digits only, as many as fit in 300 characters, then "and N more". After the take-over yes the incoming lead logs each carried flagged line, and each listed id, once as its own non-waiting Lead entry, the one exception to "re-logs only the decisions the owner names". It takes the checks above and the question "Carried from a hand-off, not this session's writing, not checked against its log: flagged decision <id> from <writer>, <repository> <kind>", `<kind>` held to the to-do title's characters and 60 characters, and "not listed" for a listed id; one option and pick "review"; flag "Owner's call: carried from <writer>". It records a review item and decides nothing: a later lead that meets the call decides it as a new call. It adds no to-do, is never logged as waiting, sits in the pane's Flagged to revisit, and the lead's own hand-off carries it on with "carried from <writer>" kept.
+  which the lead restates to the owner. Flagged lines, the flagged picks of a goal, travel in the hand-off as `references/handoff.md` says.
 - *Proposed*: the lead's reading of the owner's relayed words. **A waiting
   entry's to-do** is a to-do
   like any other, as "A to-do it writes" holds it: it starts with a verb and
