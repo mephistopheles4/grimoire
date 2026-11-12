@@ -463,10 +463,10 @@ function standIn() {
  *  document. Its store holds `seed` when given, saved by the module the page
  *  inlines, under the page's own hashes. */
 const pages = new Map();
-function loadPage({ flags = [], seed } = {}) {
-  const at = flags.join(' ');
-  if (!pages.has(at)) pages.set(at, render(example, join(work, `logic-${n++}.html`), ...flags));
-  const html = pages.get(at);
+function loadPage({ flags = [], seed, source = example, tweak } = {}) {
+  const at = `${flags.join(' ')}|${source}`;
+  if (!pages.has(at)) pages.set(at, render(source, join(work, `logic-${n++}.html`), ...flags));
+  const html = tweak ? tweak(pages.get(at)) : pages.get(at);
   const D = dataOf(html).value;
   const map = new Map();
   const store = {
@@ -706,4 +706,90 @@ test('the answer block names a tapped chip by its place in the question, carries
   const r = run(contractRender, [example, '--answers', join(dir, 'answers.json')]);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, new RegExp(`purpose/job picked .*; chip ${JSON.stringify(chips[1]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+});
+
+/* -- the schedules part (#604, T1) ------------------------------------------- */
+
+const MARKUP = 'Run <b>the</b> steps & stop.\n\n</script><marquee>x</marquee><img src=x onerror=alert(1)> "q" $& $\' `ticks`\n\nlast &amp; &lt;i&gt;';
+const SCHEDULED = [
+  { id: 'sched-start', name: 'Starting a session', home: 'SKILL.md', text: MARKUP },
+  { id: 'sched-clean', name: 'Removing a worktree (1 of 2)', home: 'references/cleanup.md', text: 'Ask first.' },
+  { id: 'sched-clean-2', name: 'Removing a worktree (2 of 2)', home: 'references/cleanup.md', text: 'Then remove it.' },
+];
+/** The example with the schedules part filled; each schedule carries out the first duty. */
+const scheduled = () => derive(example, d => {
+  d.parts.schedules = SCHEDULED.map(({ id, ...fields }) => ({ id, kind: 'schedule', fields, mark: 'Proposed', refs: [d.parts.roles[0].id] }));
+});
+const SHEET = 'Schedules attached to the letter';
+
+/** What is wrong with a page's drawing of the schedules part: empty when its
+ *  sheet holds every schedule's name, home and text as data. */
+function undrawn(page) {
+  const problems = [];
+  // The sheet is drawn when the person asks for everything at once.
+  if (page.key('mode') && page.key('mode').getAttribute('aria-pressed') !== 'true') page.click(page.key('mode'));
+  const sheet = page.doc.documentElement.querySelectorAll('section').find(s => s.getAttribute('aria-label') === SHEET);
+  if (!sheet) return ['the sheet of schedules'];
+  for (const s of SCHEDULED) {
+    for (const f of ['name', 'home', 'text']) {
+      const ctl = page.key(`field:${s.id}:${f}`);
+      if (!ctl) problems.push(`${s.id} ${f}: not drawn`);
+      else if (!sheet.contains(ctl)) problems.push(`${s.id} ${f}: not in the sheet`);
+      else if (ctl.value !== s[f]) problems.push(`${s.id} ${f}: holds ${JSON.stringify(ctl.value)}`);
+    }
+  }
+  // The text is data: no element came from it, and none of it is a text node
+  // of the page outside a control.
+  const made = page.doc.documentElement.descendants().filter(el => ['MARQUEE', 'IMG', 'SCRIPT'].includes(el.tagName));
+  if (made.length) problems.push(`markup in the text became ${made.map(el => el.tagName).join(', ')}`);
+  return problems;
+}
+
+test('a draft with schedules draws the schedules sheet: each name, home and text, the text as data', () => {
+  const file = scheduled();
+  const page = loadPage({ source: file });
+  assert.deepEqual(undrawn(page), []);
+  const all = page.doc.documentElement.querySelectorAll('.sched-part');
+  assert.ok(all.some(el => el.querySelector('.sched')), 'a schedule sits in a part of the sheet');
+  // The page names the kind, high stakes, one by one.
+  assert.match(page.text(), /A procedure it follows/);
+  assert.match(page.text(), /high stakes, agreed one by one/);
+  assert.doesNotMatch(page.text(), /undefined|\[object/, 'a heading or a value the page could not name');
+  // An older draft with no schedules key draws the same page without one.
+  const old = loadPage();
+  assert.equal(old.key('field:sched-start:text'), null);
+  assert.equal(old.D.kinds.parts.at(-1), 'schedules');
+  assert.deepEqual(old.D.draft.parts.schedules, [], 'the page holds the older draft\'s schedules part empty');
+});
+
+test('the check for the sheet fails when the part is not drawn', () => {
+  const file = scheduled();
+  const page = loadPage({ source: file, tweak: html => {
+    const from = 'const PARTS = kinds.parts;';
+    assert.ok(html.includes(from), 'the page still reads its parts from the kinds table');
+    return html.replace(from, "const PARTS = kinds.parts.filter(p => p !== 'schedules');");
+  } });
+  const problems = undrawn(page);
+  assert.ok(problems.length >= SCHEDULED.length * 3, `the check names what is missing: ${problems.join('; ')}`);
+  assert.match(problems[0], /not drawn/);
+});
+
+test('--check names a key or an email in a schedule\'s text and its answer reads back masked', () => {
+  const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const file = derive(scheduled(), d => { d.parts.schedules[0].fields.text = `Send ${key} to a@example.org first.`; });
+  const check = run(contractRender, [file, '--check']);
+  assert.equal(check.code, 0, check.stderr);
+  assert.match(check.stderr + check.stdout, /warning: parts\.schedules\[0\]\.fields\.text: holds a key-shaped value/);
+  const page = loadPage({ source: file });
+  page.click(page.key('mode'));
+  page.type(page.key('field:sched-start:text'), `Send ${key} to a@example.org second.`);
+  page.click(page.key('sign'));
+  const text = page.key('block').value;
+  const dir = scratch();
+  writeFileSync(join(dir, 'answers.json'), text);
+  const r = run(contractRender, [file, '--answers', join(dir, 'answers.json')]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.ok(!r.stdout.includes(key) && !r.stdout.includes('a@example.org'), 'the read-back printed the key or the email');
+  assert.match(r.stdout, /schedules\/sched-start wrote its own words; marked Decided/);
+  assert.match(r.stdout, /schedules\/sched-start text "Send \[masked\] to \[masked\] second\."/);
 });
