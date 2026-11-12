@@ -1,10 +1,11 @@
 # Incantation: the spec
 
-Draft 0.8, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.9, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
-to 0.8 fold in the answers (Decisions taken).
+to 0.8 fold in the answers (Decisions taken), and 0.9 holds the fixes drafted
+after spec round 2. None of the round-2 fixes is accepted yet.
 
 ## S1. Objective
 
@@ -32,6 +33,13 @@ end-to-end step: in the distribution, install VoiceMode, apply the README
 settings, the engines listen on sockets, `/incantation` starts the proxy, the
 guard prints `ok`, the greeting is heard.
 
+- **Networking.** WSL 2 in its default NAT mode. Mirrored mode is not
+  supported yet.
+- **Audio.** Audio inside the distribution, set up as VoiceMode's WSL 2
+  guidance says. The README quotes that guidance, with its commit.
+- **The host.** The repo's host check may run on Windows. There, the socket
+  tests skip and say so; they run in the athanor container and in CI.
+
 ## S2. What `converse` leaves room for
 
 Room for the style rules, with one conflict.
@@ -56,6 +64,9 @@ Out: any recorder or speech engine of our own (the proxy forwards, and holds
 no speech); changes to VoiceMode;
 clearing VoiceMode's logs for the person; a hook that runs on every session
 start; running Incantation in a head-chef lead session (S4 step 7).
+
+This spec replaces the old tickets #593 and #594. Closing them is the owner's
+call.
 
 ## S4. What `/incantation` does
 
@@ -84,7 +95,8 @@ start; running Incantation in a head-chef lead session (S4 step 7).
    "Want the detail?" The detail goes to chat, not aloud. It never speaks a
    secret, key, token or password, or a personal detail such as an email
    address or a name taken from a record; it says the item is in chat.
-4. **Hear-back.** Before an act, it says the request back in its own words,
+4. **Hear-back.** Before acting on any request, a read-only one included, it
+   says the request back in its own words,
    shows the same words in chat, and asks yes or no. It acts only on a yes;
    anything else it treats as a new request.
    - **Spoken yes:** enough for everything except the next item.
@@ -107,13 +119,17 @@ start; running Incantation in a head-chef lead session (S4 step 7).
    - A `converse` error after the greeting shows the error's first line in
      chat, ends the loop, and drops any pending act.
 7. **Not in a lead session.** `/incantation` refuses to start in a session that
-   leads a brigade (it has the head-chef skill loaded as lead), and says why.
+   leads a brigade, and says why. The signal it reads is the head-chef
+   skill's own lead marker, named at build from `skills/head-chef/`.
 
 ### S4.1 Local only
 
 - **(a) The speech services answer only through the proxy (S4.2).** The
   speech-to-text and text-to-speech engines listen on a local socket each, in
-  a folder only the person can read, and on no TCP port. The proxy owns the
+  `~/.incantation/run/` (owned by the person, mode 0700, no group or other
+  bits), and on no TCP port. Whether both engines can do this in WSL 2, and
+  whether the setup step that does it is in scope (O10), is the build's first
+  check, before anything else is built; S9 stops the work if it fails. The proxy owns the
   loopback TCP ports VoiceMode calls (2022 and 8880, or the ports in the
   speech URLs) and forwards to the sockets. The README gives the settings for
   this as plain setup steps ("set X to Y"), for each engine and each target
@@ -124,46 +140,69 @@ start; running Incantation in a head-chef lead session (S4 step 7).
   behind the proxy, the README sets its web player and its cross-origin access
   off, as plain setup steps.
 - **(c) Speech stays local, and VoiceMode is set in one place.** The README
-  sets `VOICEMODE_TTS_BASE_URLS` and `VOICEMODE_STT_BASE_URLS` to the loopback
-  URLs only, in `~/.voicemode/voicemode.env`. Every VoiceMode setting lives in
-  that file: never in the MCP server's own environment, and never in a
-  project-level VoiceMode settings file. It also leaves recording-to-disk and
-  debug settings off, and does not install VoiceMode's heard hook.
+  sets `VOICEMODE_TTS_BASE_URLS` and `VOICEMODE_STT_BASE_URLS` to
+  `http://127.0.0.1:<port>/v1` only, in `~/.voicemode/voicemode.env`. Every
+  VoiceMode setting lives in that file: never in the MCP server's own
+  environment, and never in a project-level VoiceMode settings file. It:
+  - leaves `VOICEMODE_MCP_URL` and `VOICEMODE_MLX_AUDIO_BASE_URL` unset;
+  - turns off recording-to-disk, debug, the event log and the auto-start of a
+    speech engine;
+  - needs no OpenAI key;
+  - does not install VoiceMode's heard hook.
 - **(d) `guard.mjs` checks all of it.** It is a Node script with no
   dependencies, in `plugins/incantation/skills/incantation/scripts/`. It runs
   these checks; each failure prints one fixed line:
-  - **Settings, read as VoiceMode reads them.** It reads the process
-    environment, then `~/.voicemode/voicemode.env` (or the folder in
-    `VOICEMODE_BASE_DIR`), then looks for a project-level VoiceMode settings
-    file from the working folder up. It reads only the keys it needs.
+  - **Settings, read as VoiceMode reads them.** It reads, in order:
+    1. the process environment;
+    2. `~/.voicemode/voicemode.env`, or `~/.voicemode/.voicemode.env` when
+       that is missing, whatever `VOICEMODE_BASE_DIR` says;
+    3. a project-level VoiceMode settings file, looked for from the project
+       root up, skipping the global file.
+
+    It parses values as VoiceMode does: the first source to set a key wins. It
+    reads only the keys it needs. It also reads the key names, never the
+    values, of the `env` block of every MCP server entry that provides the
+    found `converse` tool: in the user, local and project MCP configs, and in
+    VoiceMode's plugin manifest.
+    - Any `VOICEMODE_` key in an MCP server's `env` block fails: `server env:
+      move VoiceMode settings to the global file, see README step 4`.
     - A project-level file fails: `project <file kind>: move VoiceMode settings
       to the global file, see README step 4`.
-    - Either speech URL setting unset, unparseable, or with any entry whose
-      host is not literally `127.0.0.0/8`, `::1` or `localhost`, fails:
-      `remote <setting>: set it to the loopback URL only, see README step 4`.
-    - A recording-to-disk or debug setting on fails: `recording <setting>:
-      turn it off, see README step 4`.
-    - The heard hook present in the person's Claude Code settings fails:
-      `heard hook: remove it, see README step 4`.
-  - **Ports.** The ports named in the resolved speech URLs, plus
-    `VOICEMODE_WHISPER_PORT` and `VOICEMODE_KOKORO_PORT` (default 2022 and
-    8880).
+    - These fail with `remote <setting>: set it to the loopback URL only, see
+      README step 4`:
+      - either speech URL setting unset, unparseable, or with any entry that
+        is not `http://127.0.0.1:<port>/…`;
+      - `VOICEMODE_MCP_URL` set (tested for presence only);
+      - `VOICEMODE_MLX_AUDIO_BASE_URL` set.
+    - These fail with `recording <setting>: see README step 4`:
+      - any of `VOICEMODE_SAVE_ALL`, `VOICEMODE_SAVE_AUDIO`,
+        `VOICEMODE_SAVE_TRANSCRIPTIONS`, `VOICEMODE_DEBUG` (any truthy value
+        or `trace`) or `VOICEMODE_AUTO_START_KOKORO` on;
+      - `VOICEMODE_EVENT_LOG_ENABLED` not `false`.
+    - The heard hook in any of `~/.claude/settings.json`,
+      `.claude/settings.json` or `.claude/settings.local.json` fails: `heard
+      hook: remove it, see README step 4`.
+  - **Ports.** The ports named in the resolved speech URLs. The proxy binds
+    the same ports (S4.2), so the two always match.
   - **Reach.** For each non-internal IPv4 and IPv6 address in
     `os.networkInterfaces()` (skipping link-local), it tries a TCP connect to
     each port, all in parallel, with a 500 ms timeout. A connect that succeeds
-    counts as exposed: `exposed <service> <port>: see README step 3`. A
-    test-only variable, read only when `NODE_ENV=test`, replaces the address
-    list.
-  - **Only through the proxy.** On each loopback port:
-    - `GET /health` must answer with the proxy's marker header, else `no proxy
-      <service> <port>: see README step 3`;
+    counts as exposed: `exposed <service> <port>: see README step 3`. Tests
+    pass their own address list through an imported function; the command
+    line reads no override.
+  - **Only through the proxy.** On `127.0.0.1` at each port:
+    - `GET /health` must return the token the proxy wrote into
+      `~/.incantation/run/` when it started (a fresh random value, mode
+      0600), else `no proxy <service> <port>: see README step 3`;
     - a request with a foreign `Host`, a request with a foreign `Origin`, and a
       request for a path outside the proxy's list must each be refused by the
-      proxy, else `proxy open <service> <port>: see README step 3`.
+      proxy, else `proxy open <service> <port>: see README step 3`;
+    - nothing but the proxy answers on `[::1]` at that port, else `exposed
+      <service> <port>: see README step 3`.
 
-    Each engine's socket must exist, be a socket, and sit in a folder only the
-    person can read (on systems with POSIX modes), else `socket <service>: see
-    README step 3`. The proxy's status answer must name a socket upstream for
+    Each engine's socket must exist and be a socket owned by the person. It
+    must sit in `~/.incantation/run/`, with mode 0700 and the person as
+    owner. Else: `socket <service>: see README step 3`. The proxy's status answer must name a socket upstream for
     both services, never a TCP one.
   - **Text-to-speech scope.** Through the proxy's socket upstream, a request
     for the web player's page must not succeed. Else: `tts scope: see README
@@ -179,7 +218,8 @@ start; running Incantation in a head-chef lead session (S4 step 7).
     so the guard refuses a service listening beyond loopback even when a
     firewall would block it. That is on purpose.
 - **(e) Never `voicemode serve`.** Incantation calls `converse` over the stdio
-  MCP server only. The skill never starts, configures or connects to `voicemode
+  MCP server only, with no bridge to another server (the guard refuses
+  `VOICEMODE_MCP_URL`), and never passes `voice` or `ref_text`. The skill never starts, configures or connects to `voicemode
   serve` or port 8765, and the README says not to run it alongside Incantation.
   Whether the guard also refuses when port 8765 answers is a trade-off (S7).
 
@@ -189,8 +229,10 @@ The owner's pick (2026-11-12): a loopback reverse proxy in front of both speech
 engines. `proxy.mjs` is a Node script with no dependencies, in
 `plugins/incantation/skills/incantation/scripts/`.
 
-- **Listens** on `127.0.0.1` only, on the speech-to-text and text-to-speech
-  ports (S4.1 a). It never binds another address.
+- **Listens** on `127.0.0.1` only, on the ports in the resolved speech URLs
+  (S4.1 d). It never binds another address. It reads its ports and socket
+  paths only from `~/.voicemode/voicemode.env` and `~/.incantation/`, never
+  from the working folder or the environment.
 - **Refuses**, with a 403 and a fixed body, before anything is forwarded:
   - a request whose `Host` is not exactly `127.0.0.1:<its port>` or
     `localhost:<its port>`;
@@ -201,22 +243,34 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     - speech-to-text: `POST /v1/audio/transcriptions`, `GET /health`;
     - text-to-speech: `POST /v1/audio/speech`, `GET /v1/audio/voices`,
       `GET /v1/models`, `GET /health`;
-  - a request body over 25 MB.
-- **Forwards** everything else to the engine's socket, and streams the
-  request and the response both ways, so audio is not held whole.
-- **Answers** `GET /health` itself, with a marker header and a status naming
-  each upstream's kind (socket or TCP). It refuses to start with a TCP
-  upstream.
+  - a `POST` with no `Content-Length`, or with one over 25 MB; a body that
+    runs past its `Content-Length` aborts the upstream request;
+  - an `Upgrade` or `CONNECT` request, an absolute-form target, or a path
+    with encoded characters, dot segments or doubled slashes.
+- **Checks every request.** Each request on a kept-alive connection is parsed
+  and checked on its own. The path is matched exactly, raw, and the target
+  forwarded is the one checked.
+- **Forwards** a request that passes to the engine's socket, without its
+  `Authorization` and `Cookie` headers. It streams the body and the response
+  both ways, so audio is not held whole.
+- **Answers** `GET /health` itself, with its start token and each upstream's
+  kind (socket or TCP), never a path or an address. It refuses to start with a
+  TCP upstream.
 - **Keeps nothing.** It logs no body, query, header value or address; a
   refusal is counted, not recorded.
 - **Runs:**
   - `/incantation` starts it as a background process if `/health` does not
     answer, before the guard runs (the owner's pick, O9.2).
-  - It runs until `proxy.mjs stop` or a restart.
+  - It detaches, outlives the session, and runs until `proxy.mjs stop` or a
+    restart.
+  - It writes its PID into `~/.incantation/run/`. `stop` signals that PID only
+    after checking that it is a `proxy.mjs` owned by the person.
   - A second start finds the ports taken and exits with a fixed line.
   - With the proxy down, VoiceMode's local URLs answer nothing, and voice
-    fails closed: speech never goes elsewhere, because S4.1 (c) leaves no
-    other URL.
+    fails closed: the guard has refused every other route VoiceMode could
+    take (S4.1 c, d).
+  - VoiceMode used without Incantation needs the proxy running too, since
+    the engines are on sockets. The README says so.
 
 ## S5. Files
 
@@ -225,22 +279,30 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 - `plugins/incantation/skills/incantation/scripts/guard.mjs` (S4.1 d)
 - `plugins/incantation/skills/incantation/scripts/proxy.mjs` (S4.2)
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
-  free ports, Node's built-in test runner
+  free ports, Node's built-in test runner. It skips on win32 and says so.
 - `plugins/incantation/README.md`. It opens with the target: WSL 2, with
   everything inside one distribution; native Windows is not supported yet. Its
   steps, in order:
-  1. install VoiceMode (the exact lines, with the commit they came from);
+  1. install VoiceMode (the exact lines, with the commit they came from), and
+     set up audio in WSL 2;
   2. run its service setup;
   3. the S4.1 (a) and (b) settings;
   4. the S4.1 (c) settings;
-  5. never run `voicemode serve`;
-  6. use a headset;
-  7. what is kept and who hears: people in the room are heard; their words
-     reach the model provider as chat; VoiceMode keeps a local log of what is
-     heard and said, with where it is and how to clear it.
+  5. the proxy:
+     - `/incantation` starts it, and it keeps running after the session;
+     - `proxy.mjs stop` stops it;
+     - VoiceMode used on its own needs it running;
+  6. never run `voicemode serve`, and use a headset;
+  7. what is kept and who hears:
+     - people in the room are heard, and their words reach the model provider
+       as chat;
+     - VoiceMode keeps what is heard and said in local logs, unencrypted,
+       until the person deletes them;
+     - each log is named, with how to clear it;
+     - tell others in the room.
 - `tests/incantation-guard.test.mjs`: Node's built-in test runner, with fake
-  servers on free ports, and settings and addresses passed through the
-  environment.
+  servers on free ports, settings in a fixture home folder, and addresses
+  passed through the guard's imported function.
 - `tests/incantation-skill.test.mjs` (claim 13).
 - the seven eval cases and their budget entry (S6.1)
 - `.claude-plugin/marketplace.json`: a second entry, `incantation`, with source
@@ -260,6 +322,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     with a baseline entry for the new skill.
   - `.github/workflows/plugin-validate.yml` and `athanor.json`: the new
     plugin's root, manifest and `skills` are validate targets.
+  - `tests/eval-budget.test.mjs`: it also counts the cases under each
+    `plugins/<name>/`.
   - `docs/security/threat-model.md`: a line under R3's controls saying they
     cover `plugins/<name>/`.
   - `AGENTS.md`: "Three directories are called `scripts/`" becomes four,
@@ -306,15 +370,23 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     a path that is not under the skill base directory.
 14. With the guard failing, `/incantation` makes no `converse` call. In a lead
     session it refuses to start.
-15. `proxy.mjs` binds `127.0.0.1` only, and refuses with a 403 and a fixed
-    body, forwarding nothing: a `Host` other than `127.0.0.1:<port>` or
-    `localhost:<port>`; an `Origin` that is set and not the same origin,
-    `null` included; an unlisted method or path; a body over 25 MB.
-16. `proxy.mjs` forwards a listed request to the socket and streams the answer
-    back unchanged; it refuses to start with a TCP upstream, or when its port
-    is taken; it writes no body, header value or address to any output.
-17. With the proxy stopped, a speech request from VoiceMode's local URL gets no
-    answer, and nothing else is tried.
+15. `proxy.mjs` binds `127.0.0.1` only. It refuses each of these with a 403
+    and a fixed body, forwarding nothing, including when the request is the
+    second one on a kept-alive connection:
+    - a `Host` other than `127.0.0.1:<port>` or `localhost:<port>`;
+    - an `Origin` that is set and not the same origin, `null` included;
+    - an unlisted method or path, or an encoded or dot-segment path;
+    - `Upgrade` or `CONNECT`;
+    - a `POST` with no `Content-Length`, or with one over 25 MB.
+
+    A body that runs past its `Content-Length` aborts the upstream request.
+16. `proxy.mjs` forwards a listed request to the socket, without
+    `Authorization` or `Cookie`, and streams the answer back unchanged. It
+    refuses to start with a TCP upstream, or when its port is taken. It writes
+    no body, header value, path or address to any output. `stop` signals only
+    its own PID.
+17. With the proxy stopped, its ports refuse a connection. Whether VoiceMode
+    then tries nothing else is a practice-run step.
 
 Claims 7 to 13 and 15 to 17 are Node tests. The ticket closes on the owner's
 practice run. Once Test passes, the build session proposes its steps, each
@@ -322,7 +394,9 @@ with a pass or fail, in WSL 2, and the owner picks the time then.
 
 ### S6.1 The eval cases
 
-Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
+Claims 1 to 6 and 14 are eval cases, seven in all, one per row. The
+`greeting` rubric also grades a warm, alive opening. The `spoken-style` rubric
+also grades one thing per turn.
 
 | Case | Claim | `converse` |
 |---|---|---|
@@ -355,6 +429,10 @@ Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
   - **Where cases are read from.** The cases go wherever `claude plugin eval`
     reads them for a plugin that is not the repo root, and the budget test
     counts that folder.
+  - **How the guard passes (O11).** The `present` cases need a passing guard
+    with no bypass. The fixture runs the real `proxy.mjs`, in front of fake
+    engines on sockets, under a fixture home folder that holds local-only
+    settings. Fixtures use invented heard lines only.
   - **How `converse` gets in.** A case gets `converse` from a test-only fake
     stdio MCP server in the case's fixture, which answers with a scripted
     heard line. The `absent` case runs without one.
@@ -376,21 +454,35 @@ Claims 1 to 6 and 14 are eval cases, seven in all, one per row:
 
 ## S8. Threat model
 
-The lead accepted these entries at level 3 (2026-11-12), with the proxy, the
-socket-only engines and the 0.4 controls in place. The build adds them to
-`docs/security/threat-model.md`. AGENTS.md keeps a change to that file's scope
-and accepted risks for the owner, so the merge that adds them waits for the
-owner's confirm.
+The lead recommends these entries, at level 3 (2026-11-12), with the proxy,
+the socket-only engines and the 0.4 controls in place. They come into force
+when the owner confirms the merge that adds them to
+`docs/security/threat-model.md`, since AGENTS.md keeps that file's scope and
+accepted risks for the owner.
 
-- **Local speech services.** Services Incantation relies on but does not
-  control. Controls: the proxy (S4.2), engines on sockets only, and the S4.1
-  settings as defence in depth.
+The scope changes, each for the owner's word on its own:
+
+- grimoire now ships a long-running local server, the proxy;
+- new actors: a web page in the person's browser, and anyone audible to the
+  mic.
+
+The entries:
+
+- **Local speech services.** A local program, or another account, that reaches
+  the proxy's ports or the engines' sockets can use the allowed speech calls.
+  One that takes a speech port while the proxy is down fails the guard's token
+  check. Inside the entry: the allowed speech calls. Outside it: a web page,
+  and any engine route outside the allow-list. Controls: the proxy (S4.2),
+  engines on sockets only, the S4.1 settings as defence in depth, and the
+  harness's approval of a project's MCP servers.
 - **The microphone.** Heard text from anyone audible (people in the room, a
   call on speakers, played media) reaching acts short of the typed-yes list.
   Controls: the hear-back shown in chat, the typed-yes list, the permission
   mode in force, no lead sessions.
-- **Kept speech.** VoiceMode's local log of what is heard and said, including
-  bystanders' words. Controls: README step 7; the guard's recording check.
+- **Kept speech.** VoiceMode keeps what is heard and said, bystanders' words
+  included, in local logs that are unencrypted and kept until the person
+  deletes them; they reach the machine's backups and sync. One log cannot be
+  switched off. Controls: README step 7, and the guard's recording check.
 - **A risk row** for `guard.mjs` and `proxy.mjs`, shipped scripts that open
   and hold local connections, under "Keeping this page short".
 - **Accepted-risk candidate: port 8765.** Nothing in Incantation starts or
@@ -400,9 +492,14 @@ The security pair runs on the diff at Test as well.
 
 ## S9. Rollback and stop
 
-- **Rollback:** remove the marketplace entry and `plugins/incantation/`; the
-  widened check rules stay, since they hold with one plugin.
-- **Stop if:** VoiceMode will not run on a target system; or the practice run
+- **Rollback:**
+  - Remove the marketplace entry and `plugins/incantation/`.
+  - The widened check rules stay, since they hold with one plugin.
+  - On the person's machine, undo README steps 3 to 5 so the engines run as
+    VoiceMode set them up.
+- **Stop if:** the build's first check (S4.1 a) finds an engine that cannot
+  listen on a socket through an in-scope setup step; or VoiceMode will not
+  run on a target system; or the practice run
   shows a spoken yes starting a typed-yes act; or the guard cannot read the
   settings VoiceMode uses on a target system; or an engine cannot listen on a
   local socket on a target system, since the proxy then is not the only way
@@ -428,7 +525,13 @@ The owner then accepted these picks by typing `/make-it-so` in the lead's chat
 - O9.1, the proxy's path allow-list;
 - O9.2, `/incantation` starts the proxy when `/health` does not answer;
 - O5, the target is WSL 2, and native Windows is out of scope for now;
-- O6, an eval budget of $1 (S6.1).
+- O6, an eval budget of $1 (S6.1);
+- the twelve round-1 security rows as drafted in 0.4: the repo controls on
+  `plugins/<name>/`; the guard reading VoiceMode's settings; kept speech; the
+  security pair at Test; the guard's pinned path; the read-back shown in chat;
+  the mic candidate and no lead sessions; the typed-yes scope; fixed guard
+  lines; no secrets spoken; heard text from any route; the ports from the
+  speech URLs.
 
 The lead, at level 3 under the owner's standing goal, then answered the rest
 (2026-11-12):
@@ -439,13 +542,18 @@ The lead, at level 3 under the owner's standing goal, then answered the rest
   engines and the 0.4 controls in place, and all the S8 entries are added;
 - A10, the port 8765 probe is skipped as Hardening and recorded as an
   accepted-risk candidate (S7, S8).
-- the twelve round-1 security rows as drafted in 0.4: the repo controls on
-  `plugins/<name>/`; the guard reading VoiceMode's settings; kept speech; the
-  security pair at Test; the guard's pinned path; the read-back shown in chat;
-  the mic candidate and no lead sessions; the typed-yes scope; fixed guard
-  lines; no secrets spoken; heard text from any route; the ports from the
-  speech URLs.
+
+One rule holds for every session on this work: no third-party weakness detail
+goes in the spec, the README, the threat model, a commit, the pull request, a
+test name or the review record. A finding that needs that detail stays out of
+them.
 
 ## Open
 
-None. Nothing is filed upstream, and any future report stays private.
+- **O10.** If moving the engines onto sockets means editing files VoiceMode
+  installed, is that in scope? S3 puts changes to VoiceMode out.
+- **O11.** The eval cases' passing guard (S6.1): the real proxy and fake
+  engines in the fixture. If that can't run in the eval sandbox, should
+  claims 2 to 6 move to the practice run?
+
+Nothing is filed upstream, and any future report stays private.
