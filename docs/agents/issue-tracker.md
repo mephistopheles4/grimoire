@@ -90,6 +90,36 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
+## Cut a spec into tickets: one issue each, linked to the parent
+
+The parent issue keeps the spec. A ticket never lives only as a section of the
+parent's body or a comment on it.
+
+- **One issue per ticket, linked as a sub-issue.** When a spec is cut into
+  tickets, file each ticket as its own issue and link it to the parent as a
+  GitHub sub-issue. The ticket's body names its parent, its claims and what it
+  depends on.
+- **Link it with `gh api`**, on the parent's `sub_issues` endpoint. The call
+  takes the child's numeric **database id**, not its `#number`:
+
+  ```bash
+  child_id=$(gh api repos/<owner>/<repo>/issues/<child> --jq .id)
+  gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id="$child_id"
+  ```
+
+  `-F`, not `-f`, so `gh` sends the id as a number. A parent in another
+  repository takes the same call; use that repository's `<owner>/<repo>` and
+  the child's id, which is unique across GitHub.
+- **A ticket's PR closes its own ticket.** The PR signs and closes the ticket
+  issue (`Closes #<ticket>`, or `Closes <owner>/<repo>#<ticket>` for a ticket
+  filed in another repository), never the parent. The parent closes when its
+  last sub-issue closes: GitHub does not do that for you, so the session that
+  merges the last ticket closes the parent with a comment.
+- **Tickets that do not depend on each other start in parallel.** Two tickets
+  with no dependency between them and no file in common start side by side, one
+  session each. The cut says which tickets can run at once; a ticket that
+  depends on another waits for it (see Blocking below).
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
