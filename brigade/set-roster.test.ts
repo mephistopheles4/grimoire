@@ -3426,7 +3426,7 @@ for (const surface of SURFACES) {
 
 const USAGE_DIR = `${BRIGADE}${SEP}usage`
 const USAGE = `${USAGE_DIR}${SEP}${SID}.json`
-const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']
+const SUMMARY_KEYS = ['version', 'at', 'window', 'model', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']
 const STEP_USAGE = { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, model: 'claude-opus-5-5' }
 
 let stepIndex = 0
@@ -3464,6 +3464,7 @@ test('every session writes its usage summary at the turn end, numbers only, with
   expect(text).toBeDefined()
   const s = JSON.parse(text ?? '{}')
   expect(Object.keys(s)).toEqual(SUMMARY_KEYS)
+  expect(s.model).toBe('opus')
   expect(s.lastTokens).toBe(151006)
   expect(s.context).toEqual([151006])
   expect(s.window).toBe(1000000)
@@ -4399,24 +4400,20 @@ const popSide = async (m: any) => {
   return pops[0].props.top === 1 ? 'below' : 'above'
 }
 
-test('desktop, 581 C9: a popover opens below its card, the last card drawn opens above, and a fold moves which card that is', async ($, on) => {
+test('desktop, 598: a popover opens below its card on every card, the last one drawn included', async ($, on) => {
   await grouped(on, $, MENU_CARDS)
   const m = await mountOn($, 'desktop')
-  // Done · stopped is folded: the last card drawn is the last Working card, linked.
   await m.press({ key: 'menu-0-waiter' })
   expect(await popSide(m)).toBe('below')
   await m.press({ key: 'menu-2-linked' })
-  expect(await popSide(m)).toBe('above')
+  expect(await popSide(m)).toBe('below')
   await m.press({ key: 'set-1-worker' })
   expect(await popSide(m)).toBe('below')
-  // Unfolded, the last card drawn is the finisher; linked now opens below.
   await m.press({ key: 'grp-finished' })
-  await m.press({ key: 'menu-2-linked' })
-  expect(await popSide(m)).toBe('below')
   await m.press({ key: 'menu-3-finisher' })
-  expect(await popSide(m)).toBe('above')
+  expect(await popSide(m)).toBe('below')
   await m.press({ key: 'set-3-finisher' })
-  expect(await popSide(m)).toBe('above')
+  expect(await popSide(m)).toBe('below')
 })
 
 test('desktop, C7: the settings label opens `Opus - High`, and a card with no settings reads `No settings on the card.`', async ($, on) => {
@@ -5130,9 +5127,8 @@ for (const surface of SURFACES) {
     const w = await grouped(on, $, ALL, (key, value) => (key === 'picked' && Array.isArray(value) && value.length > 0 ? PLANTED : value))
     const m = await mountOn($, surface)
     await m.press({ key: 'pick-1-workone' })
-    // The bar counts only picks a checkbox shows: not the card that waits on
-    // the owner, and not a title no card holds.
-    expect((await textOf(m)).includes('2 selected')).toBe(true)
+    // The bar counts the picks of cards the pane shows, an idle card's too, and not a title no card holds (issue 598).
+    expect((await textOf(m)).includes('3 selected')).toBe(true)
     await m.press({ key: 'barclear' })
     const cleared = await textOf(m)
     expect(cleared.includes('selected')).toBe(false)
@@ -5142,10 +5138,9 @@ for (const surface of SURFACES) {
     const after = await textOf(m)
     expect(after.includes('selected')).toBe(false)
     expect(after.includes('work-one')).toBe(false)
-    expect(after.includes('need-one')).toBe(true)
+    // The idle card is dismissed too, for this one wait, and never enters the stored dismissed list (581 C5).
+    expect(after.includes('need-one')).toBe(false)
     expect(after.includes('▸ Done · stopped 1')).toBe(true)
-    // The bar's Dismiss never puts an idle card in the stored dismissed list (581 C5): it
-    // would stay hidden after it stopped being idle.
     const stored = w.states.filter(([k]: [string, string]) => k === 'dismissed').at(-1)?.[1] ?? ''
     expect(stored).toContain('work-one')
     expect(stored).not.toContain('need-one')
@@ -5170,8 +5165,8 @@ for (const surface of SURFACES) {
     // A waiting card's Dismiss is Desktop's menu alone (issue 513, S9; C4).
     expect((await has(m, surface, 'dismiss-2-needone')) !== undefined).toBe(surface === 'desktop')
     expect((await has(m, surface, 'dismiss-4-needtwo')) !== undefined).toBe(surface === 'desktop')
-    // Nor a checkbox: the bar's Dismiss never takes a card that waits.
-    expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
+    // An idle card has its checkbox too (issue 598).
+    expect(await m.find({ key: 'pick-2-needone' })).toBeDefined()
     await act(m, surface, 'dismiss-1-workone')
     expect((await textOf(m)).includes('work-one')).toBe(false)
     // The head chef turns the dismissed card to idle: it shows again, under Working (issue 545, row 11).
@@ -10894,26 +10889,32 @@ const quickMount = async ($: any, surface: string) => {
 }
 const quickButtons = (all: Drawn[]) => all.filter(n => n.type === 'Button' && typeof n.props.key === 'string' && n.props.key.startsWith('quick-'))
 const quickKeys = (all: Drawn[]) => quickButtons(all).map(n => n.props.key)
+// The quick action is a menu item (issue 598): open the card's menu, then press it.
+const QUICK_TITLES = ['alpha', 'beta', 'gamma']
+const openQuickMenu = (m: any, i: number) => m.press({ key: `menu-${i}-${QUICK_TITLES[i]}` })
+const pressQuickItem = async (m: any, i: number) => {
+  await openQuickMenu(m, i)
+  await m.press({ key: QUICK_KEYS[i] })
+}
 
 test('#223 desktop: each card that gets an action draws one button, keyed by place, slug, action and a digest, labelled Ask, Merge or Clean up', async ($, on) => {
   await quickPane(on, $)
-  const { all } = await quickMount($, 'desktop')
-  expect(quickKeys(all)).toEqual(QUICK_KEYS)
-  expect(quickButtons(all).map(n => n.text)).toEqual(['Ask', 'Merge', 'Clean up'])
-  // Each button is drawn left of its row's `⋯`.
-  const order = all.map(n => (n.type === 'Button' ? n.props.key : undefined))
+  const { m, all } = await quickMount($, 'desktop')
+  // No action button sits beside the `⋯`: the quick actions draw only inside an open menu (issue 598).
+  expect(quickKeys(all)).toEqual([])
   for (const [i, key] of QUICK_KEYS.entries()) {
-    const menu = order.findIndex(k => typeof k === 'string' && k.startsWith(`menu-${i}-`))
-    expect(menu).toBeGreaterThan(-1)
-    expect(order.indexOf(key)).toBeLessThan(menu)
+    await openQuickMenu(m, i)
+    const drawn = await nodes(m)
+    expect(quickKeys(drawn)).toEqual([key])
+    expect((await textOf(m)).includes(['Ask', 'Merge', 'Clean up'][i] as string)).toBe(true)
   }
 })
 
 test('#223 claim 13: a press on an empty box fills once, appended, with a space before the line, and puts nothing in a toast', async ($, on) => {
   const { w, seen } = await quickPane(on, $)
   const { m } = await quickMount($, 'desktop')
-  for (const [i, key] of QUICK_KEYS.entries()) {
-    await m.press({ key })
+  for (const [i] of QUICK_KEYS.entries()) {
+    await pressQuickItem(m, i)
     expect(seen.fills.at(-1)?.text).toBe(` ${QUICK_LINES[i]}`)
     expect(seen.fills.at(-1)?.mode).toBe('append')
   }
@@ -10925,7 +10926,7 @@ for (const [name, box] of [['a draft', { draft: SECRET }], ['a one-character dra
   test(`#223 claim 6: ${name} fills nothing, submits nothing and shows the draft toast`, async ($, on) => {
     const { w, seen } = await quickPane(on, $, box)
     const { m } = await quickMount($, 'desktop')
-    await m.press({ key: QUICK_KEYS[0] })
+    await pressQuickItem(m, 0)
     const text = await textOf(m)
     expect(seen.reads).toBe(1)
     expect(seen.fills).toEqual([])
@@ -10942,7 +10943,7 @@ for (const [name, box] of [['a draft', { draft: SECRET }], ['a one-character dra
 test('#223 claim 6: a box of only whitespace takes the line', async ($, on) => {
   const { seen } = await quickPane(on, $, { draft: ' \n ' })
   const { m } = await quickMount($, 'desktop')
-  await m.press({ key: QUICK_KEYS[2] })
+  await pressQuickItem(m, 2)
   expect(seen.fills.length).toBe(1)
 })
 
@@ -10950,7 +10951,7 @@ for (const [name, fill] of [['throws', () => { throw new Error('forced fill fail
   test(`#223 claim 8: a fill that ${name} shows the fallback toast with the line, and nothing is submitted`, async ($, on) => {
     const { w, seen } = await quickPane(on, $, { fill })
     const { m } = await quickMount($, 'desktop')
-    await m.press({ key: QUICK_KEYS[1] })
+    await pressQuickItem(m, 1)
     expect(w.toasts).toEqual([quickFailed(QUICK_LINES[1])])
     expect(seen.submits).toEqual([])
   })
@@ -10959,9 +10960,9 @@ for (const [name, fill] of [['throws', () => { throw new Error('forced fill fail
 test('#223 claim 9: a press submits nothing, calls no tool, runs no process and writes no state', async ($, on) => {
   const { w, seen } = await quickPane(on, $)
   const { m } = await quickMount($, 'desktop')
-  const figures = () => ({ states: w.states.length, procs: w.procs.length, checks: w.checks.length, mcp: w.mcpCalls.length, notes: w.notes.length })
+  const figures = () => ({ states: w.states.filter(([k]: [string, string]) => k !== 'popover').length, procs: w.procs.length, checks: w.checks.length, mcp: w.mcpCalls.length, notes: w.notes.length })
   const before = figures()
-  for (const key of QUICK_KEYS) await m.press({ key })
+  for (const [i] of QUICK_KEYS.entries()) await pressQuickItem(m, i)
   expect(figures()).toEqual(before)
   expect(seen.submits).toEqual([])
   expect(seen.stored).toEqual([])
@@ -10981,7 +10982,8 @@ for (const surface of ['terminal', 'mobile', 'vscode'] as const) {
 
 test('#223 claim 7: a press whose card has since changed fills nothing and shows the changed toast', async ($, on) => {
   const { w, seen } = await quickPane(on, $)
-  await quickMount($, 'desktop')
+  const { m } = await quickMount($, 'desktop')
+  await openQuickMenu(m, 0)
   const r = await call($, { cards: [card('alpha', { status: 'working' }), QUICK_ROSTER.cards[1], QUICK_ROSTER.cards[2]], todos: [] })
   expect(r.ok).toBe(true)
   await $.ui.press({ plugin: 'grimoire', requestId: 'brigade', key: QUICK_KEYS[0], surface: 'desktop' })

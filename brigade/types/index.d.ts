@@ -122,6 +122,9 @@ declare module 'claude-code' {
        *  (the same file failed its checks two polls running). Read only
        *  through those two words. */
       refusals: Pair[]
+      /** Each roster member's model family from its own summary file: its name and one word
+       *  from the fixed list (opus, sonnet, haiku, fable). Read again through that list. */
+      models: Pair[]
       /** Each card's chosen tab: its title and a view word, `cache`, `burn`
        *  or `trend`, kept for the session and not reset when the pane opens.
        *  Read only through the fixed set of view words. */
