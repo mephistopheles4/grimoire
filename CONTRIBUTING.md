@@ -113,7 +113,7 @@ such a package without asking when no one is at a terminal.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
   limit, Docker or its configuration. An older athanor refuses every command
   here, with "must be an array of strings" or with an unknown key
-  `commands.check.base`, exit 125, because `check` is an object now: install the commit above, and use the host check until you have. Run `node scripts/check.mjs` on the host,
+  `commands.check.base`, exit 125: install the commit above, and use the host check until you have. Run `node scripts/check.mjs` on the host,
   with `--host-fallback=<reason>` if you are an agent (see "The agent guard").
   A sha512 mismatch in the image build also exits 125; it is not a Docker
   fault, so stop and tell the owner.
@@ -220,7 +220,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-quick.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-start.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/eval-budget.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-quick.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-start.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/doc-budget.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/eval-budget.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -271,11 +271,11 @@ stop's wiring and for what the mod must not hold: a window, a cleaner, a
 removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
 imports it to check that a send after the last `set_roster` owes an update and
-which sends carry a message, and, since #533, the two compaction lines, the
+which sends carry a message, and the two compaction lines, the
 shared exception string, the 0.9 margin and the once-per-cycle state. The background start tool's rules
-module, `brigade/start.ts`, is the seventh (issue 543): `tests/brigade-start.test.mjs`
+module, `brigade/start.ts`, is the seventh: `tests/brigade-start.test.mjs`
 imports it to check the start tool's input rules and fixed words. A card's
-quick action module, `brigade/quick.ts`, is the eighth (issue 223):
+quick action module, `brigade/quick.ts`, is the eighth:
 `tests/brigade-quick.test.mjs` imports it to check which action a card gets and
 the line it fills, the title rule, the key's digest and what a press checks again,
 and reads `brigade/register.tsx`'s `pressQuick` for what it must not hold (a
@@ -355,6 +355,16 @@ request, what each source case failed on, which sentence of the survivor now
 fails it, and which branch it gives up. Each eval run costs tokens, which is the
 other reason to keep the count down.
 
+## Doc word budgets
+
+The agent-facing docs are counted. `tests/doc-budget.test.mjs` holds a budget in
+words for each, and fails when a doc grows past its budget or a listed doc is
+gone. A doc says what holds now: the history of a rule (the issue or decision
+that raised it, the version that changed it, the date it was settled) belongs in
+an ADR, a change log or a dated log (`docs/logs/`), never in the doc. To add to a doc past its
+budget, cut something in the same change. **Raising a budget is a spec change:**
+it needs the owner's yes in the issue, and only review holds that line.
+
 ## What a good patch looks like
 
 **One change, one reason.** A pull request that fixes a typo and rewrites a
@@ -396,8 +406,7 @@ suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
 `.mjs`, `.cjs`, `.mts` and `.cts`. Inside the mod (see below), `claude-code`
 and the paths under it, such as `claude-code/testing`, are builtins too,
 because the engine supplies them; anywhere else they are a package. It reads
-code and not prose, so a comment is skipped. Until this check existed the rule
-held only because the tree gave it nowhere to land.
+code and not prose, so a comment is skipped.
 
 **Give every artifact a page name no other artifact wants.**
 `scripts/build-pages.mjs` names each published page after the artifact's path

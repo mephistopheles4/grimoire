@@ -51,10 +51,10 @@ The file is TOML: lines of `key = value`, named `<name>.toml`.
 
 | Capability | In the file | Source |
 |---|---|---|
-| Read files, and nothing that writes | `sandbox_mode = "read-only"`, when the person names this sandbox | Loaded in Codex 0.159.0, 2026-09-29; effect not tested |
-| Create files or change files | `sandbox_mode = "workspace-write"`, when the person names this sandbox | Docs, read 2026-09-30: Codex's page on agent configuration |
-| Run commands | No key. Commands run inside the session's sandbox, or the one `sandbox_mode` names | Docs, read 2026-09-30, same page |
-| Search the web | `web_search = "live"`, when the person names it | Docs, read 2026-09-30: learn.chatgpt.com/docs/config-file/config-reference |
+| Read files, and nothing that writes | `sandbox_mode = "read-only"`, when the person names this sandbox | Loaded in Codex 0.159.0; effect not tested |
+| Create files or change files | `sandbox_mode = "workspace-write"`, when the person names this sandbox | Docs: Codex's page on agent configuration |
+| Run commands | No key. Commands run inside the session's sandbox, or the one `sandbox_mode` names | Docs, same page |
+| Search the web | `web_search = "live"`, when the person names it | Docs: learn.chatgpt.com/docs/config-file/config-reference |
 | Fetch web pages | Nothing this file can hold. Stop and ask | Network access for a sandbox is a table, which the file may not carry |
 
 **Ask about the sandbox.** Ask the person whether the agent gets its own
@@ -65,10 +65,10 @@ runs in the session's sandbox, whatever that is. Say so in the hand-back.
 **Limits this file cannot hold.** Say each in the hand-back, as not gated:
 
 - The session's own choices, such as a change of permissions during the
-  session, override the file's `sandbox_mode` (docs, read 2026-09-30).
+  session, override the file's `sandbox_mode` (docs).
 - "No network": the agent takes the session's network and tool-server
   settings, and Codex's web search is on by default, as cached search, and
-  live under full access (docs, read 2026-09-30).
+  live under full access (docs).
 - "Runs no commands": a read-only sandbox still lets it run commands that
   change nothing. This is a reading of the docs, not tested.
 
