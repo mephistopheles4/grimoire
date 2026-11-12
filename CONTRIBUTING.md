@@ -220,7 +220,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-quick.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-start.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/eval-budget.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-decisions.test.mjs tests/brigade-quick.test.mjs tests/brigade-reminder.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-start.test.mjs tests/brigade-stop.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/eval-budget.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/live-gate.test.mjs tests/live-listen.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -291,6 +291,20 @@ renders it through the interview script's `--out`, runs the page's own
 scripts on a small stand-in document, picks its controls by the keys the page
 gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
 page saved to its store. Those keys and the saved entry are the page's seam.
+The live skill's listener has two seams (issue 208). Its gate,
+`skills/live/scripts/gate.mjs`, is a pure module that takes PCM and returns
+turn events: `tests/live-gate.test.mjs` imports it and feeds it a signal built
+in memory. The listener, `skills/live/scripts/listen.mjs`, is driven through its
+command line: `tests/live-listen.test.mjs` runs it against a fake recorder,
+`tests/live-fake-recorder.mjs`, which stands in for ffmpeg. The script runs the
+fake with `process.execPath` only when `NODE_ENV=test` and
+`GRIMOIRE_LIVE_RECORDER` names it; with no `NODE_ENV=test` the variable is
+ignored. The fake takes ffmpeg's arguments and streams audio in real time from
+a scenario in `GRIMOIRE_LIVE_FAKE_SCENARIO`, so a heard turn takes about four
+seconds. Each test sets `HOME`, `USERPROFILE`, `TMPDIR`, `TEMP` and `TMP` to a
+fresh folder, with the temp folder inside home, so no test reads or writes a
+real one. No test needs a microphone, ffmpeg or a speech tool, and none
+reaches the network.
 
 **Two more gates for the mod's `set_roster` tool.** CI fetches Claude Code in
 one place only, the plugin validator's workflow, and that is not the publishing
