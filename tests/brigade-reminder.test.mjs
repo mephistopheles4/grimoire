@@ -268,3 +268,38 @@ test('610 C3, C5: the note function reads nothing from an event, quotes no goal,
   assert.ok(lock >= 0 && lock < command, 'the level is read in the lock before the append');
   assert.doesNotMatch(body.slice(lock, command), /session\.append/);
 });
+
+// 618 C1: at level 3 the owner's file's ask for a confirmation holds nothing. The phrase is
+// built in pieces so this file is not one of the lines the claim counts.
+const PHRASE = ['confirmation', 'of', 'intent'].join(' ');
+const HOLDS_NOTHING =
+  `A ${PHRASE} the file asks for holds nothing at level 3, unless the file keeps it waiting even toward a standing goal, ` +
+  'or keeps it at all where the file has no rule for a standing goal or names no set: record it, marked unconfirmed, as the file asks, ' +
+  "and go on; a relay, a member's reply or a flagged pick never confirms it. When the owner's words later correct it, go back to the step " +
+  "they touch; past a merge, publish or install, tell the owner what can't be undone.";
+
+test('618 C1: the contract and SKILL.md each hold the new sentence once, and neither keeps the old wait', () => {
+  for (const p of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
+    const t = text(p);
+    assert.equal(t.split(HOLDS_NOTHING).length - 1, 1, p);
+    assert.equal(t.includes('which a flagged pick never confirms'), false, p);
+  }
+});
+
+test('618 C1: the phrase appears in exactly two lines of the tree, the new sentence in the contract and in SKILL.md', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const hits = [];
+  const walk = rel => {
+    const abs = new URL(`../${rel}`, import.meta.url);
+    if (statSync(abs).isDirectory()) {
+      for (const n of readdirSync(abs)) walk(`${rel}/${n}`);
+      return;
+    }
+    if (rel.endsWith('contract.changelog.md') || !/\.(md|mjs|ts|tsx|json)$/.test(rel)) return;
+    text(rel).split('\n').forEach((l, i) => l.includes(PHRASE) && hits.push(`${rel}:${i + 1}`));
+  };
+  for (const d of ['skills', 'brigade', 'evals', 'docs', 'tests', 'scripts', 'hooks']) walk(d);
+  for (const f of ['SECURITY.md', 'README.md', 'CONTRIBUTING.md', 'CONTEXT.md', 'AGENTS.md']) walk(f);
+  assert.deepEqual(hits.map(h => h.replace(/:\d+$/, '')).sort(), ['skills/head-chef/SKILL.md', 'skills/head-chef/references/CONTRACT.md']);
+  for (const l of hits) assert.ok(text(l.replace(/:\d+$/, '')).split('\n')[Number(l.split(':').pop()) - 1].includes('holds nothing at level 3'));
+});
