@@ -1,6 +1,6 @@
 # live: the spec
 
-Draft 0.3, after spec round 1, for the proceed. Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
+Draft 0.4, after spec round 1 and the lead's decision 61, for round 2 and the proceed. Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
 Signed: live-208
 
 **The owner's ask, quoted from the issue:**
@@ -27,7 +27,7 @@ A person turns live mode on in one session and walks away from the keyboard. At 
 
 | # | Decision | Source |
 |---|---|---|
-| D1 | It is a grimoire skill, named `live`. The name is fixed by this spec, not left to the contract interview, so that T2 can build `skills/live/` first. | Issue, Decided. The name is for the lead's word (open item O1). |
+| D1 | It is a grimoire skill, named `live`. The name is fixed by this spec, not left to the contract interview, so that T2 can build `skills/live/` first. | Issue, Decided; the lead, decision 61 |
 | D2 | It works with no other skill. It names no other skill, and no other skill names it. | Issue, Decided |
 | D3 | Hands-free, with no hotkey. The speech engine and the recorder run locally. The text-flow wording in S1 applies. | Issue, Decided; data round 1 |
 | D4 | The skill prose says *the speech tool* and *the recorder*, and names no product. The README's setup section names Voicebox and ffmpeg. The listener's code names ffmpeg, since code that calls a tool names it (ADR 0001). | Issue; Q8 |
@@ -37,14 +37,14 @@ A person turns live mode on in one session and walks away from the keyboard. At 
 | D8 | One listener at a time, ended by a cooperative stop. A new seam stops the listener, speaks, then listens again. The skill ignores a superseded or failed return. | Q4, and the probe |
 | D9 | The build runs on Sonnet at high. | Q5, owner |
 | D10 | Anyone or anything audible to the mic is proposed as a new actor. The owner writes it in. | Q6 |
-| D11 | Candidate accepted risks, worded in S8. | Q7; round 1 widened the wording |
+| D11 | Candidate accepted risks, worded in S8. The lead re-accepted Q7a on the widened wording of S8 item 4, and flagged it to the owner. | Q7; the lead, decision 61 |
 | D12 | The recorder is resolved from PATH's absolute entries only, never from the current folder, and runs with fixed arguments. Nothing reads a command from config. | Q8; adversarial round 1 |
 | D13 | v1 runs on Windows only. The platform check sits just before the real recorder would start. With the test recorder, the whole listener runs on any platform, so the Linux check can run its tests. | Q9; executability round 1 |
 | D14 | The practice cases run on the manual `desktop-app` variant, with a real mic and the speech tool. | Q10 |
 | D15 | The listener times out 120 s after its gate opens. | Q11 |
-| D16 | The first release to users is T1's merge. It comes only after T2 has merged, T3's candidates have the owner's word, and T4's cases have run against T1's branch. | Executability round 1; for the lead's word (O2) |
-| D17 | Heard text never stands for the person's own typed words. | Adversarial round 1; for the lead's word (O3) |
-| D18 | After three heard turns in a row with no typed message between them, no listener starts until the person types. | Adversarial round 1; the number is for the lead's word (O4) |
+| D16 | The first release to users is T1's merge. It comes only after T2 has merged, T3's candidates have the owner's word, and T4's cases have run against T1's branch. | Executability round 1; the lead, decision 61 |
+| D17 | Heard text never stands for the person's own typed words. | Adversarial round 1; the lead, decision 61 |
+| D18 | After three heard turns in a row with no typed message between them, no listener starts until the person types. | Adversarial round 1; the lead, decision 61 |
 
 **The probe (2026-11-10, Windows 11).** A background task ran a Node stub. A kill by pid from another command ended it with no output and exit code 1. Its SIGTERM handler never ran. The session was still woken by a "failed" task notification.
 
@@ -342,11 +342,8 @@ The tests in T2 check C1 to C12. They run in the Linux check. The practice run i
 - it is turned off more often than on; or
 - it misfires twice after a fix.
 
-## Open, for the lead
+## Open
 
-- **O1.** The name `live`, fixed now (D1).
-- **O2.** The release order (D16, S11).
-- **O3.** D17: heard text is never typed words, and reserved decisions get the read-back.
-- **O4.** D18: the chain limit's number (three proposed).
-- **O5.** The owner's installs for T4, and when they happen.
-- **The rest.** The proceed, fix or kill on this spec. The ticket cut in S11. The security dispositions in the round record.
+- **O5, owner only.** The installs and registration T4 needs: the speech tool, ffmpeg and the MCP server. The lead puts this to the owner when T4 is next.
+- **For the lead.** The proceed, fix or kill on this spec after round 2, and the ticket cut in S11.
+- **Decided by the lead (decision 61, level 3, the lead's word, not the owner's).** These were O1 to O4: the name, the release order, D17, and a chain limit of three. The lead also took every round-1 security row as drafted, and both trade-offs (the README capture warning and the exclusive create).
