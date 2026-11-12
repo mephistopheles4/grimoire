@@ -36,7 +36,7 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
 since 0.74.0 (#380) it also hooks the `Skill` tool's call, the typed `/head-chef` and `/grimoire:head-chef` commands, and each turn's start, and each of those passes on with no engine call unless a head-chef load is under way or a load left the pane waiting: where the security default skips `skill.prompt`, a model's head-chef load opens no pane and leaves one fixed note asking for `/brigade`, and a typed one that Claude Code itself answered opens the pane only after one read of the session's local skill list confirms the copy is grimoire's or the owner's; the notes are fixed rows added to the conversation, each starting "Brigade (plugin note):";
 since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
-since 0.69.0 it also reads one key, `permission-warning-ack`, from the plugin's own store and offers a second tool, `show_permission_warning`, below (0.117.0 added a second key, `cleaner-path`; since 0.118.0 nothing reads, writes or deletes it, so a value left there stays, unencrypted and readable by other plugins; since 0.146.0 it also reads the old `startFolders` key once at each session start and deletes it when present);
+since 0.69.0 it also reads one key, `permission-warning-ack`, from the plugin's own store and offers a second tool, `show_permission_warning`, below (0.117.0 added a second key, `cleaner-path`; since 0.118.0 nothing reads, writes or deletes it, so a value left there stays, unencrypted and readable by other plugins; since 0.147.0 it also reads the old `startFolders` key once at each session start and deletes it when present);
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
@@ -414,7 +414,7 @@ goal there when it has none, and acts at 2 until it has one. Cleanup waits for t
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
 **Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (candidate O1 in [`docs/security/brigade.md`](docs/security/brigade.md), proposed for the owner's merge decision, with O2 and O3 beside it).
-**Since 0.146.0 (issue 579) the command `/brigade folders` and its plugin-state
+**Since 0.147.0 (issue 579) the command `/brigade folders` and its plugin-state
 key `startFolders` are gone.** The start tool relies on the harness's folder
 trust and keeps its own checkout and origin checks. The command now opens the pane,
 as any unknown arguments do, and the mod clears an old `startFolders` key once at
@@ -566,8 +566,9 @@ every device signed in to the owner's account (the threat model's
 [class C12](docs/security/threat-model.md#c12)). Until head-chef 1.10.0 (issue 503) a
 session took any message from the head chef as a relayed decision, on any
 matter, labelled as relayed and never as the owner's own words; since then
-its start prompt carries only its issue and the lead's name, and the
-session's own rules decide how it treats a lead message. Since head-chef 1.0.0 it knows its lead by name
+its start prompt carries only its issue and the lead's name, and, since head-chef 1.32.0
+(issue 578), at most one bounded note in the lead's words, labelled as the lead's and not
+the owner's (by the tool on a background start, by the lead itself on the Desktop route), and the session's own rules decide how it treats a lead message. Since head-chef 1.0.0 it knows its lead by name
 only (ADR 0013), so any process of the same user, or any session that holds
 the lead's name, can speak for the lead. The owner accepted the forged-sender
 risk of the 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision

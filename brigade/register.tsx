@@ -75,6 +75,7 @@ import {
   folderSpelling,
   mainCheckout,
   nameFresh,
+  noteNames,
   originArgv,
   originMatch,
   resolveProgram,
@@ -2947,6 +2948,7 @@ const START_SCHEMA = {
     effort: field(6),
     lead: field(80),
     folder: field(1000),
+    note: field(200),
   },
 }
 const START_CAUGHT = {
@@ -3112,6 +3114,11 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
     sessionsComplete: sessions !== undefined && sessions.complete && !sessions.fileGone,
   })
   if ('why' in fresh) return refuseStart(fresh.why)
+  // (4b) a note names no live session and no card (issue 578, rule 5); the lists are the ones read above, before any state is kept
+  if (i.note !== undefined) {
+    const named = noteNames(i.note, [...cards.map(c => c.title), ...(sessions?.rows.map(r => r.name) ?? [])], [i.name, i.lead])
+    if ('why' in named) return refuseStart(named.why)
+  }
   // (5) the pane's host and PATH rule
   if (!(await ghFindable($))) return refuseStart('host: the host or its PATH could not be trusted to look programs up')
   // (6) the programs, by absolute path
