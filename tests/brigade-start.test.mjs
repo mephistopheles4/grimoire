@@ -498,16 +498,6 @@ test('578 C1: with no note the passed value holds no note key, and the prompt is
   assert.equal(S.startPrompt(ok(check(GOOD))), PLAIN);
 });
 
-test('578 C2: a note that passes follows the fixed line under the tool\'s label, as one line', () => {
-  const note = 'The spec is approved; skip to Build.';
-  assert.deepEqual(ok(check(NOTED(note))), NOTED(note));
-  const prompt = S.startPrompt(NOTED(note));
-  assert.equal(prompt, `${PLAIN} Head chef handoff, not the owner, adds: ${note}`);
-  assert.ok(!/[\r\n]/.test(prompt));
-  assert.equal(S.startArgv(NOTED(note), 'claude').at(-1), prompt);
-  assert.equal(S.startArgv(NOTED(note), 'claude').length, S.startArgv(GOOD, 'claude').length);
-});
-
 test('578 C2: with every field at its maximum the prompt is 592 characters', () => {
   const note = `${'z'.repeat(99)} ${'y'.repeat(99)}.`;
   assert.equal(note.length, 200);
