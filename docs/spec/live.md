@@ -1,6 +1,6 @@
 # live: the spec
 
-Draft 0.5, after spec round 2 (final), for the proceed. Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
+Draft 0.5, proceeded by the lead under the owner's goal (decision 71). Issue [#208](https://github.com/mephistopheles4/grimoire/issues/208).
 Signed: live-208
 
 **The owner's ask, quoted from the issue:**
@@ -54,7 +54,7 @@ A person turns live mode on in one session and walks away from the keyboard. At 
 | D14 | The practice cases run on the manual `desktop-app` variant. | Q10 |
 | D15 | The listener times out 120 s after its gate opens. | Q11 |
 | D16 | Everything lands in one draft pull request on one branch. Nothing merges and nothing ships. | The owner's narrowing; the lead |
-| D17 | Heard text never stands for the person's typed words. It never grants, widens or extends a delegation of the person's decisions, even after a read-back. | Rounds 1 and 2; the lead, decision 61 |
+| D17 | Heard text never stands for the person's typed words. It never grants, widens or extends a delegation of the person's decisions, even after a read-back. No detector for injected wording is added: the owner accepted prompt injection as a threat class (decision 66), and the read-back and this rule stay. | Rounds 1 and 2; the lead, decisions 61 and 66 |
 | D18 | After three heard turns with no typed message from the person, the listener itself refuses to listen until the person types. | Rounds 1 and 2; the lead, decision 61 |
 
 **The probe (2026-11-10, Windows 11).** A kill by pid ended a background Node task with no output and exit code 1, and no handler ran. The session was still woken by a "failed" notice.
@@ -380,8 +380,6 @@ Every ticket commits to this issue's branch. The branch ends as one draft pull r
 ## Open
 
 - **O5, owner only:** when the speech tool, ffmpeg and the MCP registration get installed for T4, and when the owner runs T4. The lead puts both to the owner when T4 is next.
-- **O6, for the lead:**
-  - Who answers T1's contract interview. The contract skill asks for the person's own words on actions, stops, tools and the why.
-  - Whether the interview may change anything that S5 fixes.
-- **The proceed, fix or kill** on this spec, and the ticket cut in S11.
-- **The round-2 trade-offs** in the round record.
+- **Decided.**
+  - **O6:** the owner answers T1's contract interview, when T1 is next (decision 72).
+  - **The proceed and the cut** in S11, with every round-2 trade-off taken as drafted (decision 71).
