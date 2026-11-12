@@ -4467,7 +4467,14 @@ export const register: Register = on => {
             {views.length >= 2 && (
               <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
                 {views.map(v =>
-                  tip(
+                  popLive ? (
+                    // While a popover is open the tab buttons drop their press layer and tooltip: a
+                    // positioned element later in the tree paints over the popover, and Desktop's Box
+                    // has no z-index (issue 608). The same outline keeps the row's size.
+                    <Box key={`tab-still-${i}-${v}`} borderStyle="round" borderColor={CLEAR_INK} paddingX={1} paddingY={0}>
+                      <Text dimColor={v !== chosen}>{pointer ? (VIEW_ICONS.get(v) ?? '?') : (VIEW_LABELS.get(v) ?? '')}</Text>
+                    </Box>
+                  ) : tip(
                     `tab-${i}-${v}`,
                     v === chosen ? (
                       <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
