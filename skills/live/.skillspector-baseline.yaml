@@ -1,0 +1,13 @@
+# SkillSpector baseline for this skill.
+#
+# LP3 fires on SKILL.md because the skill ships scripts and declares no
+# permission list. The reason is the repository root's, word for word. Ticket T1
+# of issue 208 replaces the stub SKILL.md; the entry stays for the file it lands on.
+
+version: 2
+fingerprints: []
+
+rules:
+  - rule_id: "LP3"
+    file: "SKILL.md"
+    reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."

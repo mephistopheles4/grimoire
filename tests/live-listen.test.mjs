@@ -10,7 +10,7 @@
 import { after, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -319,6 +319,23 @@ describe('the listener', { concurrency: true }, () => {
     const again = await turnOn(world);
     assert.ok(again.token);
     assert.deepEqual(clipsIn(world), [], 'on');
+  });
+
+  test('sweep (the lead\'s round-1 word on K4): every command removes clips older than five minutes, and only clips', async () => {
+    const world = makeWorld();
+    await turnOn(world);
+    const stale = join(world.state, 'clip-0badc0de.wav');
+    const fresh = join(world.state, 'clip-0000feed.wav');
+    const other = join(world.state, 'notes-0badc0de.wav'); // not a clip name, old as it is
+    for (const path of [stale, fresh, other]) writeFileSync(path, 'x');
+    const old = new Date(Date.now() - 6 * 60 * 1000);
+    utimesSync(stale, old, old);
+    utimesSync(other, old, old);
+
+    await run(world, ['devices']);
+    assert.equal(existsSync(stale), false, 'an old clip is swept');
+    assert.equal(existsSync(fresh), true, 'a fresh clip stays: another session may be about to read it');
+    assert.equal(existsSync(other), true, 'a file that is not a clip stays');
   });
 
   test('C10: without NODE_ENV=test the recorder variable is ignored', async () => {

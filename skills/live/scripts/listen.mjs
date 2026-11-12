@@ -29,7 +29,9 @@ import { RATE, createGate } from './gate.mjs';
 
 const REASONS = ['platform', 'recorder-missing', 'device', 'argument', 'token', 'folder', 'recorder-failed'];
 const HEARD_LIMIT = 3; // heard returns before the listener pauses
-const TOOL_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+const CLIP_NAME = /^clip-[0-9a-f]+\.wav$/;
+const CLIP_MAX_AGE_MS = 5 * 60 * 1000; // a clip this old was never cleared
+const TOOL_NAME =/^[A-Za-z0-9_.-]{1,64}$/;
 const TURN_CAP_MS = 30000; // a turn open at the timeout may run this much longer
 const ISO =/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
 const sleep = ms => new Promise(done => setTimeout(done, ms));
@@ -171,7 +173,26 @@ function prepareState() {
     fail('folder');
   }
   if (real.toLowerCase() !== dir.toLowerCase() || !inside(real, home)) fail('folder');
+  sweepClips(dir);
   return dir;
+}
+
+/**
+ * Every command first removes clips older than five minutes, so a clip a
+ * session never cleared does not wait for the next `on`. It touches only plain
+ * files named like a clip, in the state folder just checked, and never fails
+ * the command. A fresh clip stays: the session may be about to read it.
+ */
+function sweepClips(dir) {
+  try {
+    for (const name of readdirSync(dir)) {
+      if (!CLIP_NAME.test(name)) continue;
+      const stat = lstatSync(join(dir, name));
+      if (stat.isFile() && Date.now() - stat.mtimeMs > CLIP_MAX_AGE_MS) rmSync(join(dir, name), { force: true });
+    }
+  } catch {
+    // a sweep that fails leaves the clip for the next command
+  }
 }
 
 const file = (dir, name) => join(dir, name);
@@ -201,7 +222,7 @@ const readNumber = path => {
 const writeNumber = (path, n) => writeAtomic(path, String(n));
 
 const deleteClips = dir => {
-  for (const name of readdirSync(dir)) if (/^clip-[0-9a-f]+\.wav$/.test(name)) rmSync(join(dir, name), { force: true });
+  for (const name of readdirSync(dir)) if (CLIP_NAME.test(name)) rmSync(join(dir, name), { force: true });
 };
 
 const alive = pid => {
@@ -436,7 +457,7 @@ async function listenOnce(o) {
   reply(`LIVE heard ${seq} ${clip}`);
 }
 
-async function stopListener(o) {
+async function endListener(o) {
   const dir = (ctx.dir = prepareState());
   requireToken(dir, o.token);
   const listener = readJson(file(dir, 'listener.json'));
@@ -466,7 +487,7 @@ async function main(argv) {
       out([`stamp ${stampOf(devices)}`, ...devices.map((d, i) => `${i} ${clean(d.name)}`)]);
     } else if (name === 'on') await turnOn(o);
     else if (name === 'listen') await listenOnce(o);
-    else if (name === 'stop') await stopListener(o);
+    else if (name === 'stop') await endListener(o);
     else if (name === 'off') await turnOff(o);
     else {
       const dir = (ctx.dir = prepareState());
