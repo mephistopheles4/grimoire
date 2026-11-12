@@ -161,8 +161,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "fec9969b2a522cd5b9f73a230a5e7e45471f04ce372a30adc3308e536f1ed739",
-      "reason": "The live skill's listener. The destructive-command parser, which looks for rm, del and erase, stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-12 (issue 208, ticket T2): the file calls rmSync only on its own state folder, on plain files that are named like a clip or are one of its five state files, and its recorder runs through spawn with shell false. It holds no rm, del or erase in any spelling that a shell would run, and no printf builder."
+      "sha256": "125f060b614efade648500fb69d49b3717bfaa975c25c3e7489e01a36197139d",
+      "reason": "The live skill's listener. The destructive-command parser, which looks for rm, del and erase, stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-11 (issue 208, ticket T2): the file calls rmSync only inside its own state folder, on entries named like a clip (a link is unlinked and never followed) and on its four state files, lock.json, stop, heard and listener.json, and its recorder runs through spawn with shell false. It holds no rm, del or erase in any spelling that a shell would run, and no printf builder."
     }
   ],
   "references": [

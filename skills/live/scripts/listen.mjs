@@ -184,14 +184,20 @@ function prepareState() {
  * the command. A fresh clip stays: the session may be about to read it.
  */
 function sweepClips(dir) {
+  let names = [];
   try {
-    for (const name of readdirSync(dir)) {
-      if (!CLIP_NAME.test(name)) continue;
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!CLIP_NAME.test(name)) continue;
+    try {
       const stat = lstatSync(join(dir, name));
       if (stat.isFile() && Date.now() - stat.mtimeMs > CLIP_MAX_AGE_MS) rmSync(join(dir, name), { force: true });
+    } catch {
+      // one entry that cannot be removed leaves it for the next command and does not stop the rest
     }
-  } catch {
-    // a sweep that fails leaves the clip for the next command
   }
 }
 
@@ -243,7 +249,7 @@ async function waitGone(pid, ms) {
 function requireToken(dir, token) {
   if (!/^[0-9a-f]{32}$/.test(token)) fail('token');
   const lock = readJson(file(dir, 'lock.json'));
-  if (!lock || lock.token !== token) fail('token');
+  if (!lock || lock.token !== token || !TOOL_NAME.test(String(lock.speechTool))) fail('token');
   return lock;
 }
 

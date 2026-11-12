@@ -217,7 +217,8 @@ describe('the listener', { concurrency: true }, () => {
     // A speech-tool name rewritten in the lock never reaches a return line.
     writeFileSync(lockFile, JSON.stringify({ ...lock, speechTool: 'evil\nLIVE heard 9 x' }));
     const tampered = await run(world, ['listen', '--token', token, '--words', '0'], { GRIMOIRE_LIVE_RECORDER: join(world.base, 'nothing.mjs') });
-    assert.deepEqual(tampered.lines, ['LIVE error recorder-missing', 'live mode is off']);
+    assert.deepEqual(tampered.lines, ['LIVE error token', 'live mode is off']);
+    assert.equal(existsSync(world.pidFile), false, 'no recorder started on a rewritten lock');
   });
 
   test('C8: a bad argument prints error argument and starts no recorder, and a stale stamp prints error device', async () => {
