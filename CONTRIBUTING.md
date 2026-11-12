@@ -535,9 +535,12 @@ claude plugin validate --strict skills
 
 That checks that each frontmatter parses, and nothing about a key's meaning.
 
-Nothing seals a generated `SKILL.md` and nothing checks it against its
-contract, so a reviewer reads every changed file in full, and reviews the
-`SKILL.md` as shipped prose.
+A contract with a `## schedules` part, today `skills/head-chef/`, holds each
+section of its `SKILL.md` and references word for word: change the schedule
+first and copy it to its home, and `tests/contract-schedules.test.mjs` fails
+when they differ. For a contract with none, nothing seals a generated
+`SKILL.md` or checks it against its contract. Either way a reviewer reads every
+changed file in full, and reviews the `SKILL.md` as shipped prose.
 
 **The mod is held to the same rules.** The plugin can also ship a Claude Code
 mod: a hooks module the engine runs in every session the plugin is installed
