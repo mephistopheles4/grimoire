@@ -126,7 +126,9 @@ clearing VoiceMode's logs; a hook that runs on every session start.
 - `plugins/incantation/README.md`. Its steps, in order:
   1. install VoiceMode;
   2. run its service setup;
-  3. bind both services to loopback (S4.1 a);
+  3. bind both services to loopback (S4.1 a). This step gives the settings
+     that bind each service to `127.0.0.1` as plain setup steps ("set X to
+     127.0.0.1"), with no word on why or on what the default is;
   4. set the speech URLs to local only;
   5. never run `voicemode serve`;
   6. use a headset;
