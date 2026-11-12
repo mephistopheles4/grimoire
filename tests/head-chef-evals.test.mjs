@@ -193,8 +193,8 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
     for (const phrase of old) assert.ok(!text.includes(phrase), `${f} still holds "${phrase}"`);
   }
   const rule = 'A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule.';
-  const chat = ['No ids but a decision number given as a reference', 'a decision number is never the thing to act on', "An ask writes no github.com address: the address stays on the to-do's `link`."];
-  const carried = ['"Answer carried <owner/name>: <title>"', 'ASCII letters, digits, spaces and `. _ -`', '"Answer a carried decision (decision N)"'];
+  const chat = ['No ids but a decision number given as a reference', 'Each ask names the action, and the work by repository and number', 'a decision number is never the thing to act on', 'one about a carried decision names it as its to-do does', "An ask writes no github.com address: the address stays on the to-do's `link`."];
+  const carried = ['"Answer carried <owner/name>: <title>"', 'ASCII letters, digits, spaces and `. _ -`', 'alone does not fit, the to-do is "Answer a carried decision (decision N)"'];
   for (const f of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
     const text = flat(read(f));
     assert.ok(text.includes(rule), `${f} holds the to-do rule`);

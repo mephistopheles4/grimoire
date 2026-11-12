@@ -1151,6 +1151,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   // Issue 580: a verb first, then the act and the work; a decision number alone is never a to-do.
   assert.match(ref, /starts with a verb, then names the act and the work/);
   assert.match(ref, /A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule\./);
+  assert.match(ref, /The one exception is a carried decision, which `handoff\.md` gives/);
   assert.match(ref, /Put no other facts, options, picks, reasons, commands, file names, paths, error text or quoted text in it/);
   const texts = [...ref.matchAll(/"text": "([^"]*)"/g)].map(m => m[1]);
   assert.ok(texts.length >= 2, 'the example call carries to-dos');
