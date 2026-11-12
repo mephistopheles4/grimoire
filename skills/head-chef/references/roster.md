@@ -79,7 +79,7 @@ the file itself.
   session the card's title in place of the number, as in "Approve cleaning up
   build-4". Name the repository by its name alone when a roster card holds that
   repository and no other card's repository shares the name; otherwise by
-  `owner/name`. When the line does not fit, shorten the act to its verb, then
+  `owner/name`. When the line does not fit, shorten the act to the verb of what is asked ("Merge app PR 71", "Clean up build-4"), then
   cut a card's title at a whole word; never cut the number. When the
   repository and number alone pass 50 characters, name the act and the number
   only, and let the `link` carry the repository. A to-do may end with a count
@@ -87,11 +87,8 @@ the file itself.
   from a report. Put no other facts, options, picks, reasons, commands, file
   names, paths, error text or quoted text in it; they stay in your chat
   message or on the issue. A decision id may follow in brackets as a reference
-  only, as in "(decision 32)", when it fits; when two to-dos would read the
-  same, end each with its id. A to-do that names only a decision, or points
-  only at the Decisions tab or the log, breaks the rule. A waiting entry's
-  to-do follows this rule too, and replaces another to-do for the same ask
-  under a new `id`, so a tick on the old one never hides it. The pane draws a
+  only, as in "(decision 32)", when it fits; when the to-dos of two waiting entries would read the same, end each with its id. A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule. The one exception is a carried decision, which `handoff.md` gives: "Answer carried <owner/name>: <title>", or "Answer a carried decision (decision N)" when `<owner/name>` alone does not fit. A waiting entry's
+  to-do follows this rule too, and replaces another to-do for that ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it. The pane draws a
   to-do on one line and cuts what does not fit.
 - A to-do's `session` is a card's title: give it when the step is in that
   member's chat, and the row gets an Open button when the pane can open that

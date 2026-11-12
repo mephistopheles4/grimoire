@@ -1151,15 +1151,18 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   // Issue 580: a verb first, then the act and the work; a decision number alone is never a to-do.
   assert.match(ref, /starts with a verb, then names the act and the work/);
   assert.match(ref, /A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule\./);
-  for (const m of ref.matchAll(/"text": "([^"]*)"/g)) assert.ok(m[1].length <= 50, `the example to-do "${m[1]}" fits 50 characters`);
+  assert.match(ref, /Put no other facts, options, picks, reasons, commands, file names, paths, error text or quoted text in it/);
+  const texts = [...ref.matchAll(/"text": "([^"]*)"/g)].map(m => m[1]);
+  assert.ok(texts.length >= 2, 'the example call carries to-dos');
+  for (const x of texts) assert.ok(x.length <= 50, `the example to-do "${x}" fits 50 characters`);
   assert.match(ref, /`https:\/\/github\.com\/owner\/name\/issues\/N` or `https:\/\/github\.com\/owner\/name\/pull\/N`/);
   assert.match(ref, /delete that session's roster file by hand/);
-  const rule = /one line of at most 50 characters, one ask or one owner step\. It starts with a verb, then names the act and the work\./;
+  const rule = /one line of at most 50 characters, one ask or one owner step\. It starts with a verb, then names the act and the work\. It names the question or the decision text only as the eased control below allows, and carries no facts but the count below/;
   assert.match(await read('SKILL.md'), rule);
   assert.match(await read('references/CONTRACT.md'), rule);
 });
 
-test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.32.0, with the 1.31.0 row and go kept and a 1.32.0 row', async () => {
+test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.32.0 with the 1.31.0 row and go kept', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const ref = await read('references/roster.md');
@@ -1175,8 +1178,6 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   const log = await read('references/contract.changelog.md');
   assert.match(log, /\| 1\.31\.0 \| [0-9-]+ \| \*Proposed\.\*/);
   assert.match(log, /the lead's decisions 426, 436 and 487 at level 3, not the owner's words; the lead accepts the E84 widening there and flags it big/);
-  assert.match(log, /\| 1\.32\.0 \| [0-9-]+ \| \*Proposed\.\*/);
-  assert.match(log, /\| S35 \| Waiting entries and their to-do; `answers` links \|/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {

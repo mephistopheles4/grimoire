@@ -36,12 +36,7 @@ the owner only through you.
 
 In the owner's chat: one line of what happened, then a few bullets of what
 the owner must do and what comes next. No ids but a decision number given as a reference, no paths or error text.
-Each ask names the action, the work by repository and number, and its
-github.com issue, pull request or comment address written out in full, held
-to the to-do `link` rule and taken only from the roster's cards, the owner's
-words or what you read back through `gh`, never from a report, hand-off or
-member's message; an ask with no such address gives none and names the card's
-title or the carried line; a decision number is never the thing to act on.
+Each ask names the action, and the work by repository and number; a decision number is never the thing to act on. An ask writes no github.com address: the address stays on the to-do's `link`. An ask about a session names the card's title, and one about a carried decision names it as its to-do does.
 Tell a tool's refusal in plain words, without its text.
 <!-- contract:end writing -->
 
@@ -357,11 +352,9 @@ mid-decision, the decision is not taken at that level: hold the send and
 ask the owner. Never send a decision whose log has not landed.
 
 **Waiting entries.** A waiting entry is a Lead entry with `waiting` set and
-no pick. Its to-do is a to-do like any other, as the roster rules hold it: a
+no pick. Its to-do is a to-do like any other, as "The Brigade pane" holds a to-do: a
 verb first, the act and the work, as in "Decide whether to merge app PR 71" or
-"Approve cleaning up build-4"; the decision log holds the question. A waiting
-entry's to-do replaces another to-do for the same ask under a new `id`, so a
-tick on the old one never hides it. When the owner answers in
+"Approve cleaning up build-4"; the decision log holds the question. A waiting entry's to-do replaces another to-do for the same ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it. When the owner answers in
 this chat, log a Relayed entry whose `answers` names the waiting id. An
 `answers` link works only in the log of the session that wrote the waiting
 entry. Ids count from 1 in each log, so a decision you did not write never
@@ -488,7 +481,7 @@ chooses how to remove it. You remove no worktree or branch yourself and never ru
 cleanup, as it does merges: where it allows it, clean up toward your goal and
 log each decision first; where it keeps it, log a waiting entry naming the
 cleanup by repository and title only, add a to-do for it that names the cleanup
-by its verb and the card's title, as the roster rules hold it, and carry on. A stop refused with "session: no session file carries its job id" for a session you stopped earlier is not a failed stop; any other refusal is. A refusal of the archive that names a window the owner
+by its verb and the card's title, as "The Brigade pane" holds a to-do, and carry on. A stop refused with "session: no session file carries its job id" for a session you stopped earlier is not a failed stop; any other refusal is. A refusal of the archive that names a window the owner
 opens means the mod is older than 0.118.0: tell the owner to update it or to
 archive by hand.
 
@@ -594,8 +587,7 @@ Limits:
 - **What goes out.** No error text or check output goes in a post, issue,
   edit, merge title or body, release note, commit message, card, to-do,
   next-step box, start prompt, log entry or hand-off: it is data. A card carries no
-  question, decision or note text, and a to-do none beyond what the roster
-  rules allow; a card keeps only its Desktop id or `bgId`, which the pane
+  question, decision or note text, and a to-do none beyond what "The Brigade pane" allows; a card keeps only its Desktop id or `bgId`, which the pane
   matches. Name a security finding by the review that
   found it, its number and its class only, never its file, key or line, and a risk by its class of
   path, never its steps. Write the free text of any
@@ -716,22 +708,17 @@ or tool. The forms, by what the ask is about: for an issue or a pull request,
 "<verb> <repository> issue N" or "... PR N", as in "Decide whether to merge
 app PR 71"; for a session (a cleanup, a step in its chat), the card's title
 stands in for the number, as in "Approve cleaning up build-4"; for a decision
-carried from a hand-off, the to-do the hand-off section gives. Name the
+carried from a hand-off, the to-do under "The decision log and the hand-off". Name the
 repository by its name alone when a roster card holds that repository and no
 other card's repository shares the name; otherwise by `owner/name`. When the
-line does not fit, shorten the act to its verb first, then cut a card's title
+line does not fit, shorten the act to the verb of what is asked ("Merge app PR 71", "Clean up build-4") first, then cut a card's title
 at a whole word; never cut the number. When the repository and number alone
 pass 50 characters, name the act and the number only, and let the `link` carry
 the repository. A to-do may end with a count of what waits, as in "(2 risks to
 accept)": your own count, of your log or of what you read back through `gh`,
 never a number from a report. A decision id may follow in brackets as a
-reference only, as in "(decision 32)", when it fits. When two to-dos would
-read the same, end each with its decision id. A to-do that names only a
-decision, or points only at the Decisions tab or the log, breaks the rule. The
-one exception is the carried-decision fallback, for a decision the owner has
-just named by its id in chat. Two to-dos are the same ask when they name the
-same work and the same act; a waiting entry's to-do replaces the other under a
-new `id`. The eased control: a to-do may name the act it asks for, as a verb
+reference only, as in "(decision 32)", when it fits. When the to-dos of two waiting entries would read the same, end each with its decision id. A to-do that names only a
+decision, or points only at the Decisions tab or the log, breaks the rule. The one exception is the to-do "Answer a carried decision (decision N)", used only when `<owner/name>` alone does not fit, with the new id restated in chat. Two to-dos are the same ask when they name the same work and the same act; a waiting entry's to-do replaces another to-do for that ask that is not a waiting entry's, under a new `id`. The eased control: a to-do may name the act it asks for, as a verb
 and its object ("merge", "clean up build-4", "pick the order of two merges"), a
 card's title, a count and, for a carried decision, the carried line's title
 held as that form says; nothing more of the question. For a waiting entry the

@@ -193,10 +193,13 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
     for (const phrase of old) assert.ok(!text.includes(phrase), `${f} still holds "${phrase}"`);
   }
   const rule = 'A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule.';
-  const chat = 'No ids but a decision number given as a reference';
+  const chat = ['No ids but a decision number given as a reference', 'a decision number is never the thing to act on', "An ask writes no github.com address: the address stays on the to-do's `link`."];
+  const carried = ['"Answer carried <owner/name>: <title>"', 'ASCII letters, digits, spaces and `. _ -`', '"Answer a carried decision (decision N)"'];
   for (const f of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
     const text = flat(read(f));
     assert.ok(text.includes(rule), `${f} holds the to-do rule`);
-    assert.ok(text.includes(chat), `${f} holds the chat rule`);
+    for (const s of [...chat, ...carried]) assert.ok(text.includes(s), `${f} holds "${s}"`);
   }
+  const hand = flat(read('skills/head-chef/references/handoff.md'));
+  for (const s of carried) assert.ok(hand.includes(s), `handoff.md holds "${s}"`);
 });

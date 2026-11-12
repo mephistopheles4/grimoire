@@ -842,8 +842,7 @@ section that changed it, "504" for the cut.
   no whole word of it fits, it is left out with its colon. When `<owner/name>`
   alone does not fit, the to-do is "Answer a carried decision (decision N)", N
   the new id. No other hand-off text goes in it. The lead restates the new id
-  to the owner in chat. A waiting entry's to-do replaces another to-do for
-  the same ask under a new `id`, so a tick on the old one never hides it.
+  to the owner in chat. A waiting entry's to-do replaces another to-do for the same ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it.
 - **Confirmed** (rev 4 S5, field-test finding 11). **An answer to an old
   waiting entry.** An `answers` link works only in the log of the session
   that wrote the waiting entry. Ids count from 1 in each log, so a decision
@@ -1200,20 +1199,14 @@ the card's title stands in for the number, as in "Approve cleaning up
 build-4"; for a decision carried from a hand-off, the form under "A waiting
 entry's to-do". The repository is named by its name alone when a roster card
 holds that repository and no other card's repository shares the name;
-otherwise by `owner/name`. When the line does not fit, the act is shortened to
-its verb first, then a card's title is cut at a whole word; the number is
+otherwise by `owner/name`. When the line does not fit, the act is shortened to the verb of what is asked ("Merge app PR 71", "Clean up build-4") first, then a card's title is cut at a whole word; the number is
 never cut. When the repository and number alone pass 50 characters, the to-do
 names the act and the number only, and its `link` carries the repository. A
 to-do may end with a count of what waits, as in "(2 risks to accept)": the
 lead's own count, of its log or of what it read back through `gh`, never a
 number from a report. A decision id may follow in brackets as a reference
-only, as in "(decision 32)", when it fits. When two to-dos would read the
-same, each ends with its decision id. A to-do that names only a decision, or
-points only at the Decisions tab or the log, breaks the rule. The one
-exception is the carried-decision fallback, for a decision the owner has just
-named by its id in chat. Two to-dos are the same ask when they name the same
-work and the same act; a waiting entry's to-do replaces the other under a new
-`id`.
+only, as in "(decision 32)", when it fits. When the to-dos of two waiting entries would read the same, each ends with its decision id. A to-do that names only a decision, or
+points only at the Decisions tab or the log, breaks the rule. The one exception is the to-do "Answer a carried decision (decision N)", used only when `<owner/name>` alone does not fit, with the new id restated in chat. Two to-dos are the same ask when they name the same work and the same act; a waiting entry's to-do replaces another to-do for that ask that is not a waiting entry's, under a new `id`.
 
 **The eased control** (**Proposed**, issue 580, spec rev 4 S2.4): a to-do may
 name the act it asks for, as a verb and its object ("merge", "clean up
@@ -1269,14 +1262,7 @@ the lead as a relayed decision, labelled as relayed. Issue 503 (decision
 **How it writes** (**Confirmed**; the ask rule *Proposed*, issue 580, spec rev 4
 S3): in the owner's chat, one line of what
 happened, then a few bullets of what the owner must do and what comes next.
-No ids but a decision number given as a reference, no paths or error text.
-Each ask names the action, the work by repository and number, and its
-github.com issue, pull request or comment address written out in full, held
-to the to-do `link` rule and taken only from the roster's cards, the owner's
-words or what the lead read back through `gh`, never from a report, hand-off
-or member's message; an ask with no such address gives none and names the
-card's title or the carried line; a decision number is never the thing to act
-on. A tool's refusal is told in plain words, without its text.
+No ids but a decision number given as a reference, no paths or error text. Each ask names the action, and the work by repository and number; a decision number is never the thing to act on. An ask writes no github.com address: the address stays on the to-do's `link`. An ask about a session names the card's title, and one about a carried decision names it as its to-do does. A tool's refusal is told in plain words, without its text.
 
 ## open
 
