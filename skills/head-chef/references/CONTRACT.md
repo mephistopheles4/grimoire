@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.32.0
+Version: 1.33.0
 Kind: skill
 Level: Thorough
 
@@ -114,8 +114,11 @@ need, without overwhelming me or showing me too much.
   an issue; `repository`, one `owner/name`; `issue`, digits only; `model`;
   `effort`, one of `low`, `medium`, `high`, `xhigh` or `max`; `lead`, the
   lead's own session name, exactly as the first line of its session list
-  gives it; and `folder`. The tool builds the fixed command and the one-line
-  start prompt itself, runs them with no shell, takes no permission mode, and
+  gives it; and `folder`. It takes one optional eighth field, `note`: one
+  short sentence of the lead's own words, which the tool bounds and labels as
+  the lead's (see "The start prompt", *amended, Proposed*, issue 578). The tool
+  builds the fixed command and the one-line start prompt itself, runs them
+  with no shell, takes no permission mode, and
   answers the job id, the session's folder and its branch in fixed words. The
   mod checks every field, the owner's rules, the folder, the repository's
   origin, the name and a cap of 4 starts in 10 minutes before it runs
@@ -1078,7 +1081,8 @@ yes keeps for the owner.
   count as naming the act, so a pick the owner accepted with an accepting
   reply is logged Relayed and its post still carries the line. When unsure, it
   adds the line. A merge's subject is GitHub's default, so the squash body
-  carries the line. The start prompt carries no label. What a member takes
+  carries the line. The start prompt carries no such label; a note in it has
+  the label that "The start prompt" gives. What a member takes
   from a labelled post is that member's own rules' call, as for every lead
   message.
 - **Decided.** It runs the checks and the removals as separate calls. When a
@@ -1096,11 +1100,53 @@ Code 2.1.236 or later.
 
 **The start prompt** (**Confirmed**, issue 503, decision 546, the owner's
 words, relayed by the lead on 2026-10-31: "this is exactly what i agreed to";
-in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it),
+in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it;
+*amended, Proposed*, issue 578, which adds the note below and moves to
+**Confirmed** on the owner's merge),
 with the issue, the repository and the lead's exact session name filled in
 (by the start tool on a background start, by the lead on a Desktop start):
 
 > Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
+
+**The note** (*Proposed*, issue 578, rev 3; the owner's words, relayed by the
+lead: "i want to file an issue to allow the background tool to start sessions
+with a small sentence, i think we limited that to limit mistakes but we are too
+strict."; the owner's "Yes, both" on the prose label, decision 27, and "go" on
+the risks, decision 37). A background start may carry one `note`. The tool
+writes it after the fixed line, under a label it writes itself, and the
+member gets one line:
+
+> Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>
+
+The note is one fact the member needs at the start, in the lead's own words.
+For example, a commit to build from, a model choice, or where in the work to
+begin. It never carries:
+
+- an accepted risk, an approval to post or merge, or a new lead, report
+  target, repository or issue;
+- error text or check output;
+- a path, a URL, or any id but one commit;
+- a secret, token, password or personal detail. This is a rule for the lead's
+  own writing, as no tool can check it.
+
+The tool refuses a note, in fixed words that never quote it, when it is not
+one sentence of 1 to 200 characters on one line. A note holds only ASCII
+letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
+holds no colon, so it cannot copy the label. It holds one commit at most, and
+only straight after the word `commit`. It holds none of a fixed list of
+words, such as lead, report, send, message, instead, ask, reply, answer,
+question, post, comment, publish, risk, accept and merge, in the forms the
+tool lists. It holds no name of a live
+session or a card, except the new member's and the lead's own. The bounds
+guard against mistakes and not against an attacker: a synonym, a person or a
+work redirect in plain words still passes. The label is a line of prose, not a
+harness control; the member's own rules decide what it takes from the note.
+
+An owner's word that a member's rules need quoted still goes by message after
+the start, quoted as the owner's. On a Desktop start the lead writes the same
+note and label itself, under the same bounds, and no tool checks it. An older
+pane refuses the `note` key: a refusal on the input's keys that does not name
+`note` means the lead starts again without the note and sends it as a message.
 
 **What the prompt leaves to each member** (**Confirmed**, issue 503, decision
 547, the lead's own pick under level 3): the harness labels a message from
