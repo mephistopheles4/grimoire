@@ -64,7 +64,6 @@ import { CHANGED as QUICK_CHANGED, DRAFT as QUICK_DRAFT, FILL_FAILED as QUICK_FI
 import {
   CAP_REASON,
   DESCRIPTION as START_DESCRIPTION,
-  FOLDERS_REPLIES,
   NOT_MAIN,
   NOT_READ,
   NOT_STARTED,
@@ -74,18 +73,11 @@ import {
   capRecord,
   checkInputs,
   folderSpelling,
-  foldersAdd,
-  foldersList,
-  foldersRemove,
-  isFoldersCommand,
-  isNetworkPath,
-  listed,
   mainCheckout,
   nameFresh,
   noteNames,
   originArgv,
   originMatch,
-  parseFolders,
   resolveProgram,
   samePath,
   startAnswer,
@@ -2934,11 +2926,11 @@ async function stopBackground($: EngineInterface, e: Record<string, unknown>, or
 }
 // end stopBackground
 
-// --- the start tool and the owner's folder list (issue 543; spec rev 4) ---------------
+// --- the start tool (issue 543; spec rev 4; issue 579) -------------------------------
 //
 // brigade/start.ts holds the rules; this is the wiring. The tool starts one
-// background member with a fixed command, in a main checkout the owner listed
-// with the typed command `/brigade folders add`. It writes no file, no store
+// background member with a fixed command, in a main checkout of the repository,
+// which the harness's folder trust refuses unless the owner trusted it. It writes no file, no store
 // key and no card: the lead writes the card with set_roster. Its runs go
 // through their own queue, so a start that takes a minute holds no roster write.
 
@@ -2959,7 +2951,6 @@ const START_SCHEMA = {
     note: field(200),
   },
 }
-const FOLDERS_KEY = 'startFolders'
 const START_CAUGHT = {
   deny: 'start_background_session refused: error: the tool failed or ran out of time. It may or may not have started: tell the owner, who can check `claude agents`, and retry nothing.',
 }
@@ -2977,14 +2968,6 @@ function startTurn<T>(work: () => Promise<T>): Promise<T> {
   starting = run.catch(() => undefined)
   return run
 }
-// The owner's list is changed one command at a time.
-let foldering: Promise<unknown> = Promise.resolve()
-function folderTurn<T>(work: () => Promise<T>): Promise<T> {
-  const run = foldering.then(work, work)
-  foldering = run.catch(() => undefined)
-  return run
-}
-
 // Windows by its environment, as the pane's host rule has it; else a POSIX path style.
 async function hostPlatform($: EngineInterface): Promise<Platform> {
   const win = windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))
@@ -2998,15 +2981,15 @@ const parentOf = (path: string): string | undefined => {
 
 // S4 steps 2 and 3, the first reads that touch the folder: it is a directory with no
 // link or alias between the string and it, `.git` there is a directory, and no
-// directory above holds a `.git`. The reply is a key of FOLDERS_REPLIES.
-type CheckoutReply = 'network' | 'notCanonical' | 'notDirectory' | 'notMain' | 'unreadable'
+// directory above holds a `.git`. The caller has already checked the spelling, so
+// no file-system call sees a folder spelled as a network or badly spelled path; a link
+// or mapped drive on the way can still reach a share.
+type CheckoutReply = 'notMain' | 'unreadable'
 async function checkoutFacts($: EngineInterface, folder: string, platform: Platform): Promise<{ resolved: string } | { reply: CheckoutReply }> {
-  if (isNetworkPath(folder)) return { reply: 'network' }
-  if ('why' in folderSpelling(folder, platform)) return { reply: 'notCanonical' }
   const dir = await statPath($, folder)
   if ('failed' in dir) return { reply: 'unreadable' }
-  if ('missing' in dir || dir.found.kind !== 'dir') return { reply: 'notDirectory' }
-  if (dir.found.realPath === undefined || !samePath(dir.found.realPath, folder, platform)) return { reply: 'notCanonical' }
+  if ('missing' in dir || dir.found.kind !== 'dir') return { reply: 'notMain' }
+  if (dir.found.realPath === undefined || !samePath(dir.found.realPath, folder, platform)) return { reply: 'notMain' }
   const sep = platform === 'win32' ? '\\' : '/'
   const git = await statPath($, `${folder}${sep}.git`)
   if ('failed' in git) return { reply: 'unreadable' }
@@ -3112,18 +3095,10 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
   // (1) the cap
   const now = await $.clock.now()
   if (!capOpen(startTimes, now)) return { deny: `start_background_session refused: ${CAP_REASON}` }
-  // (2) the owner's list and the folder's spelling: strings only, no file system.
+  // (2) the host's platform and the folder's spelling: strings only, no file system.
   const platform = await hostPlatform($)
-  let stored: unknown
-  try {
-    stored = await $.store.get(FOLDERS_KEY)
-  } catch {
-    stored = undefined
-  }
   const spelled = folderSpelling(i.folder, platform)
   if ('why' in spelled) return refuseStart(spelled.why)
-  const onList = listed(i.folder, stored, platform)
-  if ('why' in onList) return refuseStart(onList.why)
   // (3) the first reads under the folder
   const facts = await checkoutFacts($, i.folder, platform)
   if ('reply' in facts) return refuseStart(facts.reply === 'unreadable' ? NOT_READ : NOT_MAIN)
@@ -3165,40 +3140,14 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
 }
 // end startBackground
 
-// The owner's `/brigade folders` command: the origin gate first, before anything of
-// the arguments beyond the word `folders` is read. It never calls the hooks beneath,
-// and a throw answers one fixed line with no argument and no error text.
-async function foldersCommand($: EngineInterface, origin: unknown, args: string): Promise<string> {
+// The folder list's old key (issue 579): the start never reads it. It is deleted once, only
+// when present, so a load with no key writes nothing; a throw leaves it where it was.
+// A later version can remove this line once the owner's installs have run it.
+async function clearOldFolders($: EngineInterface): Promise<void> {
   try {
-    if (!levelOriginAllowed(origin)) return FOLDERS_REPLIES.notTyped
-    const call = parseFolders(args)
-    if ('reply' in call) return call.reply
-    const platform = await hostPlatform($)
-    return await folderTurn(async () => {
-      let stored: unknown
-      try {
-        stored = await $.store.get(FOLDERS_KEY)
-      } catch {
-        return FOLDERS_REPLIES.unreadable
-      }
-      const list = stored === undefined ? [] : stored
-      if (call.action === 'list') {
-        const home = (platform === 'win32' ? await $.env.get('USERPROFILE') : await $.env.get('HOME')) ?? ''
-        return foldersList(list, typeof home === 'string' ? home : '')
-      }
-      if (call.action === 'remove') {
-        const removed = foldersRemove(list, call.path, platform)
-        if ('list' in removed) await $.store.set(FOLDERS_KEY, removed.list)
-        return removed.reply
-      }
-      const facts = await checkoutFacts($, call.path, platform)
-      if ('reply' in facts) return facts.reply === 'unreadable' ? FOLDERS_REPLIES.unreadable : FOLDERS_REPLIES[facts.reply]
-      const added = foldersAdd(list, facts.resolved, platform)
-      if ('list' in added) await $.store.set(FOLDERS_KEY, added.list)
-      return added.reply
-    })
+    if ((await $.store.get('startFolders')) !== undefined) await $.store.delete('startFolders')
   } catch {
-    return FOLDERS_REPLIES.failed
+    // The key stays; nothing reads it.
   }
 }
 
@@ -3360,11 +3309,12 @@ export const register: Register = on => {
     await $.command.register({
       name: 'brigade',
       description:
-        'Show the Brigade pane: the sessions this lead session started. /brigade level 1, 2 or 3 with a goal sets the autonomy level. /brigade folders add, remove or list a path keeps the checkouts a background start may use.',
+        'Show the Brigade pane: the sessions this lead session started. /brigade level 1, 2 or 3 with a goal sets the autonomy level.',
     })
     // The permission warning's tool, offered in every session: the head chef
     // calls it before its first launch, with or without the pane.
     await warningStart($)
+    await clearOldFolders($)
     // A module reload resets a stored level above 1 to 1, with a Pane entry,
     // before any read starts. What the module knew of the level
     // starts over, as it does in a reload's fresh module.
@@ -3453,10 +3403,6 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'brigade' }, async ($, e, next) => {
-    // `/brigade folders ...` is the owner's list of checkouts (issue 543): its
-    // first word alone sends it here, before the pane path and before any hook
-    // beneath sees the arguments.
-    if (isFoldersCommand(e.args)) return { text: await foldersCommand($, e.origin, e.args) }
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
     if (isLevelCommand(e.args)) {
@@ -3517,7 +3463,6 @@ export const register: Register = on => {
     // being logged, so a 3 never lands after "Not set"; any other args go on
     // as they did before this handler.
   }).catch(($, e, next) => {
-    if (isFoldersCommand(e.args)) return { text: FOLDERS_REPLIES.failed }
     if (!isLevelCommand(e.args)) return next(e)
     commandsVoided++
     return { text: LEVEL_REPLIES.failed }
