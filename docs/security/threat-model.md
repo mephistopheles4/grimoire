@@ -3,16 +3,17 @@
 This page lists the risks worth planning for, what stops each one today, and
 what still gets through. [`SECURITY.md`](../../SECURITY.md) is the summary.
 
-Four reference pages hold the detail, and they are part of this threat model:
+Five reference pages hold the detail, and they are part of this threat model:
 [`brigade.md`](brigade.md), [`checks.md`](checks.md),
-[`rendering.md`](rendering.md) and [`hiring-interview.md`](hiring-interview.md).
+[`rendering.md`](rendering.md), [`hiring-interview.md`](hiring-interview.md)
+and [`live.md`](live.md).
 A control any of them names is named by the threat model. Two older pages,
 [`scanners.md`](scanners.md) and [`edge-audit.md`](edge-audit.md), hold
 detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
 `4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C13, K1 and K2 are
-[accepted classes](#accepted-risks-by-class); P0 to P10 are
+[accepted classes](#accepted-risks-by-class); P0 to P11 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
 
@@ -57,6 +58,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | – | **Rows 11 and 12.** Box text skews the audit's reread order; a provider keeps audit text. | 0.18, 0.52 | 0.30, 0.20 | 11, 12 | Accepted as [K1](#k1) and [C7](#c7). | – | [Row 11](checks.md#row-11), [row 12](checks.md#row-12) |
 | <a id="r11"></a>R11 | **Skill under test.** It reaches past its practice run. | 0.15 | 0.80 | 14 | Hygiene, not a boundary: a tight posture, a scrubbed environment, and backups of the owner's live places. | What the posture does not stop. | [Row 14](checks.md#row-14) |
 | <a id="r12"></a>R12 | **Local check run.** An athanor run hands the check's files to the Docker engine, and its build fetches with network. | 0.20 | 0.45 | – | The run has no network. The build folder is held to `tests/container/`, and the base image and Claude Code are pinned by hash. | The build runs before the check on an unread branch, with the registry login and proxy passwords. git in the image is unpinned ([C13](#c13)). Unencrypted copies stay in athanor's state folder and in a killed run's container, which every account with engine access can read. | [Row 20](checks.md#row-20) |
+| <a id="r13"></a>R13 | **Live mode hears the room.** *Proposed (issue 208); not in force until the owner names it.* A skill that records the microphone while a listener runs and turns what it hears into the session's next message. Anyone or anything audible can speak to it, and every spoken line is kept by the speech tool. | – | – | – | The skill's typed turn-on, its read-back before any act that is hard to reverse, a rule that heard text is never the person's typed words, a chain limit of three heard turns kept in the script, and a recorder pinned at turn-on from drive folders only. | Speech has no speaker identity, and a spoken confirm is allowed. The speech tool has no credential and keeps every line and its audio with no expiry. A clip stays until a later command removes it. The recorder is trusted by path, not by who can write its folder. Candidate P11. | [live.md](live.md) |
 
 - **Scale.** L is likelihood and I is impact, both residual risk after
   today's guards, from 0 to 1. Likelihood is how easy and how often the attack
@@ -66,6 +68,9 @@ The chart places each top risk by how likely it is and how much harm it does onc
   likelihood and the highest impact among them, per axis.
 - **R10** is unscored, because old row 19 had no point on the chart.
 - **R12** is new (issue 366), not an old row; its scores are the lead's.
+- **R13** is proposed (issue 208), unscored and left off the chart. The owner
+  scores it, or drops it, when naming candidate P11. It is not in "Who is in
+  scope" or in the accepted classes.
 - **On the chart,** R7 is drawn a step off R6 so both labels can be read; they
   share row 15's score.
 - **Rows 11 and 12** went to [K1](#k1) and [C7](#c7), and are left off the
@@ -312,10 +317,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 65 candidate lines in ten groups, P0 to P9. None of these is in force.
+There are 65 candidate lines in ten groups, P0 to P9, and P10's one line and P11's nine (issue 208) after them. None of these is in force.
 
 <details>
-<summary>Candidates (65 lines)</summary>
+<summary>Candidates (65 lines, then P10 and P11)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -418,6 +423,20 @@ Issue 438: the lead accepted P5 items 10 and 11 at level 3 on 2026-11-08 (decisi
 Issue 578: a start's note sits in the member's own first user turn behind a prose label, and a member may take it as the owner's word. It would widen C5. Accepted by the owner's "Yes, both" (q5), relayed by the lead, decision 27. On merge it moves into the accepted entries as an E row on row 16, in the E-row form.
 
 **P10. Package-manager settings files nothing here reads (issue 366).** Rule 6 refuses `.npmrc` and `.yarnrc.yml`, but not `.yarnrc` (Yarn 1), `.pnpmfile.cjs`, `bunfig.toml` or `.env`. Nothing in this repository or its CI runs Yarn, pnpm or Bun. Claude Code is a Bun-built executable, which by Bun's default can load a `bunfig.toml` and a `.env` from its working folder: on 2026-11-08 Claude Code 2.1.319 on Windows did not run a `bunfig.toml` preload; the pinned 2.1.314 on Linux, and `.env`, were not measured. If Claude Code reads a `.env` from its working folder, a branch's file would set a session's start-up environment. Worded by the lead (decision 406); waits for the owner's word.
+
+**P11. Live mode (issue 208, proposed risk R13).** Detail, probe record and controls: [`live.md`](live.md). Each line gives the class it would join or widen. None is accepted, and this issue merges nothing, so each stays a candidate until the owner names it. "Live K" ids are the live spec's control numbers.
+
+- **P11.1, the new actor.** Anyone or anything audible while a listener runs. It reaches the session's next messages, up to the chain limit, and every act a spoken confirm can approve; it hears every spoken line. The room supplies both the request and the confirm. The chain limit holds only while the agent keeps the rule that a reset needs a typed message: `reset`, `off` then `on`, and `on --take` each clear the count on the token alone, and the token is printed in every reminder line. A new actor, outside "Who is in scope"; the owner names it, or it stays out. Proposed, for the owner's word. The clip at rest is a separate line, P11.5.
+- **P11.2, no speaker identity.** The gate hears energy, not a person, and a spoken confirm is allowed (live K6). Widens C4 and C5.
+- **P11.3, forged transcripts and a squatted port.** A swapped clip, or a program on the speech tool's port while the tool is down, can forge text, and receives the spoken lines and each clip. The probe found the port takes any caller with no credential. `lock.json` is listed here: a same-user program can rewrite it. Touches C4, C7 and C11.
+- **P11.4, the speech tool's history.** Any process on this machine that can reach the port can read it, since no route needs a credential. It binds loopback by default, so the LAN cannot, unless the server is started with another host. A cross-site request cannot reach it; a DNS-rebinding page could, because no route checks Host (inferred, not tried). It holds each spoken line's text and audio with no expiry. A transcription through the MCP tool leaves nothing. A widening of C7. The lead re-accepted the history risk for the spec, on its widened wording (spec D11); this wording is newer, and the owner has not named it.
+- **P11.5, the clip at rest.** Unencrypted in the per-user temp folder until it is cleared, or until any later live command runs five minutes or more after it was written; with no later command it stays. A widening of C7. Proposed as an accepted-risk entry, for the owner's word.
+- **P11.6, bystander speech.** It reaches the provider, the transcript, Remote Control and local decision records. Widens C6, C7, C12 and P6.
+- **P11.7, identifiers and device names.** The clip path and the recorder folder carry the account name into the chat, the provider, the transcript and Remote Control; the session needs the clip's absolute path. A device's friendly name, set by a USB maker or a paired Bluetooth device, reaches the chat as text (control characters stripped, 128 characters at most) and can name a person. Widens C7 and C1.
+- **P11.8, an unverifiable setup.** The skill cannot check that the speech engine is local or that its server binds loopback only. Widens C7.
+- **P11.9, a planted PATH and a writable recorder folder.** Another account on a shared host can create a missing PATH folder that comes before the recorder's, or write to an existing one that does. The recorder's own folder can also be writable by others (a drive-root folder, a synced folder); the pin checks the path, not the content. A new class, outside C11.
+
+Not a risk line, and waiting for the owner's word: decision 66 accepted prompt injection as a threat class for this skill (spec D17), and the threat model has no such class. Its C1 says prompt injection in general is not accepted. Until the owner names one, the skill's read-back and its typed-words rule are controls with no accepted class behind them.
 
 </details>
 
@@ -683,6 +702,15 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the base image pinned by digest; the Claude Code tarball held to its sha512 ([row 20](checks.md#row-20))
 - athanor's refusal of an engine not on this machine unless `allowRemoteDocker` is set ([row 20](checks.md#row-20))
 - `CONTRIBUTING.md`'s "Run the check in a container": use the local engine, checked by `DOCKER_HOST` and `docker context inspect`; keep secrets out of tracked files; read a branch's container files first ([row 20](checks.md#row-20))
+
+#### R13. Live mode hears the room (proposed, issue 208)
+
+- the skill starts only on the person's typed turn-on, and a session without the lock never speaks or listens ([live.md](live.md))
+- heard text is never the person's typed words, and a read-back with no affirmative word comes before any act that is hard to reverse ([live.md](live.md), K1)
+- the chain limit of three heard turns, kept in the script ([live.md](live.md), K1)
+- no heard text or device name is ever an argument, and the recorder runs with no shell ([live.md](live.md), K2)
+- the state folder is the per-user temp folder under home, refused if a link or outside home; every command removes clips older than five minutes ([live.md](live.md), K4)
+- the recorder is searched only in fully qualified drive folders, followed to a drive real path, pinned at turn-on and compared at each listen ([live.md](live.md), K7)
 
 #### Old row 11 (class K1)
 

@@ -246,7 +246,7 @@ Anything else prints `LIVE error argument` or `LIVE error token`, and starts no 
 - **Too short:** a turn with under 0.4 s voiced is discarded.
 - **Too long:** a turn is cut at 30 s.
 
-**The clip.** Each listen writes a fresh `clip-<random>.wav`. Only the latest clip exists. `clear`, `off`, `on` (after the lock) and the next `listen` (after the token check) delete it.
+**The clip.** Each listen writes a fresh `clip-<random>.wav`. Only the latest clip exists. `clear`, `off`, `on` (after the lock) and the next `listen` (after the token check) delete it. Every command also removes clips older than five minutes, as built in T2; a fresh clip stays.
 
 ## S7. Security controls
 
@@ -255,7 +255,7 @@ Anything else prints `LIVE error argument` or `LIVE error token`, and starts no 
 | K1 | Words from the room reach the session. | The rules: D17, the typed-message definition, and the read-back covering hard-to-reverse acts and reserved decisions, with no affirmative word spoken. The binding: the yes is tied to the task id. The cancel cases: any later seam, a timeout or a compaction. The limit: the chain limit, enforced in the script. Residual: a spoken confirm from the room (K6). |
 | K2 | Heard text or a device name reaches a shell. | No transcript is ever an argument. The device is chosen by a typed index against a stamped list, and pinned by id. Every argument is range- or character-checked. There is no shell. |
 | K3 | Two sessions speak or listen at once. | The token lock, with exclusive create. A take-over stops the old listener. This is cooperation, not a security control. |
-| K4 | Another account reads the clip. | The per-user temp folder's access rules, with canonical path checks. A link or junction is refused. Each clip is cleared after every transcribe, whatever the result. If a session ends without `off`, the clip stays until the next `on`. |
+| K4 | Another account reads the clip. | The per-user temp folder's access rules, with canonical path checks. A link or junction is refused. Each clip is cleared after every transcribe, whatever the result. If a session ends without `off`, the clip stays until a later live command runs five minutes or more after it was written, and for good if none does. |
 | K5 | The speech tool keeps text, and maybe audio. | The never-spoken list. The read-back speaks only the act and its target. The README's loopback check. A candidate risk (S8). |
 | K6 | A spoken confirm comes from the room. | The owner allowed a spoken yes. A candidate risk (S8). |
 | K7 | Another program runs as the recorder. | Only fully qualified drive folders on PATH are searched. The path is pinned at `on` and checked again at each `listen`. The folder is shown to the person. There is no config file. A planted environment or PATH falls under R7, R10 and C11. Residual: another account on a shared host that can create a missing folder listed early on PATH (S8). |
@@ -276,7 +276,7 @@ T3 adds a candidate entry under "Candidates for the owner's word", and proposes 
    - **Who can read it:** any local account, and the LAN if the server binds beyond loopback.
    - **What it holds:** text, and audio if the tool keeps it.
    - **Browser pages:** whether a page can reach it is answered by T3's probe.
-5. **The clip at rest:** unencrypted in the per-user temp folder until it is cleared, or until the next `on` after an abnormal end.
+5. **The clip at rest:** unencrypted in the per-user temp folder until it is cleared, or until a later live command runs five minutes or more after it was written. If none ever does, it stays.
 6. **Bystander speech:** it reaches the provider, the transcript, Remote Control, and local decision records. This widens C6, C7, C12 and P6.
 7. **Identifiers:** the clip path names the account, and device names may name a person.
 8. **Unverifiable setup:** the skill cannot check that the speech engine is local (K8).
