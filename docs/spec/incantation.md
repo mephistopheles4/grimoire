@@ -1,6 +1,6 @@
 # Incantation: the spec
 
-Draft 1.4, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
+Draft 1.5, for issue #208, at Standard tier through 1.1 and Thorough from 1.2. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
 fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
@@ -124,8 +124,10 @@ replaced once the spec is approved.
    shows the same words in chat, and asks yes or no. It acts only on a yes;
    anything else it treats as a new request. A heard yes counts only when it
    is the whole of a turn marked as begun after that say-back finished
-   playing (S4.3), delivered after the request; a yes in the same turn or
-   the same delivery as its request is a new request.
+   playing (S4.3), delivered after the request, with the say-back the
+   session's last speech before that turn; a yes in the same turn or the
+   same delivery as its request is a new request, and any other speech
+   after a say-back voids it (S4.4).
    - **Spoken yes:** enough for everything except the next item.
    - **Typed yes only:** needed for acts that are hard to reverse (merge, push,
      delete, publish, send, install, a settings change), for running a command
@@ -145,7 +147,9 @@ replaced once the spec is approved.
    - A heard turn whose whole text is "stop" or "that's all" (case and
      punctuation ignored), or a typed message, ends the loop with a short
      goodbye and runs `listen.mjs stop`, except a typed reply to a pending
-     typed-yes request: that is the answer, and the loop goes on. Heard
+     typed-yes request that was the last thing the session asked, or to a
+     pending "are you there?" (S4.4): that is the answer, and the loop goes
+     on. Heard
      "wait" only halts (S4.3).
    - 30 minutes with no heard turn ends the loop the same way: the listener
      stops itself, and the session prints `Stopped listening.`
@@ -353,10 +357,12 @@ speaking.
   on its stdout. It watches playback with `pactl`. Both come from
   `pulseaudio-utils` (README step 1).
 - **The programs it runs.** Only `/usr/bin/parec` and `/usr/bin/pactl`. Each
-  path, and every link on the way to its target, must be owned by root and
-  writable by no group or other account, and the final target must sit in
-  `/usr/bin`, whatever its name (on common distributions `parec` is a link
-  to a sibling program there). Otherwise it fails closed with a fixed line. Each runs by that
+  link on the way to the target must be owned by root and sit in a folder
+  owned by root and writable by no group or other account (a link has no
+  mode of its own); the final target must sit in `/usr/bin`, whatever its
+  name (on common distributions `parec` is a link to a sibling program
+  there), and be owned by root and writable by no group or other account.
+  Otherwise it fails closed with a fixed line. Each runs by that
   path, with no shell, from `~/.incantation/run/`, with this environment and
   nothing else: `HOME`, `LANG=C`, and `PULSE_SERVER=unix:/mnt/wslg/PulseServer`.
 - **Inputs.** Like the proxy, it reads its settings only from
@@ -451,8 +457,9 @@ session is idle or working, so heard text arrives with no hook (S3). `wait`
 also ends after 10 minutes with `quiet`; the skill starts the next `wait` and
 says nothing. After each delivery, the skill's first act is to start the
 next `wait`. The listener holds deliveries to at most 4 a minute, keeping
-further turns queued for the next delivery, but never holds a turn marked
-"after reply" or a whole turn of "stop", "that's all" or "wait". Any exit of the
+further turns queued for the next delivery, but never holds a whole turn of
+"stop", "that's all" or "wait", or the first turn marked "after reply" after
+each playback; later marked turns count toward the cap. Any exit of the
 listener reaches the running `wait` as `listener error <reason>`.
 
 **Only its own task counts.** A heard turn is only what the skill's own
@@ -506,41 +513,84 @@ session, the model replies, and the reply starts to play.
 The owner's speech policy (2026-11-12, relayed by the lead; decision on
 #208): "I want it to only speak to the human when something requires the
 human's attention." It is judgment, not fixed rules, and it is the main thing
-the practice runs tune.
+the practice runs tune. Its shape follows the lead's research on #208: a
+scored gate, holding a message to a natural break, a one-sentence default,
+and an addressee check. No new model or classifier is in this change; the
+session itself judges.
 
-- **Speak only when it needs the person.** Before speaking, the session asks
-  itself whether there is something here the person must act on, decide or
-  know now. If not, it stays quiet: a heard turn that holds nothing for it
-  (talk not meant for it, a remark, room noise) is shown in chat as `Heard`
-  and gets no speech and no say-back. Finished work with nothing to decide
-  waits until the person asks, or until the next time it must speak anyway.
-- **Conversational and sized.** What it says is a short, easy summary, sized
-  to how much the person wants to hear. When the person asks for more or
-  less ("just the gist", "tell me everything"), it keeps to that until told
-  otherwise. Detail goes to chat.
-- **Check before a long message after a pause.** When the session has been
-  quiet for longer than the pause threshold and is about to say more than a
-  sentence, it first asks, briefly and casually, whether the person is there
-  and free ("Hey, are you there?"), and waits for a heard or typed answer.
-  With no answer, it does not speak the message; it leaves it in chat and
-  says it when the person next speaks. The threshold grows with how long
-  work has run quietly, since long silences during work are normal.
-- **The yes rules hold.** An answer to "are you there?" is heard speech like
-  any other (S4 steps 4 and 5): it only means the person is listening. It is
-  never a yes to an act, and the next say-back still needs its own yes.
-- **One place to tune.** Every number and phrase this section uses lives in
-  one file, `plugins/incantation/skills/incantation/references/tuning.md`:
-  the pause threshold and how it grows, the one-sentence limit before a
-  check, the summary length, the delivery cap, the mute notice delay, and
-  the example phrases. Changing them needs no spec change. Each value there
-  is a starting point, marked as such.
-- **What the practice runs measure,** each reported, not pass or fail:
+- **Fixed rules come first.** S4 steps 4 to 6 are never subject to this
+  section's judgment. A whole turn of "stop", "that's all" or "wait" always
+  does what step 6 says, a say-back and a typed-yes request are always
+  spoken, and errors are always shown.
+- **Is it for me?** Each heard turn first gets an addressee check: is it
+  aimed at the session? Talk between people, a remark, media or room noise
+  is shown in chat as `Heard` and gets no speech, no say-back and no act.
+  Short backchannels ("mhm", "okay", "right") while it speaks or works are
+  not requests and not interruptions.
+- **The speak gate.** Each thing the session might say unasked is a
+  candidate, with an urgency and, where it has one, a deadline. It speaks
+  only for a result that is ready and needed, a decision or permission it
+  needs, a real risk, or a definite failure, and only when the candidate
+  scores over the gate. The person turns the gate with their words: "quieter"
+  raises it, "tell me more" lowers it, until told otherwise in that session.
+  Finished work with nothing to decide waits for the person to ask.
+- **When.** A candidate that passes waits for a natural break (a build or
+  test ends, a commit lands, the person stops talking), but never past its
+  deadline.
+- **How much.** One sentence by default, rewritten fresh for speech, with
+  each clause kept only if dropping it would lose something the person
+  needs. Detail goes to chat. "Just the gist" or "tell me everything" sets
+  the length for that session. Step 3's never-speak list holds at every
+  length.
+- **After a long quiet.** When the session has been quiet longer than the
+  pause threshold and has a pending item longer than a sentence, it first
+  asks, briefly ("Hey, are you there?"), and waits for a heard or typed
+  answer, then re-raises only what is still pending, never status. With no
+  answer within the wait, it leaves the item in chat and says it when next
+  addressed. Nothing pending, no check. An answer means someone audible
+  spoke, not that it is the person.
+- **Never over a pending yes.** While a say-back or a typed-yes request waits
+  for its answer, the session never asks "are you there?"; it says that
+  request again instead, which is one sentence. Any other speech after a
+  say-back voids it: the session says the request back again before acting
+  (S4 step 4).
+- **One place to tune.** The gate's starting score, how the dial moves it,
+  the pause threshold and how it grows with quiet work, the wait for an
+  answer, the one-sentence limit, the backchannel words and the example
+  phrases live in one file,
+  `plugins/incantation/skills/incantation/references/tuning.md`, each marked
+  as a starting point. Changing them needs no spec change. The file never
+  holds the yes rules, the typed-yes list, the stop words, step 3's
+  never-speak list, or any listener setting (the mark, the tail, the cap,
+  the mute notice, the time limits), which stay fixed where S4 and S4.3 set
+  them. No session writes it during a run, and it holds no heard text and no
+  stated preference.
+- **Observe-only mode.** `/incantation observe` runs the same loop, but every
+  candidate the gate weighs is logged instead of spoken unasked; say-backs,
+  typed-yes requests, answers the person asked for and errors are still
+  spoken. Each log line holds the time, the candidate's kind, urgency, score
+  and length, whether it would have been spoken, and an empty field for the
+  person's reaction, which the person may fill later. The log is the eval set
+  for tuning.
+  - It is written by `node <skill base>/scripts/observe.mjs add`, one JSON line
+    on stdin, to `~/.incantation/observe/`, in a 0700 folder with 0600 files,
+    one file a day; `observe.mjs` drops files older than 30 days each time it
+    runs.
+  - A line holds the session's own candidate words, never heard text. Since
+    candidates can echo what was heard, the log is personal data: it stays on
+    the machine, is never posted or put in the record, and README step 7
+    says where it is and how to delete it.
+  - `observe.mjs` gets the same permission prompt as any command; an allow
+    rule for exactly `node <skill base>/scripts/observe.mjs add`, like O19's,
+    is the owner's step (O20).
+- **What the practice runs measure,** as counts only, each reported, not pass
+  or fail; the record quotes no heard or spoken turn:
   - unneeded speech: spoken turns the person did not need, as the person
     marks them;
-  - missed attention: moments the person needed to hear something and the
-    session stayed quiet;
-  - length against what was wanted: turns the person cut short or asked to
-    expand.
+  - missed attention: needed items left unsaid past their deadline;
+  - length against what was wanted: turns cut short or asked to expand;
+  - backchannels taken as requests, and requests missed as backchannels;
+  - the person's own annoyance rating, 1 to 5, per run.
 
 The prototype's two setup fixes, a temp folder on the system drive and the
 `in#0` device tag in newer ffmpeg output, belong to its Windows listener.
@@ -575,6 +625,8 @@ Neither applies here, and neither is carried.
 - `plugins/incantation/skills/incantation/references/tuning.md` (S4.4): the
   speech policy's settings and example phrases, each marked as a starting
   point; the skill reads it at start.
+- `plugins/incantation/skills/incantation/scripts/observe.mjs` (S4.4): the
+  observe-only log, `add` only; no dependencies.
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
   free ports, Node's built-in test runner. It skips on win32 and says so.
 - `tests/incantation-listen.test.mjs`: a fake recorder that plays synthetic
@@ -615,7 +667,9 @@ Neither applies here, and neither is carried.
      audio and no heard text, but Claude Code keeps every heard line in the
      session transcript (and its background-task output, if the build's
      first checks find it there). One plain line names where VoiceMode keeps
-     what is heard and said on the machine.
+     what is heard and said on the machine. In observe-only mode, the
+     session's unspoken candidates go to `~/.incantation/observe/`, kept 30
+     days; delete the folder to clear it.
 - `tests/incantation-guard.test.mjs`: Node's built-in test runner, with fake
   servers on free ports, settings in a fixture home folder, and addresses
   passed through the guard's imported function.
@@ -729,8 +783,9 @@ Neither applies here, and neither is carried.
     - drops a turn that playback cuts; marks a turn begun after a playback
       that started after the previous delivery and ended; does not mark a
       turn begun after a delivery but before the next playback;
-    - holds deliveries to 4 a minute, but never holds a turn marked "after
-      reply" or a whole turn of "stop" or "wait";
+    - holds deliveries to 4 a minute, but never holds the first turn marked
+      "after reply" after a playback or a whole turn of "stop", "that's all"
+      or "wait"; a second marked turn after the same playback is held;
     - takes a frame 10 dB over the floor as voice and one just under as
       not;
     - ends a turn after the end-of-speech wait; delivers a 0.3 s "yes" and
@@ -761,8 +816,9 @@ Neither applies here, and neither is carried.
     root and not group- or other-writable after links are resolved, with
     only `HOME`, `LANG` and `PULSE_SERVER` in their environment; a fixture
     `parec` elsewhere, on PATH or in the start folder, is never run; a link
-    in `/usr/bin` to a root-owned sibling there runs, and a writable link,
-    a writable target or a target outside `/usr/bin` fails closed.
+    in `/usr/bin` to a root-owned sibling there runs, and a link in a
+    writable folder, a writable target or a target outside `/usr/bin` fails
+    closed.
 23. The skill calls `converse` only with `wait_for_response: false`, starts
     the first `wait` before the greeting, prints `Listening, always on.`
     when the listener starts and `Stopped listening.` when it stops, starts
@@ -803,7 +859,7 @@ are fixed:
   fail.
 
 The practice record holds pass or fail, counts and timings, never heard
-text.
+text or spoken turns.
 
 ### S6.1 The eval cases
 
@@ -1121,6 +1177,22 @@ settings in one tuning file. The owner expects this to need a lot of tuning.
 - eval fakes only in the container.
 The three new mediums go to the owner as trade-offs.
 
+Draft 1.5 (2026-11-12) rewrites S4.4 with the lead's research (#208): an
+addressee check, a scored speak gate the person turns by voice, holding to
+a natural break but never past a deadline, one sentence by default,
+re-raising only what is pending after a quiet spell, and backchannels that
+are not requests. It adds the lead's pick, an observe-only mode whose local
+log is the future eval set. It also drafts the fixes from round 2's second
+read:
+- no "are you there?" over a pending yes, and any other speech voids a
+  say-back;
+- step 6's typed-reply exception narrowed;
+- fixed rules ahead of judgment;
+- the tuning file holds no listener setting or yes rule;
+- the link rule checks the link's folder;
+- only the first marked turn after a playback skips the cap;
+- practice measures as counts.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -1145,6 +1217,10 @@ them.
   2026-11-12, relayed: speed needs tuning after this change). Open: the
   owner's own number, and whether the whole felt time gets a target too,
   given before the practice run; until then 2.5 s stands.
+- **O20.** The allow rule for exactly `node <skill base>/scripts/observe.mjs
+  add` (S4.4): drafted as an optional owner's step, like O19's; without it,
+  each log line is prompted. Open: whether the observe log's 30 days suit
+  the owner.
 - **O18.** The two ambient-speech classes (S8): accepted for the build by
   the owner ("Accept both", relayed, Decisions taken). Each lands only on a
   merge the owner confirms in their own chat; on a no at merge, the change
