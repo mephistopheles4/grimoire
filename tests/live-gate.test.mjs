@@ -44,10 +44,15 @@ function run(segments) {
 const seconds = event => event.pcm.length / 2 / RATE;
 
 test('C1: a 0.6 s tone after 0.5 s of noise, then 1.6 s of quiet, gives one end of about 0.6 s', () => {
-  const events = run([['noise', 500], ['tone', 600], ['quiet', 2000]]);
+  const events = run([['noise', 500], ['tone', 600], ['quiet', 1600]]);
   assert.equal(events.length, 1);
   assert.equal(events[0].type, 'end');
   assert.ok(Math.abs(seconds(events[0]) - 0.6) < 0.1, `got ${seconds(events[0])} s`);
+
+  // A pause shorter than 1.6 s does not end the turn: one end, holding both tones and the pause.
+  const paused = run([['noise', 500], ['tone', 300], ['quiet', 1000], ['tone', 300], ['quiet', 1700]]);
+  assert.deepEqual(paused.map(e => e.type), ['end']);
+  assert.ok(Math.abs(seconds(paused[0]) - 1.6) < 0.1, `got ${seconds(paused[0])} s`);
 });
 
 test('C2: a 0.2 s burst gives discard, and a later 0.6 s tone gives end', () => {

@@ -29,7 +29,9 @@ import { RATE, createGate } from './gate.mjs';
 
 const REASONS = ['platform', 'recorder-missing', 'device', 'argument', 'token', 'folder', 'recorder-failed'];
 const HEARD_LIMIT = 3; // heard returns before the listener pauses
-const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
+const TOOL_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+const TURN_CAP_MS = 30000; // a turn open at the timeout may run this much longer
+const ISO =/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 class Live extends Error {
@@ -56,17 +58,29 @@ const isFile = path => {
  * The first `ffmpeg.exe` on a Windows PATH value, searching only fully
  * qualified drive folders. An empty, relative, drive-relative, root-relative
  * or network-share entry is skipped, and so is the current folder: a recorder
- * must never come from where the session happens to stand. `exists` is a seam
- * for the tests.
+ * must never come from where the session happens to stand. The file found is
+ * then followed to its real path, and that path must still be a drive path: a
+ * mapped drive or a link that leads to a network share is refused, and the
+ * real path is the one returned. `exists` and `real` are seams for the tests.
  */
-export function resolveRecorder(pathValue, exists = isFile) {
+export function resolveRecorder(pathValue, exists = isFile, real = realPath) {
   for (let entry of String(pathValue ?? '').split(';')) {
     entry = entry.trim().replace(/^"(.*)"$/, '$1').trim();
     if (!/^[A-Za-z]:[\\/]/.test(entry)) continue;
     const candidate = win32.join(entry, 'ffmpeg.exe');
-    if (exists(candidate)) return candidate;
+    if (!exists(candidate)) continue;
+    const found = real(candidate);
+    if (found && /^[A-Za-z]:[\\/]/.test(found)) return found;
   }
   return null;
+}
+
+function realPath(path) {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return null;
+  }
 }
 
 // The test seam: under NODE_ENV=test, a Node script stands in for ffmpeg.
@@ -245,7 +259,7 @@ function parseArguments(name, argv) {
   if (name === 'on') {
     opts.index = count(opts['device-index'], 0, 999);
     if (!/^[0-9a-f]{1,64}$/.test(opts.stamp)) fail('argument');
-    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(opts['speech-tool'])) fail('argument');
+    if (!TOOL_NAME.test(opts['speech-tool'])) fail('argument');
   }
   if (name === 'listen') {
     opts.words = count(opts.words, 0, 200);
@@ -262,7 +276,9 @@ const ctx = { dir: null, token: null, tool: null };
 /** The line the session reads with every listener return. */
 function reminder() {
   const lock = ctx.dir && ctx.token ? readJson(file(ctx.dir, 'lock.json')) : null;
-  return lock && lock.token === ctx.token ? `live mode is on, token ${ctx.token}, speech tool ${lock.speechTool}: speak only at seams` : 'live mode is off';
+  // The tool name is checked again on every read: a rewritten lock must not put other text in the line.
+  const valid = lock && lock.token === ctx.token && TOOL_NAME.test(String(lock.speechTool));
+  return valid ? `live mode is on, token ${ctx.token}, speech tool ${lock.speechTool}: speak only at seams` : 'live mode is off';
 }
 
 // ---- commands ----
@@ -286,7 +302,6 @@ async function turnOn(o) {
     token: randomBytes(16).toString('hex'),
     since: new Date().toISOString(),
     deviceId: device.id,
-    deviceName: device.name,
     recorder,
     speechTool: o['speech-tool'],
   };
@@ -401,7 +416,8 @@ async function listenOnce(o) {
       const why = verdict();
       if (why) done({ why });
       // A turn still going at the timeout runs to its end.
-      else if (Date.now() >= deadline && !gate.inTurn) done({ why: 'timeout' });
+      // Back-to-back turns must not hold the mic open without end: the overrun has the turn cap too.
+      else if (Date.now() >= deadline && (!gate.inTurn || Date.now() >= deadline + TURN_CAP_MS)) done({ why: 'timeout' });
     }, 50);
   });
   clearInterval(timer);

@@ -13,7 +13,7 @@ const FRAME = (RATE * 30) / 1000; // samples per 30 ms frame
 const CALIBRATION = RATE / 2; // samples in the first 0.5 s
 const MIN_THRESHOLD = 300;
 const START_FRAMES = 3;
-const END_FRAMES = Math.ceil((1.6 * RATE) / FRAME);
+const END_FRAMES = Math.floor((1.6 * RATE) / FRAME); // 53 frames, 1.59 s: exactly 1.6 s of quiet ends a turn
 const MAX_FRAMES = Math.floor((30 * RATE) / FRAME);
 const MIN_VOICED_MS = 400;
 
