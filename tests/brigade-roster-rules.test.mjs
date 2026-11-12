@@ -1156,7 +1156,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.match(await read('references/CONTRACT.md'), rule);
 });
 
-test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.31.0 with its row and go', async () => {
+test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.31.0 or later, with the 1.31.0 row and go', async () => {
   const { readFile } = await import('node:fs/promises');
   const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
   const ref = await read('references/roster.md');
@@ -1167,11 +1167,25 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   assert.match(await read('SKILL.md'), use);
   const contract = await read('references/CONTRACT.md');
   assert.match(contract, use);
-  assert.match(contract, /^# .*?Version: 1\.31\.0 /);
+  assert.match(contract, /^# .*?Version: 1\.(?:3[1-9]|[4-9]\d)\.\d+ /);
   assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
   const log = await read('references/contract.changelog.md');
   assert.match(log, /\| 1\.31\.0 \| [0-9-]+ \| \*Proposed\.\*/);
   assert.match(log, /the lead's decisions 426, 436 and 487 at level 3, not the owner's words; the lead accepts the E84 widening there and flags it big/);
+});
+
+test('#578 C5: the contract, the skill, the Desktop page and the README give the start note; the contract is 1.32.0 or later, with its row', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = p => readFile(new URL(`../skills/head-chef/${p}`, import.meta.url), 'utf8').then(t => t.replace(/\s+/g, ' '));
+  const label = /<lead name>, not the owner, adds: <note>/;
+  assert.match(await read('SKILL.md'), label);
+  const contract = await read('references/CONTRACT.md');
+  assert.match(contract, label);
+  assert.match(contract, /^# .*?Version: 1\.(?:3[2-9]|[4-9]\d)\.\d+ /);
+  assert.match(await read('references/desktop.md'), /You may add one note after it, written, labelled and bounded as "The start prompt" in `SKILL.md` says/);
+  assert.match(await read('references/starting.md'), /optionally a `note`/);
+  assert.match(await read('README.md'), /one short note from the head chef, labelled as the head chef's words and not yours/);
+  assert.match(await read('references/contract.changelog.md'), /\| 1\.32\.0 \| [0-9-]+ \| \*Proposed\.\* A background start may carry one `note`/);
 });
 
 test('#560 C2: the text of a to-do of 300 characters is accepted and one of 301 is refused, from the file and from the tool', () => {
