@@ -28,8 +28,9 @@ owner, who cleans it up by hand.
    removed. Then wait for the owner's yes in chat. Where the next-step box
    does not show, write the question with short typed answers. At level 3
    the owner's user-level instructions file decides: where it allows
-   cleanup, log the decision, go on, and end with a list of what you touched in
-   your result; where it keeps it and the rules for a flagged owner-kept call
+   cleanup, log the decision, go on, and end your report to the owner with a
+   list of what you touched, by title, repository and branch, never a path;
+   where it keeps it and the rules for a flagged owner-kept call
    give you the call, decide it as your own flagged pick (logged as Lead, with a
    flag opening "Owner's call:", no to-do) and go on; otherwise log a waiting
    entry that names the cleanup by repository and title only, add a

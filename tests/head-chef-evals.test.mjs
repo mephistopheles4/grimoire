@@ -251,7 +251,7 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   // A2 SKILL.md "Sending and idle notices"
   assert.ok(section(skill, '## Sending and idle notices', '## Between the owner').includes("The idle-cost line below still holds for a check that reaches a member idle over an hour."), 'A2');
   // A3 cleanup.md
-  assert.ok(cleanup.includes("where it allows cleanup, log the decision, go on, and end with a list of what you touched in your result;"), 'A3');
+  assert.ok(cleanup.includes("where it allows cleanup, log the decision, go on, and end your report to the owner with a list of what you touched, by title, repository and branch, never a path;"), 'A3');
   // A4 SKILL.md "Cleanup" and cleanup.md
   assert.ok(section(skill, '## Cleanup', '## Who decides').includes("a session whose folder or repository is not known, or whose folder is one of those, gets no cleaner run and is listed as staying"), 'A4 SKILL.md');
   assert.ok(cleanup.includes("A session whose folder or repository you do not know gets no cleaner run: tell the owner, who cleans it up by hand."), 'A4 cleanup.md, Which sessions');
