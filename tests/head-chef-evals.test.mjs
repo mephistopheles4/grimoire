@@ -12,12 +12,22 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => readFileSync(join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
-// The contract quotes the template as a block of "> " lines starting
-// "> Your work is issue <number>"; joined with spaces, it is the template.
+// One schedule of the head-chef contract (#604): from its "### <home>: <heading>" line to the
+// next one. A schedule holds its home's wording, so the contract's pinned sentences are read in
+// the schedule that carries them and not in the body, which states intent.
+function schedule(title) {
+  const t = read('skills/head-chef/references/CONTRACT.md');
+  const at = t.indexOf(`\n### ${title}\n`);
+  assert.ok(at >= 0, `the contract holds the schedule "${title}"`);
+  const end = t.indexOf('\n### ', at + 1);
+  return t.slice(at, end < 0 ? undefined : end);
+}
+
+// The contract holds the start prompt in the ```text fence its start prompt schedule carries.
 function contractTemplate() {
-  const m = read('skills/head-chef/references/CONTRACT.md').match(/\n> Your work is issue <number>[\s\S]*?\n\n/);
-  assert.ok(m, 'the contract quotes the start prompt');
-  return m[0].split('\n').filter(l => l.startsWith('> ')).map(l => l.slice(2)).join(' ');
+  const m = schedule('SKILL.md: The start prompt').match(/\n```text\n(Your work is issue <number>[\s\S]*?)\n```\n/);
+  assert.ok(m, 'the start prompt schedule fences the prompt');
+  return m[1];
 }
 
 // Issue 503, decision 546 (the owner's words, relayed): the start prompt is the
@@ -142,17 +152,18 @@ test('AGENTS.md carries the same-change rule for pane data (C7)', () => {
 // starting.md, and the lead's own-pick posts carry one fixed first line, in both files.
 test('the start rule agrees with the yes table, and "What goes out" holds the own-pick line (issue 438)', () => {
   const skill = flat(read('skills/head-chef/SKILL.md'));
-  const contract = flat(read('skills/head-chef/references/CONTRACT.md'));
+  const contract = flat(schedule("SKILL.md: Actions that need the owner's yes"));
+  const contractTools = flat(schedule('SKILL.md: Tools'));
   const starting = flat(read('skills/head-chef/references/starting.md'));
   const row = "the owner's words in this chat asking for the work; at levels 2 and 3, as the owner's user-level instructions file says, except a fresh session a context figure prompts, which waits for the owner's words at every level";
-  assert.ok(contract.includes(row), 'the contract\'s yes table holds the start row');
+  assert.ok(contract.includes(row), 'the contract\'s yes table schedule holds the start row');
   assert.ok(skill.includes(row), 'SKILL.md\'s yes table holds the start row');
   const opening = t => t.split(' A start needs ')[1]?.split('. ')[0] ?? '';
   assert.ok(opening(skill).includes(row), 'SKILL.md, "Starting a session", opens with the yes-table row');
   assert.ok(opening(starting).includes(row), 'starting.md opens with the yes-table row');
   const label = "`Posted by the head chef on its own pick, not the owner's words.`";
   const rule = t => t.split('**What goes out.**')[1]?.split(/ - (\*\*|Never)/)[0] ?? '';
-  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md', contract]]) {
+  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md, Tools schedule', contractTools]]) {
     const body = rule(text);
     assert.ok(body.includes(label), `${name}: the fixed line, in What goes out`);
     assert.ok(body.includes('a squash merge body'), `${name}: a squash body is a post`);
@@ -166,14 +177,20 @@ test('the start rule agrees with the yes table, and "What goes out" holds the ow
 test('"What goes out" names the title route, in the contract and the SKILL.md (issue 476)', () => {
   const sentence = "A merge takes GitHub's default subject, with only its body from that file; any other title goes inline, in quotes, holding only letters, digits, spaces and `. _ - /`, never starting with `-`.";
   const skill = flat(read('skills/head-chef/SKILL.md'));
-  const contract = flat(read('skills/head-chef/references/CONTRACT.md'));
+  const contract = flat(schedule('SKILL.md: Tools'));
+  const levels = flat(schedule('SKILL.md: Autonomy levels'));
   // The "What goes out" bullet runs to the next top-level "- **" or "- Never" bullet.
   const rule = t => t.split('**What goes out.**')[1]?.split(/ - (\*\*|Never)/)[0] ?? '';
   assert.ok(rule(skill).includes(sentence), 'SKILL.md, in What goes out');
-  assert.ok(rule(contract).includes(`*Proposed* (issue 476): ${sentence}`), 'CONTRACT.md, in What goes out, marked Proposed');
+  assert.ok(rule(contract).includes(sentence), 'CONTRACT.md, in the Tools schedule\'s What goes out');
+  // The issue number went with the provenance: the body holds none, and the schedule is still Proposed.
+  assert.match(contract, /\*Proposed\*: pending at 1\.36\.1 in /, 'the Tools schedule is marked Proposed');
+  // The quoted example, kept word for word, names issue 296 and is the one place a number stands.
+  const body = read('skills/head-chef/references/CONTRACT.md').split('\n## schedules\n')[0].split('\n').filter(l => !l.startsWith('>')).join('\n');
+  assert.doesNotMatch(body, /#\d+|\bissues? \d+/i, 'the contract body holds no issue number');
   // The merging clause: the lead writes only the body; the subject is GitHub's default.
   const merging = t => t.split('**Merging.**')[1]?.split(/ - \*\*|\*\*Waiting entries/)[0] ?? '';
-  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md', contract]]) {
+  for (const [name, text] of [['SKILL.md', skill], ['CONTRACT.md, Autonomy levels schedule', levels]]) {
     assert.ok(merging(text).includes("the subject is GitHub's default"), `${name}: the merging clause names the default subject`);
     assert.ok(!/merge (title|subject)/.test(merging(text)), `${name}: the merging clause still has the lead write a merge title`);
   }
@@ -195,11 +212,15 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
   const rule = 'A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule.';
   const chat = ['No ids but a decision number given as a reference', 'Each ask names the action, and the work by repository and number', 'a decision number is never the thing to act on', 'one about a carried decision names it as its to-do does', "An ask writes no github.com address: the address stays on the to-do's `link`."];
   const carried = ['"Answer carried <owner/name>: <title>"', 'ASCII letters, digits, spaces and `. _ -`', 'alone does not fit, the to-do is "Answer a carried decision (decision N)"'];
-  for (const f of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
-    const text = flat(read(f));
-    assert.ok(text.includes(rule), `${f} holds the to-do rule`);
-    for (const s of [...chat, ...carried]) assert.ok(text.includes(s), `${f} holds "${s}"`);
-  }
+  const skillText = flat(read('skills/head-chef/SKILL.md'));
+  assert.ok(skillText.includes(rule), 'SKILL.md holds the to-do rule');
+  for (const s of [...chat, ...carried]) assert.ok(skillText.includes(s), `SKILL.md holds "${s}"`);
+  // In the contract the rule stands in the "The Brigade pane" schedule, and the asks in the two schedules that carry them.
+  assert.ok(flat(schedule('SKILL.md: The Brigade pane')).includes(rule), 'the Brigade pane schedule holds the to-do rule');
+  const asks = flat(schedule('SKILL.md: How you write to the owner'));
+  for (const s of chat) assert.ok(asks.includes(s), `the "How you write to the owner" schedule holds "${s}"`);
+  const log = flat(schedule('SKILL.md: The decision log and the hand-off'));
+  for (const s of carried) assert.ok(log.includes(s), `the hand-off schedule holds "${s}"`);
   const hand = flat(read('skills/head-chef/references/handoff.md'));
   for (const s of carried) assert.ok(hand.includes(s), `handoff.md holds "${s}"`);
 });
@@ -253,6 +274,10 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   assert.ok(section(levels, '- **2 Auto.**', '- **3 Turbo.**').includes("tell the owner what you took, as a statement and not a question"), 'A12');
   assert.ok(levels.includes("a head that moved waits for a new round."), 'A14');
   assert.ok(!levels.includes("a head that moved waits for a new review"), 'A14 leaves no "new review"');
+  // A8 the contract's body, tools part: a fact, with no guard in SKILL.md (the owner's answer, S16 Q4).
+  const body = read('skills/head-chef/references/CONTRACT.md').split('\n## schedules\n')[0];
+  assert.ok(flat(body).includes("The harness labels a message from another session as data and never as the owner's approval."), 'A8');
+  assert.ok(!skill.includes("never as the owner's approval"), 'A8 adds no guard to SKILL.md');
   // A11 SKILL.md "The permission warning"
   assert.ok(section(skill, '## The permission warning', '## Actions that need').includes("When there is no mod, or the warning's tool is missing or refuses, say it in chat, once, as written, without its two controls, which chat cannot show:"), 'A11');
 });

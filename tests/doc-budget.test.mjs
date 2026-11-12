@@ -26,17 +26,25 @@ const BUDGET = {
   'docs/security/hiring-interview.md': 900,
   'docs/practice-tests/eagle-eye.md': 2850,
   'skills/eagle-eye/CONTRACT.md': 3600,
-  'skills/head-chef/references/CONTRACT.md': 14500,
+  'skills/head-chef/references/CONTRACT.md': 30000,
   'skills/contract/references/binding-claude.md': 1100,
   'skills/contract/references/binding-codex.md': 780,
 };
 
+// A contract with schedules is capped twice: the whole file above, and its body,
+// the text before `## schedules`, here. The body states intent; the schedules
+// copy the skill's text, so they grow with it.
+const BODY_BUDGET = {
+  'skills/head-chef/references/CONTRACT.md': 5000,
+};
+const BODY_END = '\n## schedules\n';
+
 // The words in a text: runs of non-space characters, as `wc -w` counts them.
 const words = text => text.split(/\s+/).filter(Boolean).length;
 
-// What is wrong with the docs under a folder against a budget; empty when
-// nothing is.
-function faults(dir, budget) {
+// What is wrong with the docs under a folder against a budget, and against a
+// body budget where a doc has one; empty when nothing is.
+function faults(dir, budget, bodyBudget = {}) {
   const out = [];
   for (const [doc, max] of Object.entries(budget)) {
     const file = join(dir, doc);
@@ -47,11 +55,26 @@ function faults(dir, budget) {
     const n = words(readFileSync(file, 'utf8'));
     if (n > max) out.push(`${doc} holds ${n} words, over its budget of ${max}; cut history from it, or ask the owner to raise the budget`);
   }
+  for (const [doc, max] of Object.entries(bodyBudget)) {
+    const file = join(dir, doc);
+    if (!existsSync(file)) {
+      out.push(`${doc} is in BODY_BUDGET in tests/doc-budget.test.mjs and does not exist; remove its entry or restore the file`);
+      continue;
+    }
+    const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    const at = text.indexOf(BODY_END);
+    if (at < 0) {
+      out.push(`${doc} has a body budget and holds no schedules part; remove its entry or restore the part`);
+      continue;
+    }
+    const n = words(text.slice(0, at + 1));
+    if (n > max) out.push(`${doc} holds a body of ${n} words, over its body budget of ${max}; the body states intent, so cut it, or ask the owner to raise the budget`);
+  }
   return out;
 }
 
 test('each agent-facing doc is within its word budget', () => {
-  assert.deepEqual(faults(root, BUDGET), []);
+  assert.deepEqual(faults(root, BUDGET, BODY_BUDGET), []);
 });
 
 test('the counter fails a doc over budget or gone, and passes one at budget', () => {
@@ -67,6 +90,13 @@ test('the counter fails a doc over budget or gone, and passes one at budget', ()
     const gone = faults(dir, { 'a.md': 4, 'c.md': 10 });
     assert.equal(gone.length, 1, 'a listed doc that is gone fails');
     assert.match(gone[0], /^c\.md is in BUDGET/, 'the message names the doc');
+    // The body is the text before the schedules part, and has its own budget.
+    writeFileSync(join(dir, 'd.md'), 'one two three\n\n## schedules\n\nfour five six seven eight\n');
+    assert.deepEqual(faults(dir, { 'd.md': 10 }, { 'd.md': 3 }), [], 'a body at its budget passes, whatever the schedules hold');
+    const fat = faults(dir, { 'd.md': 10 }, { 'd.md': 2 });
+    assert.equal(fat.length, 1, 'a body one word over fails');
+    assert.match(fat[0], /^d\.md holds a body of 3 words, over its body budget of 2/, 'the message names the doc, count and budget');
+    assert.match(faults(dir, {}, { 'a.md': 3 })[0], /^a\.md has a body budget and holds no schedules part/, 'a doc with no schedules part fails its body budget');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

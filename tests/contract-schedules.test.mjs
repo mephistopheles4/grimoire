@@ -245,7 +245,39 @@ function faultsOf(contractPath, skillDir, pending) {
 // alone. A later amendment that confirms one on the owner's own answer removes
 // it from this list in the same commit, and the commit message quotes that
 // answer.
-const HEAD_CHEF_PENDING = [];
+const HEAD_CHEF_PENDING = [
+  'SKILL.md: head-chef',
+  'SKILL.md: How you write to the owner',
+  'SKILL.md: What a good report looks like',
+  'SKILL.md: Starting a session',
+  'SKILL.md: Sending and idle notices',
+  'SKILL.md: Between the owner and the sessions',
+  'SKILL.md: Autonomy levels',
+  'SKILL.md: The decision log and the hand-off',
+  'SKILL.md: Asking the owner',
+  'SKILL.md: Cleanup',
+  'SKILL.md: Who decides',
+  'SKILL.md: Stop and ask',
+  'SKILL.md: Tools',
+  'SKILL.md: The start prompt',
+  "SKILL.md: Actions that need the owner's yes",
+  'SKILL.md: The Brigade pane',
+  'SKILL.md: Additional resources',
+  'references/starting.md: Starting a session',
+  'references/starting.md: When the model changes',
+  'references/starting.md: When a start is refused',
+  'references/cleanup.md: Cleanup',
+  'references/cleanup.md: Which sessions',
+  'references/cleanup.md: The steps',
+  'references/cleanup.md: Undoing a wrong card',
+  'references/cleanup.md: Removing a stopped session for good',
+  'references/cleanup.md: What never happens',
+  'references/handoff.md: The hand-off',
+  'references/desktop.md: Starting a Desktop session',
+  'references/roster.md: The roster',
+  'references/roster.md: The call',
+  'references/roster.md: The answers',
+];
 
 // ---------------------------------------------------------------------------
 // The contracts in the tree.
@@ -260,6 +292,17 @@ const contractsIn = () => {
   }
   return out;
 };
+
+test('head-chef has a schedules part: 37 schedules, one for each section of SKILL.md and its five references', () => {
+  const chef = contractsIn().find(c => c.name === 'head-chef');
+  assert.ok(chef, 'the head-chef contract holds a schedules part');
+  const found = schedulesOf(lf(readFileSync(chef.file, 'utf8')));
+  assert.equal(found.schedules.length, 37);
+  assert.match(readFileSync(chef.file, 'utf8'), /^Version: 2\.\d+\.\d+$/m, 'the contract is 2.x');
+  // Every schedule listed as Proposed or pending at 1.36.1 is one of them, and no other schedule is.
+  for (const title of HEAD_CHEF_PENDING) assert.ok(found.schedules.some(s => s.title === title), title);
+  assert.ok(HEAD_CHEF_PENDING.length >= 1);
+});
 
 test('every contract with a schedules part matches its homes (checks 1 to 7)', () => {
   for (const c of contractsIn()) {
