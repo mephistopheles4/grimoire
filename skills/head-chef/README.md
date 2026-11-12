@@ -44,11 +44,9 @@ tool is part of the plugin. It offers the Desktop start then.
 It needs Claude Code, Claude Desktop, git, and the GitHub command line (`gh`)
 installed and signed in. The background start needs Claude Code 2.1.319.
 
-Before the first background start, type `/brigade folders add <path>` at the
-prompt (or send it from your phone) once for each main checkout you want
-sessions started in. Only the typed command adds a folder, and a command typed in the
-terminal is refused; another plugin can still change the list (see
-`SECURITY.md`).
+Before the first background start, open `claude` once in each main checkout you
+want sessions started in and accept the trust prompt. The harness refuses a
+background start in a folder you have not trusted (see `SECURITY.md`).
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
@@ -62,7 +60,8 @@ or type `/brigade` to open it.
   fields, so there is no approval card to accept. The model and effort
   come from your words or your own process. Its start prompt is one sentence
   pair: the issue, which holds the brief, and the lead to send questions and
-  reports to. You open it from its card in the Brigade pane, from the
+  reports to. It may add one short note from the head chef, labelled as the
+  head chef's words and not yours. You open it from its card in the Brigade pane, from the
   claude.ai session list on the phone, or with `claude attach <name>` in a
   terminal.
 - **Starts a Desktop session only on your words.** Say "as a Desktop

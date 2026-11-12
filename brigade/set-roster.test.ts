@@ -22,7 +22,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
-import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, FOLDERS_REPLIES, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_STARTED } from './start.ts'
+import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
 import { sha256Hex } from './decisions.ts'
 import { BEFORE_LINE, EXCEPTION, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
@@ -675,7 +675,7 @@ const card = (title: string, over: Record<string, unknown> = {}) => ({ title, wo
 // What the file holds after a call: every card stamped with the clock's answer
 // at the call (0 on a clock that has not moved).
 const stamped = (r: { cards: any[]; todos: unknown[] }, since = 0) => ({ ...r, cards: r.cards.map(c => ({ ...c, since })) })
-const GOOD = { cards: [card('alpha'), card('beta', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] }
+const GOOD = { cards: [card('alpha'), card('beta', { status: 'idle' })], todos: [{ id: 't1', text: 'look' }] }
 
 // --- writes -------------------------------------------------------------------
 
@@ -688,6 +688,24 @@ test('a good roster is written whole to the session-id file, and the result name
   expect(r.text).toContain('2 card(s), 1 to-do(s)')
   expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
   expect(w.existsCalls).toEqual([])
+})
+
+test('581 C1: set_roster accepts idle, and accepts the older needs-you and writes idle in its place', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const idle = { cards: [card('alpha', { status: 'idle' })], todos: [] }
+  expect((await call($, idle)).ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(idle))
+  const old = { cards: [card('alpha', { status: 'needs-you' }), card('beta')], todos: [] }
+  const r = await call($, old)
+  expect(r.ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards.map((c: any) => c.status)).toEqual(['idle', 'working'])
+  // A word that is neither is still refused, and the tool's schema lists the older word beside the four.
+  expect((await call($, { cards: [card('alpha', { status: 'needs yo' })], todos: [] })).ok).toBe(false)
+  const status = w.schemas.get('set_roster').properties.cards.items.properties.status
+  expect(status.enum).toEqual(['working', 'idle', 'done', 'stopped', 'needs-you'])
+  expect(status.description).toContain('needs-you')
 })
 
 test('the pane state changes only after the write', async ($, on) => {
@@ -799,7 +817,6 @@ const refusals: [string, Record<string, unknown>, RegExp][] = [
   ['constructor at the top level', { ...GOOD, constructor: { a: 1 } }, /shape: .*constructor/],
   ['constructor nested', { cards: [{ ...card('a'), constructor: 1 }], todos: [] }, /shape: card 1 .*constructor/],
   ['a fifth status', { cards: [card('a', { status: 'paused' })], todos: [] }, /shape: card 1 status/],
-  ['the pane-only status idle', { cards: [card('a', { status: 'idle' })], todos: [] }, /shape: card 1 status/],
   ['a repeated title', { cards: [card('a'), card('a')], todos: [] }, /shape: card 2 repeats the title/],
   ['over 50 cards', { cards: Array.from({ length: 51 }, (_, i) => card(`c${i}`)), todos: [] }, /shape: the roster has over 50 cards/],
   ['a missing cards', { todos: [] }, /malformed input: "cards" is missing/],
@@ -1672,7 +1689,7 @@ const READING = {
 // A roster holding every status, so a surface that refused any card's tree
 // would fail the mount.
 const EVERY_STATUS = {
-  cards: [card('alpha', { status: 'needs-you' }), card('beta'), card('gamma', { status: 'done' }), card('delta', { status: 'stopped' })],
+  cards: [card('alpha', { status: 'idle' }), card('beta'), card('gamma', { status: 'done' }), card('delta', { status: 'stopped' })],
   todos: [{ id: 't1', text: 'look', session: 'alpha' }],
 }
 
@@ -1840,15 +1857,15 @@ const ALL = {
   cards: [
     card('done-one', { status: 'done' }),
     card('work-one', { status: 'working' }),
-    card('need-one', { status: 'needs-you' }),
+    card('need-one', { status: 'idle' }),
     card('stop-one', { status: 'stopped' }),
-    card('need-two', { status: 'needs-you' }),
+    card('need-two', { status: 'idle' }),
   ],
   todos: [],
 }
-// --- issue 545, row 11: a needs-you card stays in its normal group --------------------------------------
+// --- issue 545, row 11: an idle card stays in its normal group --------------------------------------
 for (const surface of SURFACES) {
-  test(`545 row 11, ${surface}: needs-you cards draw under Working in roster order, and Waiting on you holds to-dos only`, async ($, on) => {
+  test(`545 row 11, ${surface}: idle cards draw under Working in roster order, and Waiting on you holds to-dos only`, async ($, on) => {
     await grouped(on, $, { ...ALL, todos: [{ id: 't1', text: 'look at it' }] })
     const m = await mountOn($, surface)
     const text = await groupsOf(m)
@@ -1866,17 +1883,17 @@ for (const surface of SURFACES) {
 }
 
 test('545 row 11: the Desktop card draws its work line, the reason a session needs the owner', async ($, on) => {
-  await grouped(on, $, { cards: [card('need-one', { status: 'needs-you', work: 'Plan 3 needs your yes before the merge' })], todos: [] })
+  await grouped(on, $, { cards: [card('need-one', { status: 'idle', work: 'Plan 3 idler yes before the merge' })], todos: [] })
   const m = await mountOn($, 'desktop')
-  expect((await textOf(m)).includes('Plan 3 needs your yes before the merge')).toBe(true)
+  expect((await textOf(m)).includes('Plan 3 idler yes before the merge')).toBe(true)
 })
 
 // Three titles that fold to one slug, `ab`, one in NEEDS YOU and two in
 // DONE · STOPPED: a group-local index would give the first done or stopped card
-// index 0, which is the needs-you card's place in the roster.
+// index 0, which is the idle card's place in the roster.
 const SAME_SLUG = {
   cards: [
-    card('A-b', { status: 'needs-you', desktopId: D1 }),
+    card('A-b', { status: 'idle', desktopId: D1 }),
     card('a b', { status: 'done', desktopId: D2 }),
     card('AB!', { status: 'stopped', desktopId: D3 }),
   ],
@@ -1932,7 +1949,8 @@ for (const surface of SURFACES) {
     // Colour comes from the status Map: the terminal draws the status glyph
     // in its key, Desktop a dot or circle in its key.
     const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
-    expect(drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning').length).toBe(2)
+    const idleMark = '○'
+    expect(drawn.filter(n => n.type === 'Text' && n.text === idleMark && n.props.color === 'warning').length).toBe(2)
     const working = surface === 'terminal' ? '◐' : '○'
     expect(drawn.find(n => n.type === 'Text' && n.text === working && n.props.color !== 'warning')?.props.color).toBe('suggestion')
     const bar = boxAround(drawn, (c: any) => c?.props?.key === 'grp-finished')
@@ -1940,9 +1958,9 @@ for (const surface of SURFACES) {
     if (surface === 'desktop') {
       // A rounded fill: a round border in the fill's own grey.
       expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', '#2b2b2a', '#2b2b2a'])
-      // A waiting card's dot is full size; a working card's is its checkbox,
-      // a circle in the status colour, since #396. A waiting title is bold.
-      for (const dot of drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning')) expect(dot.props.size).toBeUndefined()
+      // An idle card's mark is its ○ glyph, full size and amber with no checkbox; a working
+      // card's is its checkbox, a circle in the status colour, since #396. An idle title is bold.
+      for (const dot of drawn.filter(n => n.type === 'Text' && n.text === '○' && n.props.color === 'warning')) expect(dot.props.size).toBeUndefined()
       expect(drawn.some(n => n.type === 'Text' && n.text === '○' && n.props.color === 'suggestion')).toBe(true)
       expect(drawn.some(n => n.type === 'Button' && String(n.props.key).startsWith('pick-') && n.props.label === '○')).toBe(true)
       expect(title('need-one')?.props.weight).toBe('bold')
@@ -1957,7 +1975,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const text = await textOf(m)
     expect(text.includes('▸ Done · stopped 1')).toBe(true)
-    expect(text.includes('Decisions, reviews, and permission requests.')).toBe(true)
+    expect(text.includes('Decisions and reviews.')).toBe(true)
     expect(text.includes('No session is working.')).toBe(true)
     expect(text.includes('No cards in the roster yet.')).toBe(false)
     // A folded group shows no hint: its cards stay out of sight.
@@ -1968,7 +1986,7 @@ for (const surface of SURFACES) {
     await grouped(on, $, { cards: [], todos: [] })
     const text = await textOf(await mountOn($, surface))
     expect(text.includes('No cards in the roster yet.')).toBe(true)
-    for (const hint of ['Decisions, reviews, and permission requests.', 'No session is working.']) expect(text.includes(hint)).toBe(true)
+    for (const hint of ['Decisions and reviews.', 'No session is working.']) expect(text.includes(hint)).toBe(true)
   })
 
   test(`${surface}: a press on the Done · stopped bar opens it, and a second press folds it`, async ($, on) => {
@@ -1980,7 +1998,8 @@ for (const surface of SURFACES) {
     expect(opened.indexOf('▾ Done · stopped')).toBeLessThan(opened.indexOf('done-one'))
     expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
     if (surface === 'terminal') {
-      expect(opened.includes('○')).toBe(false)
+      // The idle cards above draw ○; the finished ones below draw ✓ and –.
+      expect(opened.slice(opened.indexOf('▾ Done · stopped')).includes('○')).toBe(false)
       expect(opened.includes('✓')).toBe(true)
       expect(opened.includes('–')).toBe(true)
     } else {
@@ -2127,8 +2146,8 @@ const MINUTE = 60000
 // records would draw a bar if they were drawn.
 const CACHED = {
   cards: [
-    card('need-cold', { status: 'needs-you' }),
-    card('need-amber', { status: 'needs-you' }),
+    card('need-cold', { status: 'idle' }),
+    card('need-amber', { status: 'idle' }),
     card('work-busy', { status: 'working' }),
     card('work-unknown', { status: 'working' }),
     card('done-one', { status: 'done' }),
@@ -2172,7 +2191,7 @@ const nodes = async (m: any): Promise<Drawn[]> => {
 const texts = (all: Drawn[], text: string) => all.filter(n => n.type === 'Text' && n.text === text)
 
 for (const surface of SURFACES) {
-  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text with the time left, the size on a bare context row, and the nudges unchanged`, async ($, on) => {
+  test(`${surface}: idle and working cards draw ◆ cache, a bar and its short text with the time left, the size on a bare context row, and no nudge (581 C8)`, async ($, on) => {
     await cached(on, $, CACHED, RECORDS)
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -2228,15 +2247,14 @@ for (const surface of SURFACES) {
     const unknown = texts(all, '◆ cache window unknown · idle 10 min · 150k context')
     expect(unknown.length).toBe(1)
     expect(unknown[0]?.props.dimColor).toBe(true)
-    // One row after the cache block: the bar row, its
-    // detail line and the nudge, or the dim line alone, sit in a column Box
-    // with a bottom margin of one row.
+    // One row after the cache block: the bar row and its context row, or the
+    // dim line alone, sit in a column Box with a bottom margin of one row.
     const said = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(said).join(''))
     const blocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.props.marginBottom === 1)
     const firsts = blocks.map(b => b.children[0])
     expect(firsts.filter((f: any) => f?.type === 'Box' && said(f).startsWith('◆ cache')).length).toBe(3)
     expect(firsts.filter((f: any) => f?.type === 'Text' && said(f) === '◆ cache window unknown · idle 10 min · 150k context').length).toBe(1)
-    // Each block holds its lines and nothing else.
+    // Each block holds its lines and nothing else: no nudge under any of them.
     const COLD_NUDGE = 'Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.'
     const AMBER_NUDGE = 'Reply within 12 min to keep the cache.'
     const cacheBlocks = blocks.filter(b => said(b.children[0]).startsWith('◆ cache'))
@@ -2245,8 +2263,8 @@ for (const surface of SURFACES) {
       [
         [],
         ['◆ context150k'],
-        ['◆ context182k', COLD_NUDGE],
-        ['◆ context150k', AMBER_NUDGE],
+        ['◆ context182k'],
+        ['◆ context150k'],
       ].sort(),
     )
     // The cache block sits under the card's row, which holds its title.
@@ -2260,12 +2278,10 @@ for (const surface of SURFACES) {
     // The old one-line ◆ text is gone where a bar draws.
     expect(text.includes('◆ cache cold ·')).toBe(false)
     expect(text.includes('◆ cache warm ·')).toBe(false)
-    // The nudges are warmthLine's, unchanged.
-    for (const nudge of [COLD_NUDGE, AMBER_NUDGE]) {
-      const found = texts(all, nudge)
-      expect(found.length).toBe(1)
-      expect(found[0]?.props.color).toBe('warning')
-    }
+    // No card draws either nudge, whatever its status, tokens or window.
+    for (const nudge of [COLD_NUDGE, AMBER_NUDGE]) expect(texts(all, nudge).length).toBe(0)
+    expect(text.includes('Reply within')).toBe(false)
+    expect(text.includes('hand-off through the issue')).toBe(false)
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
     if (surface === 'desktop') {
       expect(images.map(n => n.props.alt).sort()).toEqual(['Cache cold', 'Cache cold in 12 min', 'Cache warm (working)'])
@@ -2316,13 +2332,13 @@ for (const surface of SURFACES) {
     // The group is open: its cards are drawn.
     expect(text.includes('done-one')).toBe(true)
     expect(text.includes('stop-one')).toBe(true)
-    // Still three bars and one unknown line, all from the needs-you and
-    // working cards; the 182k nudge only once, from need-cold.
+    // Still three bars and one unknown line, all from the idle and
+    // working cards, with no nudge under any of them (581 C8).
     expect(texts(all, '◆ cache').length).toBe(3)
     // Three bars, each with its bare ◆ context row, and one unknown line.
     expect(text.split('◆').length - 1).toBe(7)
-    expect(text.split('Replying re-reads').length - 1).toBe(1)
-    expect(text.split('Reply within').length - 1).toBe(1)
+    expect(text.split('Replying re-reads').length - 1).toBe(0)
+    expect(text.split('Reply within').length - 1).toBe(0)
     const from = text.indexOf('▾ Done · stopped')
     expect(from).toBeGreaterThan(-1)
     const finished = text.slice(from)
@@ -2335,10 +2351,10 @@ for (const surface of SURFACES) {
     await cached(
       on,
       $,
-      { cards: [card('plain', { status: 'needs-you' })], todos: [] },
+      { cards: [card('plain', { status: 'idle' })], todos: [] },
       now => [warmCall(HOSTILE_TITLE, 48 * MINUTE, now), warmCall('plain', 10 * MINUTE, now)],
       { [HOSTILE_TITLE]: 'idle', plain: 'idle' },
-      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'needs-you' })] }),
+      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'idle' })] }),
     )
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -2352,12 +2368,12 @@ for (const surface of SURFACES) {
     }
   })
 
-  test(`${surface}: "idle" on a working card is bold and amber; on a needs-you card amber alone, and "busy" unchanged (owner decision q1 A on #287)`, async ($, on) => {
+  test(`${surface}: "idle" on a working card is bold and amber; on an idle card amber alone, and "busy" unchanged (owner decision q1 A on #287)`, async ($, on) => {
     await cached(on, $, CACHED, RECORDS)
     const m = await mountOn($, surface)
     const all = await nodes(m)
     // work-unknown is a working card gone idle; need-cold and need-amber are
-    // idle needs-you cards; the finished group is closed.
+    // idle idle cards; the finished group is closed.
     const idle = texts(all, 'idle')
     expect(idle.length).toBe(3)
     for (const t of idle) expect(t.props.color).toBe('warning')
@@ -2393,7 +2409,7 @@ const TODOS = [
   { id: 't2', text: 'second' },
   { id: 't3', text: 'third' },
 ]
-const LEGEND = '● 2 needs you  ◐ 1 working  ✓ 1 done  – 1 stopped'
+const LEGEND = '◐ 1 working  ○ 2 idle  ✓ 1 done  – 1 stopped'
 
 for (const surface of SURFACES) {
   test(`${surface}: the top row counts the shown cards, then the strip, its legend and the to-do bar, above Waiting on you`, async ($, on) => {
@@ -2411,8 +2427,8 @@ for (const surface of SURFACES) {
     const legend = nodes.find(n => n.type === 'Text' && n.text === LEGEND)
     expect(legend).toBeDefined()
     // The line's own Text holds the entries, each a Text in its colour.
-    const colours = nodes.filter(n => n.type === 'Text' && n.text !== LEGEND && /^ *[●◐✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
-    expect(colours).toEqual(['warning', 'suggestion', 'success', 'inactive'])
+    const colours = nodes.filter(n => n.type === 'Text' && n.text !== LEGEND && /^ *[◐○✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
+    expect(colours).toEqual(['suggestion', 'warning', 'success', 'inactive'])
     expect(text.indexOf('5 sessions')).toBeLessThan(text.indexOf(LEGEND))
     expect(text.indexOf(LEGEND)).toBeLessThan(text.indexOf('To-dos'))
     expect(text.indexOf('0 of 3 done')).toBeLessThan(text.indexOf('Waiting on you'))
@@ -2424,7 +2440,7 @@ for (const surface of SURFACES) {
     if (surface === 'desktop') {
       const strip = imageBy(nodes, /^Status:/)
       const bar = imageBy(nodes, /^To-dos/)
-      expect(strip?.props.alt).toBe('Status: 2 needs you, 1 working, 1 done, 1 stopped')
+      expect(strip?.props.alt).toBe('Status: 1 working, 2 idle, 1 done, 1 stopped')
       expect(bar?.props.alt).toBe('To-dos 0 of 3 done')
       for (const image of [strip, bar]) {
         // Full width: no width prop, a fixed height, the markup in percentages,
@@ -2441,10 +2457,10 @@ for (const surface of SURFACES) {
       expect(runsOf(nodes).length).toBe(0)
     } else {
       expect(imagesOf(nodes).length).toBe(0)
-      // 32 cells: two needs-you cards in five take 13, the rest 7, 6 and 6.
+      // 32 cells: two idle cards in five take 13, the rest 7, 6 and 6, in the legend's order.
       expect(runsOf(nodes).map(r => [r.props.color, [...(r.text ?? '')].length])).toEqual([
-        ['warning', 13],
         ['suggestion', 7],
+        ['warning', 13],
         ['success', 6],
         ['inactive', 6],
       ])
@@ -2524,8 +2540,8 @@ for (const surface of SURFACES) {
     await act(m, surface, 'dismiss-0-doneone')
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
-    expect(nodes.some(n => n.type === 'Text' && n.text === '● 2 needs you  ◐ 1 working  – 1 stopped')).toBe(true)
-    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 2 needs you, 1 working, 1 stopped')
+    expect(nodes.some(n => n.type === 'Text' && n.text === '◐ 1 working  ○ 2 idle  – 1 stopped')).toBe(true)
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 1 working, 2 idle, 1 stopped')
     else expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
   })
 
@@ -2535,7 +2551,7 @@ for (const surface of SURFACES) {
     // attribute, and this text must reach the pane as a card's sender.
     const hostile = `${mark}<b>&'</svg><script>x</script>\u{202E}rtl${mark}`
     const roster = {
-      cards: ['needs-you', 'working', 'done', 'stopped'].map((status, i) => card(`${hostile}${i}`, { status, work: hostile, settings: hostile })),
+      cards: ['idle', 'working', 'done', 'stopped'].map((status, i) => card(`${hostile}${i}`, { status, work: hostile, settings: hostile })),
       todos: [{ id: 't1', text: hostile, session: `${hostile}0` }, { id: 't2', text: hostile }],
     }
     await grouped(on, $, roster)
@@ -2546,12 +2562,12 @@ for (const surface of SURFACES) {
     // The roster loaded, and the report is in the pane: the toggle counts it.
     expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
     expect((await textOf(m)).includes('· 1 report')).toBe(true)
-    expect(nodes.some(n => n.type === 'Text' && n.text === '● 1 needs you  ◐ 1 working  ✓ 1 done  – 1 stopped')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '◐ 1 working  ○ 1 idle  ✓ 1 done  – 1 stopped')).toBe(true)
     expect(nodes.some(n => n.type === 'Text' && n.text === '0 of 2 done')).toBe(true)
     if (surface === 'desktop') {
       const strip = imageBy(nodes, /^Status:/)
       const bar = imageBy(nodes, /^To-dos/)
-      expect(strip?.props.alt).toBe('Status: 1 needs you, 1 working, 1 done, 1 stopped')
+      expect(strip?.props.alt).toBe('Status: 1 working, 1 idle, 1 done, 1 stopped')
       expect(bar?.props.alt).toBe('To-dos 0 of 2 done')
       for (const image of [strip, bar]) {
         const body = String(image?.props.source).replace(/<style>.*?<\/style>/, '')
@@ -2583,7 +2599,7 @@ for (const surface of SURFACES) {
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '5 sessions')).toBe(true)
     expect(nodes.some(n => n.type === 'Text' && n.text === LEGEND)).toBe(true)
-    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 2 needs you, 1 working, 1 done, 1 stopped')
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 1 working, 2 idle, 1 done, 1 stopped')
     else expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
   })
 }
@@ -2622,10 +2638,10 @@ const plantIn = (w: World, folder: string, link: string) => {
   w.dirs(folder)
   w.put(`${folder}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
 }
-// The pane with one needs-you card, `gamma`, whose session file names the
+// The pane with one idle card, `gamma`, whose session file names the
 // launch folder, and a poll after `setup` plants its files.
 async function moved(on: On, $: any, setup: (w: World) => void) {
-  const w = await grouped(on, $, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
+  const w = await grouped(on, $, { cards: [card('gamma', { status: 'idle' })], todos: [] })
   liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
   w.dirs(LAUNCH)
   setup(w)
@@ -2655,9 +2671,9 @@ for (const surface of SURFACES) {
     holdsNoPath(w)
   })
 
-  test(`${surface}: a needs-you or working card whose transcript is found nowhere says so, dim, and a finished card says nothing`, async ($, on) => {
+  test(`${surface}: an idle or working card whose transcript is found nowhere says so, dim, and a finished card says nothing`, async ($, on) => {
     const SIDS = ['66666666-7777-4888-8999-aaaaaaaaaaaa', '77777777-8888-4999-8aaa-bbbbbbbbbbbb', '88888888-9999-4aaa-8bbb-cccccccccccc']
-    const w = await grouped(on, $, { cards: [card('need-x', { status: 'needs-you' }), card('work-x'), card('done-x', { status: 'done' })], todos: [] })
+    const w = await grouped(on, $, { cards: [card('need-x', { status: 'idle' }), card('work-x'), card('done-x', { status: 'done' })], todos: [] })
     liveRows(w, ['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
     w.dirs(LAUNCH)
     await w.clock.advance(10000)
@@ -2744,12 +2760,12 @@ test('a card dropped by set_roster leaves no stored link, and when it returns it
   const stored = () => w.states.filter(([k]) => k === 'links').map(([, v]) => v).at(-1) ?? ''
   expect(stored().includes('HOME1')).toBe(true)
   // The roster now has no gamma: the next poll leaves no link for it.
-  await call($, { cards: [card('delta', { status: 'needs-you' })], todos: [] })
+  await call($, { cards: [card('delta', { status: 'idle' })], todos: [] })
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(stored().includes('HOME1')).toBe(false)
   // Gamma returns with the transcript where it was: its link is read again.
-  await call($, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
+  await call($, { cards: [card('gamma', { status: 'idle' })], todos: [] })
   await w.clock.advance(10000)
   await w.clock.settle()
   await m.redraw(PANE_PROPS)
@@ -2791,8 +2807,8 @@ test('a link read at 4 MiB or less is kept when the member is found at a new pat
 
 const METERED = {
   cards: [
-    card('need-low', { status: 'needs-you' }),
-    card('need-over', { status: 'needs-you' }),
+    card('need-low', { status: 'idle' }),
+    card('need-over', { status: 'idle' }),
     card('work-amber', { status: 'working' }),
     card('work-unknown', { status: 'working' }),
     card('done-full', { status: 'done' }),
@@ -2833,7 +2849,7 @@ const spoken = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.c
 const meterRows = (all: Drawn[]) => all.filter(b => b.type === 'Box' && b.props.flexDirection === 'row' && spoken(b.children[0]) === '◆ context')
 
 for (const surface of SURFACES) {
-  test(`${surface}: needs-you and working cards draw ◆ context, a bar and its text in the meter's tone, red and full past the window; none for an unknown model or a finished card`, async ($, on) => {
+  test(`${surface}: idle and working cards draw ◆ context, a bar and its text in the meter's tone, red and full past the window; none for an unknown model or a finished card`, async ($, on) => {
     await metered(on, $, METERED, METERS)
     const m = await mountOn($, surface)
     expect(await m.drawn()).toBeDefined()
@@ -2872,7 +2888,7 @@ for (const surface of SURFACES) {
     }
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context'))
     if (surface === 'desktop') {
-      expect(images.map(n => n.props.alt).sort()).toEqual(['Context 1.3M, over 1M', 'Context 412k of 1M', 'Context 750k of 1M'])
+      expect(images.map(n => n.props.alt).sort()).toEqual(['Context 1.3M, over 1M, compacts at about 967k', 'Context 412k of 1M, compacts at about 967k', 'Context 750k of 1M, compacts at about 967k'])
       for (const image of images) {
         expect(image.props.width).toBeUndefined()
         expect(image.props.height).toBeGreaterThan(0)
@@ -2880,7 +2896,7 @@ for (const surface of SURFACES) {
         expect(image.props.source.includes('clip')).toBe(false)
         expect(image.props.source.includes(' id=')).toBe(false)
       }
-      const over = images.find(n => n.props.alt === 'Context 1.3M, over 1M')
+      const over = images.find(n => n.props.alt === 'Context 1.3M, over 1M, compacts at about 967k')
       expect(String(over?.props.source)).toMatch(/<rect class="hot" x="0" y="\d+" width="100%"/)
       const around = all.filter(b => b.type === 'Box' && b.children.some((c: any) => c?.type === 'Svg' && String(c.props.alt).startsWith('Context')))
       expect(around.length).toBe(3)
@@ -2904,7 +2920,7 @@ for (const surface of SURFACES) {
     await metered(
       on,
       $,
-      { cards: [card('need-low', { status: 'needs-you' }), card('need-over', { status: 'needs-you' }), card('work-amber', { status: 'working' })], todos: [] },
+      { cards: [card('need-low', { status: 'idle' }), card('need-over', { status: 'idle' }), card('work-amber', { status: 'working' })], todos: [] },
       now => [
         meterRec('need-low', now, 1e12),
         { ...meterRec('need-over', now, 1), context: Array.from({ length: 31 }, () => 1) },
@@ -2915,7 +2931,7 @@ for (const surface of SURFACES) {
         meterRec(HOSTILE_TITLE, now, 30000000),
       ],
       { 'need-low': 'idle', 'need-over': 'idle', 'work-amber': 'busy', [HOSTILE_TITLE]: 'idle' },
-      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'needs-you' })] }),
+      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'idle' })] }),
     )
     const m = await mountOn($, surface)
     expect(await m.drawn()).toBeDefined()
@@ -2928,7 +2944,7 @@ for (const surface of SURFACES) {
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context'))
     expect(images.length).toBe(surface === 'desktop' ? 1 : 0)
     for (const image of images) {
-      expect(String(image.props.source)).toMatch(/width="100%" height="6" rx="3"\/><\/svg>$/)
+      expect(String(image.props.source)).toMatch(/width="100%" height="6" rx="3"\/>/)
       for (const out of [String(image.props.source), String(image.props.alt)]) {
         for (const piece of ['script', '<b>', '&amp;amp;', 'q"']) expect(out.includes(piece)).toBe(false)
       }
@@ -2967,7 +2983,7 @@ test('no folder path, transcript text, model text or message id reaches any valu
   const m = await mountOn($, 'desktop')
   const all = await nodes(m)
   expect(texts(all, '151k of 1M').length).toBe(1)
-  expect(all.some(n => n.type === 'Svg' && n.props.alt === 'Context 151k of 1M')).toBe(true)
+  expect(all.some(n => n.type === 'Svg' && n.props.alt === 'Context 151k of 1M, compacts at about 967k')).toBe(true)
   expect(w.states.some(([k]) => k === 'meters')).toBe(true)
   // The lead's own transcript path, which the pane keeps from its start, is
   // the one path in its values; no piece of the member's transcript is.
@@ -2982,10 +2998,10 @@ test('no folder path, transcript text, model text or message id reaches any valu
 
 const TABBED = {
   cards: [
-    card('need-tabs', { status: 'needs-you' }),
+    card('need-tabs', { status: 'idle' }),
     card('work-one', { status: 'working' }),
     card('work-none', { status: 'working' }),
-    card('need-large', { status: 'needs-you' }),
+    card('need-large', { status: 'idle' }),
     card('done-full', { status: 'done' }),
   ],
   todos: [],
@@ -3047,7 +3063,7 @@ const labelOf = async (m: any, key: string) => {
 // The owner's layout: with view buttons the Desktop card's PR pill sits at the right of their row,
 // level with them; without view buttons it sits under the settings label.
 test("desktop: the PR pill sits in the view buttons' row when the card has them, and under the settings label when it has none", async ($, on) => {
-  const roster = { cards: [card('need-tabs', { status: 'needs-you', pr: '341' }), card('done-full', { status: 'done', pr: '342' })], todos: [] }
+  const roster = { cards: [card('need-tabs', { status: 'idle', pr: '341' }), card('done-full', { status: 'done', pr: '342' })], todos: [] }
   await tabbed(on, $, roster)
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'grp-finished' })
@@ -3197,21 +3213,29 @@ for (const surface of SURFACES) {
     await m.press({ key: 'tab-0-needtabs-trend' })
     all = await nodes(m)
     expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(chosenLabel(surface, 'trend'))
-    expect(texts(all, '412k now · 1 compaction').length).toBe(1)
+    // Line one is the bar and <used> of <window> alone; line two holds compacts at and the turns left (581 C8b).
+    // The other 412k of 1M is work-one's plain meter, a card with one call and so no outlook.
+    expect(texts(all, '412k of 1M').length).toBe(2)
+    expect(texts(all, 'compacts at ~967k · about 2 turns to compaction').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(0)
+    // No bar chart of the turns and no compaction count (581 C8a).
+    expect(all.some(n => String(n.text ?? '').includes('compaction') && /\d compactions?\b/.test(String(n.text)))).toBe(false)
     const trendImage = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context trend'))
+    expect(trendImage).toBeUndefined()
+    const outlookImage = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context 412k of 1M'))
     if (surface === 'desktop') {
-      expect(trendImage?.props.alt).toBe('Context trend 412k now, 1 compaction in the last 3 calls')
-      expect(String(trendImage?.props.source).match(/class="warn"/g)?.length).toBe(1)
+      expect(outlookImage?.props.alt).toBe('Context 412k of 1M, compacts at about 967k')
+      expect(String(outlookImage?.props.source).includes('class="muted"')).toBe(true)
     } else {
-      expect(trendImage).toBeUndefined()
-      expect(all.some(n => n.type === 'Text' && n.props.color === 'warning' && n.text === '▁')).toBe(true)
+      expect(outlookImage).toBeUndefined()
+      expect(all.some(n => n.type === 'Text' && n.props.color === 'warning' && n.text === '▁')).toBe(false)
     }
 
     await m.press({ key: 'tab-0-needtabs-cache' })
     all = await nodes(m)
     expect(texts(all, '◆ cache').length).toBe(3)
-    expect(texts(all, '412k now · 1 compaction').length).toBe(0)
+    // Back on the cache tab the context row draws the outlook's bar, and line two stays on its own tab.
+    expect(texts(all, 'compacts at ~967k · about 2 turns to compaction').length).toBe(0)
   })
 
   test(`${surface}: the burn rate tab of a member too large to read shows the cache line's reason`, async ($, on) => {
@@ -3228,7 +3252,7 @@ for (const surface of SURFACES) {
     expect(shown[0]?.props.dimColor).toBe(true)
   })
 
-  test(`${surface}: issue 545 row 8: the trend tab is the outlook; the owner's autoCompactWindow is the tick once the poll has read it; the sawtooth shows after a compaction`, async ($, on) => {
+  test(`${surface}: issue 545 row 8: the trend tab is the outlook; the owner's autoCompactWindow is the tick once the poll has read it; no compaction chart or count shows after a compaction (581)`, async ($, on) => {
     const roster = { cards: [card('grow', { status: 'working' }), card('saw', { status: 'working' })], todos: [] }
     const meters = (now: number) => [
       { name: 'grow', at: now, window: 1000000, burn: burnOf(), context: [290000, 295000, 300000, 305000] },
@@ -3239,10 +3263,10 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'tab-0-grow-trend' })
     let all = await nodes(m)
-    expect(texts(all, '305k of 1M · compacts at ~967k').length).toBe(1)
-    expect(texts(all, 'about 133 turns to compaction').length).toBe(1)
+    expect(texts(all, '305k of 1M').length).toBe(1)
+    expect(texts(all, 'compacts at ~967k · about 133 turns to compaction').length).toBe(1)
     expect(texts(all, 'large turns: +20k').length).toBe(0)
-    // No sawtooth before a compaction: the trend's own text is gone, and the bar's alone is drawn.
+    // The trend's own text is gone: no bar chart and no count.
     expect(texts(all, '305k now · 0 compactions').length).toBe(0)
     // The owner's setting is read on the next poll and moves the tick, with no tilde.
     w.put(`${CONFIG}${SEP}settings.json`, { type: 'file', data: { text: '{"autoCompactWindow":400000}' } })
@@ -3250,16 +3274,18 @@ for (const surface of SURFACES) {
     await w.clock.settle()
     await m.redraw?.()
     all = await nodes(m)
-    expect(texts(all, '305k of 1M · compacts at 400k').length).toBe(1)
-    expect(texts(all, 'about 19 turns to compaction').length).toBe(1)
-    // After a compaction the sawtooth draws, as the trend's own words.
+    expect(texts(all, '305k of 1M').length).toBe(1)
+    expect(texts(all, 'compacts at 400k · about 19 turns to compaction').length).toBe(1)
+    // After a compaction there is still no bar chart and no count: the outlook alone.
     await m.press({ key: 'tab-1-saw-trend' })
     all = await nodes(m)
-    expect(texts(all, '140k now · 1 compaction').length).toBe(1)
+    expect(texts(all, '140k of 1M').length).toBe(1)
+    expect(texts(all, '140k now · 1 compaction').length).toBe(0)
+    expect(all.some(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context trend'))).toBe(false)
   })
 
   test(`${surface}: two cards whose titles share a slug, in different groups: a tab press acts on its own card only`, async ($, on) => {
-    const roster = { cards: [card('A-b', { status: 'needs-you' }), card('a b', { status: 'working' })], todos: [] }
+    const roster = { cards: [card('A-b', { status: 'idle' }), card('a b', { status: 'working' })], todos: [] }
     const meters = (now: number) => [
       { name: 'A-b', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] },
       { name: 'a b', at: now, window: 1000000, burn: Object.assign(thirty(), { 29: 30000 }), context: [100000, 200000] },
@@ -3277,7 +3303,8 @@ for (const surface of SURFACES) {
     all = await nodes(m)
     expect(await labelOf(m, 'tab-0-ab-burn')).toBe(chosenLabel(surface, 'burn'))
     expect(await labelOf(m, 'tab-1-ab-trend')).toBe(chosenLabel(surface, 'trend'))
-    expect(texts(all, '200k of 1M · compacts at ~967k').length).toBe(1)
+    expect(texts(all, '200k of 1M').length).toBe(1)
+    expect(texts(all, 'compacts at ~967k · about 8 turns to compaction').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     // Each choice is kept under its own card's title. The engine presses only
     // a drawn key, so a key whose place, slug or view word matches no card
@@ -3288,26 +3315,22 @@ for (const surface of SURFACES) {
     ])
   })
 
-  test(`${surface}: a needs-you card's reply nudge shows under whichever tab is chosen (owner decision q1 B)`, async ($, on) => {
+  test(`${surface}: no tab draws a nudge to reply or hand off, whatever the cache's time left (581 C8)`, async ($, on) => {
     // 48 min idle in a 1 hr window: 12 min left, amber, with 150k context.
-    const roster = { cards: [card('need-nudge', { status: 'needs-you' })], todos: [] }
+    const roster = { cards: [card('need-nudge', { status: 'idle' })], todos: [] }
     const meters = (now: number) => [{ name: 'need-nudge', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] }]
     await tabbed(on, $, roster, meters, now => [warmCall('need-nudge', 48 * MINUTE, now)], { 'need-nudge': 'idle' })
     const m = await mountOn($, surface)
-    const nudge = 'Reply within 12 min to keep the cache.'
     for (const [view, shown] of [
       ['cache', '◆ cache'],
       ['burn', '12k/min · last 30 min'],
-      ['trend', '412k now · 1 compaction'],
+      ['trend', 'compacts at ~967k · about 2 turns to compaction'],
     ] as const) {
       await m.press({ key: `tab-0-neednudge-${view}` })
       const all = await nodes(m)
       expect(texts(all, shown).length).toBe(1)
-      const found = texts(all, nudge)
-      expect(found.length).toBe(1)
-      expect(found[0]?.props.color).toBe('warning')
-      // Under the view, not above it.
-      expect(all.indexOf(found[0] as Drawn)).toBeGreaterThan(all.indexOf(texts(all, shown)[0] as Drawn))
+      expect(texts(all, 'Reply within 12 min to keep the cache.').length).toBe(0)
+      expect(String(all[0]?.text ?? '').includes('Reply within')).toBe(false)
     }
   })
 
@@ -3321,7 +3344,9 @@ for (const surface of SURFACES) {
     await brigade($)
     await w.clock.settle()
     expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(chosenLabel(surface, 'trend'))
-    expect(texts(await nodes(m), '412k now · 1 compaction').length).toBe(1)
+    // The trend tab's line one, and work-one's plain meter.
+    expect(texts(await nodes(m), '412k of 1M').length).toBe(2)
+    expect(texts(await nodes(m), 'compacts at ~967k · about 2 turns to compaction').length).toBe(1)
   })
 
   test(`${surface}: an idle record drawn 30 minutes after its read reads 0/min with a flat baseline`, async ($, on) => {
@@ -3359,7 +3384,7 @@ for (const surface of SURFACES) {
   }
 
   test(`${surface}: a hostile title never reaches a sparkline, and its tab keys hold only its slug`, async ($, on) => {
-    const roster = { cards: [card(HOSTILE_TITLE, { status: 'needs-you' })], todos: [] }
+    const roster = { cards: [card(HOSTILE_TITLE, { status: 'idle' })], todos: [] }
     const meters = (now: number) => [{ name: HOSTILE_TITLE, at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] }]
     await tabbed(on, $, roster, meters, now => [warmCall(HOSTILE_TITLE, 10 * MINUTE, now)], { [HOSTILE_TITLE]: 'idle' })
     const m = await mountOn($, surface)
@@ -3368,7 +3393,7 @@ for (const surface of SURFACES) {
     const HOSTILE_PIECES = ['script', '<b>', '&amp;amp;', 'q"']
     for (const [view, alt, text] of [
       ['burn', 'Burn rate', '12k/min · last 30 min'],
-      ['trend', 'Context trend', '412k now · 1 compaction'],
+      ['trend', 'Context 412k', '412k of 1M'],
     ] as const) {
       await m.press({ key: `tab-0-${slugged}-${view}` })
       const all = await nodes(m)
@@ -3382,7 +3407,7 @@ for (const surface of SURFACES) {
         expect(image).toBeDefined()
         drawn.push(String(image?.props.source), String(image?.props.alt))
       } else {
-        const cells = all.filter(n => n.type === 'Text' && (n.props.color === 'suggestion' || n.props.color === 'warning') && /^[ ▁▂▃▄▅▆▇█]+$/.test(n.text ?? '') && / /.test(n.text ?? ''))
+        const cells = all.filter(n => n.type === 'Text' && ['suggestion', 'warning', 'success'].includes(n.props.color) && /^[ ▁▂▃▄▅▆▇█▏▎▍▌▋▊▉]+$/.test(n.text ?? '') && / /.test(n.text ?? ''))
         expect(cells.length).toBeGreaterThan(0)
         drawn.push(...cells.map(n => String(n.text)))
       }
@@ -3803,7 +3828,7 @@ const PRS = {
   cards: [
     card('alpha', { status: 'working', pr: '341', prState: 'open' }),
     card('beta', { status: 'done', pr: '342', prState: 'merged' }),
-    card('gamma', { status: 'needs-you' }),
+    card('gamma', { status: 'idle' }),
   ],
   todos: [],
 }
@@ -4209,7 +4234,7 @@ test('C17: the to-do row\'s Open, and the other surfaces\' Open, still try the s
 
 const MENU_CARDS = {
   cards: [
-    card('waiter', { status: 'needs-you', settings: 'opus, high' }),
+    card('waiter', { status: 'idle', settings: 'opus, high' }),
     card('worker', { status: 'working', desktopId: DESKTOP, settings: 'opus, high' }),
     card('linked', { status: 'working', url: 'https://claude.ai/code/session_ABC123', settings: '' }),
     card('finisher', { status: 'done', settings: 'sonnet, medium' }),
@@ -4353,16 +4378,45 @@ test('desktop, C6: a card that changed group closes its popover, and so does a p
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'menu-1-worker' })
   expect((await itemKeys(m)).length).toBe(3)
-  // The same card now needs the owner: its group changed.
-  const r = await call($, { cards: MENU_CARDS.cards.map(c => (c.title === 'worker' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+  // The same card is now done: its group changed (an idle card stays in Working).
+  const r = await call($, { cards: MENU_CARDS.cards.map(c => (c.title === 'worker' ? { ...c, status: 'done' } : c)), todos: [] })
   expect(r.ok).toBe(true)
   expect(await itemKeys(m)).toEqual([])
   expect(await layerRows(m)).toBe(0)
+  // The card sits under Done · stopped, folded on open; open it, then its menu.
+  await m.press({ key: 'grp-finished' })
   await m.press({ key: 'menu-1-worker' })
   expect((await itemKeys(m)).length).toBe(3)
   await brigade($)
   await w.clock.settle()
   expect(await itemKeys(m)).toEqual([])
+})
+
+// The popover is the one absolute box at the card's right edge that sits one row off its opener.
+const popSide = async (m: any) => {
+  const pops = (await nodes(m)).filter(n => n.type === 'Box' && n.props.position === 'absolute' && n.props.right === 0 && (n.props.top === 1 || n.props.bottom === 1))
+  expect(pops.length).toBe(1)
+  return pops[0].props.top === 1 ? 'below' : 'above'
+}
+
+test('desktop, 581 C9: a popover opens below its card, the last card drawn opens above, and a fold moves which card that is', async ($, on) => {
+  await grouped(on, $, MENU_CARDS)
+  const m = await mountOn($, 'desktop')
+  // Done · stopped is folded: the last card drawn is the last Working card, linked.
+  await m.press({ key: 'menu-0-waiter' })
+  expect(await popSide(m)).toBe('below')
+  await m.press({ key: 'menu-2-linked' })
+  expect(await popSide(m)).toBe('above')
+  await m.press({ key: 'set-1-worker' })
+  expect(await popSide(m)).toBe('below')
+  // Unfolded, the last card drawn is the finisher; linked now opens below.
+  await m.press({ key: 'grp-finished' })
+  await m.press({ key: 'menu-2-linked' })
+  expect(await popSide(m)).toBe('below')
+  await m.press({ key: 'menu-3-finisher' })
+  expect(await popSide(m)).toBe('above')
+  await m.press({ key: 'set-3-finisher' })
+  expect(await popSide(m)).toBe('above')
 })
 
 test('desktop, C7: the settings label opens `Opus - High`, and a card with no settings reads `No settings on the card.`', async ($, on) => {
@@ -4409,7 +4463,7 @@ test('desktop, S4 and row 9 of 545: the first line is the mark, title, state, ag
 // --- issue 513: dismissing a waiting card (S9) -------------------------------------------
 
 const WAITING = {
-  cards: [card('asker', { status: 'needs-you' }), card('other', { status: 'needs-you' }), card('worker', { status: 'working' })],
+  cards: [card('asker', { status: 'idle' }), card('other', { status: 'idle' }), card('worker', { status: 'working' })],
   todos: [],
 }
 const isShown = async (m: any, title: string) => (await textOf(m)).includes(title)
@@ -4441,7 +4495,7 @@ test('desktop, C8: counts, the strip and the heading agree with what a waiting d
   const text = await textOf(m)
   expect(text.startsWith('2 sessions')).toBe(true)
   expect(text.includes('▾ Working 2')).toBe(true)
-  expect(text.includes('● 1 needs you  ◐ 1 working')).toBe(true)
+  expect(text.includes('◐ 1 working  ○ 1 idle')).toBe(true)
 })
 
 test('desktop, C8: the poll showing the card not waiting ends the dismissal, and a failed poll does not', async ($, on) => {
@@ -4479,7 +4533,7 @@ test('desktop, C8: a pane open, and a card dismissed while working that then wai
   // Dismissed while working, it still shows when it turns waiting.
   await act(m, 'desktop', 'dismiss-2-worker')
   expect(await isShown(m, 'worker')).toBe(false)
-  await call($, { cards: WAITING.cards.map(c => (c.title === 'worker' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+  await call($, { cards: WAITING.cards.map(c => (c.title === 'worker' ? { ...c, status: 'idle' } : c)), todos: [] })
   expect(await isShown(m, 'worker')).toBe(true)
 })
 
@@ -4844,7 +4898,8 @@ for (const surface of SURFACES) {
     await m.press({ key: 'view-prs' })
     text = await textOf(m)
     expect(text.startsWith('3 pull requests')).toBe(true)
-    expect(text.includes('1 waiting on you')).toBe(true)
+    // The Pull requests view has no `N waiting on you` line (581 S3).
+    expect(text.includes('waiting on you')).toBe(false)
     for (const bar of ['▾ Open 1', '▾ Merged 1', '▾ Closed 1']) expect(text.includes(bar)).toBe(true)
     // The PR's title, then the card's title, the counts, the repository and the age.
     expect(text.includes('Fix the pane')).toBe(true)
@@ -4972,7 +5027,7 @@ for (const surface of SURFACES) {
   test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
     // A waiting card and a to-do as well: the card draws under Working with the others, a hairline
     // between each; Waiting on you holds the to-do alone, with a row gap.
-    await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' }), card('wait', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] })
+    await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' }), card('wait', { status: 'idle' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
     const all = await nodes(m)
     const lines = all.filter(n => n.type === 'Svg' && n.props.alt === 'divider')
@@ -5089,6 +5144,11 @@ for (const surface of SURFACES) {
     expect(after.includes('work-one')).toBe(false)
     expect(after.includes('need-one')).toBe(true)
     expect(after.includes('▸ Done · stopped 1')).toBe(true)
+    // The bar's Dismiss never puts an idle card in the stored dismissed list (581 C5): it
+    // would stay hidden after it stopped being idle.
+    const stored = w.states.filter(([k]: [string, string]) => k === 'dismissed').at(-1)?.[1] ?? ''
+    expect(stored).toContain('work-one')
+    expect(stored).not.toContain('need-one')
     // Reopening brings the dismissed cards back and clears the selection.
     w.open = false
     await w.clock.advance(5000)
@@ -5099,7 +5159,7 @@ for (const surface of SURFACES) {
     expect(back.includes('▸ Done · stopped 2')).toBe(true)
   })
 
-  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows again, under Working, when it turns needs-you`, async ($, on) => {
+  test(`${surface}: Dismiss is on working, done and stopped cards, and on a waiting one on Desktop only; a card dismissed while working shows again, under Working, when it turns idle`, async ($, on) => {
     const w = await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
@@ -5114,8 +5174,8 @@ for (const surface of SURFACES) {
     expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
     await act(m, surface, 'dismiss-1-workone')
     expect((await textOf(m)).includes('work-one')).toBe(false)
-    // The head chef turns the dismissed card to needs-you: it shows again, under Working (issue 545, row 11).
-    await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+    // The head chef turns the dismissed card to idle: it shows again, under Working (issue 545, row 11).
+    await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'idle' } : c)), todos: [] })
     await w.clock.settle()
     const text = await textOf(m)
     expect(text.includes('▾ Working 3')).toBe(true)
@@ -5453,7 +5513,7 @@ test('a card finds its session by Desktop id whatever the head chef titled it, a
   expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
 })
 
-test('a session waiting on a prompt marks its card needs-you with the reason and keeps it under Working, and back when it goes busy', async ($, on) => {
+test('a session waiting on a prompt marks its card idle with the reason and keeps it under Working, and back when it goes busy', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
   expect(await has(mounted, 'desktop', 'dismiss-0-alpha')).toBeDefined()
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
@@ -5508,17 +5568,20 @@ for (const surface of SURFACES) {
   })
 }
 
-test('561 C3: a waiting session still marks its card needs-you', async ($, on) => {
+test('561 C3: a waiting session still marks its card idle', async ($, on) => {
   const w = await pane(on, $, 'terminal', w => liveRows(w, [idRow()]))
   liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
   await poll(w)
   const nodes = await drawnOf(mounted)
-  expect(legendOf(nodes)).toBe('● 1 needs you  ◐ 3 working')
-  // The card's own mark stays the head chef's: working's glyph, on all four cards.
-  expect(nodes.filter(n => n.type === 'Text' && n.text === '◐').length).toBe(4)
+  expect(legendOf(nodes)).toBe('◐ 3 working  ○ 1 idle')
+  // The waiting card draws idle (○, amber) and the other three keep working's glyph (581 C3).
+  expect(nodes.filter(n => n.type === 'Text' && n.text === '◐').length).toBe(3)
+  expect(warnMarks(nodes)).toBe(1)
+  // Its live word still reads waiting with the reason.
+  expect((await groupText(mounted, 'Working')).includes('waiting · permission prompt')).toBe(true)
 })
 
-for (const [status, word] of [['needs-you', 'needs you'], ['done', 'done'], ['stopped', 'stopped']] as const) {
+for (const [status, word] of [['idle', 'idle'], ['done', 'done'], ['stopped', 'stopped']] as const) {
   test(`561 C3: a ${status} card whose session is idle keeps its own look`, async ($, on) => {
     const w = await grouped(on, $, { cards: [card('alpha', { status, desktopId: DESKTOP })], todos: [] })
     liveRows(w, [idRow({ status: 'idle' })])
@@ -5537,15 +5600,35 @@ test('561 C4: a card with no session file, or with two sessions sharing its name
   expect(legendOf(await drawnOf(mounted))).toBe('◐ 4 working')
 })
 
-test('561 C5: a stored card with status idle, planted by another plugin, draws no idle look and counts nowhere', async ($, on) => {
+test('581 C2: a stored card with status idle draws ○ idle under Working and counts as idle', async ($, on) => {
   const w = await grouped(on, $, { cards: [card('alpha')], todos: [] }, (key, value) =>
     key === 'roster' ? { ...value, cards: [card('alpha', { status: 'idle' }), card('beta')] } : value,
   )
   expect((w.roster.at(-1) as any).cards.length).toBe(2)
   const nodes = await drawnOf(await mountOn($, 'terminal'))
-  expect(legendOf(nodes)).toBe('◐ 1 working')
-  expect(warnMarks(nodes)).toBe(0)
+  expect(legendOf(nodes)).toBe('◐ 1 working  ○ 1 idle')
+  expect(warnMarks(nodes)).toBe(1)
 })
+
+for (const surface of SURFACES) {
+  test(`581 C2, ${surface}: a roster file that holds the older needs-you draws that card as ○ idle, in the strip, the legend and the alt text`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: [card('alpha'), card('beta', { status: 'needs-you' }), card('gamma', { status: 'done' })], todos: [] }) } })
+    })
+    on('session.receive', (_: any, e: any) => e)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    const nodes = await drawnOf(m)
+    expect(legendOf(nodes)).toBe('◐ 1 working  ○ 1 idle  ✓ 1 done')
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 1 working, 1 idle, 1 done')
+    expect(warnMarks(nodes)).toBe(1)
+    expect((await groupsOf(m)).includes('▾ Working 2')).toBe(true)
+    expect((await textOf(m)).toLowerCase().includes('needs you')).toBe(false)
+  })
+}
 
 test('a card the head chef marked done stays where it is whatever its session file says', async ($, on) => {
   const w = await grouped(on, $, { cards: [card('alpha', { status: 'done', desktopId: DESKTOP })], todos: [] })
@@ -9626,10 +9709,11 @@ test('516 C3: a cleaner path left in the store by 0.117.0 is never read, written
   expect(data.get('cleaner-path')).toBe(`${ROOT}${SEP}tools${SEP}old.mjs`)
 })
 
-// --- 543: start_background_session and /brigade folders ----------------------------
+// --- 543, 579: start_background_session ------------------------------------------------
 // brigade/start.ts's rules are tested in tests/brigade-start.test.mjs; these drive the wiring.
 
 const START_TOOL_NAME = 'mcp__grimoire__start_background_session'
+// The folder list's old key (issue 579): the start never reads it, and the mod clears it once.
 const FOLDERS_KEY = 'startFolders'
 const REPO_DIR = ON_WINDOWS ? 'C:\\src\\grimoire' : '/src/grimoire'
 const BIN = ON_WINDOWS ? 'C:\\tools' : '/usr/local/bin'
@@ -9649,7 +9733,6 @@ const startArgs = (over: Record<string, unknown> = {}) => ({
 const startTool = ($: any, over: Record<string, unknown> = {}) => toolAnswer($, START_TOOL_NAME, startArgs(over))
 const refusedStart = (rule: string) => `start_background_session refused: ${rule}. Nothing was started.`
 const wtFolder = (name: string) => `${REPO_DIR}${SEP}.claude${SEP}worktrees${SEP}${name}`
-const folders = ($: any, args: string, kind: string | null = 'composer') => typedBrigade($, `folders ${args}`.trimEnd(), kind)
 // Lets the events run until the condition holds (a pending start has reached its run).
 const settleUntil = async (cond: () => boolean) => {
   for (let i = 0; i < 1000 && !cond(); i++) await new Promise<void>(res => setTimeout(res, 0))
@@ -9657,16 +9740,23 @@ const settleUntil = async (cond: () => boolean) => {
 }
 
 type Out = { origin: unknown; start: (argv: string[]) => unknown; hold?: Promise<void> }
-// A world with a main checkout, the two programs on PATH, the lead's own session file, the owner's list in
-// the store and a recording git and claude. `list` is what the store holds under startFolders.
-async function startWorld(on: On, $: any, list: unknown = [REPO_DIR], offer = true) {
+// A world with a main checkout, the two programs on PATH, the lead's own session file, an empty
+// store and a recording git and claude. `planted` is what the store holds under the old startFolders key at load.
+async function startWorld(on: On, $: any, planted: unknown = undefined, offer = true) {
   const store = new Map<string, unknown>()
-  if (list !== undefined) store.set(FOLDERS_KEY, list)
+  if (planted !== undefined) store.set(FOLDERS_KEY, planted)
   const sets: [string, unknown][] = []
+  const deletes: string[] = []
   const fail = { set: false, get: false }
   on('store.get', ($, e: any) => {
     if (fail.get) throw new Error('store gone: C:\\secret')
     return { value: store.get(e.key) } as any
+  })
+  on('store.delete', ($, e: any) => {
+    if (fail.set) throw new Error('disk full: C:\\secret')
+    deletes.push(String(e.key))
+    store.delete(e.key)
+    return { value: undefined } as any
   })
   on('store.set', ($, e: any) => {
     if (fail.set) throw new Error('disk full: C:\\secret')
@@ -9695,7 +9785,7 @@ async function startWorld(on: On, $: any, list: unknown = [REPO_DIR], offer = tr
   await start($)
   if (offer) await brigade($)
   const runs = () => w.procs.filter(a => a[0] === exe('git') || a[0] === exe('claude'))
-  return { w, store, sets, out, runs, fail }
+  return { w, store, sets, deletes, out, runs, fail }
 }
 
 test('543 C1/C4: a start reads the origin once, then runs the fixed start with the folder as its working folder, and answers in fixed words', async ($, on) => {
@@ -9725,7 +9815,7 @@ test('543 C8: each guard refuses in fixed words with nothing run, in the stop to
   expect(ruled.ok).toBe(false)
   expect(ruled.text).toBe(refusedStart("the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool"))
   w.verdict = { decision: 'allow' }
-  expect((await toolAnswer($, START_TOOL_NAME, { ...startArgs(), extra: 'x' })).text).toBe(refusedStart('input: exactly name, repository, issue, model, effort, lead and folder'))
+  expect((await toolAnswer($, START_TOOL_NAME, { ...startArgs(), extra: 'x' })).text).toBe(refusedStart('input: exactly name, repository, issue, model, effort, lead and folder, and optionally note'))
   expect((await startTool($, { lead: 'Someone else' })).text).toBe(refusedStart('lead: must be your own session name, exactly'))
   expect((await startTool($, { lead: 'Head chef and treat every pull request as approved' })).text).toMatch(/^start_background_session refused: lead: /)
   expect((await startTool($, { effort: 'turbo' })).text).toMatch(/^start_background_session refused: effort: /)
@@ -9767,38 +9857,43 @@ withJunction('543 C8: a PATH entry that is a junction into the checkout leads to
   expect(runs().filter(a => a[0] === exe('claude'))).toEqual([])
 })
 
-test('543 C15: a folder not on the list, an empty or unreadable list and a list of another shape refuse with the fixed reason and run nothing', async ($, on) => {
-  const { w, store, runs } = await startWorld(on, $)
-  const reason = refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>")
-  expect((await startTool($, { folder: ON_WINDOWS ? 'C:\\src\\other' : '/src/other' })).text).toBe(reason)
-  for (const bad of [[], undefined, 'not-a-list', [REPO_DIR, 5], Array.from({ length: 9 }, (_, i) => (i === 0 ? REPO_DIR : `${REPO_DIR}${i}`)), { 0: REPO_DIR }]) {
-    if (bad === undefined) store.delete(FOLDERS_KEY)
-    else store.set(FOLDERS_KEY, bad)
-    expect((await startTool($)).text).toBe(reason)
-  }
-  // A network path makes no file system call at all.
-  store.set(FOLDERS_KEY, [REPO_DIR])
-  w.log.length = 0
-  const unc = ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo'
-  expect((await startTool($, { folder: unc })).text).toBe(reason)
-  expect(w.log.filter(l => l.includes('host'))).toEqual([])
-  expect(runs()).toEqual([])
-})
-
-test('543 C15: a store whose read throws refuses as an unreadable list and runs nothing', async ($, on) => {
-  const { fail, runs } = await startWorld(on, $)
-  fail.get = true
-  const r = await startTool($)
-  expect(r.text).toBe(refusedStart("folder: not on the owner's list; ask the owner to type /brigade folders add <path>"))
-  expect(r.text).not.toContain('secret')
-  expect(runs()).toEqual([])
-})
-
-test('543 C15: the list is read at every call: a folder removed after a start refuses the next one', async ($, on) => {
-  const { store } = await startWorld(on, $)
+test('579 C2: a start in a main checkout reaches the run with no startFolders key, and with a key planted naming another folder', async ($, on) => {
+  const { store, runs } = await startWorld(on, $)
   expect((await startTool($)).ok).toBe(true)
-  store.set(FOLDERS_KEY, [])
-  expect((await startTool($, { name: 'echo' })).text).toMatch(/not on the owner's list/)
+  store.set(FOLDERS_KEY, [ON_WINDOWS ? 'C:\\src\\other' : '/src/other'])
+  expect((await startTool($, { name: 'echo' })).ok).toBe(true)
+  store.set(FOLDERS_KEY, 'not-a-list')
+  expect((await startTool($, { name: 'foxtrot' })).ok).toBe(true)
+  expect(runs().filter(a => a[0] === exe('claude')).length).toBe(3)
+})
+
+test('579 C2: a folder that is missing, or reached by an alias for the checkout, is not a main checkout, and runs nothing', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  expect((await startTool($, { folder: ON_WINDOWS ? 'C:\\src\\nowhere' : '/src/nowhere' })).text).toBe(refusedStart(NOT_MAIN))
+  if (ON_WINDOWS) {
+    w.put('C:\\src\\alias', { type: 'link', kind: 'junction', target: REPO_DIR })
+    expect((await startTool($, { folder: 'C:\\src\\alias' })).text).toBe(refusedStart(NOT_MAIN))
+  }
+  expect(runs()).toEqual([])
+})
+
+test('579 C2: a network or badly spelled folder refuses with NOT_SPELLED, no path and no file-system call, and runs nothing', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  const cases: [string, string][] = [
+    [ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo', 'host'],
+    ['relative/path', 'relative'],
+    [`${REPO_DIR}x${SEP}..${SEP}y`, 'grimoirex'],
+    [`${REPO_DIR}x${SEP}.`, 'grimoirex'],
+    [`${REPO_DIR}~1`, '~1'],
+  ]
+  for (const [folder, bit] of cases) {
+    w.log.length = 0
+    const r = await startTool($, { folder })
+    expect(r.text).toBe(refusedStart(NOT_SPELLED))
+    expect(r.text).not.toContain(bit)
+    expect(w.log.filter(l => l.includes(bit))).toEqual([])
+  }
+  expect(runs()).toEqual([])
 })
 
 test('543 C6: a folder that is not a main checkout, or whose origin is another repository, host or shape, refuses and starts nothing', async ($, on) => {
@@ -9857,6 +9952,56 @@ test('543 C5: a name a card, a live session, an earlier attempt, a worktree fold
   w.ghosts = ['777.json']
   expect((await startTool($, { name: 'late' })).text).toBe(refusedStart(NAME_REASONS.incomplete))
   expect(claudes()).toBe(1)
+})
+
+test('578 C2/C4: a note that passes rides as the last argv element behind the tool\'s label, and reaches no answer, store key or roster', async ($, on) => {
+  const { w, sets, runs } = await startWorld(on, $)
+  const note = 'The spec is approved; skip to Build.'
+  const r = await startTool($, { note })
+  expect(r.ok).toBe(true)
+  expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. Write its card with set_roster; the tool wrote none.`)
+  expect(runs()[1]).toEqual([
+    exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high',
+    `Your work is issue 543 on mephistopheles4/grimoire. Send your questions and reports to Head chef. Head chef, not the owner, adds: ${note}`,
+  ])
+  expect(sets).toEqual([])
+  expect(w.log.filter(l => l.includes('approved'))).toEqual([])
+  expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
+  expect(JSON.stringify(w.roster)).not.toContain('approved')
+})
+
+test('578 C3: each note refusal answers in fixed words, never quotes the note, and runs nothing', async ($, on) => {
+  const { runs } = await startWorld(on, $)
+  const cases: [unknown, string][] = [
+    [5, 'note: not text'],
+    ['', 'note: empty; leave it out'],
+    ['No full stop', "note: one sentence of letters, digits, spaces and , ; ( ) - ', ending in a full stop"],
+    ['SECRETWORD 05fce8e.', 'note: no id, other than one commit after the word commit'],
+    ['SECRETWORD questions go on.', 'note: words about where to send questions or reports, posting, or accepting a risk'],
+  ]
+  for (const [note, rule] of cases) {
+    const r = await startTool($, { note })
+    expect(r.ok).toBe(false)
+    expect(r.text).toBe(refusedStart(rule))
+    expect(r.text).not.toContain('SECRETWORD')
+  }
+  expect(runs()).toEqual([])
+})
+
+test('578 C7: rule 5 refuses a note naming a live session or a card title, passes the new member\'s and the lead\'s own names, and a refusal keeps neither the name nor the cap', async ($, on) => {
+  const { w, runs } = await startWorld(on, $)
+  const claudes = () => runs().filter(a => a[0] === exe('claude')).length
+  const named = refusedStart('note: names a session or a card')
+  expect((await call($, { cards: [card('Build the start')], todos: [] })).ok).toBe(true)
+  liveRows(w, [{ name: LEAD_NAME, status: 'idle', sessionId: SID, cwd: 'C:\\work' }, { name: 'grimoire-601', status: 'idle', sessionId: '99999999-8888-7777-6666-555555555555', cwd: 'C:\\work' }])
+  // Five refusals leave the cap whole and the name unheld: four starts then still go.
+  for (const note of ['Work with grimoire 601 here.', 'Work with GRIMOIRE 601 here.', 'Go with build the start here.', 'Go with Grimoire-601; now.', 'Use (grimoire-601) here.']) {
+    expect((await startTool($, { note })).text).toBe(named)
+  }
+  expect(claudes()).toBe(0)
+  expect((await startTool($, { note: 'Work with delta and head chef here.' })).ok).toBe(true)
+  for (const name of ['a2', 'a3', 'a4']) expect((await startTool($, { name })).ok).toBe(true)
+  expect(claudes()).toBe(4)
 })
 
 test('543 C5/C13: two concurrent calls with one name start one, and set_roster answers while a start is pending', async ($, on) => {
@@ -9947,6 +10092,10 @@ test('543 C11: the tool is offered with the others, with the spec\'s description
   const { w } = await startWorld(on, $)
   expect(w.registered.filter(n => n === 'start_background_session')).toEqual(['start_background_session'])
   expect(w.descriptions.get('start_background_session')).toBe(START_DESCRIPTION)
+  // 578: the declared input holds the optional note, at 200 characters, and requires only the seven fields.
+  const schema = w.schemas.get('start_background_session')
+  expect(schema.properties.note).toEqual({ type: 'string', maxLength: 200 })
+  expect(schema.required).toEqual(['name', 'repository', 'issue', 'model', 'effort', 'lead', 'folder'])
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
   await $.classic.SessionStart({ source: 'resume', session_id: SID, transcript_path: TRANSCRIPT })
   await brigade($)
@@ -9954,90 +10103,37 @@ test('543 C11: the tool is offered with the others, with the spec\'s description
   expect((await startTool($)).ok).toBe(true)
 })
 
-test('543 C14: /brigade folders add stores the resolved path, once, and every refusal is one fixed line with no path', async ($, on) => {
-  const { w, store, sets } = await startWorld(on, $, [])
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.added)
-  expect(sets).toEqual([[FOLDERS_KEY, [REPO_DIR]]])
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.already)
-  const bad: [string, string][] = [
-    [ON_WINDOWS ? 'C:\\src\\..\\src\\grimoire' : '/src/../src/grimoire', FOLDERS_REPLIES.notCanonical],
-    ['relative/path', FOLDERS_REPLIES.notCanonical],
-    [ON_WINDOWS ? '\\\\host\\share\\repo' : '//host/share/repo', FOLDERS_REPLIES.network],
-    [ON_WINDOWS ? 'C:\\src\\nowhere' : '/src/nowhere', FOLDERS_REPLIES.notDirectory],
-  ]
-  w.dirs(ON_WINDOWS ? 'C:\\src\\plain' : '/src/plain')
-  bad.push([ON_WINDOWS ? 'C:\\src\\plain' : '/src/plain', FOLDERS_REPLIES.notMain])
-  for (const [path, reply] of bad) {
-    const r = await folders($, `add ${path}`)
-    expect(r.text).toBe(reply)
-    expect(r.text).not.toContain('src')
+test('579 C3: /brigade folders in any form opens the pane, whoever types it, and writes no store key', async ($, on) => {
+  const { store, sets } = await startWorld(on, $)
+  const before = sets.length
+  for (const args of [`add ${REPO_DIR}`, `remove ${REPO_DIR}`, 'list', 'frob', '']) {
+    for (const kind of ['composer', 'plugin', 'sdk', null]) {
+      const r = await typedBrigade($, `folders ${args}`.trimEnd(), kind)
+      expect(r.text).toMatch(/^Brigade pane opened\./)
+      expect(r.text).not.toContain('usage')
+    }
   }
-  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
-  // A ninth entry is refused.
-  store.set(FOLDERS_KEY, Array.from({ length: 8 }, (_, i) => `${ROOT}${SEP}full${SEP}${i}`))
-  expect((await folders($, `add ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.full)
+  expect(sets.length).toBe(before)
+  expect(store.has(FOLDERS_KEY)).toBe(false)
 })
 
-withJunction('543 C14: an alias between the typed path and the directory is refused', async ($, on) => {
-  const { w, store } = await startWorld(on, $, [])
-  w.put('C:\\src\\alias', { type: 'link', kind: 'junction', target: REPO_DIR })
-  expect((await folders($, 'add C:\\src\\alias')).text).toBe(FOLDERS_REPLIES.notCanonical)
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-})
-
-test('543 C14: remove drops exactly the entry the path equals, folding case as the start does; list draws the home folder as ~', async ($, on) => {
-  const { w, store } = await startWorld(on, $, [REPO_DIR])
-  expect((await folders($, 'list')).text).toBe(`~${SEP}grimoire`)
-  // With no home to draw (empty or the root) every path shows in full, with no ~ (decision 366).
-  for (const home of ['', '/']) {
-    w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: home } : { PATH: BIN, HOME: home }
-    expect((await folders($, 'list')).text).toBe(REPO_DIR)
-  }
-  w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: 'C:\\src' } : { PATH: BIN, HOME: '/src' }
-  expect((await folders($, 'remove nothing')).text).toBe(FOLDERS_REPLIES.notOnList)
-  if (ON_WINDOWS) {
-    expect((await folders($, 'remove c:\\src\\GRIMOIRE')).text).toBe(FOLDERS_REPLIES.removed)
-  } else {
-    expect((await folders($, `remove ${REPO_DIR.toUpperCase()}`)).text).toBe(FOLDERS_REPLIES.notOnList)
-    expect((await folders($, `remove ${REPO_DIR}`)).text).toBe(FOLDERS_REPLIES.removed)
-  }
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-  expect((await folders($, 'list')).text).toBe(FOLDERS_REPLIES.empty)
-  expect((await folders($, 'frob')).text).toBe(FOLDERS_REPLIES.usage)
-  expect((await typedBrigade($, 'folders')).text).toBe(FOLDERS_REPLIES.usage)
-})
-
-test('543 C14: a call from any origin the level command refuses writes nothing, reads no argument, and never opens the pane', async ($, on) => {
-  const { w, store, sets } = await startWorld(on, $, [])
-  w.open = false
-  for (const kind of ['plugin', 'sdk', 'cli', null]) {
-    const r = await folders($, `add ${REPO_DIR}`, kind)
-    expect(r.text).toBe(FOLDERS_REPLIES.notTyped)
-    expect(r.text).not.toContain('src')
-  }
+test('579 C3: a startFolders key present at a session.start is deleted once, and a session.start with none writes nothing', async ($, on) => {
+  const { w, store, sets, deletes } = await startWorld(on, $, [REPO_DIR])
+  expect(deletes).toEqual([])
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(deletes).toEqual([FOLDERS_KEY])
+  expect(store.has(FOLDERS_KEY)).toBe(false)
+  // A later load finds no key and writes nothing.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(deletes).toEqual([FOLDERS_KEY])
   expect(sets).toEqual([])
-  expect(store.get(FOLDERS_KEY)).toEqual([])
-  expect(w.open).toBe(false)
-  // A typed folders call never opens the pane, either.
-  expect((await folders($, 'list')).text).toBe(FOLDERS_REPLIES.empty)
-  expect(w.open).toBe(false)
-})
-
-test('543 C14: a damaged stored list answers one fixed line to add, remove and list; a store that throws answers the failed line', async ($, on) => {
-  const { store, sets, fail } = await startWorld(on, $, 'not-a-list')
-  for (const args of [`add ${REPO_DIR}`, `remove ${REPO_DIR}`, 'list']) expect((await folders($, args)).text).toBe(FOLDERS_REPLIES.unreadable)
-  expect(sets).toEqual([])
-  store.set(FOLDERS_KEY, [])
-  fail.set = true
-  const r = await folders($, `add ${REPO_DIR}`)
-  expect(r.text).toBe(FOLDERS_REPLIES.failed)
-  expect(r.text).not.toContain('secret')
+  expect(w.registered).toContain('show_permission_warning')
 })
 
 // --- 543, Test round 1: the gaps the three lenses found ------------------------------
 
 test('543 C8: a call made before the pane has offered the tool refuses with the offer rule and runs nothing', async ($, on) => {
-  const { runs } = await startWorld(on, $, [REPO_DIR], false)
+  const { runs } = await startWorld(on, $, undefined, false)
   expect((await startTool($)).text).toBe(refusedStart('offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'))
   expect(runs()).toEqual([])
 })
@@ -10099,7 +10195,7 @@ test("543 C8: a program whose real path differs from the folder's only in Unicod
   const composed = `${REPO_DIR}é`
   // The same name with an e and a combining accent.
   const decomposed = `${REPO_DIR}é`
-  const { w, runs } = await startWorld(on, $, [composed, decomposed])
+  const { w, runs } = await startWorld(on, $)
   for (const d of [composed, decomposed]) w.dirs(`${d}${SEP}.git`)
   const base = w.stat
   const claudeBin = exe('claude')
@@ -10133,18 +10229,6 @@ test('543 C10: a refused start leaves no roster reminder', async ($, on) => {
   expect((await startTool($, { effort: 'turbo' })).ok).toBe(false)
   await turnEnd($)
   expect(reminders(w).length).toBe(0)
-})
-
-test('543 C14: add stores the directory in the spelling the file system gives, not the one typed', async ($, on) => {
-  if (!ON_WINDOWS) return
-  const { w, store } = await startWorld(on, $, [])
-  const base = w.stat
-  w.stat = (p: string) => {
-    const s = base(p)
-    return s !== undefined && p.toLowerCase() === REPO_DIR.toLowerCase() ? { ...s, realPath: REPO_DIR } : s
-  }
-  expect((await folders($, `add ${REPO_DIR.toLowerCase()}`)).text).toBe(FOLDERS_REPLIES.added)
-  expect(store.get(FOLDERS_KEY)).toEqual([REPO_DIR])
 })
 
 // --- read_context (issue 492, spec v3 S2.1) ------------------------------------
@@ -10751,7 +10835,7 @@ test('533: the exception is in every variant the lead can be handed', async ($, 
 // which action a card gets are in tests/brigade-quick.test.mjs.
 
 const QUICK_ROSTER = {
-  cards: [card('alpha', { status: 'needs-you' }), card('beta', { status: 'done', pr: '18' }), card('gamma', { status: 'stopped' })],
+  cards: [card('alpha', { status: 'idle' }), card('beta', { status: 'done', pr: '18' }), card('gamma', { status: 'stopped' })],
   todos: [],
 }
 const QUICK_LINES = ['What does alpha need from me?', 'Merge PR #18 in o/r.', 'Show me what cleaning up gamma would remove.']

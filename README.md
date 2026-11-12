@@ -144,17 +144,17 @@ you install. Not for work in the same session.
 started. A switch at the top shows Sessions, Pull requests or Decisions, and
 the pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports
-its sessions sent since you opened the pane. A row shows a checkbox, a status
+its sessions sent since you opened the pane. Waiting on you holds your to-dos
+alone. A session the lead marked idle, or a working one that is idle or waits on a
+prompt, stays under Working, marked idle, and the status strip counts it apart. A row shows a checkbox, a status
 dot, the title, the latest report's first line, the live busy or idle
-state (a session that waits on you moves its row under Waiting on you; a working
-session that is idle keeps its row under Working, marked idle, and the status
-strip above the groups counts it apart; and a row shows the session's own title) and how long the session has been in its status. Model and
+state (a row shows the session's own title) and how long the session has been in its status. Model and
 effort show as the settings line the lead wrote, at the right of the pull request pill on Desktop. Pressing it opens a small
 popover with the same words, and a `⋯` on each row holds Open, Split and
 Dismiss, each only where it applies; in the terminal Open and Dismiss are always shown. A pull request
 pill opens the pull request in your browser.
 Since 0.144.0, on Desktop only, a row that fits one of three actions shows a
-button left of the `⋯`: **Ask** on a row that waits on you, **Merge** on a done
+button left of the `⋯`: **Ask** on an idle row, **Merge** on a done
 row with no `repo` whose pull request `gh` says is open, and **Clean up** on a
 done or stopped row with no pull request or one `gh` says is merged or closed.
 A button puts one line in your prompt box and sends nothing: you read it and
@@ -164,9 +164,9 @@ what cleaning up <title> would remove.`, which asks for the list first. A title
 with anything but letters, digits, `.`, `_` or `-`, or over 80 characters, gets no button, and a button does nothing while the box holds a
 draft (a toast says so). If the box cannot be filled, a toast shows the line to type.
 The terminal, the phone and VS Code draw no button; ask the lead in chat there.
-Tick several rows and a bar at the foot dismisses them together. A session that
-waits on you can be dismissed for that one wait; it comes back when the
-session waits again. Reopening the pane brings
+Tick several rows and a bar at the foot dismisses them together. An idle row has no
+checkbox and can be dismissed while it stays idle; it comes back when its status
+changes or it stops being idle. Reopening the pane brings
 dismissed rows back. The pane's section bars, hover and selection bar are drawn
 for Desktop's dark theme, so in a light theme they look darker than the rest of
 the app.
@@ -289,20 +289,20 @@ lead's turn, and above any other survey. If you go back to a mod older than
 0.88.0, its Decisions tab leaves out a compaction's Pane entry and counts it
 among the entries it cannot draw.
 
-A row that waits on you and holds a large context says when to reply
-to keep its cache, or suggests a hand-off once it has gone cold. Under its
-cache bar, a context meter shows how full the session's context is: amber from
-70%, red from 90%. Icon buttons on the row switch to two more views. Burn rate is a
+Under its cache bar, one context bar shows how full the session's context is: amber
+from 70%, red from 90%. Once the session has made two calls and its window is known, that
+bar is a bar of the context against its window, with a tick where auto-compaction fires
+(your `autoCompactWindow` setting when it is set and under the window, else the window
+less 33k, never under half of it, marked with `~`) and a dot on the bar for each of the
+last five turns since the last compaction that added more than 20k; amber and red then
+count the way to the tick. Icon buttons on the row switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
-with its rate per minute. Context is a bar of the session's context against its window, with a tick
-where auto-compaction fires (your `autoCompactWindow` setting when it is set and
-under the window, else the window less 33k, never under half of it, marked with
-`~`), an estimate of the turns left from the average growth per turn since the last
-compaction, and a dot on the bar for each of the last five turns since then that
-added more than 20k. A sparkline of its last 30 calls' context, marking each call under
-half the one before it as a compaction, shows only once the session has compacted. A row shows these buttons only when it has more than one view, and
-keeps your choice while the lead session lasts. The reply reminder shows under
-whichever view you chose. At the bottom of the pane
+with its rate per minute. Context trend shows the same bar with `<used> of <window>` beside it, and
+under it `compacts at ~N` with an estimate of the turns left from the average growth per turn
+since the last compaction; it shows only when the row has that bar. No row draws a chart of
+its last calls' context or a count of compactions, and none draws a reminder to reply or
+to hand off. A row shows these buttons only when it has more than one view, and
+keeps your choice while the lead session lasts. At the bottom of the pane
 it shows the lead session's own rate limits and context. A faint extension on
 the session and weekly limit bars shows where each will be at its reset if the
 current pace holds, and a red note says how early a limit runs out when that
@@ -338,8 +338,7 @@ the start of a large transcript, through a process, is the next step (issue
 **Known limit:** a card the pane draws from that file counts its cache down from 1 hour after the last call, because the engine's
 per-call usage does not say whether a call cached for 5 minutes or for 1 hour.
 A session whose main conversation is not on the 1-hour cache can then show
-warm for up to 55 minutes after its cache went cold, and its "reply within N
-min" reminder comes up to 55 minutes late. This holds at every transcript
+warm for up to 55 minutes after its cache went cold. This holds at every transcript
 size, including members whose transcript the pane could read and whose window
 it showed correctly before. Examples: a session in usage overage; a session on
 an API key, or on Bedrock, Vertex or Foundry, without the 1-hour opt-in; a
@@ -505,8 +504,7 @@ files you ask for:
   write and read the lead's hand-off, the `read_autonomy` tool, which reads
   the lead's autonomy level, the
   `start_background_session` tool (since 0.140.0), which starts one background
-  session with a fixed command in a main checkout you listed with
-  `/brigade folders add`, the
+  session with a fixed command in a main checkout of the repository, the
   `stop_background_session` tool, which runs `claude stop` for a background
   session your words in the lead's chat named, the `read_context` tool, which reads each
   card's context figure from the meters the pane's last poll kept, the
@@ -518,9 +516,9 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `start_background_session`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `start_background_session`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.148.0 its `session.start` hook (not `classic.SessionStart`) also deletes an old `startFolders` key, only when one is present. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. Since 0.140.0, `/brigade folders add <path>`, `remove <path>` and `list` keep the list of main checkouts the start tool may start a session in, only when you typed the command at the prompt or sent it from your phone (a command typed in the terminal is refused). The list is plugin state that other plugins can read, and `list` shows its paths with `~` for your home folder. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. Since 0.148.0, `/brigade folders` is gone, as are the list it kept and its `startFolders` key, and it opens the pane like any other arguments. To upgrade, open `claude` once in each main checkout and accept the trust prompt: the start tool relies on the harness's folder trust. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy`, `start_background_session`, `stop_background_session`, `read_context` and `show_permission_warning` | Answers for the mod's own nine tools, which have no other code behind them. |

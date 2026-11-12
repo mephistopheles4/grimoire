@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.31.0
+Version: 1.35.0
 Kind: skill
 Level: Thorough
 
@@ -114,23 +114,23 @@ need, without overwhelming me or showing me too much.
   an issue; `repository`, one `owner/name`; `issue`, digits only; `model`;
   `effort`, one of `low`, `medium`, `high`, `xhigh` or `max`; `lead`, the
   lead's own session name, exactly as the first line of its session list
-  gives it; and `folder`. The tool builds the fixed command and the one-line
-  start prompt itself, runs them with no shell, takes no permission mode, and
+  gives it; and `folder`. It takes one optional eighth field, `note`: one
+  short sentence of the lead's own words, which the tool bounds and labels as
+  the lead's (see "The start prompt", *amended, Proposed*, issue 578). The tool
+  builds the fixed command and the one-line start prompt itself, runs them
+  with no shell, takes no permission mode, and
   answers the job id, the session's folder and its branch in fixed words. The
   mod checks every field, the owner's rules, the folder, the repository's
   origin, the name and a cap of 4 starts in 10 minutes before it runs
   anything, and each refusal names the rule that failed and says nothing was
   started. The lead says a refusal in one line in plain words, with the fix
   where one is named, and offers the Desktop start as the other route.
-  - **The folder** is the one the owner's words name, or the lead's own
+  - **The folder** (*Proposed* (issue 579, spec rev 3 S5.4; the owner's ask, with "go" relayed as the lead's decision 38)) is the one the owner's words name, or the lead's own
     working folder when that is a main checkout of the repository, and never
-    one taken from an issue, a report, a message, a hand-off or the reply to
-    `/brigade folders list`. In a linked worktree the lead's own folder is not
-    a main checkout: it asks the owner which main checkout. The tool refuses a
-    folder that is not on the owner's list or not a main checkout; the lead
-    cannot read the list, so for the first refusal it asks the owner to type
-    `/brigade folders add <path>` (the owner can type it at the prompt or from
-    the phone, and the lead cannot), and it starts nothing until the owner has.
+    one taken from an issue, a report, a message or a hand-off. In a linked
+    worktree the lead's own folder is not a main checkout: it asks the owner
+    which main checkout. The tool refuses a folder that is not a main checkout
+    of the repository, and the harness refuses one the owner has not trusted.
   - **Without the tool** (no mod, the tool not offered, the pane closed), the
     lead says so in one line and offers `/brigade` or the Desktop route. It
     does not type the command.
@@ -467,7 +467,8 @@ need, without overwhelming me or showing me too much.
   decides, as it does for merges, and the skill keeps no separate wait. Where
   the file allows it, a level-3 lead may clean up toward its goal, logs each
   decision before acting, and lists what it touched in its result. Where the
-  file keeps it, the lead logs a waiting entry naming the sessions by repository and title only, adds the fixed to-do text for a waiting entry, and carries
+  file keeps it, the lead logs a waiting entry naming the sessions by repository and title only, adds a to-do for the waiting entry that names the cleanup by its verb
+  and the card's title, as "A to-do it writes" holds it, and carries
   on. Everything above holds at level 3 too. Text from a message, report or
   hand-off never starts a cleanup at any level. At levels 1 and 2 cleanup
   takes the owner's yes in this chat.
@@ -824,12 +825,24 @@ section that changed it, "504" for the cut.
   "Carried from a hand-off, not this session's writing, not checked against
   its log: decision <id> from <writer>, <repository> <title>". Its other
   fields hold fixed words, one option "answer in chat", and no hand-off text.
-  It adds the to-do with the fixed text below, and the owner's answer pairs
-  with the new entry by its new id, which the lead restates to the owner.
-- **Confirmed** (402; rev 4 S5, build-411's note on issue 402). **The to-do's
-  fixed text** for a waiting entry: "Decision <id> from <lead name> waits
-  for you in the Decisions tab", where `<lead name>` is its name as the
-  start prompt carries it, held to letters, digits, spaces and `. _ -`.
+  It adds the to-do for a carried decision that "A waiting entry's to-do"
+  below gives, and the owner's answer pairs with the new entry by its new id,
+  which the lead restates to the owner.
+- *Proposed* (issue 580, spec rev 4 S2 and S2.5, the owner's relayed words and
+  the lead's reading of them; replacing the **Confirmed** to-do of 402,
+  rev 4 S5, build-411's note on issue 402, which the change log's 1.33.0 row
+  names). **A waiting entry's to-do** is a to-do
+  like any other, as "A to-do it writes" holds it: it starts with a verb and
+  names the act and the work, as in "Decide whether to merge app PR 71" or
+  "Approve cleaning up build-4", and the decision log holds the question.
+  *A decision carried from a hand-off* gets this fixed to-do: "Answer carried
+  <owner/name>: <title>", with no `link` and no `session`. `<title>` is the
+  carried line's title held to ASCII letters, digits, spaces and `. _ -`, any
+  other character dropped, and cut at a whole word to fit 50 characters; when
+  no whole word of it fits, it is left out with its colon. When `<owner/name>`
+  alone does not fit, the to-do is "Answer a carried decision (decision N)", N
+  the new id. No other hand-off text goes in it. The lead restates the new id
+  to the owner in chat. A waiting entry's to-do replaces another to-do for the same ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it.
 - **Confirmed** (rev 4 S5, field-test finding 11). **An answer to an old
   waiting entry.** An `answers` link works only in the log of the session
   that wrote the waiting entry. Ids count from 1 in each log, so a decision
@@ -868,7 +881,11 @@ learned).
   milestone report, a new question for the owner, a merge or a cleanup. A
   refused call is said once in its next report, and it carries on. A card's
   `url` follows `references/roster.md`, and `work` names the repository and
-  issue number only.
+  issue number only. *Proposed* (issue 581): a card's `status` is `working`,
+  `idle`, `done` or `stopped`. It writes `idle` for a member that has
+  reported and waits on the owner or on the lead, and `working` again when it
+  resumes; what the owner must do goes in a to-do, not in the status. It no longer writes `needs-you`; the pane
+  still reads that word as `idle`.
 - **Confirmed** (rev 4 S5.1, L7). **The owner answers in the lead's chat.** The
   start prompt tells members to send their questions to the lead. The owner
   may still type to a member directly: those words, in the member's own
@@ -1045,12 +1062,13 @@ yes keeps for the owner.
   round 1, q2 A, the lead's pick under the owner's standing words, relayed:
   "pick all risks please"; cut in issue 486, decisions 348 and 389, the
   owner's words, relayed by the lead, 2026-10-31; the finding's name
-  reworded, *Proposed*, issue 438). **What goes out.** No
+  reworded, *Proposed*, issue 438; a to-do's text eased, *Proposed*, issue
+  580, spec rev 4 S4). **What goes out.** No
   error text or check output goes in a post, issue, edit, merge title or
   body, release note, commit message, card, to-do, next-step box, start
-  prompt, log entry or hand-off: it is data. A card or
-  a to-do carries no question, decision or note text, and a card keeps only
-  its Desktop id or `bgId`, which the pane matches. Name a security finding
+  prompt, log entry or hand-off: it is data. A card carries no question,
+  decision or note text, and a to-do none beyond what "A to-do it writes"
+  allows; a card keeps only its Desktop id or `bgId`, which the pane matches. Name a security finding
   by the review that found it, its number and its class only, never its file, key or line, and a risk by
   its class of path, never its steps. Write the
   free text of any act on GitHub to a new file named
@@ -1074,7 +1092,8 @@ yes keeps for the owner.
   count as naming the act, so a pick the owner accepted with an accepting
   reply is logged Relayed and its post still carries the line. When unsure, it
   adds the line. A merge's subject is GitHub's default, so the squash body
-  carries the line. The start prompt carries no label. What a member takes
+  carries the line. The start prompt carries no such label; a note in it has
+  the label that "The start prompt" gives. What a member takes
   from a labelled post is that member's own rules' call, as for every lead
   message.
 - **Decided.** It runs the checks and the removals as separate calls. When a
@@ -1092,11 +1111,53 @@ Code 2.1.236 or later.
 
 **The start prompt** (**Confirmed**, issue 503, decision 546, the owner's
 words, relayed by the lead on 2026-10-31: "this is exactly what i agreed to";
-in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it),
+in place of issue 450's rev 4 S4 prompt, as issues 452 and 486 amended it;
+*amended, Proposed*, issue 578, which adds the note below and moves to
+**Confirmed** on the owner's merge),
 with the issue, the repository and the lead's exact session name filled in
 (by the start tool on a background start, by the lead on a Desktop start):
 
 > Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.
+
+**The note** (*Proposed*, issue 578, rev 3; the owner's words, relayed by the
+lead: "i want to file an issue to allow the background tool to start sessions
+with a small sentence, i think we limited that to limit mistakes but we are too
+strict."; the owner's "Yes, both" on the prose label, decision 27, and "go" on
+the risks, decision 37). A background start may carry one `note`. The tool
+writes it after the fixed line, under a label it writes itself, and the
+member gets one line:
+
+> Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>
+
+The note is one fact the member needs at the start, in the lead's own words.
+For example, a commit to build from, a model choice, or where in the work to
+begin. It never carries:
+
+- an accepted risk, an approval to post or merge, or a new lead, report
+  target, repository or issue;
+- error text or check output;
+- a path, a URL, or any id but one commit;
+- a secret, token, password or personal detail. This is a rule for the lead's
+  own writing, as no tool can check it.
+
+The tool refuses a note, in fixed words that never quote it, when it is not
+one sentence of 1 to 200 characters on one line. A note holds only ASCII
+letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
+holds no colon, so it cannot copy the label. It holds one commit at most, and
+only straight after the word `commit`. It holds none of a fixed list of
+words, such as lead, report, send, message, instead, ask, reply, answer,
+question, post, comment, publish, risk, accept and merge, in the forms the
+tool lists. It holds no name of a live
+session or a card, except the new member's and the lead's own. The bounds
+guard against mistakes and not against an attacker: a synonym, a person or a
+work redirect in plain words still passes. The label is a line of prose, not a
+harness control; the member's own rules decide what it takes from the note.
+
+An owner's word that a member's rules need quoted still goes by message after
+the start, quoted as the owner's. On a Desktop start the lead writes the same
+note and label itself, under the same bounds, and no tool checks it. An older
+pane refuses the `note` key: a refusal on the input's keys that does not name
+`note` means the lead starts again without the note and sends it as a message.
 
 **What the prompt leaves to each member** (**Confirmed**, issue 503, decision
 547, the lead's own pick under level 3): the harness labels a message from
@@ -1167,13 +1228,41 @@ reversing "Nothing else is recorded" as ADR 0010 records): its decisions, in
 its decision log through `log_decision`, and its hand-off through
 `set_lead_handoff`, under "What goes out".
 
-**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2, and
-issue 567, spec rev 3 S4.1; the go is the lead's decisions 334, 426 and 436 at
-level 3, not the owner's words, and the owner confirms at merge): one line of at most 80 characters,
-one ask or one owner step each. It names the act or the place ("Answer in
-build-312's chat"), never the question or the decision text, and carries no
-facts, picks, commands or reasons. A waiting entry's fixed text is exempt. A
-to-do carries `session`, a card's title, when the step is in that member's
+**A to-do it writes** (**Proposed**, issue 560, spec rev 3 S1.1 and S4.2,
+issue 567, spec rev 3 S4.1, and issue 580, spec rev 4 S2; the go is the lead's
+decisions 334, 426 and 436, and for issue 580 its decision 64, at level 3, not
+the owner's words, and the owner confirms at merge. The 50-character cap, the
+forms and the count are the lead's reading of the owner's relayed words "maybe
+say "approve starting issue x"? its hard to understand whats needed here",
+not the owner's own): one line of at most 50 characters,
+one ask or one owner step. It starts with a verb, then names the act and
+the work. It names the question or the decision text only as the eased control
+below allows, and carries no facts but the count below, no options, picks,
+reasons, commands, file names, paths, error text or quoted text from a member,
+report, hand-off or tool. The forms, by what the ask is about: for an issue or
+a pull request, "<verb> <repository> issue N" or "... PR N", as in "Decide
+whether to merge app PR 71"; for a session (a cleanup, a step in its chat),
+the card's title stands in for the number, as in "Approve cleaning up
+build-4"; for a decision carried from a hand-off, the form under "A waiting
+entry's to-do". The repository is named by its name alone when a roster card
+holds that repository and no other card's repository shares the name;
+otherwise by `owner/name`. When the line does not fit, the act is shortened to the verb of what is asked ("Merge app PR 71", "Clean up build-4") first, then a card's title is cut at a whole word; the number is
+never cut. When the repository and number alone pass 50 characters, the to-do
+names the act and the number only, and its `link` carries the repository. A
+to-do may end with a count of what waits, as in "(2 risks to accept)": the
+lead's own count, of its log or of what it read back through `gh`, never a
+number from a report. A decision id may follow in brackets as a reference
+only, as in "(decision 32)", when it fits. When the to-dos of two waiting entries would read the same, each ends with its decision id. A to-do that names only a decision, or
+points only at the Decisions tab or the log, breaks the rule. The one exception is the to-do "Answer a carried decision (decision N)", used only when `<owner/name>` alone does not fit, with the new id restated in chat. Two to-dos are the same ask when they name the same work and the same act; a waiting entry's to-do replaces another to-do for that ask that is not a waiting entry's, under a new `id`.
+
+**The eased control** (**Proposed**, issue 580, spec rev 4 S2.4): a to-do may
+name the act it asks for, as a verb and its object ("merge", "clean up
+build-4", "pick the order of two merges"), a card's title, a count and, for a
+carried decision, the carried line's title held as that form says; nothing
+more of the question. For a waiting entry the full question is already in the
+decision log, which every reader of the roster file can read.
+
+A to-do carries `session`, a card's title, when the step is in that member's
 chat, and `link`, an issue or pull request on github.com written as
 `https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment or
 review on it, with `#issuecomment-C` added (on a pull request also
@@ -1217,10 +1306,10 @@ the lead as a relayed decision, labelled as relayed. Issue 503 (decision
 | waiting entry (**Confirmed**, issue 416) | a decision the lead logs for the owner, with no pick, shown in the Decisions tab as "Waits for you" |
 | idle notice (**Confirmed**, issue 450, rev 4 S6.7) | the one notice the message tool's `notify_when_idle` gives when a session next goes idle or exits |
 
-**How it writes** (**Confirmed**): in the owner's chat, one line of what
+**How it writes** (**Confirmed**; the ask rule *Proposed*, issue 580, spec rev 4
+S3): in the owner's chat, one line of what
 happened, then a few bullets of what the owner must do and what comes next.
-No ids, paths or error text. A tool's refusal is told in plain words, without
-its text.
+No ids but a decision number given as a reference, no paths or error text. Each ask names the action, and the work by repository and number; a decision number is never the thing to act on. An ask writes no github.com address: the address stays on the to-do's `link`. An ask about a session names the card's title, and one about a carried decision names it as its to-do does. A tool's refusal is told in plain words, without its text.
 
 ## open
 

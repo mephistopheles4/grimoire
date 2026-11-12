@@ -17,8 +17,8 @@ export type Platform = 'win32' | 'posix'
 
 // --- the fixed words ---------------------------------------------------------------
 
-/** The three reasons a folder is refused, in fixed words with no path (S4.6). */
-export const NOT_LISTED = "folder: not on the owner's list; ask the owner to type /brigade folders add <path>"
+/** The three reasons a folder is refused, in fixed words with no path (issue 579, S3.5). */
+export const NOT_SPELLED = 'folder: not a plain absolute local path'
 export const NOT_MAIN = 'folder: not a main checkout of this repository'
 export const NOT_READ = 'folder: the checkout could not be read'
 
@@ -32,9 +32,9 @@ export const CAP_REASON = 'cap: four background starts in ten minutes were reach
 export const ORIGIN_TIMEOUT_MS = 15000
 export const START_TIMEOUT_MS = 60000
 
-/** What the lead still reads after a compaction (S2.0). */
+/** What the lead still reads after a compaction (issue 543 S2.0, amended by issue 578 S3.4). */
 export const DESCRIPTION =
-  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository that the owner listed with /brigade folders add). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed.'
+  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
 
 export const NAME_REASONS = {
   card: 'name: a roster card already has this name',
@@ -45,30 +45,87 @@ export const NAME_REASONS = {
   incomplete: 'name: the session files could not be read whole',
 }
 
-/** The owner's `/brigade folders` replies: one line per outcome, none holding a path. */
-export const FOLDERS_REPLIES = {
-  added: 'added',
-  notCanonical: 'not added: the path is not a canonical absolute path',
-  network: 'not added: a network path',
-  notDirectory: 'not added: not a directory',
-  notMain: 'not added: not a main checkout',
-  already: 'not added: already on the list',
-  full: 'not added: the list is full (8)',
-  removed: 'removed',
-  notOnList: 'not on the list',
-  empty: 'the list is empty',
-  unreadable: 'the list could not be read',
-  usage: 'usage: /brigade folders add <path>, /brigade folders remove <path> or /brigade folders list',
-  notTyped: 'folders: only the owner, typed at the prompt or sent from the phone, can use this command',
-  failed: 'folders: the command failed; type /brigade folders list to see the list as it stands',
-}
+// --- the seven inputs (S2.1) and the note (issue 578) ----------------------------------
 
-// --- the seven inputs (S2.1) ------------------------------------------------------
-
-export type Inputs = { name: string; repository: string; issue: string; model: string; effort: string; lead: string; folder: string }
+export type Inputs = { name: string; repository: string; issue: string; model: string; effort: string; lead: string; folder: string; note?: string }
 const KEYS = ['name', 'repository', 'issue', 'model', 'effort', 'lead', 'folder']
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MAX_FOLDER = 1000
+const MAX_NOTE = 200
+
+/** The note's refusals, in fixed words that never quote it (issue 578, S3.1 and S3.2). */
+export const NOTE_REASONS = {
+  type: 'note: not text',
+  empty: 'note: empty; leave it out',
+  keys: 'input: exactly name, repository, issue, model, effort, lead and folder, and optionally note',
+  length: 'note: 1 to 200 characters on one line',
+  chars: "note: one sentence of letters, digits, spaces and , ; ( ) - ', ending in a full stop",
+  ids: 'note: no id, other than one commit after the word commit',
+  words: 'note: words about where to send questions or reports, posting, or accepting a risk',
+  names: 'note: names a session or a card',
+}
+
+/** The words rule 4 refuses, each compared as a whole word, case-blind: the table of issue 578 S3.2,
+ *  and no other form of a word. The owner accepted prompt injection as a threat class (the lead's
+ *  decision 66), so no detector for injected wording is added here until that merges. */
+const NOTE_WORDS: ReadonlySet<string> = new Set([
+  // redirection
+  'lead', 'leads', 'leader', 'leading', 'report', 'reports', 'reported', 'reporting', 'send', 'sends', 'sent', 'sending',
+  'message', 'messages', 'messaged', 'instead', 'ask', 'asks', 'asked', 'asking', 'reply', 'replies', 'replied', 'answer', 'answered',
+  'question', 'questions',
+  // public record
+  'post', 'posts', 'posted', 'comment', 'comments', 'publish',
+  // risk and merge
+  'risk', 'risks', 'accept', 'accepts', 'accepted', 'merge', 'merged',
+])
+
+/** Rules 1 to 4 of issue 578 S3.2, pure and in order; the first that fails answers. Explicit ASCII classes only. */
+function noteRules(note: string): string | undefined {
+  // 1. Length: one line of printable ASCII (a space is the lowest), so no control character and nothing outside ASCII.
+  if (note.length < 1 || note.length > MAX_NOTE || !/^[\x20-\x7E]+$/.test(note)) return NOTE_REASONS.length
+  // 2. Characters: one sentence that ends in its only full stop.
+  const body = note.slice(0, -1)
+  // The sentence holds a letter or a digit, and neither its first nor its last character is a space.
+  if (!note.endsWith('.') || !/^[A-Za-z0-9 ,;()'-]*$/.test(body) || /(?<![A-Za-z])'/.test(body) || !/[A-Za-z0-9]/.test(body)) return NOTE_REASONS.chars
+  if (body.startsWith(' ') || body.endsWith(' ') || body.includes('  ')) return NOTE_REASONS.chars
+  // 3. Ids: one commit straight after the word commit, and no other long hex or digit run.
+  let commitSeen = false
+  let previous: { text: string; end: number } | undefined
+  for (const m of note.matchAll(/[A-Za-z0-9'-]+/g)) {
+    const token = m[0]
+    const afterCommit = previous !== undefined && previous.text.toLowerCase() === 'commit' && m.index === previous.end + 1 && note[previous.end] === ' '
+    previous = { text: token, end: m.index + token.length }
+    if (!commitSeen && afterCommit && /^[0-9A-Fa-f]{7,40}$/.test(token)) {
+      commitSeen = true
+      continue
+    }
+    if (/[0-9A-Fa-f]{7}/.test(token) || /[0-9]{6}/.test(token)) return NOTE_REASONS.ids
+  }
+  // 4. Words: each token split at - and ', compared whole.
+  for (const m of note.matchAll(/[A-Za-z0-9'-]+/g)) {
+    for (const word of m[0].toLowerCase().split(/[-']/)) if (NOTE_WORDS.has(word)) return NOTE_REASONS.words
+  }
+  return undefined
+}
+
+/** Lower case, with every run of other characters as one space (issue 578 S3.2, rule 5). */
+const normalised = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+/** Rule 5: the note holds, as a whole run of words, no live session's name and no card's title.
+ *  `names` are those names and titles; `own` are the two the fixed line already holds: the new
+ *  member's and the lead's. A name is exempt only when it is one of those exactly, in lower case:
+ *  a live `grimoire-601` is never exempt for a new member called `grimoire_601`. It needs the
+ *  roster, so the mod runs it beside `nameFresh`. */
+export function noteNames(note: string, names: readonly string[], own: readonly string[]): Checked<true> {
+  const skip = new Set(own.map(n => n.trim().toLowerCase()))
+  const text = ` ${normalised(note)} `
+  for (const n of names) {
+    const norm = normalised(n)
+    if (norm === '' || skip.has(n.trim().toLowerCase())) continue
+    if (text.includes(` ${norm} `)) return { why: NOTE_REASONS.names }
+  }
+  return { value: true }
+}
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const MODEL = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/
@@ -81,7 +138,11 @@ const goodName = (v: string): boolean => NAME.test(v) && !v.includes('..') && !v
 function shape(raw: unknown): Checked<Inputs> {
   if (!isRecord(raw)) return { why: 'input: not an object' }
   const keys = Object.keys(raw)
-  if (keys.length !== KEYS.length || !KEYS.every(k => keys.includes(k))) return { why: 'input: exactly name, repository, issue, model, effort, lead and folder' }
+  const hasNote = keys.includes('note')
+  // Issue 578 S3.1: the note's own two checks come first, then the key set.
+  if (hasNote && typeof raw.note !== 'string') return { why: NOTE_REASONS.type }
+  if (hasNote && raw.note === '') return { why: NOTE_REASONS.empty }
+  if (keys.length !== KEYS.length + (hasNote ? 1 : 0) || !KEYS.every(k => keys.includes(k))) return { why: NOTE_REASONS.keys }
   for (const k of KEYS) if (typeof raw[k] !== 'string') return { why: `${k}: not text` }
   const i = raw as Inputs
   if (!goodName(i.name)) return { why: 'name: 1 to 64 letters, digits, . _ -, starting with a letter or digit, no .., not ending in . or .lock' }
@@ -91,11 +152,17 @@ function shape(raw: unknown): Checked<Inputs> {
   if (!EFFORTS.includes(i.effort)) return { why: `effort: one of ${EFFORTS.join(', ')}` }
   if (!LEAD.test(i.lead) || i.lead.endsWith(' ') || i.lead.includes('  ')) return { why: 'lead: 1 to 80 letters, digits, single spaces, _ -, no full stop' }
   if (i.folder.length < 1 || i.folder.length > MAX_FOLDER) return { why: 'folder: 1 to 1000 characters' }
-  return { value: { name: i.name, repository: i.repository, issue: i.issue, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder } }
+  const value: Inputs = { name: i.name, repository: i.repository, issue: i.issue, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder }
+  if (hasNote) {
+    const why = noteRules(i.note as string)
+    if (why !== undefined) return { why }
+    value.note = i.note
+  }
+  return { value }
 }
 
-/** The tool's seven fields: exactly those keys, every one a string, each by its
- *  own rule, and `lead` equal to the caller's own session name, exactly. None is
+/** The tool's seven fields and its optional note: exactly those keys, every one a string, each by its
+ *  own rule (the note by rules 1 to 4 of issue 578), and `lead` equal to the caller's own session name, exactly. None is
  *  rewritten; the first that fails refuses the call. The folder is only
  *  length-checked here; S4 owns its spelling. The equality is what keeps a lead's
  *  own clause out of the member's first prompt: the caller's name comes from the
@@ -115,11 +182,13 @@ function passed(i: unknown): Inputs {
 
 // --- the prompt and the argv (S2.3) -------------------------------------------------
 
-/** The one sentence the member starts with, from inputs that passed. */
+/** The line the member starts with, from inputs that passed: the fixed sentence, and with a note the
+ *  tool's label then the note, so the member can tell the lead's words from the owner's (issue 578). */
 export function startPrompt(input: Inputs): string {
   const i = passed(input)
-  const prompt = `Your work is issue ${i.issue} on ${i.repository}. Send your questions and reports to ${i.lead}.`
-  if (/[\r\n]/.test(prompt) || prompt.length > 400) throw new Error('start: the prompt is not one short line')
+  let prompt = `Your work is issue ${i.issue} on ${i.repository}. Send your questions and reports to ${i.lead}.`
+  if (i.note !== undefined) prompt += ` ${i.lead}, not the owner, adds: ${i.note}`
+  if (/[\r\n]/.test(prompt) || prompt.length > 640) throw new Error('start: the prompt is not one short line')
   return prompt
 }
 
@@ -138,12 +207,12 @@ export function originArgv(git: string, folder: string): string[] {
 
 const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/u
 
-/** Whether a path begins as a network path does. */
+/** Whether a path begins as a network path does. No production code calls it since issue 579; spec S4.1 keeps it, with its test. */
 export const isNetworkPath = (folder: string): boolean => /^(?:\\\\|\/\/)/.test(folder)
 
 /** Step 1: the folder is spelled as a canonical absolute path, and nothing else. */
 export function folderSpelling(folder: string, platform: Platform): Checked<string> {
-  const no = { why: NOT_LISTED }
+  const no = { why: NOT_SPELLED }
   if (typeof folder !== 'string' || folder.length === 0 || folder.length > MAX_FOLDER || CONTROL.test(folder)) return no
   let parts: string[]
   if (platform === 'win32') {
@@ -175,19 +244,6 @@ export function mainCheckout(folder: string, facts: { gitKind: 'dir' | 'file' | 
   const segments = folder.split(/[\\/]/).map(s => s.toLowerCase())
   for (let n = 0; n + 1 < segments.length; n++) if (segments[n] === '.claude' && segments[n + 1] === 'worktrees') return { why: NOT_MAIN }
   if (facts.gitKind !== 'dir' || facts.ancestorHasGit) return { why: NOT_MAIN }
-  return { value: true }
-}
-
-const goodStored = (v: unknown): v is string[] =>
-  Array.isArray(v) && v.length <= 8 && v.every(e => typeof e === 'string' && e.length <= MAX_FOLDER && !CONTROL.test(e))
-
-/** The stored list, checked: at most 8 strings of at most 1000 characters with no control character. Run before any use. */
-export const storedList = (v: unknown): Checked<string[]> => (goodStored(v) ? { value: v } : { why: NOT_LISTED })
-
-/** The owner's list: the folder must equal an entry of a well-formed list. An
- *  unreadable store, a value of another shape and an empty list refuse alike. */
-export function listed(folder: string, stored: unknown, platform: Platform): Checked<true> {
-  if (!goodStored(stored) || !stored.some(e => samePath(e, folder, platform))) return { why: NOT_LISTED }
   return { value: true }
 }
 
@@ -287,60 +343,4 @@ export function capOpen(times: readonly number[], now: number): boolean {
 /** The times after a start reached the run: the window's, and this one. */
 export function capRecord(times: readonly number[], now: number): number[] {
   return [...times.filter(t => now - t < CAP_WINDOW_MS), now]
-}
-
-// --- the owner's `/brigade folders` command (S4.0) --------------------------------------
-
-/** Whether a command's arguments are the folders command: its first word alone decides. */
-export const isFoldersCommand = (args: unknown): boolean => typeof args === 'string' && /^\s*folders(?:\s|$)/.test(args)
-
-export type FoldersCall = { action: 'add' | 'remove'; path: string } | { action: 'list' } | { reply: string }
-
-/** The command's words: `folders add <path>`, `folders remove <path>`, `folders list`. */
-export function parseFolders(args: string): FoldersCall {
-  const usage = { reply: FOLDERS_REPLIES.usage }
-  const m = /^\s*folders\s+(add|remove|list)(?:\s+(.*?))?\s*$/s.exec(args)
-  if (m === null) return usage
-  const [, action, rest] = m
-  if (action === 'list') return rest === undefined || rest === '' ? { action } : usage
-  if (rest === undefined || rest === '' || CONTROL.test(rest)) return usage
-  return { action: action as 'add' | 'remove', path: rest }
-}
-
-/** Adding a path that already passed steps 1 to 3, as its resolved canonical form. */
-export function foldersAdd(stored: unknown, resolved: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
-  const checked = storedList(stored)
-  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
-  const list = checked.value
-  if (resolved.length > MAX_FOLDER) return { reply: FOLDERS_REPLIES.notCanonical }
-  if (list.some(e => samePath(e, resolved, platform))) return { reply: FOLDERS_REPLIES.already }
-  if (list.length >= 8) return { reply: FOLDERS_REPLIES.full }
-  return { list: [...list, resolved], reply: FOLDERS_REPLIES.added }
-}
-
-/** Removing the entry the path equals, compared as the start compares. */
-export function foldersRemove(stored: unknown, typed: string, platform: Platform): { list: string[]; reply: string } | { reply: string } {
-  const checked = storedList(stored)
-  if ('why' in checked) return { reply: FOLDERS_REPLIES.unreadable }
-  const list = checked.value
-  const kept = list.filter(e => !samePath(e, typed, platform))
-  return kept.length === list.length ? { reply: FOLDERS_REPLIES.notOnList } : { list: kept, reply: FOLDERS_REPLIES.removed }
-}
-
-/** The list as the owner's reply draws it: the home folder as `~`. */
-export function foldersList(stored: unknown, home: string): string {
-  const checked = storedList(stored)
-  if ('why' in checked) return FOLDERS_REPLIES.unreadable
-  const list = checked.value
-  if (list.length === 0) return FOLDERS_REPLIES.empty
-  const win = /^[A-Za-z]:/.test(home)
-  const sep = win ? '\\' : '/'
-  const key = (p: string) => (win ? foldAscii(p) : p)
-  return list
-    .map(e => {
-      if (home === '') return e
-      if (key(e) === key(home)) return '~'
-      return key(e).startsWith(key(home) + sep) ? `~${e.slice(home.length)}` : e
-    })
-    .join('\n')
 }
