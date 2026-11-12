@@ -1178,3 +1178,81 @@ test('C15a, #496: level 3 is named Turbo, and logs written before either rename 
   assert.equal(inFixedShape({ ...command, options: OLD, pick: '3 Full throttle' }), false);
   assert.equal(inFixedShape({ ...owner, options: ['1 Manual', '2 Auto', '3 Full throttle', '3 Turbo mode'] }), false);
 });
+
+// --- 618 C2, C3: the ask type and stop on log_decision, judged by checkAsk alone ---------
+
+const FORM =
+  "Fix the entry's ask, stop or question and log it again: ask is question, review or notify, notify never waits, stop is one of the head-chef skill's kinds and only on a wait, and at level 3 a wait needs both and a one-line question. The step stays held until it is logged; if you can't log it, say so in chat.";
+const NO_STOP =
+  "At level 3 a wait needs one stop from the head-chef skill's list. If the call fits one, log it again with that stop; owner-file-keeps covers anything the owner's file keeps and anything you cannot place for sure. Only a call that fits none is yours: log it as Lead with your pick, act, and tell the owner what you took.";
+const waits = (over = {}) => input({ waiting: true, pick: '', ...over });
+
+test('618 C2: the two fixed answers are exported whole, and neither names level 1 or echoes an input', () => {
+  assert.equal(d.ASK_FORM, FORM);
+  assert.equal(d.ASK_NO_STOP, NO_STOP);
+  for (const a of [FORM, NO_STOP]) assert.doesNotMatch(a, /level 1/);
+});
+
+test('618 C5: STOP_KINDS lists the thirteen kinds S4 names, in its order', () => {
+  assert.deepEqual([...d.STOP_KINDS], [
+    'owner-file-keeps', 'owner-words', 'carried', 'blocked', 'owner-hands', 'install', 'private-post',
+    'leaves-machine', 'sensitive-route', 'merge', 'threat-model', 'never-lifted', 'outside-goal',
+  ]);
+});
+
+test('618 C2: checkInput lets ask and stop through without judging them, and the entry it returns holds neither', () => {
+  for (const over of [{ ask: 'question', stop: 'merge' }, { ask: 'x', stop: 'x' }, { ask: 5 }, { stop: null }]) {
+    const c = checkInput(waits(over));
+    assert.ok('value' in c, JSON.stringify(c));
+    assert.equal(Object.hasOwn(c.value, 'ask') || Object.hasOwn(c.value, 'stop'), false);
+  }
+});
+
+const ASK_ROWS = [
+  // [label, input, level, answer]
+  ['ask not a listed value, level 1', waits({ ask: 'x' }), 1, FORM],
+  ['ask not text, level 3', waits({ ask: 5, stop: 'merge' }), 3, FORM],
+  ['stop not a listed value, level 3', waits({ ask: 'question', stop: 'x' }), 3, FORM],
+  ['stop not text, level 2', waits({ ask: 'question', stop: 7 }), 2, FORM],
+  ['stop null, level 3', waits({ ask: 'question', stop: null }), 3, FORM],
+  ['notify that waits, level 1', waits({ ask: 'notify' }), 1, FORM],
+  ['notify that waits, level 3', waits({ ask: 'notify', stop: 'merge' }), 3, FORM],
+  ['stop on an entry that does not wait, level 1', input({ stop: 'merge' }), 1, FORM],
+  ['stop on an entry that does not wait, level 3', input({ ask: 'notify', stop: 'merge' }), 3, FORM],
+  ['question on an entry that does not wait', input({ ask: 'question' }), 3, FORM],
+  ['review on an entry that does not wait', input({ ask: 'review' }), 2, FORM],
+  ['level 3 wait, question with a line break', waits({ ask: 'question', stop: 'merge', question: 'A?\nB?' }), 3, FORM],
+  ['level 3 wait, ask missing, stop given', waits({ stop: 'merge' }), 3, FORM],
+  ['level 3 wait, neither ask nor stop', waits(), 3, FORM],
+  ['level 3 wait, ask given, stop missing', waits({ ask: 'question' }), 3, NO_STOP],
+  ['level 3 wait, review given, stop missing', waits({ ask: 'review' }), 3, NO_STOP],
+  ['level 1 wait with neither', waits(), 1, undefined],
+  ['level 2 wait with neither', waits(), 2, undefined],
+  ['level 1 wait with a line break and no ask', waits({ question: 'A?\nB?' }), 1, undefined],
+  ['level 2 wait with a valid ask and stop', waits({ ask: 'review', stop: 'carried' }), 2, undefined],
+  ['level 3 wait, question and a listed stop', waits({ ask: 'question', stop: 'owner-file-keeps' }), 3, undefined],
+  ['level 3 wait, review and a listed stop', waits({ ask: 'review', stop: 'outside-goal' }), 3, undefined],
+  ['a non-waiting entry with neither, level 3', input(), 3, undefined],
+  ['a notify that does not wait, level 3', input({ ask: 'notify' }), 3, undefined],
+];
+
+for (const [label, entry, level, answer] of ASK_ROWS) {
+  test(`618 C2: checkAsk, ${label}`, () => {
+    assert.equal(d.checkAsk(entry, level), answer);
+  });
+}
+
+test('618 C2: every STOP_KINDS member passes at level 3 on a one-line wait', () => {
+  for (const stop of d.STOP_KINDS) assert.equal(d.checkAsk(waits({ ask: 'question', stop }), 3), undefined, stop);
+});
+
+test('618 C3: a stored log holding ask or stop fails the strict check, and an old level-3 waiting entry still loads and takes an append', () => {
+  const entry = { id: '1', at: NOW, level: 3, source: 'lead', waiting: true, work: 'issue 1', question: 'Which?', options: ['A', 'B'], pick: '', why: 'Because.', undo: 'Undo.', revisit: '', answers: '' };
+  const text = over => JSON.stringify({ kind: 'decisions', v: 1, next: 2, project: null, entries: [{ ...entry, ...over }] });
+  for (const over of [{ ask: 'question' }, { stop: 'merge' }]) assert.ok('error' in checkLog(text(over)), JSON.stringify(over));
+  const old = checkLog(text({}));
+  assert.ok('value' in old);
+  const r = appendEntry(old.value, input(), { at: NOW + 1, level: 3, read: new Map() });
+  assert.ok('value' in r);
+  assert.deepEqual(r.value.log.entries.map(e => e.id), ['1', '2']);
+});

@@ -102,6 +102,13 @@ import {
   checkHandoff,
   checkHandoffInput,
   checkInput,
+  checkAsk,
+  changedTodos,
+  openWaitIds,
+  todosHaveOpenWaits,
+  TODO_WAIT_RULE,
+  ASK_TYPES,
+  STOP_KINDS,
   checkLog,
   checkMarks,
   chooseHandoff,
@@ -1992,6 +1999,19 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
       }
       previous = was.value
     }
+    // At level 3 a new or changed to-do starts from an open waiting entry in this
+    // session's own log (618). The lock order is fixed: this roster queue, then
+    // the log queue, then the level lock, as logDecision takes them. The level
+    // is read at every level; the log only at level 3, and only for such a to-do.
+    const allowed = await logTurn(async () => {
+      await ensureLevelPoll($)
+      const state = await levelTurn(() => levelState($, at.id))
+      if (state.level !== 3) return true
+      const changed = changedTodos(previous?.todos, checked.value.todos)
+      if (changed.length === 0) return true
+      return todosHaveOpenWaits(changed, openWaitIds(await readOwnLog($, at)))
+    })
+    if (!allowed) return refuse(TODO_WAIT_RULE)
     // The ages: stamped here, in the queue, from the file just read and the
     // engine clock, so two calls in one turn stamp in order. The model sent no
     // time; the tool's check refused one.
@@ -2061,6 +2081,8 @@ const LOG_SCHEMA = {
     revisit: field(300),
     answers: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' },
     flag: field(300),
+    ask: { type: 'string', enum: [...ASK_TYPES] },
+    stop: { type: 'string', enum: [...STOP_KINDS] },
   },
 }
 
@@ -2091,11 +2113,28 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
     if (!(await offered($))) return refuseLog(OFFER_RULE)
     // The level stamped is the one read_autonomy would answer now.
     const state = await levelTurn(() => levelState($, at.id))
+    // The gate on waits (618): ask and stop are judged here alone and stored nowhere.
+    const asked = checkAsk(input, state.level)
+    if (asked !== undefined) return { deny: asked }
     const r = await appendToLog($, at, checked.value, { level: state.level, fixed: false, signal, progress })
     if ('refused' in r) return refuseLog(r.refused)
     if ('after' in r) return failedAfterLog()
     return { result: `Logged decision ${r.entry.id} at ${new Date(r.entry.at).toISOString()}, at level ${levelWords(state)}.` }
   })
+}
+
+// This session's own log as set_roster's gate reads it, inside the log's queue,
+// through the same path rule and strict check as an append. A log that is
+// missing, over the cap, unreadable or failing its check counts as none.
+async function readOwnLog($: EngineInterface, at: Where): Promise<DecisionLog | undefined> {
+  try {
+    const placed = await placeKind($, at, 'decisions', at.id)
+    if ('refused' in placed || placed.existing === undefined || placed.existing.size > MAX_LOG_BYTES) return undefined
+    const was = checkLog(String(await $.fs.read(placed.file)))
+    return 'error' in was ? undefined : was.value
+  } catch {
+    return undefined
+  }
 }
 
 // One entry appended to this session's own log, inside the log's queue: the
