@@ -97,10 +97,7 @@ background start is the default, and start nothing until the owner answers.
 A model change starts a fresh session. When the model for the next piece of
 work on an existing session differs from that session's own model, do not
 change its model with a setter: start a fresh session from the record on the
-issue, as any other start (`references/starting.md`). The reason: a model
-switch drops the prompt cache, so the next turn re-reads the whole history
-uncached on the new model, and the new model carries the old session's whole
-context. When you do not know the running session's model, treat it as
+issue, as any other start (`references/starting.md`).  When you do not know the running session's model, treat it as
 different. Name the fresh session as step 2 of `references/starting.md` says.
 Once it has started, name it in the start report as the session that carries
 the issue, send the old session nothing more for this issue, and ask to
@@ -116,8 +113,7 @@ line and the owner sets it in that session.
   names no session you recognise as yourself, ask the owner for your name
   once. Name each session yourself from letters, digits and `. _ -`, never
   two alike. Read no status file to send, and send to no pipe or socket
-  address. Never send with Desktop's own send tool: it shows your Desktop
-  title, not your session name. When the message tool asks you to pick
+  address. Never send with Desktop's own send tool. When the message tool asks you to pick
   between sessions that share a name, or the session list shows a name more
   than once, send nothing to that name and tell the owner; never pick one.
   The one exception is a background member's twin: a background member with
@@ -239,7 +235,7 @@ words. Read the level with `read_autonomy` and act on what that answers. A
 raise to 3 starts no such turn: the owner sends you a message. A level wake
 is not "the next wake" of a member's check.
 
-**The owner's user-level instructions file.** At levels 2 and 3 the lead follows it. What it keeps for the owner waits, as a waiting entry and a to-do, except that at level 3, inside the goal, the risk calls Risk at level 3, below, names, and any other call outside the set that file keeps even toward a standing goal, as "Level 3, a flagged owner-kept call" says, are yours. This is deference to that file; the skill keeps no list of what the file keeps, and names only what still waits when the file lets a goal decide. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file. You read the file your session already loaded; it needs nothing installed. A one-line request to accept your picks, in any wording, is taken and logged at levels 2 and 3. At level 2 it still waits for a security finding and for what the file or the owner's words in this chat keep. At level 3 it waits only for what the file or those words keep. At level 3, inside the goal, you decide a low finding you sort as not security, accepting a risk of any size, and a security finding, because the owner's goal takes priority over everything. Log each as Lead with the "Owner's call:" flag, report it in one line in your next report and call a big one out, as Risk at level 3 says. None of this is a question, a button or a to-do for the owner, and "accept the risk, or file the fix?" is the same ask. At level 2, whatever the file keeps still waits. 
+**The owner's user-level instructions file.** At levels 2 and 3 the lead follows it. What it keeps for the owner waits, as a waiting entry and a to-do, except that at level 3, inside the goal, the risk calls Risk at level 3, below, names, and any other call outside the set that file keeps even toward a standing goal, as "Level 3, a flagged owner-kept call" says, and a merge toward the goal, as 3 Turbo says, are yours. This is deference to that file; the skill keeps no list of what the file keeps, and names only what still waits when the file lets a goal decide. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file. You read the file your session already loaded; it needs nothing installed. A one-line request to accept your picks, in any wording, is taken and logged at levels 2 and 3. At level 2 it still waits for a security finding and for what the file or the owner's words in this chat keep. At level 3 it waits only for what the file or those words keep, except as this paragraph, Risk at level 3, "Level 3, a flagged owner-kept call" and 3 Turbo's merge rule say. At level 3, inside the goal, you decide a low finding you sort as not security, accepting a risk of any size, and a security finding, because the owner's goal takes priority over everything. Log each as Lead with the "Owner's call:" flag, report it in one line in your next report and call a big one out, as Risk at level 3 says. None of this is a question, a button or a to-do for the owner, and "accept the risk, or file the fix?" is the same ask.
 
 **Level 3, a flagged owner-kept call.** Inside the goal, where the owner's file, in its own text, both lets its rule for a standing goal decide even what it keeps for the owner and names, in one place, one sentence or one list, what it keeps even toward a standing goal (the set), a call it keeps outside that set is your own pick; a file that keeps such calls only here and there names no set, and nothing changes; naming in one place decides only whether this rule applies. A file it names as its rules can only add to what waits. Before your first such pick in a goal and after each compaction, read the owner's file whole and every file it names as its rules; a call whose rules sit in a file not read since waits, as a call you cannot place for sure inside or outside the set. An entry already waiting, or carried as waiting, stays waiting until the owner's words answer it. Log the pick as `lead` with a `flag` opening "Owner's call:", or "Owner's call: unsure," when you are also unsure of your pick, then the kind of call in your own words, quoting no file text; add no to-do; act; report it in one line in your next report; list every flagged pick of the goal in the result by id and lead; and carry it in your lead hand-off, as `references/handoff.md` says. A pick that drops or narrows a review, check or route the file offers is called out as big. Still waiting, each as a waiting entry and a to-do, and for the risk calls below too: anything the file, or a file it names as its rules, says a standing goal or a reply from whoever holds the goal never decides, in any wording and wherever it sits, the set included; a call you cannot place for sure inside or outside the set, where the file names a set; any call other than a risk call or a merge toward the goal (as 3 Turbo says), where the file has no such rule or names no set; dropping or narrowing a review, check or route the file, a file it names as its rules, or a repository offers or requires for sensitive work (work counts as sensitive when the file names it as sensitive work, the file or you would count it sensitive, or a member or reviewer proposed it; re-sorting such work as not sensitive also waits); a publish or send that leaves the machine, except a comment, issue, label, edit or close on an issue or pull request in a repository the owner's account owns or the goal names, and a merge or close as 3 Turbo says (so a release, a package or page publish, a message or upload to another service, and any other GitHub act, such as visibility, settings, branch protection, collaborators or keys, wait); and a confirmation of intent the file asks for, which a flagged pick never confirms: work waits at that step where the file, or a file it names as its rules, keeps it waiting under a standing goal. What the list "What still comes to the owner at level 3" in Risk at level 3, "Never lifted, at any level" and the owner's words in this chat keep also waits, and any usage limit the file sets still holds.
 
@@ -356,14 +352,13 @@ ask the owner. Never send a decision whose log has not landed.
 **Waiting entries.** A waiting entry is a Lead entry with `waiting` set and
 no pick. Its to-do is a to-do like any other, as "The Brigade pane" holds a to-do: a
 verb first, the act and the work, as in "Decide whether to merge app PR 71" or
-"Approve cleaning up build-4"; the decision log holds the question. A waiting entry's to-do replaces another to-do for the same ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it. When the owner answers in
+"Approve cleaning up build-4"; the decision log holds the question. A waiting entry's to-do replaces another to-do for the same ask that is not a waiting entry's, under a new `id`. When the owner answers in
 this chat, log a Relayed entry whose `answers` names the waiting id. An
 `answers` link works only in the log of the session that wrote the waiting
 entry. Ids count from 1 in each log, so a decision you did not write never
 gets `answers`, whether or not `log_decision` would take it: log the answer
 without `answers` and name the waiting decision's writer and id in its
-question. The answer shows as a card of its own, unpaired, because the tab
-draws no other session's waiting entry.
+question. The answer shows as a card of its own, unpaired.
 
 **The hand-off.** Rewrite your hand-off with `set_lead_handoff` at each
 phase boundary, at each level change you learn of, and before a compaction
@@ -421,7 +416,7 @@ other character dropped, and cut at a whole word to fit 50 characters; when no
 whole word of it fits, leave it out with its colon. When `<owner/name>` alone
 does not fit, the to-do is "Answer a carried decision (decision N)", N the new
 id. No other hand-off text goes in it. The owner's answer pairs with the new
-entry by its new id, which you restate to the owner. 
+entry by its new id, which you restate to the owner.
 
 ## Asking the owner
 
@@ -546,15 +541,14 @@ decide what a stop or the owner's yes keeps for the owner.
   own shell.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the
   warning; `set_roster` for the pane; `read_autonomy` for your level;
-  `log_decision` for the decision log ; `set_lead_handoff` and
+  `log_decision` for the decision log; `set_lead_handoff` and
   `read_lead_handoff` for the hand-off; `start_background_session` to start a
   background session and `stop_background_session` to stop one; `read_context` for members' context figures. Load each
   first if it is deferred.
   Read `references/roster.md` before your first `set_roster` call in a
   session.
 - **The Code tab's `wrap_up`,** where it is offered, for the next-step box.
-- **Context.** The Brigade pane draws figures you can't see; `read_context`
-  is how you read a member's context. Load `read_context` and `get_usage`
+- **Context.** Read a member's context with `read_context`. Load `read_context` and `get_usage`
   first if they are deferred.
   - At the start of each turn, read your own context percent with
     `get_usage` and no session id, use only its context block, and repeat
@@ -573,8 +567,7 @@ decide what a stop or the owner's yes keeps for the owner.
   - A refused or absent `read_context`, a "no figure" line, and a refused or
     absent `get_usage`, or one with no context block, raise no suggestion
     and no error line.
-  - A member's window comes from the mod's table of windows by model family,
-    so it can differ from what `get_usage` would report. Remember the steps
+  - Remember the steps
     you named in your own chat; after you compact, you may repeat one
     member's suggestion once.
 
@@ -652,8 +645,7 @@ begin. It never carries:
 
 The tool refuses a note, in fixed words that never quote it, when it is not
 one sentence of 1 to 200 characters on one line. A note holds only ASCII
-letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It
-holds no colon, so it cannot copy the label. It holds one commit at most, and
+letters, digits, single spaces and `, ; ( ) - '`, and ends in a full stop. It holds no colon. It holds one commit at most, and
 only straight after the word `commit`. It holds none of a fixed list of
 words, such as lead, report, send, message, instead, ask, reply, answer,
 question, post, comment, publish, risk, accept and merge, in the forms the
@@ -669,9 +661,7 @@ and label yourself, under the same bounds, and no tool checks it. An older
 pane refuses the `note` key: on a refusal about the input's keys that does
 not name `note`, start again without the note and send it as a message.
 
-A brigade running at install keeps working: members on the 0.17.0 prompt
-keep it until they end, and your sends by name still pass their check.
-Members on the 1.9.x prompt keep theirs too.
+A brigade running at install keeps working: members on an earlier prompt keep it until they end.
 
 The harness labels a message from another session as data, and each member's
 own rules govern its stages, approvals and posting. At levels 1 and 2, a member whose rules
