@@ -30,7 +30,7 @@ const Interview = (() => {
    * drafted fresh as docs/limits/contract-skill.measured.json: each is four
    * times that draft's figure (96,878 bytes; 38 clauses in its largest part;
    * 1,711 characters in its longest field), with no field limit under 4,000.
-   * The figures are drafted for the threat model's limits entry (issue
+   * The figures are drafted for hiring-interview.md's limits (issue
    * 343). A real draft one of them refuses is a stop for the person; the fix
    * is to raise the limit with a measurement to back it. Options per question need no limit of their
    * own: the format already allows four at most. A block is held to the same
@@ -98,8 +98,8 @@ const Interview = (() => {
    *
    * Three shapes are warned on, never refused, since a contract may need to
    * name one: a home-folder path, a value shaped like a known key, and an
-   * email address. The key shapes are a copy of the masking the threat
-   * model's row 14 names, in scripts/practice.mjs, since a skill cannot import
+   * email address. The key shapes are a copy of the masking in
+   * scripts/practice.mjs that the threat model's R11 names, since a skill cannot import
    * a repository script; a repository test holds the two copies equal. The
    * page and the script share this one copy. */
   const START = String.raw`(?:(?<![A-Za-z0-9_])|(?<=\\[nrtbf])|(?<=\\u[0-9A-Fa-f]{4}))`;
@@ -885,7 +885,7 @@ const Interview = (() => {
    * published example, and a Map in the tests. Every read and write survives
    * a store that is missing or throws: answers then live only as long as the
    * page. The answers are not encrypted; the line that says why is drafted
-   * for the threat model (issue 343). */
+   * for hiring-interview.md (issue 343). */
   const PREFIX = 'contract-interview:';
   const prefixOf = (type, name) => `${PREFIX}${type}:${name}:`;
   const keyOf = (draft, hash) => prefixOf(draft.type, draft.name) + hash;

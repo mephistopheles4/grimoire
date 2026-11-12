@@ -78,7 +78,7 @@ function attributes(source) {
 // attribute names, each with the forms its value may take, and nothing else.
 // The classes `done` and `stopped` and the id `st` are admitted for the
 // status strip, the to-do bar and the cache bar, which build them, as
-// threat-model row 15 says. The class `proj` is admitted for the usage
+// the threat model's R6 says. The class `proj` is admitted for the usage
 // image's projection (#275). The `tint-` and `ink-` classes are admitted for
 // the PR pill (#339). The class `idle` is admitted for the status strip's idle
 // count (#561).

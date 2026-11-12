@@ -17,7 +17,7 @@
 // with an explicit allow skips the owner's permission prompt for the call, and
 // silence leaves their rules in force. A bug in this file fails the same way,
 // because a guard that fails closed would block all work in the repository.
-// The threat-model row proposed for issue 377, which is the owner's decision,
+// The threat model's R10, which is the owner's decision,
 // says the rest: this is a nudge that shows a skip, not a control against
 // running a branch's code on the host.
 

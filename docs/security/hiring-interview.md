@@ -1,6 +1,6 @@
 # The hiring interview
 
-This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
+This page holds detail behind the controls the [threat model](threat-model.md) names. An edit that weakens a control it names is a removed control.
 
 ## The hiring interview, its data and its limits
 
@@ -33,13 +33,13 @@ question on one clause is refused, so questions are bounded by clauses. The
 page rendered from that draft measured 381,464 bytes on 2026-10-18, and a
 test holds it within four times that, 1,525,856 bytes.
 
-Accepted risk: class K2 (E73a, E73b), in the threat model. Candidate P1 (E73c), in the threat model. The interview's
+The saved answers' copies on disk and in the browser are the machine's. A folder the person names, once synced or backed up, is the class “Data leaves the machine as the owner accepted”. The interview's
 saved answers sit unencrypted in the browser profile, where other pages
 opened from disk in the same browser, extensions with file access, processes
 running as the person and profile backups can read them. The scratch
 folder's draft (the exemplar, the proposals and the answers taken into it),
 page and answers file hold the same work unencrypted until they are deleted.
-Accepted risk: class K2 (E73a, E73b), in the threat model. Candidate P1 (E73c), in the threat model. Reset removes the saved answers from
+The saved answers' copies on disk and in the browser are the machine's. A folder the person names, once synced or backed up, is the class “Data leaves the machine as the owner accepted”. Reset removes the saved answers from
 the page's store, though the browser may keep its own copy on disk for a
 while; the hand-back deletes the page and the answers file and offers to
 delete the draft; the folder is owner-only on macOS and Linux, and on
@@ -47,5 +47,5 @@ Windows rests on the per-user temp folder's own access; a folder the person
 names instead is as private as that folder, and its files leave the machine
 if it syncs.
 
-Candidate P3 (E74), in the threat model. Its
+A reliability note, not a threat. Its
 data was head-chef's public contract, so nothing it served was private.

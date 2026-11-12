@@ -30,7 +30,7 @@
 //
 // Windows only. The recording holds what the engine answered on Windows, and
 // the tests are built on it; macOS and Linux are not measured (threat model,
-// row 15). On another platform the script says so and fails, rather than
+// R6). On another platform the script says so and fails, rather than
 // comparing against answers from another system or overwriting them.
 
 import { execFileSync } from 'node:child_process';
@@ -45,7 +45,7 @@ const write = process.argv.includes('--write');
 
 if (process.platform !== 'win32') {
   console.error(
-    `This gate records Windows only, and this is ${process.platform}. brigade/recorded-stats.ts holds what Claude Code answered on Windows, and the tests are built on it; there is no ${process.platform} recording to compare with, and writing one would replace the Windows one. macOS and Linux are not measured: see the threat model, row 15.`,
+    `This gate records Windows only, and this is ${process.platform}. brigade/recorded-stats.ts holds what Claude Code answered on Windows, and the tests are built on it; there is no ${process.platform} recording to compare with, and writing one would replace the Windows one. macOS and Linux are not measured: see the threat model, R6.`,
   );
   process.exit(1);
 }

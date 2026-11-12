@@ -1091,8 +1091,8 @@ const ghNamed = new Map<string, Named>()
 // The named repository run last: the next minute's turn starts after it.
 let ghLast: string | undefined
 // At most this many named runs a minute, besides the base run: 6 runs a
-// minute in all, the number README.md, SECURITY.md and the threat model
-// (door 4, row 15 and the engine-calls table) give. Change them together.
+// minute in all, the number README.md, SECURITY.md and the threat model's
+// detail page brigade.md (R6 and the engine-calls table) give. Change them together.
 const NAMED_RUNS = 5
 const MAX_NAMED_ROWS = 100
 
@@ -1121,7 +1121,7 @@ const namedAnswers = (): ReadonlyMap<string, ReadonlyMap<number, GhPr>> => new M
 // On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
 // an empty or relative entry could let a file in the project folder run in its
 // place, with the session's environment. Such a host runs nothing then. Windows
-// is measured: the engine runs the real `gh` there (threat model, row 15).
+// is measured: the engine runs the real `gh` there (brigade.md, R6).
 //
 // The host is worked out on each call, here and at Open in app, or is none.
 // The engine gives a mod no platform field. Windows is known first, by its
@@ -1942,7 +1942,7 @@ async function wrapLoad<T>(load: () => Promise<T>, ran: (answer: T) => boolean, 
 // their checks and writes. A call whose dispatch was abandoned while it
 // waited, because it ran out of time or the owner interrupted it, writes
 // nothing when its turn comes. A write that never returns holds the queue
-// until the module reloads; row 15 names it.
+// until the module reloads; R6 names it.
 let writing: Promise<unknown> = Promise.resolve()
 function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
   const run = writing.then(work, work)

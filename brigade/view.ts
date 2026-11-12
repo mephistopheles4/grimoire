@@ -2171,7 +2171,7 @@ export type ReadMemory = Map<string, { mtimeMs: number; readAt: number; series: 
 // projects folder: a link at the file or at any folder above it inside
 // `projects`, swapped in at any time, fails at the next check. The check and
 // the read are two engine calls, and the read follows links, so a swap between
-// them, or a hard link, is not caught: threat-model row 15 names that gap.
+// them, or a hard link, is not caught: the threat model's R6 names that gap.
 // Nothing found is never an error: a rejection counts as no hit and its
 // message is dropped.
 

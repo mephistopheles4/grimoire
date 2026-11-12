@@ -19,7 +19,7 @@ const HOME_SEGMENT = /\b(?:Users|home)(?:\\+|\/)([^\\/'"`]+)/gi;
 
 // The string with every account name a home path holds replaced by <name>,
 // and every other copy of that name on the same string too. A name joined to
-// a home root from a separate string is not seen; threat-model row 17 says so.
+// a home root from a separate string is not seen; the threat model's R9 says so.
 export function masked(s) {
   const names = new Set();
   for (const m of s.matchAll(HOME_SEGMENT)) {
