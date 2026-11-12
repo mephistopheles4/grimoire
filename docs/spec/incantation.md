@@ -1,6 +1,6 @@
 # Incantation: the spec
 
-Draft 0.2, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.3, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel).
 
@@ -21,52 +21,9 @@ Incantation is a separate plugin in the `mephistopheles4` marketplace, not part
 of the grimoire plugin. It declares no dependency on VoiceMode. A guard checks
 for VoiceMode when `/incantation` runs.
 
-## S2. What the VoiceMode check found
+## S2. What `converse` leaves room for
 
-A read-only source check at VoiceMode `da1b969` (2026-11-09), its Kokoro fork
-`ai-cora/Kokoro-FastAPI` master, whisper.cpp master and fastmcp 3.4.11. Nothing
-was installed or run. Windows was not probed.
-
-| Port | Server | Binds | Checks Host | Checks Origin | Notes |
-|---|---|---|---|---|---|
-| 2022 | whisper.cpp `whisper-server`, started by VoiceMode's script | `0.0.0.0` | no | no; sends `Access-Control-Allow-Origin: *` | Also `POST /load`, which swaps the model from a file path. |
-| 8880 | Kokoro-FastAPI (fork), started by its own start scripts | `0.0.0.0` | no | no; CORS on, origins `*` by default | Also `/debug/*` (system and storage info), `/dev/*`, `/v1/download/{filename}`. |
-| 8765 | `voicemode serve` (HTTP MCP) | `127.0.0.1` | no, by default | no, by default | fastmcp's Host/Origin guard defaults to off. The IP allowlist passes loopback, so it does not stop DNS rebinding. No token unless `--token`. **Not running by default:** the Claude Code install uses stdio. |
-
-What that means:
-
-- **2022 and 8880 answer anyone on the network and any web page.** A form POST
-  is a simple CORS request, so a page in the person's browser can send audio to
-  transcribe or text to speak, and read the answer. Neither server keeps the
-  person's speech. The reach is compute, a model swap on 2022 that breaks or
-  skews transcription, and system details from Kokoro's `/debug`. Whether
-  Kokoro's temp files hold past speech was not probed.
-- **8765 is the serious one, when it runs.** A rebinding page could call
-  `converse`, which speaks and then records the mic. Incantation never needs
-  it: it works over stdio.
-- **No converse call path leaves the machine** when VoiceMode points at its
-  local servers. Heard text still reaches the provider as chat, as with any
-  session.
-
-Two more facts from the same read:
-
-- **VoiceMode offers no setting for the bind host of 2022 or 8880.** `--host
-  0.0.0.0` is written into whisper's start script
-  (`templates/scripts/start-whisper-server.sh`, and the fallback in
-  `tools/service.py`) and into each Kokoro start script (`start-*.sh`,
-  `start-*.ps1`). The only way is to edit those files, and a VoiceMode
-  reinstall or update writes them again. `VOICEMODE_SERVE_HOST` exists, but it
-  is for 8765 only.
-- **The default speech URLs fail over to OpenAI.** `VOICEMODE_TTS_BASE_URLS` and
-  `VOICEMODE_STT_BASE_URLS` default to the local server, then
-  `https://api.openai.com/v1`. With an OpenAI key set, a stopped local server
-  sends the audio or text off the machine.
-
-S4.1 turns this into requirements. The upstream fix is O3.
-
-### Does `converse` leave room for the style rules?
-
-Yes, with one conflict.
+Room for the style rules, with one conflict.
 
 - `converse(message, wait_for_response, …)` takes any text, so what is said and
   how short it is stays with the session. VoiceMode's own prompt and skill
@@ -102,26 +59,22 @@ clearing VoiceMode's logs; a hook that runs on every session start.
       it shows the error's first line and the setup line from step 1, then
       stops. There is no retry loop.
 
-### S4.1 Local only: the binding requirement and the exposure check
+### S4.1 Local only
 
-- **(a) Bind both services to `127.0.0.1`.** VoiceMode has no setting for this
-  (S2). The README tells the person to change `--host 0.0.0.0` to `--host
-  127.0.0.1` in two places: whisper's start script under
-  `~/.voicemode/services/whisper/`, and the Kokoro start script VoiceMode runs
-  under `~/.voicemode/services/kokoro/` (`start-gpu.sh`, `start-cpu.sh`,
-  `start-gpu_mac.sh`, or `start-*.ps1` on Windows). Then they restart with
-  `voicemode service restart whisper` and `kokoro`. The README also says that
-  an update rewrites these files, which is why the guard checks on every
-  start.
+- **(a) Both speech services listen on loopback only.** The speech-to-text and
+  text-to-speech services answer on `127.0.0.1` and on no other address. The
+  README gives the steps to set this for each service on the person's platform,
+  and to restart the service after. It also says an update to VoiceMode may
+  undo the setting, which is why the guard checks on every start.
 - **Speech stays local.** The README sets `VOICEMODE_TTS_BASE_URLS` and
   `VOICEMODE_STT_BASE_URLS` to the loopback URLs only, in
   `~/.voicemode/voicemode.env`.
-- **(b) `guard.mjs` refuses an exposed service.** It is a Node script with no
-  dependencies. It does three things:
+- **(b) `guard.mjs` refuses a service reachable off loopback.** It is a Node
+  script with no dependencies. It does three things:
   - **Ports.** It reads the ports from `VOICEMODE_WHISPER_PORT` and
     `VOICEMODE_KOKORO_PORT`, in the environment or in
     `~/.voicemode/voicemode.env`, and defaults to 2022 and 8880.
-  - **Exposure.** For each non-internal IPv4 and IPv6 address in
+  - **Reach.** For each non-internal IPv4 and IPv6 address in
     `os.networkInterfaces()`, it tries a TCP connect to each port, with a
     500 ms timeout. A connect that succeeds on any of those addresses counts
     as exposed.
@@ -130,24 +83,17 @@ clearing VoiceMode's logs; a hook that runs on every session start.
 
   It prints one line:
   - `ok`;
-  - `exposed <service> <port>: bind it to 127.0.0.1, see README step 3`;
+  - `exposed <service> <port>: make it listen on 127.0.0.1 only, see README step 3`;
   - or `remote <setting>: set it to the loopback URL only, see README step 4`.
 
   It never prints an address or a path. It exits 0 only on `ok`.
-  - A connect from this machine to its own LAN address skips the host
-    firewall. So the guard refuses a bind to all interfaces even when the
-    firewall would block the LAN. That is on purpose: the bind is what the
-    guard checks.
+  - A connect from this machine to its own address skips the host firewall,
+    so the guard refuses a service listening beyond loopback even when a
+    firewall would block it. That is on purpose: where the service listens is
+    what the guard checks.
 - **(c) Never `voicemode serve`.** Incantation calls `converse` over the stdio
   MCP server only. The skill never starts, configures or connects to `voicemode
-  serve` or port 8765. The README says not to run it alongside Incantation, so
-  the rebinding path in S2 stays closed.
-- **What binding does not close.** A page in the person's own browser can
-  still reach `127.0.0.1:2022` and `:8880`: both answer every origin, and
-  neither checks Host. Its reach is compute, whisper's `/load` swapping or
-  breaking the model (which skews or blocks transcription), and Kokoro's
-  `/debug` details. No mic audio and no session text is in reach. This is S8's
-  residual.
+  serve` or port 8765, and the README says not to run it alongside Incantation.
 2. **Greeting.** The first `converse` call is the greeting, for example:
    "Welcome to incantation mode. I'm here to pair with you on this repo. We can
    start with what's on your branch." The first step it offers comes from the
@@ -230,21 +176,20 @@ a practice run the owner does with a real mic.
 
 - **Spoken yes against safety.** Ordinary acts go on a spoken yes, which is the
   feel the owner asked for. Acts that are hard to reverse, and decisions kept
-  for the owner, need a typed yes (O1). Driver: cheaper to reverse.
+  for the owner, need a typed yes. Driver: cheaper to reverse.
 - **Guard against dependency.** A guard keeps grimoire free of VoiceMode's
   install, at the cost of a check on each start. Owner's call, taken.
 
 ## S8. Threat model
 
-A candidate entry for the owner's word:
+The owner judged the risks of VoiceMode's local services acceptable with the
+S4.1 controls (2026-11-12). The candidate entry for the threat model:
 
-- **What it covers.** VoiceMode's speech servers on loopback still answer any
-  web page in the person's browser. Within reach: compute, whisper's model
-  swap, and Kokoro's debug details.
-- **Controls.** The S4.1 guard closes the LAN path. S4.1 (c) closes 8765.
-- **The residual.** A page can skew or block transcription. A skewed
-  transcript only becomes an act through the hear-back, and a typed yes is
-  still needed for what is hard to reverse.
+- **What it covers.** Local speech services that Incantation relies on but
+  does not control.
+- **Controls.** The S4.1 guard: loopback only, local speech URLs, and no
+  `voicemode serve`. The hear-back, and a typed yes for what is hard to
+  reverse.
 
 Changing the threat model's scope is the owner's call.
 
@@ -256,9 +201,9 @@ The lead took these under the owner's standing goal (2026-11-12):
 - O2, `plugins/incantation/` here, with the check widened in the same change;
 - O4, the security pair on the spec, next to the spec pair.
 
-The lead also set the S4.1 (a) to (c) requirements.
+The lead also set the S4.1 (a) to (c) requirements, and the owner accepted
+the residual risk of VoiceMode's local services with them.
 
 ## Open
 
-- **O3.** Should the binding and Host/Origin issues be filed upstream? That is
-  for the owner, and the lead is asking them. Nothing gets filed until then.
+None. Nothing is filed upstream.
