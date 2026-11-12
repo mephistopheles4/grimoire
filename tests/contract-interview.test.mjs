@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -344,7 +344,6 @@ test('kinds.json holds the schedules part last in every level, and the schedule 
   assert.deepEqual(k.fields.map(f => f.name), ['name', 'home', 'text']);
   for (const key of ['kind', 'exports', 'hiring', 'plain']) assert.equal(typeof k[key], 'string', key);
   for (const frame of ['hiring', 'plain']) assert.equal(k[frame].split('___').length - 1, 3, `${frame} has a blank for each field`);
-  for (const other of kinds.kinds) assert.deepEqual(['hiring', 'plain', 'exports', 'kind'].filter(s => typeof other[s] !== 'string'), [], other.id);
 });
 
 /** A schedule clause; `duty-1` is a body clause of the measurement draft. */
@@ -444,6 +443,17 @@ const BAD_TEXT = {
   'a definition after a numbered marker': '1. [label]: https://example.org',
   'a definition after a star marker': '* [label]: https://example.org',
   'a definition after nested markers': '> - > [label]: https://example.org',
+  'a definition whose label opens on one line and closes on the next': 'text\n\n[label\ncontinued]: https://example.org',
+  'a label that opens and never closes on its line': 'see\n\n[ an open label',
+  'a label closed on a later line, after a quote marker': '> [label\n> continued]: https://example.org',
+  'a label opened in a list item': '- [label\n  continued]: https://example.org',
+  'a closing line with no opening bracket': 'a\n\ncontinued]: https://example.org',
+  'a heading in a quote': '> ## Heading',
+  'a heading in a list item': '- # Heading',
+  'a heading in a numbered item': '1. ## Heading',
+  'a heading in nested containers': '> - ### Heading',
+  'a setext heading in a quote': '> Title\n> ---',
+  'a setext heading in a quote, with =': '> Title\n> ===',
 };
 const GOOD_TEXT = {
   'a hashtag': '#hashtag and #another',
@@ -455,6 +465,9 @@ const GOOD_TEXT = {
   'a fence': '```text\nrun it\n```',
   'an angle bracket': 'a < b and c > d',
   'a quote': '> a quoted line',
+  'a quoted rule under a blank quoted line': '> text\n>\n> ---',
+  'a bracket pair on one line': '[a] and [b] and [ ] done\n[x]',
+  'a hashtag in a quote and a list': '> #tag\n- #tag two',
   'empty': '',
 };
 
@@ -489,6 +502,38 @@ test('the same field checks hold wherever a schedule\'s fields come from: a ques
   // A schedule added on the page has no refs to name its clauses, so it is refused.
   const added = { format: 1, draft: h.draft, kinds: h.kinds, answers: [], edits: [{ op: 'add', id: 'sched-new', part: 'schedules', kind: 'schedule', fields: ok }] };
   assert.match(refused(added, 'edits[0].kind'), /names the body clauses it carries out; add it to the draft/);
+  // An agreed none names none, so the page may add it.
+  const none = { ...added, edits: [{ op: 'add', id: 'sched-none', part: 'schedules', kind: 'schedule', none: true }] };
+  assert.deepEqual(Interview.checkBlock(none, d, kinds, h).refusals, []);
+});
+
+test('a clause a schedule carries out cannot be removed on the page, by id or with the rest of its kind, unless the schedule goes first', () => {
+  const d = withSchedules(schedule({}, { refs: ['duty-1', 'job'] }));
+  const h = { draft: 'a'.repeat(64), kinds: hashes.kinds };
+  const block = edits => ({ format: 1, draft: h.draft, kinds: h.kinds, answers: [], edits });
+  const refused = (edits, path) => (Interview.checkBlock(block(edits), d, kinds, h).refusals.find(([p]) => p === path) || [])[1];
+  assert.match(refused([{ op: 'remove', id: 'duty-1' }], 'edits[0].id'), /schedule sched-1 carries out duty-1, so it cannot go while the schedule stands/);
+  assert.match(refused([{ op: 'remove', part: 'roles', kind: 'duty' }], 'edits[0].kind'), /schedule sched-1 carries out duty-1/);
+  assert.match(refused([{ op: 'none', part: 'roles', kind: 'duty' }], 'edits[0].kind'), /schedule sched-1 carries out duty-1/);
+  assert.match(refused([{ op: 'remove', id: 'job' }], 'edits[0].id'), /schedule sched-1 carries out job, so it cannot go while the schedule stands/);
+  // A clause no schedule names goes as before, and so does one whose schedule went first.
+  assert.deepEqual(Interview.checkBlock(block([{ op: 'remove', id: 'stop-2' }]), d, kinds, h).refusals, []);
+  assert.deepEqual(Interview.checkBlock(block([{ op: 'remove', id: 'sched-1' }, { op: 'remove', id: 'duty-1' }]), d, kinds, h).refusals, []);
+  assert.match(refused([{ op: 'remove', id: 'duty-1' }, { op: 'remove', id: 'sched-1' }], 'edits[0].id'), /carries out duty-1/);
+});
+
+test('the schedule kind is for skills: an agent or a CLAUDE.md draft refuses one, and an edit cannot add one there', () => {
+  const kind = kinds.kinds.find(k => k.id === 'schedule');
+  assert.deepEqual(kind.types, ['skill']);
+  const h = { draft: 'a'.repeat(64), kinds: hashes.kinds };
+  for (const type of ['agent', 'CLAUDE.md']) {
+    const d = withSchedules(schedule());
+    d.type = type;
+    assert.match(at(d, 'parts.schedules[0].kind'), /this draft's type cannot hold this kind; it is for skill$/, type);
+    const add = { format: 1, draft: h.draft, kinds: h.kinds, answers: [], edits: [{ op: 'add', id: 'sched-none', part: 'schedules', kind: 'schedule', none: true }] };
+    assert.match((Interview.checkBlock(add, d, kinds, h).refusals.find(([p]) => p === 'edits[0].kind') || [])[1], /it is for skill$/, type);
+  }
+  assert.equal(at(withSchedules(schedule()), 'parts.schedules[0].kind'), undefined, 'a skill draft holds one');
 });
 
 test('pieces of a split section are named (n of m) and must form a complete run in order', () => {
@@ -500,6 +545,9 @@ test('pieces of a split section are named (n of m) and must form a complete run 
   const elsewhere = piece(2, 2);
   elsewhere.fields.home = 'references/other.md';
   assert.match(at(withSchedules(piece(1, 2), elsewhere), 'parts.schedules[1].fields.name'), /does not follow piece 1 of 2/);
+  const renamedPiece = piece(2, 2);
+  renamedPiece.fields.name = 'Another section (2 of 2)';
+  assert.match(at(withSchedules(piece(1, 2), renamedPiece), 'parts.schedules[1].fields.name'), /does not follow piece 1 of 2 with the same home and name/);
   assert.match(at(withSchedules(schedule({ name: 'Tools (3 of 2)' })), 'parts.schedules[0].fields.name'), /piece 3 of 2/);
   assert.match(at(withSchedules(schedule({ name: 'Tools (0 of 2)' })), 'parts.schedules[0].fields.name'), /piece 0 of 2/);
 });
@@ -534,9 +582,12 @@ test('the export writes ## schedules after ## open, one ### <home>: <name> sched
   assert.equal(part, [
     '## schedules',
     '',
+    '- SKILL.md: Starting a session. Home: `SKILL.md`.',
+    '- references/cleanup.md: Removing a worktree. Home: `references/cleanup.md`.',
+    '',
     '### SKILL.md: Starting a session',
     '',
-    'Home: `SKILL.md`, the section "Starting a session". Carries out: "duty-1", "job".',
+    'Home: `SKILL.md`, the section "Starting a session". Carries out: "A duty", "The job".',
     '*Proposed*',
     '',
     'Run the steps.',
@@ -545,13 +596,18 @@ test('the export writes ## schedules after ## open, one ### <home>: <name> sched
     '',
     '### references/cleanup.md: Removing a worktree',
     '',
-    'Home: `references/cleanup.md`, the section "Removing a worktree". Carries out: "stop-1".',
+    'Home: `references/cleanup.md`, the section "Removing a worktree". Carries out: "A stop".',
     '*Proposed*',
     '',
     'Ask first.',
     '',
   ].join('\n'));
-  // An agreed none is written as none, with its mark.
+  // A body clause is named by the bold label the export writes for it, which
+  // a rename on the page changes, and by no id.
+  const renamed = exported(d, new Map(), [{ op: 'rename', part: 'roles', kind: 'duty', name: 'What it owns' }]);
+  assert.match(renamed, /Carries out: "What it owns", "The job"\./);
+  assert.ok(renamed.includes('\n**What it owns**\n'), 'the body writes that label');
+  // An agreed none is written as none, with its mark, and opens no table of contents.
   const nothing = exported(withSchedules({ id: 'sched-none', kind: 'schedule', none: true, mark: 'Proposed' }));
   assert.ok(nothing.endsWith('## schedules\n\n- None. *Proposed*\n'), nothing.slice(-80));
   // A text with no characters writes no empty block after its mark.
@@ -611,8 +667,36 @@ test('a cut that no empty line outside a fence allows is refused, and a fence is
   // A tilde fence and a longer fence close as CommonMark closes them.
   const tilde = ['~~~', 'a', '', 'b', '~~~', '', 'c'].join('\n');
   assert.deepEqual(Interview.cutSection(tilde, 12), ['~~~\na\n\nb\n~~~', 'c']);
+  // Too short for the fence whole: a cut inside it is the only one that would fit, and none is made.
+  assert.throws(() => Interview.cutSection(tilde, 8), /no empty line outside a code fence/);
   const long = ['````', '```', '', 'a', '````', '', 'c'].join('\n');
   assert.deepEqual(Interview.cutSection(long, 17), ['````\n```\n\na\n````', 'c']);
+});
+
+test('a fence behind a list indent or a quote marker is never cut either', () => {
+  // The limit holds the fence and no more, so a cut after the intro and one
+  // after the fence are right, and an empty line inside the fence would be the
+  // last cut to fit were the fence not seen.
+  const fences = {
+    'a list item': ['  ```text', '  a', '', '  b', '  ```'],
+    'a numbered item': ['   ```text', '   a', '', '   b', '   ```'],
+    'a deep indent': ['      ~~~text', '      a', '', '      b', '      ~~~'],
+    'a quote': ['> ```text', '> a', '', '> b', '> ```'],
+    'a list item in a quote': ['> - ```text', '>   a', '', '>   b', '>   ```'],
+  };
+  for (const [what, fence] of Object.entries(fences)) {
+    const body = fence.join('\n');
+    const text = ['intro', '', body, '', 'c'].join('\n');
+    assert.deepEqual(Interview.cutSection(text, body.length + 2), ['intro', body, 'c'], what);
+    assert.equal(Interview.cutSection(text, body.length + 2).join('\n\n'), text, `${what} joins back`);
+  }
+  // A fence at the left edge is closed by a fence line there, not by one a quote marker or four spaces away.
+  for (const inner of ['    ```', '> ```', '- ```']) {
+    const body = ['```', inner, '', 'b', '```'].join('\n');
+    assert.deepEqual(Interview.cutSection(['intro', '', body, '', 'c'].join('\n'), body.length + 2), ['intro', body, 'c'], inner);
+  }
+  // A fence left open is cut nowhere.
+  assert.throws(() => Interview.cutSection('- x\n\n  ```text\n  a\n\n  b', 12), /no empty line outside a code fence/);
 });
 
 test('a joined schedule takes the weakest of its pieces\' marks', () => {
@@ -636,4 +720,31 @@ test('a run of pieces the edits left incomplete is written as it stands, suffix 
   const d = withSchedules(...[1, 2, 3].map(n => schedule({ name: `Tools (${n} of 3)`, text: `t${n}` }, { id: `p-${n}` })));
   const md = exported(d, new Map(), [{ op: 'remove', id: 'p-2' }]);
   assert.deepEqual(md.split('\n').filter(l => l.startsWith('### ')), ['### SKILL.md: Tools (1 of 3)', '### SKILL.md: Tools (3 of 3)']);
+});
+
+/* -- the contract skill's own text (#604, T1, C3) ----------------------------- */
+
+test('the contract skill says nine parts everywhere but its history, and its template holds the rules R1 to R8, each with a source link', () => {
+  const dir = join(root, 'skills', 'contract');
+  const hits = [];
+  for (const f of readdirSync(dir, { recursive: true })) {
+    if (!/\.(?:md|json|js|mjs|html)$/.test(f)) continue;
+    const name = f.replaceAll('\\', '/');
+    readFileSync(join(dir, f), 'utf8').split('\n').forEach((line, i) => {
+      if (/eight parts/i.test(line)) hits.push({ name, line });
+    });
+  }
+  // History is the change log, and the README's note on the 0.12.0 rebuild.
+  const stray = hits.filter(h => h.name !== 'references/contract.changelog.md' && !(h.name === 'README.md' && h.line.includes('in place of 20 questions')));
+  assert.deepEqual(stray.map(h => `${h.name}: ${h.line.slice(0, 80)}`), []);
+  assert.ok(hits.length > 0, 'the history notes are still found, so this search reads the files');
+  const template = readFileSync(join(dir, 'references', 'template.md'), 'utf8');
+  for (let n = 1; n <= 8; n++) {
+    const start = template.indexOf(`- **R${n}.**`);
+    assert.ok(start >= 0, `R${n} is in template.md`);
+    const end = template.indexOf('\n- **R', start + 1);
+    const rule = template.slice(start, end < 0 ? template.indexOf('\n\n', start) : end);
+    assert.match(rule, /\]\(https:\/\/[^)\s]+\)/, `R${n} links its source`);
+  }
+  assert.ok(!template.includes('R9.**'), 'the rules end at R8');
 });

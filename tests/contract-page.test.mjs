@@ -730,18 +730,24 @@ function undrawn(page) {
   if (page.key('mode') && page.key('mode').getAttribute('aria-pressed') !== 'true') page.click(page.key('mode'));
   const sheet = page.doc.documentElement.querySelectorAll('section').find(s => s.getAttribute('aria-label') === SHEET);
   if (!sheet) return ['the sheet of schedules'];
+  // The sheet holds a box for each part but `why`, in the order of the parts;
+  // the schedules part is the last, and its schedules sit in that box.
+  const boxes = sheet.querySelectorAll('.sched-part');
+  if (boxes.length !== kinds.parts.length - 1) problems.push(`${boxes.length} boxes in the sheet, for ${kinds.parts.length - 1} parts`);
+  const box = boxes.length === kinds.parts.length - 1 ? boxes.at(-1) : null;
   for (const s of SCHEDULED) {
     for (const f of ['name', 'home', 'text']) {
       const ctl = page.key(`field:${s.id}:${f}`);
       if (!ctl) problems.push(`${s.id} ${f}: not drawn`);
-      else if (!sheet.contains(ctl)) problems.push(`${s.id} ${f}: not in the sheet`);
+      else if (!box || !box.contains(ctl)) problems.push(`${s.id} ${f}: not in the schedules part's box`);
       else if (ctl.value !== s[f]) problems.push(`${s.id} ${f}: holds ${JSON.stringify(ctl.value)}`);
     }
   }
-  // The text is data: no element came from it, and none of it is a text node
-  // of the page outside a control.
-  const made = page.doc.documentElement.descendants().filter(el => ['MARQUEE', 'IMG', 'SCRIPT'].includes(el.tagName));
-  if (made.length) problems.push(`markup in the text became ${made.map(el => el.tagName).join(', ')}`);
+  // The text is data: it reaches the page as a control's value. That no
+  // markup in it becomes an element is held by the static ban on writing HTML
+  // from the page script (the doesNotMatch on innerHTML, near line 112 of this
+  // file), since the stand-in document has no parser to turn a string into
+  // elements.
   return problems;
 }
 
@@ -749,8 +755,6 @@ test('a draft with schedules draws the schedules sheet: each name, home and text
   const file = scheduled();
   const page = loadPage({ source: file });
   assert.deepEqual(undrawn(page), []);
-  const all = page.doc.documentElement.querySelectorAll('.sched-part');
-  assert.ok(all.some(el => el.querySelector('.sched')), 'a schedule sits in a part of the sheet');
   // The page names the kind, high stakes, one by one.
   assert.match(page.text(), /A procedure it follows/);
   assert.match(page.text(), /high stakes, agreed one by one/);
@@ -771,7 +775,7 @@ test('the check for the sheet fails when the part is not drawn', () => {
   } });
   const problems = undrawn(page);
   assert.ok(problems.length >= SCHEDULED.length * 3, `the check names what is missing: ${problems.join('; ')}`);
-  assert.match(problems[0], /not drawn/);
+  assert.ok(problems.some(p => /not drawn/.test(p)), problems.join('; '));
 });
 
 test('--check names a key or an email in a schedule\'s text and its answer reads back masked', () => {

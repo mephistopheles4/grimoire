@@ -128,16 +128,36 @@ const Interview = (() => {
    * code fence too, since a fence may be left open and swallow what follows. */
   const ATX = /^ {0,3}#{1,6}(?:[ \t]|$)/;
   const SETEXT = /^ {0,3}(?:=+|-+)[ \t]*$/;
-  const DEFINITION = /^(?:[ \t]*(?:>|[-+*]|\d{1,9}[.)]))*[ \t]*\[(?:[^\]\\\n]|\\.)+\]:/;
+  const DEFINITION = /^[ \t]*\[(?:[^\]\\\n]|\\.)+\]:/;
+  const MARKER = /^[ \t]*(?:>|[-+*](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$))/;
+  /** A line with its quote and list markers taken off, one at a time, so each
+   *  rule below reads what a quote or a list item holds as it reads a line of
+   *  its own. The rest is left-trimmed when a marker was taken off. */
+  function unwrapped(line) {
+    let rest = line;
+    for (let m = MARKER.exec(rest); m; m = MARKER.exec(rest)) rest = rest.slice(m[0].length);
+    return rest === line ? line : rest.trimStart();
+  }
+  /** A label a link reference definition may spread over lines: a line that
+   *  opens one and does not close it, or closes one it never opened. */
+  function splitLabel(line) {
+    const open = line.indexOf('[');
+    if (open >= 0 && line.slice(0, open).trim() === '') return !line.includes(']', open);
+    const close = line.indexOf(']:');
+    return close >= 0 && (open < 0 || open > close);
+  }
   function scheduleTextFault(text) {
     const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const inner = unwrapped(line);
       const n = `line ${i + 1}`;
-      if (ATX.test(line)) return `${n} is a heading line; a schedule cannot break the contract's outline`;
-      if (SETEXT.test(line) && i > 0 && lines[i - 1].trim() !== '') return `${n} is a setext underline of = or -, which makes the line above it a heading`;
+      if (ATX.test(line) || ATX.test(inner)) return `${n} is a heading line; a schedule cannot break the contract's outline`;
+      const under = SETEXT.test(line) || SETEXT.test(inner);
+      if (under && i > 0 && lines[i - 1].trim() !== '' && unwrapped(lines[i - 1]).trim() !== '') return `${n} is a setext underline of = or -, which makes the line above it a heading`;
       if (line.includes('<!') || line.includes('<?')) return `${n} holds <! or <?, which opens an HTML comment, a declaration, CDATA or a processing instruction`;
-      if (DEFINITION.test(line)) return `${n} is a link reference definition`;
+      if (DEFINITION.test(inner)) return `${n} is a link reference definition`;
+      if (splitLabel(inner)) return `${n} opens or closes a link reference definition's label, which may spread over lines`;
     }
     return null;
   }
@@ -165,12 +185,17 @@ const Interview = (() => {
     let fence = null;
     lines.forEach((line, i) => {
       const inside = fence !== null;
+      /* A fence behind a quote marker, a list marker or an indent opens and
+       * closes as one at the left edge does. Being wide here only costs a
+       * cut: a line that is no fence and reads as one keeps the empty lines
+       * after it from being cut points. */
+      const inner = unwrapped(line);
       if (fence) {
-        const close = new RegExp(`^ {0,3}${fence.ch}{${fence.len},}[ \\t]*$`).exec(line);
-        if (close) fence = null;
+        const close = new RegExp(`^${fence.ch}{${fence.len},}[ \\t]*$`).exec(inner.trimStart());
+        if (close && (fence.nested || (inner === line && /^ {0,3}\S/.test(line)))) fence = null;
       } else {
-        const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-        if (open && !(open[1][0] === '`' && open[2].includes('`'))) fence = { ch: open[1][0], len: open[1].length };
+        const open = /^(`{3,}|~{3,})(.*)$/.exec(inner.trimStart());
+        if (open && !(open[1][0] === '`' && open[2].includes('`'))) fence = { ch: open[1][0], len: open[1].length, nested: inner !== line || !/^ {0,3}\S/.test(line) };
       }
       if (!inside && line === '' && i > 0 && i < lines.length - 1) cuts.push(i);
     });
@@ -668,6 +693,23 @@ const Interview = (() => {
        * export remove them. */
       const live = new Map([...ix.clauses].map(([id, e]) => [id, { part: e.part, kind: e.c.kind }]));
       const dropSchedule = (part, kindId) => { for (const [id, x] of [...live]) if (x.part === part && x.kind === kindId) live.delete(id); };
+      /* A schedule still standing that carries out one of these clauses, as
+       * { schedule, ref }, or null. Only a clause from the draft has refs. */
+      const carriedOut = ids => {
+        for (const [sid, x] of live) {
+          const c = x.part === SCHEDULES && ix.clauses.has(sid) ? ix.clauses.get(sid).c : null;
+          const ref = c && Array.isArray(c.refs) ? c.refs.find(r => ids.includes(r)) : undefined;
+          if (ref !== undefined) return { schedule: sid, ref };
+        }
+        return null;
+      };
+      const ofKind = (part, kindId) => [...live].filter(([, x]) => x.part === part && x.kind === kindId).map(([id]) => id);
+      /* Refuse an edit that takes away a clause a schedule carries out. */
+      const keepCarried = (at, ids) => {
+        const held = carriedOut(ids);
+        if (held) refuse(at, `schedule ${held.schedule} carries out ${held.ref}, so it cannot go while the schedule stands; remove the schedule first`);
+        return held === null;
+      };
       const ids = new Set(ix.clauses.keys());
       for (const q of draft.questions) { ids.add(q.id); for (const o of q.options) ids.add(o.id); }
       const perPart = new Map(K.parts.map(p => [p, partList(draft, p).length]));
@@ -733,14 +775,14 @@ const Interview = (() => {
             }
           }
         } else if (e.op === 'none') {
-          if (kindIn(path, e.part, e.kind) && askedPart(path, e.part)) dropSchedule(e.part, e.kind);
+          if (kindIn(path, e.part, e.kind) && askedPart(path, e.part) && keepCarried(`${path}.kind`, ofKind(e.part, e.kind))) dropSchedule(e.part, e.kind);
         } else if (e.op === 'rename' && Object.hasOwn(e, 'id')) refuse(path, 'a rename names a schedule by part and kind; an entry has no name of its own');
         else if (target(path, e)) {
           if (e.op === 'rename') isText(`${path}.name`, e.name);
           if (e.op === 'move' && !(Number.isInteger(e.to) && e.to >= 0)) refuse(`${path}.to`, 'expected an index, 0 or more');
           if (e.op === 'remove') {
-            if (Object.hasOwn(e, 'id')) live.delete(e.id);
-            else dropSchedule(e.part, e.kind);
+            if (Object.hasOwn(e, 'id')) { if (keepCarried(`${path}.id`, [e.id])) live.delete(e.id); }
+            else if (keepCarried(`${path}.kind`, ofKind(e.part, e.kind))) dropSchedule(e.part, e.kind);
           }
         }
       });
@@ -986,22 +1028,24 @@ const Interview = (() => {
     return { parts, names, order };
   }
 
-  /* The schedules part: one `### <home>: <name>` schedule each, in the order
-   * the clauses stand. A schedule's text is written as it stands, with no
-   * heading of its own, and runs to the next `###` or `##` line. Pieces of a
-   * split section that form a whole run, with the same home and name, are
-   * joined with one blank line into one schedule, which takes the weakest of
-   * their marks. A run the edits left incomplete is written as it stands,
-   * suffix and all, so the repository's drift test finds it. A clause's refs
-   * are written as the ids the draft names them by. */
+  /* The schedules part opens with a table of contents, one line for each
+   * schedule's title and home, then holds one `### <home>: <name>` schedule
+   * each, in the order the clauses stand. A schedule's text is written as it
+   * stands, with no heading of its own, and runs to the next `###` or `##`
+   * line. Pieces of a split section that form a whole run, with the same home
+   * and name, are joined with one blank line into one schedule, which takes
+   * the weakest of their marks. A run the edits left incomplete is written as
+   * it stands, suffix and all, so the repository's drift test finds it. The
+   * clauses a schedule carries out are quoted by the bold label the body
+   * writes for each, which `label` gives. */
   const STRENGTH = { Proposed: 0, Confirmed: 1, Decided: 2 };
   const weakest = marks => marks.reduce((a, b) => ((STRENGTH[b] ?? 0) < (STRENGTH[a] ?? 0) ? b : a));
-  function scheduleLines(list) {
-    const out = [];
+  function scheduleLines(list, label) {
+    const entries = [];
     for (let i = 0; i < list.length;) {
       const x = list[i];
       if (x.none) {
-        out.push(`- None. ${markText(x.mark)}`, '');
+        entries.push({ none: true, mark: x.mark });
         i++;
         continue;
       }
@@ -1016,13 +1060,21 @@ const Interview = (() => {
         });
         if (whole) { run = next; name = piece.base; }
       }
-      const home = x.fields.home;
-      const refs = [...new Set(run.flatMap(y => y.refs || []))];
-      const carries = refs.length ? ` Carries out: ${refs.map(r => `"${r}"`).join(', ')}.` : '';
-      const text = run.map(y => y.fields.text).join('\n\n');
-      out.push(`### ${home}: ${name}`, '', `Home: \`${home}\`, the section "${name}".${carries}`, markText(weakest(run.map(y => y.mark))), '');
-      if (text !== '') out.push(text, '');
+      const refs = [...new Set(run.flatMap(y => y.refs || []).map(label))];
+      entries.push({ home: x.fields.home, name, refs, mark: weakest(run.map(y => y.mark)), text: run.map(y => y.fields.text).join('\n\n') });
       i += run.length;
+    }
+    const out = [];
+    for (const e of entries) if (!e.none) out.push(`- ${e.home}: ${e.name}. Home: \`${e.home}\`.`);
+    if (out.length) out.push('');
+    for (const e of entries) {
+      if (e.none) {
+        out.push(`- None. ${markText(e.mark)}`, '');
+        continue;
+      }
+      const carries = e.refs.length ? ` Carries out: ${e.refs.map(r => `"${r}"`).join(', ')}.` : '';
+      out.push(`### ${e.home}: ${e.name}`, '', `Home: \`${e.home}\`, the section "${e.name}".${carries}`, markText(e.mark), '');
+      if (e.text !== '') out.push(e.text, '');
     }
     return out;
   }
@@ -1032,12 +1084,20 @@ const Interview = (() => {
     const K = kindsIndex(kinds);
     const words = kinds.words || {};
     const { parts, names, order } = finalClauses(draft, K, block);
+    /* The bold label the body writes for a clause: its kind's heading, as a rename leaves it. */
+    const labelOf = id => {
+      for (const [part, list] of parts) {
+        const x = list.find(y => y.id === id);
+        if (x) return names.get(`${part}/${x.kind.id}`) || capital(x.kind.kind);
+      }
+      return id;
+    };
     const version = draft.rewrite ? `${Number(draft.rewrite.version.split('.')[0]) + 1}.0.0` : '0.1.0';
     const out = [`# Contract: ${draft.name}`, '', `Version: ${version}`, `Kind: ${draft.type}`, `Level: ${draft.level}`, ''];
     for (const part of K.parts) {
       out.push(`## ${part}`, '');
       const list = parts.get(part);
-      if (part === SCHEDULES) { out.push(...scheduleLines(list)); continue; }
+      if (part === SCHEDULES) { out.push(...scheduleLines(list, labelOf)); continue; }
       const kindsHere = [];
       for (const k of order.get(part)) if (list.some(x => x.kind.id === k)) kindsHere.push(k);
       for (const x of list) if (!kindsHere.includes(x.kind.id)) kindsHere.push(x.kind.id);
