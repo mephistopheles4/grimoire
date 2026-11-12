@@ -1,8 +1,10 @@
 # Incantation: the spec
 
-Draft 0.3, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.4, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
-rescope onto VoiceMode, and the Incantation name and feel).
+rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
+fixes drafted after spec round 1. None is accepted until the lead or the owner
+takes it.
 
 ## S1. Objective
 
@@ -19,7 +21,12 @@ Incantation only adds the way the session talks:
 
 Incantation is a separate plugin in the `mephistopheles4` marketplace, not part
 of the grimoire plugin. It declares no dependency on VoiceMode. A guard checks
-for VoiceMode when `/incantation` runs.
+for VoiceMode, and for a local-only setup, each time `/incantation` runs.
+
+**Target environment (O5, open).** It names the systems the guard and the
+practice run must work on, and one end-to-end step on each: install VoiceMode,
+apply the README settings, the guard prints `ok`, the greeting is heard. Until
+the lead or the owner names them, the build does not start.
 
 ## S2. What `converse` leaves room for
 
@@ -36,11 +43,13 @@ Room for the style rules, with one conflict.
 
 ## S3. Scope
 
-In: the plugin, `/incantation`, the guard and `guard.mjs`, the README setup, a marketplace
-entry, the check change it needs (S5), a candidate threat-model entry (S8).
+In: the plugin, `/incantation`, the guard and `guard.mjs`, the README setup, a
+marketplace entry, the repo controls widened to the new plugin (S5), candidate
+threat-model entries (S8).
 
 Out: any listener, recorder or speech server of our own; changes to VoiceMode;
-clearing VoiceMode's logs; a hook that runs on every session start.
+clearing VoiceMode's logs for the person; a hook that runs on every session
+start; running Incantation in a head-chef lead session (S4 step 7).
 
 ## S4. What `/incantation` does
 
@@ -48,100 +57,148 @@ clearing VoiceMode's logs; a hook that runs on every session start.
    failure prints the fix in chat and nothing is spoken.
    1. **VoiceMode present.** It looks for VoiceMode's `converse` tool under
       either name (`mcp__voicemode__converse` or the plugin's
-      `mcp__plugin_voicemode_voicemode__converse`). If it is missing, it says
-      what to install (`claude plugin install` or the `claude mcp add` line from
-      VoiceMode's README) and which setup to run (`voicemode service install
-      whisper` and `kokoro`).
-   2. **Exposure check.** It runs `node scripts/guard.mjs`, from the plugin's
-      root (S4.1). Unless the script prints `ok`, it shows the script's fix
-      line and stops.
+      `mcp__plugin_voicemode_voicemode__converse`). If it is missing, it prints
+      VoiceMode's install and service-setup lines, quoted in the README with
+      the VoiceMode commit they were taken from.
+   2. **Setup check.** It runs `guard.mjs` by its path in the skill base
+      directory, `<skill base>/scripts/guard.mjs`, never by a path relative to
+      the working folder (S4.1). Unless the script prints `ok`, it shows the
+      script's line and stops.
    3. **First call.** The greeting is the first `converse` call. If it errors,
       it shows the error's first line and the setup line from step 1, then
       stops. There is no retry loop.
-
-### S4.1 Local only
-
-- **(a) Both speech services listen on loopback only.** The speech-to-text and
-  text-to-speech services answer on `127.0.0.1` and on no other address. The
-  README gives the steps to set this for each service on the person's platform,
-  and to restart the service after. It also says an update to VoiceMode may
-  undo the setting, which is why the guard checks on every start.
-- **Speech stays local.** The README sets `VOICEMODE_TTS_BASE_URLS` and
-  `VOICEMODE_STT_BASE_URLS` to the loopback URLs only, in
-  `~/.voicemode/voicemode.env`.
-- **(b) `guard.mjs` refuses a service reachable off loopback.** It is a Node
-  script with no dependencies. It does three things:
-  - **Ports.** It reads the ports from `VOICEMODE_WHISPER_PORT` and
-    `VOICEMODE_KOKORO_PORT`, in the environment or in
-    `~/.voicemode/voicemode.env`, and defaults to 2022 and 8880.
-  - **Reach.** For each non-internal IPv4 and IPv6 address in
-    `os.networkInterfaces()`, it tries a TCP connect to each port, with a
-    500 ms timeout. A connect that succeeds on any of those addresses counts
-    as exposed.
-  - **Speech URLs.** It reads both base-URL settings the same way. Any entry
-    whose host is not loopback counts as a failure.
-
-  It prints one line:
-  - `ok`;
-  - `exposed <service> <port>: make it listen on 127.0.0.1 only, see README step 3`;
-  - or `remote <setting>: set it to the loopback URL only, see README step 4`.
-
-  It never prints an address or a path. It exits 0 only on `ok`.
-  - A connect from this machine to its own address skips the host firewall,
-    so the guard refuses a service listening beyond loopback even when a
-    firewall would block it. That is on purpose: where the service listens is
-    what the guard checks.
-- **(c) Never `voicemode serve`.** Incantation calls `converse` over the stdio
-  MCP server only. The skill never starts, configures or connects to `voicemode
-  serve` or port 8765, and the README says not to run it alongside Incantation.
 2. **Greeting.** The first `converse` call is the greeting, for example:
    "Welcome to incantation mode. I'm here to pair with you on this repo. We can
    start with what's on your branch." The first step it offers comes from the
    session's state (branch, an open issue, the last task), never invented.
 3. **Turns.** Each spoken turn is one thing, plain words, no markdown, no code
    or paths read aloud. Long output becomes a two-sentence summary and an offer:
-   "Want the detail?" The detail goes to chat, not aloud.
-4. **Hear-back.** Before an act, it says the request back in its own words and
-   asks yes or no. It acts only on a yes; anything else it treats as a new
-   request.
+   "Want the detail?" The detail goes to chat, not aloud. It never speaks a
+   secret, key, token or password, or a personal detail such as an email
+   address or a name taken from a record; it says the item is in chat.
+4. **Hear-back.** Before an act, it says the request back in its own words,
+   shows the same words in chat, and asks yes or no. It acts only on a yes;
+   anything else it treats as a new request.
    - **Spoken yes:** enough for everything except the next item.
    - **Typed yes only:** needed for acts that are hard to reverse (merge, push,
-     delete, publish, send, install, a settings change) and for every decision
-     the person's instructions keep for them. The session asks aloud for a
-     typed yes, shows the act and its target in chat, and waits. A spoken yes
-     to these is answered with "I need that one typed."
-5. **Heard is not typed.** Heard text is shown in chat as `Heard: "…"`. It never
-   stands for the person's typed words where instructions ask for those, never
-   answers a permission prompt, and never widens what the session may do.
-6. **Off.** "Stop", "that's all" or a typed message ends the loop with a short
-   goodbye.
+     delete, publish, send, install, a settings change), for running a command
+     whose effects the session has not read, and for every decision the
+     person's instructions keep for them. The session asks aloud for a typed
+     yes, shows the one act and its target in chat, and waits. A typed yes
+     covers exactly that act and target, never a batch. A spoken yes to these
+     is answered with "I need that one typed."
+5. **Heard is not typed.** Heard text, from `converse` or any other VoiceMode
+   route, is shown in chat as `Heard: "…"`. It never stands for the person's
+   typed words where instructions ask for those, never answers a permission
+   prompt, and never widens what the session may do. Spoken-yes acts still go
+   through the permission mode in force.
+6. **Off and failure.**
+   - "Stop", "that's all" or a typed message ends the loop with a short
+     goodbye, except a typed reply to a pending typed-yes request: that is the
+     answer, and the loop goes on with the next `converse` call.
+   - A `converse` error after the greeting shows the error's first line in
+     chat, ends the loop, and drops any pending act.
+7. **Not in a lead session.** `/incantation` refuses to start in a session that
+   leads a brigade (it has the head-chef skill loaded as lead), and says why.
+
+### S4.1 Local only
+
+- **(a) Both speech services listen on loopback only.** The speech-to-text and
+  text-to-speech services answer on `127.0.0.1` and on no other address. The
+  README gives the settings that do this as plain setup steps ("set X to
+  127.0.0.1"), for each service and each target system, with no word on why or
+  on what the default is. It says to change every place the setting appears,
+  then restart the service, and that a VoiceMode update may undo it.
+- **(b) The text-to-speech service serves speech only.** The README sets its
+  web player and its cross-origin access off, as plain setup steps.
+- **(c) Speech stays local, and VoiceMode is set in one place.** The README
+  sets `VOICEMODE_TTS_BASE_URLS` and `VOICEMODE_STT_BASE_URLS` to the loopback
+  URLs only, in `~/.voicemode/voicemode.env`. Every VoiceMode setting lives in
+  that file: never in the MCP server's own environment, and never in a
+  project-level VoiceMode settings file. It also leaves recording-to-disk and
+  debug settings off, and does not install VoiceMode's heard hook.
+- **(d) `guard.mjs` checks all of it.** It is a Node script with no
+  dependencies, in `plugins/incantation/skills/incantation/scripts/`. It runs
+  these checks; each failure prints one fixed line:
+  - **Settings, read as VoiceMode reads them.** It reads the process
+    environment, then `~/.voicemode/voicemode.env` (or the folder in
+    `VOICEMODE_BASE_DIR`), then looks for a project-level VoiceMode settings
+    file from the working folder up. It reads only the keys it needs.
+    - A project-level file fails: `project <file kind>: move VoiceMode settings
+      to the global file, see README step 4`.
+    - Either speech URL setting unset, unparseable, or with any entry whose
+      host is not literally `127.0.0.0/8`, `::1` or `localhost`, fails:
+      `remote <setting>: set it to the loopback URL only, see README step 4`.
+    - A recording-to-disk or debug setting on fails: `recording <setting>:
+      turn it off, see README step 4`.
+    - The heard hook present in the person's Claude Code settings fails:
+      `heard hook: remove it, see README step 4`.
+  - **Ports.** The ports named in the resolved speech URLs, plus
+    `VOICEMODE_WHISPER_PORT` and `VOICEMODE_KOKORO_PORT` (default 2022 and
+    8880).
+  - **Reach.** For each non-internal IPv4 and IPv6 address in
+    `os.networkInterfaces()` (skipping link-local), it tries a TCP connect to
+    each port, all in parallel, with a 500 ms timeout. A connect that succeeds
+    counts as exposed: `exposed <service> <port>: make it listen on 127.0.0.1
+    only, see README step 3`. A test-only variable, read only when
+    `NODE_ENV=test`, replaces the address list.
+  - **Text-to-speech scope.** On loopback, a request for the web player's page
+    must not succeed, and a request with a foreign `Origin` must get no
+    `Access-Control-Allow-Origin` header. Else: `tts scope: turn the web player
+    and cross-origin access off, see README step 3`.
+  - **Output.** One line on stdout: `ok`, or the first failure. It catches
+    every error and prints a fixed line for it, never the error's text. Nothing
+    it prints, on stdout or stderr, holds an address, a path, or a setting's
+    value. It exits 0 only on `ok`, and finishes within 2 s.
+  - A connect from this machine to its own address skips the host firewall,
+    so the guard refuses a service listening beyond loopback even when a
+    firewall would block it. That is on purpose.
+- **(e) Never `voicemode serve`.** Incantation calls `converse` over the stdio
+  MCP server only. The skill never starts, configures or connects to `voicemode
+  serve` or port 8765, and the README says not to run it alongside Incantation.
+  Whether the guard also refuses when port 8765 answers is a trade-off (S7).
 
 ## S5. Files
 
-- `plugins/incantation/.claude-plugin/plugin.json`
+- `plugins/incantation/.claude-plugin/plugin.json`, with its own `version`
 - `plugins/incantation/skills/incantation/SKILL.md`, built through `contract`
-- `plugins/incantation/scripts/guard.mjs` (S4.1 b)
-- `tests/incantation-guard.test.mjs`: Node's built-in test runner, with fake
-  servers on free ports and the ports passed through the environment
+- `plugins/incantation/skills/incantation/scripts/guard.mjs` (S4.1 d)
 - `plugins/incantation/README.md`. Its steps, in order:
-  1. install VoiceMode;
+  1. install VoiceMode (the exact lines, with the commit they came from);
   2. run its service setup;
-  3. bind both services to loopback (S4.1 a). This step gives the settings
-     that bind each service to `127.0.0.1` as plain setup steps ("set X to
-     127.0.0.1"), with no word on why or on what the default is;
-  4. set the speech URLs to local only;
+  3. the S4.1 (a) and (b) settings;
+  4. the S4.1 (c) settings;
   5. never run `voicemode serve`;
   6. use a headset;
-  7. know that people in the room are heard and their words reach the
-     provider as chat.
+  7. what is kept and who hears: people in the room are heard; their words
+     reach the model provider as chat; VoiceMode keeps a local log of what is
+     heard and said, with where it is and how to clear it.
+- `tests/incantation-guard.test.mjs`: Node's built-in test runner, with fake
+  servers on free ports, and settings and addresses passed through the
+  environment.
+- `tests/incantation-skill.test.mjs` (claim 13).
+- `evals/incantation/` and its budget (O6).
 - `.claude-plugin/marketplace.json`: a second entry, `incantation`, with source
-  `./plugins/incantation`
-- `scripts/check.mjs` and `tests/check-manifests.test.mjs`. Today the check
-  fails any entry whose source is not `./` ("this repo is one plugin"). The
-  same change widens it:
-  - the entry named like the root plugin keeps source `./`;
-  - any other entry must have a source of `./plugins/<its name>`, a
-    `.claude-plugin/plugin.json` there with the same name, and no version.
+  `./plugins/incantation` and no `version`.
+- **Repo controls widened to every `plugins/<name>/`, in the same change:**
+  - `scripts/check.mjs`:
+    - rule 4: the entry named like the root plugin keeps source `./`; any other
+      entry has source `./plugins/<its name>`, with a manifest there of the same
+      name;
+    - the shipped-file set (`isShipped`) and rules 2 and 2c;
+    - rule 5, with a version bump in that plugin's own `plugin.json`;
+    - rules 6b and 6c: the load roots and manifest key allow-lists;
+    - rules 7 and 7a.
+  - `tests/check-manifests.test.mjs` and the check's other tests, one case per
+    widened rule.
+  - `.github/workflows/skillspector.yml`: the matrix lists `plugins/*/skills/*`,
+    with a baseline entry for the new skill.
+  - `.github/workflows/plugin-validate.yml` and `athanor.json`: the new
+    plugin's root, manifest and `skills` are validate targets.
+  - `docs/security/threat-model.md`: a line under R3's controls saying they
+    cover `plugins/<name>/`.
+  - `AGENTS.md`: "Three directories are called `scripts/`" becomes four,
+    within its word budget.
 
 ## S6. Acceptance claims
 
@@ -149,51 +206,83 @@ clearing VoiceMode's logs; a hook that runs on every session start.
    and makes no other tool call.
 2. With `converse` present, the first call is a greeting that names a purpose
    and offers one first step drawn from the session's state.
-3. No spoken `message` holds markdown, a code block, or a path.
+3. No spoken `message` holds markdown, a code block, a path, a secret, or a
+   personal detail.
 4. An output over a few lines is spoken as a summary with an offer to drill in.
-5. A request is said back and acted on only after a yes; "no" or another reply
-   leads to no act.
-6. A spoken yes never starts an act that is hard to reverse, never decides
-   something the person's instructions keep for them, and never answers a
-   permission prompt. A typed yes does.
-7. The check passes with the second marketplace entry. It fails an entry
-   whose source is outside `./plugins/<name>`, has no manifest, names a
-   different plugin, or carries a version.
-8. `guard.mjs` prints `ok` and exits 0 when the fake servers listen on
-   `127.0.0.1` only.
-9. `guard.mjs` prints `exposed whisper <port>…` or `exposed kokoro <port>…`
-   and exits non-zero when a fake server listens on all interfaces. The test
-   skips when the machine has no non-internal address, and says so.
-10. `guard.mjs` prints `remote <setting>…` and exits non-zero when either base
-    URL lists a non-loopback host.
-11. `guard.mjs` output never holds an address or a path.
-12. With the guard failing, `/incantation` makes no `converse` call.
-13. The skill names no `voicemode serve`, no port 8765, and no HTTP MCP URL.
+5. A request is said back aloud and in chat, and acted on only after a yes;
+   "no" or another reply leads to no act.
+6. A spoken yes never starts an act that is hard to reverse, never runs an
+   unread command, never decides something the person's instructions keep for
+   them, and never answers a permission prompt. A typed yes covers one shown
+   act, and the loop goes on after it.
+7. The check passes with the second marketplace entry. It fails an entry whose
+   source is outside `./plugins/<name>`, has no manifest, names a different
+   plugin, or carries a version; and it fails each widened rule's case under
+   `plugins/incantation/` (for example a `commands/` folder, a fixed home
+   path, a change with no version bump).
+8. `guard.mjs` prints `ok` and exits 0 with local-only settings and fake servers
+   on `127.0.0.1` only.
+9. `guard.mjs` prints `exposed …` and exits non-zero when a fake server listens
+   on all interfaces, using the test-only address list, so it runs in the
+   athanor container.
+10. `guard.mjs` prints `remote …` when either speech URL is unset anywhere, or
+    lists a non-loopback host; `project …` with a project-level settings file;
+    `recording …` with a recording or debug setting on.
+11. `guard.mjs` prints `tts scope …` when a fake text-to-speech server serves a
+    page or answers a foreign `Origin`.
+12. Fed a malformed URL holding a marker string, `guard.mjs` prints a fixed
+    line; neither stdout nor stderr holds the marker, an address or a path. It
+    finishes within 2 s with every port timing out.
+13. `tests/incantation-skill.test.mjs` fails if the skill's files name
+    `voicemode serve`, `8765`, or an `http://…/mcp` URL, or run `guard.mjs` by
+    a path that is not under the skill base directory.
+14. With the guard failing, `/incantation` makes no `converse` call. In a lead
+    session it refuses to start.
 
-Claims 1 to 6 and 12 are eval cases under `evals/incantation/`, with a budget.
-Claims 7 to 11 are Node tests. Claim 13 is a check test. The ticket closes on
-a practice run the owner does with a real mic.
+Claims 1 to 6 and 14 are eval cases under `evals/incantation/`. How each case
+has `converse` present or absent, and the eval command for the second plugin,
+are set with the budget (O6). Claims 7 to 13 are Node tests. The ticket closes
+on the owner's practice run (O7).
 
 ## S7. Trade-offs
 
 - **Spoken yes against safety.** Ordinary acts go on a spoken yes, which is the
-  feel the owner asked for. Acts that are hard to reverse, and decisions kept
-  for the owner, need a typed yes. Driver: cheaper to reverse.
+  feel the owner asked for. Acts that are hard to reverse, unread commands, and
+  decisions kept for the owner need a typed yes. Driver: cheaper to reverse.
 - **Guard against dependency.** A guard keeps grimoire free of VoiceMode's
   install, at the cost of a check on each start. Owner's call, taken.
+- **Port 8765 probe (open, Hardening).** The guard could also refuse when
+  anything answers on 8765. The rule in S4.1 (e) is prose and a test of the
+  skill's text; the probe would be a guard for a path outside the base threat
+  model's actors. Lead's word.
 
 ## S8. Threat model
 
-The owner judged the risks of VoiceMode's local services acceptable with the
-S4.1 controls (2026-11-12). The candidate entry for the threat model:
+Candidate entries, each for the owner's word. Changing the threat model's scope
+is the owner's call.
 
-- **What it covers.** Local speech services that Incantation relies on but
-  does not control.
-- **Controls.** The S4.1 guard: loopback only, local speech URLs, and no
-  `voicemode serve`. The hear-back, and a typed yes for what is hard to
-  reverse.
+- **Local speech services.** Services Incantation relies on but does not
+  control. Controls: S4.1.
+  The owner's 2026-11-12 acceptance is being re-taken with the round-1 findings
+  (O8).
+- **The microphone.** Heard text from anyone audible (people in the room, a
+  call on speakers, played media) reaching acts short of the typed-yes list.
+  Controls: the hear-back shown in chat, the typed-yes list, the permission
+  mode in force, no lead sessions.
+- **Kept speech.** VoiceMode's local log of what is heard and said, including
+  bystanders' words. Controls: README step 7; the guard's recording check.
+- **A risk row** for `guard.mjs`, a shipped script that opens local
+  connections, under "Keeping this page short".
 
-Changing the threat model's scope is the owner's call.
+The security pair runs on the diff at Test as well.
+
+## S9. Rollback and stop
+
+- **Rollback:** remove the marketplace entry and `plugins/incantation/`; the
+  widened check rules stay, since they hold with one plugin.
+- **Stop if:** VoiceMode will not run on a target system; or the practice run
+  shows a spoken yes starting a typed-yes act; or the guard cannot read the
+  settings VoiceMode uses on a target system.
 
 ## Decisions taken
 
@@ -203,9 +292,15 @@ The lead took these under the owner's standing goal (2026-11-12):
 - O2, `plugins/incantation/` here, with the check widened in the same change;
 - O4, the security pair on the spec, next to the spec pair.
 
-The lead also set the S4.1 (a) to (c) requirements, and the owner accepted
-the residual risk of VoiceMode's local services with them.
+The lead also set the S4.1 local-only requirements and the README rule, and the
+owner accepted the residual risk of VoiceMode's local services with them.
 
 ## Open
 
-None. Nothing is filed upstream.
+- **O5.** Target systems (S1). The owner works on Windows.
+- **O6.** The eval budget, which needs the owner's yes in the issue, with the
+  eval command for a second plugin.
+- **O7.** When the practice run happens, and its steps with a pass or fail for
+  each.
+- **O8.** The S8 candidates, and the re-take of the local-services acceptance.
+- Nothing is filed upstream.
