@@ -32,10 +32,13 @@ test('the counter reports a padded copy over the cap', () => {
   const dir = mkdtempSync(join(tmpdir(), 'threat-model-cap-'));
   try {
     const copy = join(dir, 'threat-model.md');
-    writeFileSync(copy, `${readFileSync(join(root, MODEL), 'utf8')}\n${'word '.repeat(CAP)}\n`);
+    // Fixed sizes, so a raised CAP fails here; newlines and tabs split words too.
+    writeFileSync(copy, `${readFileSync(join(root, MODEL), 'utf8')}\n${'word\n'.repeat(3001)}`);
     assert.match(overCap(copy), /over its cap/);
-    writeFileSync(copy, 'word '.repeat(CAP));
+    writeFileSync(copy, 'word\tword\n'.repeat(1500));
     assert.equal(overCap(copy), null);
+    writeFileSync(copy, `${'word\tword\n'.repeat(1500)}word`);
+    assert.match(overCap(copy), /over its cap/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

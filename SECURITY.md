@@ -192,7 +192,7 @@ words. It asks no permission. What follows from it:
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; the threat model leaves this to the machine: a forged file from a program
-  running as the owner is the machine's, and from another plugin it is an open issue. A step the transcript would not count restarts the
+  running as the owner is the machine's, and from another plugin, a branch's code or a steered session it is an open issue. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
@@ -608,14 +608,12 @@ person reads those keys.
 
 The attacks worth planning for, by risk and by class, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
-It is one threat model in five pages, with
+Four pages hold the detail behind its controls:
 [`brigade.md`](docs/security/brigade.md), [`checks.md`](docs/security/checks.md),
 [`rendering.md`](docs/security/rendering.md) and
-[`hiring-interview.md`](docs/security/hiring-interview.md). A control that
-[`scanners.md`](docs/security/scanners.md) or [`edge-audit.md`](docs/security/edge-audit.md)
-names counts the same way.
-It records the repository settings as they were read on 2026-09-25, and the
-plugin validator's required check as confirmed on 2026-10-09. The
+[`hiring-interview.md`](docs/security/hiring-interview.md);
+[`scanners.md`](docs/security/scanners.md) and [`edge-audit.md`](docs/security/edge-audit.md)
+say what the scanners and the audit send. The
 [platform table](#what-the-platform-is-relied-on-for) below lists what the
 project relies on, which is not always what is switched on.
 
@@ -751,7 +749,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
-| Plugin validator's `validate` job as a required check | a manifest or skill the schema rejects blocks a merge |
+| Plugin validator's `validate` job, which runs on pull requests and is not a required check | a manifest or skill the schema rejects shows a failed run |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
