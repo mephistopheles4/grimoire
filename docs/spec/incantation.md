@@ -1012,6 +1012,12 @@ after round 1 of that reopened stage (2026-11-12), and answered:
   gets `busy` only while the skill's own `wait` is connected.
 - O13 and O18 go to the owner now, and the build waits for their words.
 
+The owner then answered O18 for the build (2026-11-12, relayed by the lead,
+after the lead showed both class lines from 1.3 word for word): "Accept
+both". The two classes in S8 hold for the build; each still lands in the
+threat model only on a merge the owner confirms in their own chat, and #208
+stays a draft pull request.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -1036,11 +1042,9 @@ them.
   2026-11-12, relayed: speed needs tuning after this change). Open: the
   owner's own number, and whether the whole felt time gets a target too,
   given before the practice run; until then 2.5 s stands.
-- **O18.** The two ambient-speech classes (S8): pending. Asked of the owner
-  before the build, with O13; each lands only on a merge the owner confirms
-  in their own chat. On a no to either before the build, the build takes
-  the turn-based design drafted at 0a8e7308 (listening only inside
-  `converse`, no listener); on a no at merge, the change does not merge
-  until the listener is taken out.
+- **O18.** The two ambient-speech classes (S8): accepted for the build by
+  the owner ("Accept both", relayed, Decisions taken). Each lands only on a
+  merge the owner confirms in their own chat; on a no at merge, the change
+  does not merge until the listener is taken out.
 
 Nothing is filed upstream, and any future report stays private.
