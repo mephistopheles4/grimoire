@@ -315,7 +315,7 @@ own hash; it protects nothing secret. What follows from it:
   are not encrypted; the owner accepted this on 2026-10-26 (q9 A on #402).
   Other local accounts that can read the profile's data folder can read them
   too, since the engine's write takes no file mode; the owner accepted this on
-  2026-10-26 (q11 A on #402's ticket 411).
+  2026-10-26 (q11 A on #402's ticket 411). Since 0.153.0 the log also holds flagged Lead entries (an owner-kept call with the lead's pick and reason) and entries a later lead logs from carried flagged lines, including one entry for the flagged ids a lead hand-off listed only by number; these hold the carried kind, repository, writer and earlier id, and the count-line entry holds the ids, the writer and the count of ids not named. The owner has not yet ruled on these additions (issue 601).
 - **What does not reach the write:** no permission prompt, mode, owner hook or
   classifier sees `log_decision`'s write or a mark's; each call is recorded in
   the transcript as the tool's result, and a mark is not.
@@ -364,7 +364,7 @@ foot of the Decisions tab. What follows from it:
 - **What the file reveals:** the lead's working state as it wrote it: how to
   resume, the rules in force, the running sessions by name, the cleanup
   waiting, leftover worktrees by branch, and what is open for the owner, with
-  the time and the project digest. Since head-chef 0.17.0 the rules section
+  the time and the project digest; since 0.153.0 the open section also holds flagged lines, each a flagged decision's id, its lead's name, its repository and the kind of call, in the lead's own words, which for a carried line ends with the earlier writer's name, and which the incoming lead reads through `read_lead_handoff` into its transcript; and the count line, which lists the flagged ids it could not fit; listed lines are carried from lead to lead, across goals, until the owner's words in chat say reviewed, and ids past the count line's room are named by id only in the result of the goal that flagged them and in the earlier lead's log. Since head-chef 0.17.0 the rules section
   holds a level-3 goal, naming work by repository and issue, and the log a
   waiting entry for each cleanup a level-3 lead names back, by repository and
   branch only. Who can read it is as for the log; the
@@ -403,12 +403,12 @@ a level above 1: by a press on it or, since 0.99.0, by the level command. **A
 level 3 lets the lead merge pull requests, post, waive reviews and settle
 security findings toward the goal without a per-act word from the owner**,
 as far as the owner's user-level instructions file allows (since head-chef
-1.11.0, issue 504, the skill keeps no list of its own, and what that file
-keeps for the owner waits as a to-do); it logs each act before it. A press
+1.11.0, issue 504, the skill keeps no list of what that file keeps, and names only what still waits when the file lets a goal decide; what that file keeps for the owner waits as a to-do); it logs each act before it. A press
 counts at once, with no confirmation in the lead's chat; the lead asks for a
 goal there when it has none, and acts at 2 until it has one. Cleanup waits for the owner's yes in chat at levels 1 and 2 (at level 3 the owner's user-level instructions file decides it), and since head-chef 1.9.0 (issue 492) a hand-off request or a fresh
 session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
+**Since 0.153.0 (issue 601, proposed; it waits on the owner's confirmed merge and on the owner's ruling on the threat model)** at level 3, inside the goal, where that file both lets its standing-goal rule decide what it keeps and names, in one place, what it keeps even toward a standing goal, the lead decides an owner-kept call outside that set as its own pick: it logs it as a Lead entry with a flag that opens "Owner's call:", adds no to-do, reports it, lists it in the result and carries it in its lead hand-off. What the file keeps even toward a goal, a call the lead cannot place for sure inside or outside the set, where the file names a set, dropping or narrowing a review, check or route the file, a file it names as its rules, or a repository offers or requires for sensitive work (work the file names as sensitive work, that the file or the lead would count sensitive, or that a member or reviewer proposed), a post carrying private work, a publish or send that leaves the machine (but for a comment, issue, label, edit or close on an issue or pull request in a repository the owner's account owns or the goal names, and a merge or close as the skill allows) and a confirmation of intent the file asks for still wait. A file that names no such set changes nothing, except for the risk calls (accepting a risk, a threat-class change, an accepted-risk entry, a guard's stop) and a merge toward the goal. The mod gains no field and no state.
 **Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (candidate O1 in [`docs/security/brigade.md`](docs/security/brigade.md), proposed for the owner's merge decision, with O2 and O3 beside it).
 **Since 0.148.0 (issue 579) the command `/brigade folders` and its plugin-state
 key `startFolders` are gone.** The start tool relies on the harness's folder
