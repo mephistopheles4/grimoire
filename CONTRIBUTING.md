@@ -272,7 +272,7 @@ removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
 imports it to check that a send after the last `set_roster` owes an update and
 which sends carry a message, and the two compaction lines, the
-shared exception string, the 0.9 margin and the once-per-cycle state. The background start tool's rules
+shared exception string, the 0.9 margin and the once-per-cycle state, and the level-3 note's three strings; it also reads `brigade/register.tsx`'s text for the note's wiring, and `SKILL.md`, the contract and the security page for what they say of it. The background start tool's rules
 module, `brigade/start.ts`, is the seventh: `tests/brigade-start.test.mjs`
 imports it to check the start tool's input rules and fixed words. A card's
 quick action module, `brigade/quick.ts`, is the eighth:
@@ -535,12 +535,12 @@ claude plugin validate --strict skills
 
 That checks that each frontmatter parses, and nothing about a key's meaning.
 
-A contract with a `## schedules` part, today `skills/head-chef/`, holds each
+A contract with a `## schedules` part (today `skills/head-chef/`) holds each
 section of its `SKILL.md` and references word for word: change the schedule
-first and copy it to its home, and `tests/contract-schedules.test.mjs` fails
-when they differ. For a contract with none, nothing seals a generated
-`SKILL.md` or checks it against its contract. Either way a reviewer reads every
-changed file in full, and reviews the `SKILL.md` as shipped prose.
+first and copy it to its home; `tests/contract-schedules.test.mjs` fails when
+they differ. A contract with none is neither sealed nor checked against its
+`SKILL.md`. A reviewer reads every changed file in full, and reviews the
+`SKILL.md` as shipped prose.
 
 **The mod is held to the same rules.** The plugin can also ship a Claude Code
 mod: a hooks module the engine runs in every session the plugin is installed
