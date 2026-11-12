@@ -1,10 +1,10 @@
 # Incantation: the spec
 
-Draft 0.5, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
+Draft 0.6, for issue #208 at Standard tier. It replaces `docs/spec/live.md` on
 the dropped branch. Owner's scope: the issue's comments of 2026-11-12 (the
 rescope onto VoiceMode, and the Incantation name and feel). Draft 0.4 holds the
-fixes drafted after spec round 1, and 0.5 adds the owner's proxy (S4.2). None
-of the round-1 fixes is accepted until the owner takes it.
+fixes drafted after spec round 1, 0.5 adds the owner's proxy (S4.2), and 0.6
+folds in the owner's answers (Decisions taken).
 
 ## S1. Objective
 
@@ -24,11 +24,13 @@ of the grimoire plugin. It declares no dependency on VoiceMode. A guard checks
 for VoiceMode, and for a local-only setup, each time `/incantation` runs. A
 loopback proxy of its own stands in front of the speech engines (S4.2).
 
-**Target environment (O5, open).** It names the systems the guard and the
-practice run must work on, and one end-to-end step on each: install VoiceMode,
-apply the README settings, the engines listen on sockets, the proxy runs, the
-guard prints `ok`, the greeting is heard. Until the owner names them, the build
-does not start.
+**Target environment: WSL 2 (O5, the owner's pick).** Claude Code, VoiceMode,
+both speech engines and the proxy all run inside one WSL 2 distribution.
+Native Windows is out of scope for now, and so is Claude Code on Windows
+talking to VoiceMode inside WSL. The spec and the README both say so. The
+end-to-end step: in the distribution, install VoiceMode, apply the README
+settings, the engines listen on sockets, `/incantation` starts the proxy, the
+guard prints `ok`, the greeting is heard.
 
 ## S2. What `converse` leaves room for
 
@@ -194,8 +196,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
     `localhost:<its port>`;
   - a request whose `Origin` is set and is anything but `http://127.0.0.1:<its
     port>` or `http://localhost:<its port>` (`null` counts as foreign);
-  - **(proposed, for the owner)** a method and path outside the speech API
-    VoiceMode calls:
+  - a method and path outside the speech API VoiceMode calls (the owner's
+    pick, O9.1):
     - speech-to-text: `POST /v1/audio/transcriptions`, `GET /health`;
     - text-to-speech: `POST /v1/audio/speech`, `GET /v1/audio/voices`,
       `GET /v1/models`, `GET /health`;
@@ -208,8 +210,8 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 - **Keeps nothing.** It logs no body, query, header value or address; a
   refusal is counted, not recorded.
 - **Runs:**
-  - **(proposed, for the owner)** `/incantation` starts it as a background
-    process if `/health` does not answer, before the guard runs.
+  - `/incantation` starts it as a background process if `/health` does not
+    answer, before the guard runs (the owner's pick, O9.2).
   - It runs until `proxy.mjs stop` or a restart.
   - A second start finds the ports taken and exits with a fixed line.
   - With the proxy down, VoiceMode's local URLs answer nothing, and voice
@@ -224,7 +226,9 @@ engines. `proxy.mjs` is a Node script with no dependencies, in
 - `plugins/incantation/skills/incantation/scripts/proxy.mjs` (S4.2)
 - `tests/incantation-proxy.test.mjs`: fake engines on sockets, the proxy on
   free ports, Node's built-in test runner
-- `plugins/incantation/README.md`. Its steps, in order:
+- `plugins/incantation/README.md`. It opens with the target: WSL 2, with
+  everything inside one distribution; native Windows is not supported yet. Its
+  steps, in order:
   1. install VoiceMode (the exact lines, with the commit they came from);
   2. run its service setup;
   3. the S4.1 (a) and (b) settings;
@@ -327,7 +331,7 @@ on the owner's practice run (O7).
 - **Port 8765 probe (open, Hardening).** The guard could also refuse when
   anything answers on 8765. The rule in S4.1 (e) is prose and a test of the
   skill's text; the probe would be a guard for a path outside the base threat
-  model's actors. Lead's word.
+  model's actors. The owner's word (A10).
 
 ## S8. Threat model
 
@@ -373,15 +377,26 @@ The owner chose the proxy in front of both speech engines (2026-11-12, in the
 lead's chat): "Let's do the proxy then." S4.2 drafts it, keeping the S4.1
 settings as defence in depth.
 
+The owner then accepted these picks by typing `/make-it-so` in the lead's chat
+(2026-11-12):
+
+- O9.1, the proxy's path allow-list;
+- O9.2, `/incantation` starts the proxy when `/health` does not answer;
+- O5, the target is WSL 2, and native Windows is out of scope for now;
+- the twelve round-1 security rows as drafted in 0.4: the repo controls on
+  `plugins/<name>/`; the guard reading VoiceMode's settings; kept speech; the
+  security pair at Test; the guard's pinned path; the read-back shown in chat;
+  the mic candidate and no lead sessions; the typed-yes scope; fixed guard
+  lines; no secrets spoken; heard text from any route; the ports from the
+  speech URLs.
+
 ## Open
 
-- **O5.** Target systems (S1). The owner works on Windows.
 - **O6.** The eval budget, which needs the owner's yes in the issue, with the
   eval command for a second plugin.
 - **O7.** When the practice run happens, and its steps with a pass or fail for
   each.
-- **O8.** The S8 candidates' wording.
-- **O9.** Two proposed parts of the proxy (S4.2): the path list, and
-  `/incantation` starting the proxy itself. The alternative to the second is a
-  service the README sets up next to VoiceMode's.
+- **O8.** The S8 candidates, and the re-take of the local-services acceptance
+  with the proxy in place.
+- **A10.** The port 8765 probe, a trade-off under Hardening (S7).
 - Nothing is filed upstream.
