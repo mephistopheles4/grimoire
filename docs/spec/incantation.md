@@ -540,7 +540,10 @@ Neither applies here, and neither is carried.
      - VoiceMode used on its own needs it running;
   6. never run `voicemode serve`; use a headset; and approve `converse` in
      each session when asked, never through an allow rule in settings, and
-     never allow-rule `listen.mjs start` or `stop` (O19 covers `wait`); the
+     never allow-rule `listen.mjs start` or `stop`; to keep each turn from
+     stopping on a prompt, the person may add one allow rule for exactly
+     `node <skill base>/scripts/listen.mjs wait`, which lets a session read
+     heard text unprompted while the listener runs (O19, Decisions taken); the
      mic is muted while Linux-side audio plays, so talking over the session
      is not heard; sound from the Windows side (a browser, a call, media) is
      not muted and is heard as speech, so keep it off or use a headset;
@@ -875,7 +878,9 @@ The entries:
   steered session could listen. Controls: the per-session approval of
   `converse` in README step 6, the permission prompt on `listen.mjs start`,
   one listener and one waiter at a time, and the listener bound to the
-  session that started it. The route for `wait` is O19.
+  session that started it. With the allow rule for `wait` (O19), a steered
+  session can read heard text unprompted while the listener runs; that path
+  stays open.
 - **The listener's reach.** A program the listener runs, or text it hands
   the session. Controls: only root-owned `/usr/bin/parec` and
   `/usr/bin/pactl`, with a fixed environment (S4.3); the mic released, and
@@ -993,6 +998,20 @@ that mutes while anything plays, over waiting for VoiceMode's. 1.2 drafts
 that (S4.3), reverses S3's "no recorder of our own", and reopens the spec
 stage.
 
+The lead, at level 3 under the owner's standing goal, took draft 1.3's fixes
+after round 1 of that reopened stage (2026-11-12), and answered:
+
+- Windows-side sound: the limit, the actors, the class wording and the
+  practice step as drafted; the path stays open, named in S4.3, S8 and
+  README step 6.
+- O19, how `listen.mjs wait` gets past the permission prompt: README step 6
+  names one allow rule for exactly `node <skill base>/scripts/listen.mjs
+  wait`, with `start` and `stop` always prompted. Adding it to any settings
+  file stays the owner's step. The residual: while the listener runs, a
+  steered session of the person's could run `wait` without a prompt, and
+  gets `busy` only while the skill's own `wait` is connected.
+- O13 and O18 go to the owner now, and the build waits for their words.
+
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
 test name or the review record. A finding that needs that detail stays out of
@@ -1023,12 +1042,5 @@ them.
   the turn-based design drafted at 0a8e7308 (listening only inside
   `converse`, no listener); on a no at merge, the change does not merge
   until the listener is taken out.
-- **O19.** How `listen.mjs wait`, run once a turn, gets past Claude Code's
-  permission prompt. Each prompt would stall every turn. Drafted: README
-  step 6 adds one allow rule for exactly `node <skill base>/scripts/listen.mjs
-  wait`, while `start` and `stop` stay prompted. The residual: while the
-  listener runs, a steered session of the person's could run `wait` without
-  a prompt, and gets `busy` only while the skill's own `wait` is connected.
-  The owner's call.
 
 Nothing is filed upstream, and any future report stays private.
