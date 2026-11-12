@@ -79,10 +79,13 @@ test('--out writes a page that holds every hostile draft string as data, inside 
   assert.equal(blocks.length, (template.match(/<script>/gi) || []).length);
   assert.match(blocks[1], /const Interview = \(\(\) => \{/, 'the module is in its block, not in the title');
   assert.match(blocks[2], /render\(\);\s*$/, 'the page script ends where the template ends it');
-  // The data parses back to the draft it came from, and holds no raw "<".
+  // The data parses back to the draft it came from, with the schedules part
+  // an older draft lacks added empty, and holds no raw "<".
   const { text, value } = dataOf(html);
   assert.ok(!text.includes('<'), 'a raw "<" in the inlined data');
-  assert.deepEqual(value.draft, JSON.parse(readFileSync(file, 'utf8')));
+  const written = JSON.parse(readFileSync(file, 'utf8'));
+  assert.ok(!Object.hasOwn(written.parts, 'schedules'), 'the draft on disk has no schedules key');
+  assert.deepEqual(value.draft, { ...written, parts: { ...written.parts, schedules: [] } });
   // The title is element content with its markup characters dropped.
   const title = /<title>([\s\S]*?)<\/title>/.exec(html)[1];
   assert.ok(!/[<>&]/.test(title.replace(/^Hiring interview: /, '')), title);
@@ -460,10 +463,10 @@ function standIn() {
  *  document. Its store holds `seed` when given, saved by the module the page
  *  inlines, under the page's own hashes. */
 const pages = new Map();
-function loadPage({ flags = [], seed } = {}) {
-  const at = flags.join(' ');
-  if (!pages.has(at)) pages.set(at, render(example, join(work, `logic-${n++}.html`), ...flags));
-  const html = pages.get(at);
+function loadPage({ flags = [], seed, source = example, tweak } = {}) {
+  const at = `${flags.join(' ')}|${source}`;
+  if (!pages.has(at)) pages.set(at, render(source, join(work, `logic-${n++}.html`), ...flags));
+  const html = tweak ? tweak(pages.get(at)) : pages.get(at);
   const D = dataOf(html).value;
   const map = new Map();
   const store = {
@@ -703,6 +706,96 @@ test('the answer block names a tapped chip by its place in the question, carries
   const r = run(contractRender, [example, '--answers', join(dir, 'answers.json')]);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, new RegExp(`purpose/job picked .*; chip ${JSON.stringify(chips[1]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+});
+
+/* -- the schedules part (#604, T1) ------------------------------------------- */
+
+const MARKUP = 'Run <b>the</b> steps & stop.\n\n</script><marquee>x</marquee><img src=x onerror=alert(1)> "q" $& $\' `ticks`\n\nlast &amp; &lt;i&gt;';
+const SCHEDULED = [
+  { id: 'sched-start', name: 'Starting a session', home: 'SKILL.md', text: MARKUP },
+  { id: 'sched-clean', name: 'Removing a worktree (1 of 2)', home: 'references/cleanup.md', text: 'Ask first.' },
+  { id: 'sched-clean-2', name: 'Removing a worktree (2 of 2)', home: 'references/cleanup.md', text: 'Then remove it.' },
+];
+/** The example with the schedules part filled; each schedule carries out the first duty. */
+const scheduled = () => derive(example, d => {
+  d.parts.schedules = SCHEDULED.map(({ id, ...fields }) => ({ id, kind: 'schedule', fields, mark: 'Proposed', refs: [d.parts.roles[0].id] }));
+});
+const SHEET = 'Schedules attached to the letter';
+
+/** What is wrong with a page's drawing of the schedules part: empty when its
+ *  sheet holds every schedule's name, home and text as data. */
+function undrawn(page) {
+  const problems = [];
+  // The sheet is drawn when the person asks for everything at once.
+  if (page.key('mode') && page.key('mode').getAttribute('aria-pressed') !== 'true') page.click(page.key('mode'));
+  const sheet = page.doc.documentElement.querySelectorAll('section').find(s => s.getAttribute('aria-label') === SHEET);
+  if (!sheet) return ['the sheet of schedules'];
+  // The sheet holds a box for each part but `why`, in the order of the parts;
+  // the schedules part is the last, and its schedules sit in that box.
+  const boxes = sheet.querySelectorAll('.sched-part');
+  if (boxes.length !== kinds.parts.length - 1) problems.push(`${boxes.length} boxes in the sheet, for ${kinds.parts.length - 1} parts`);
+  const box = boxes.length === kinds.parts.length - 1 ? boxes.at(-1) : null;
+  for (const s of SCHEDULED) {
+    for (const f of ['name', 'home', 'text']) {
+      const ctl = page.key(`field:${s.id}:${f}`);
+      if (!ctl) problems.push(`${s.id} ${f}: not drawn`);
+      else if (!box || !box.contains(ctl)) problems.push(`${s.id} ${f}: not in the schedules part's box`);
+      else if (ctl.value !== s[f]) problems.push(`${s.id} ${f}: holds ${JSON.stringify(ctl.value)}`);
+    }
+  }
+  // The text is data: it reaches the page as a control's value. That no
+  // markup in it becomes an element is held by the static ban on writing HTML
+  // from the page script (the doesNotMatch on innerHTML, near line 112 of this
+  // file), since the stand-in document has no parser to turn a string into
+  // elements.
+  return problems;
+}
+
+test('a draft with schedules draws the schedules sheet: each name, home and text, the text as data', () => {
+  const file = scheduled();
+  const page = loadPage({ source: file });
+  assert.deepEqual(undrawn(page), []);
+  // The page names the kind, high stakes, one by one.
+  assert.match(page.text(), /A procedure it follows/);
+  assert.match(page.text(), /high stakes, agreed one by one/);
+  assert.doesNotMatch(page.text(), /undefined|\[object/, 'a heading or a value the page could not name');
+  // An older draft with no schedules key draws the same page without one.
+  const old = loadPage();
+  assert.equal(old.key('field:sched-start:text'), null);
+  assert.equal(old.D.kinds.parts.at(-1), 'schedules');
+  assert.deepEqual(old.D.draft.parts.schedules, [], 'the page holds the older draft\'s schedules part empty');
+});
+
+test('the check for the sheet fails when the part is not drawn', () => {
+  const file = scheduled();
+  const page = loadPage({ source: file, tweak: html => {
+    const from = 'const PARTS = kinds.parts;';
+    assert.ok(html.includes(from), 'the page still reads its parts from the kinds table');
+    return html.replace(from, "const PARTS = kinds.parts.filter(p => p !== 'schedules');");
+  } });
+  const problems = undrawn(page);
+  assert.ok(problems.length >= SCHEDULED.length * 3, `the check names what is missing: ${problems.join('; ')}`);
+  assert.ok(problems.some(p => /not drawn/.test(p)), problems.join('; '));
+});
+
+test('--check names a key or an email in a schedule\'s text and its answer reads back masked', () => {
+  const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const file = derive(scheduled(), d => { d.parts.schedules[0].fields.text = `Send ${key} to a@example.org first.`; });
+  const check = run(contractRender, [file, '--check']);
+  assert.equal(check.code, 0, check.stderr);
+  assert.match(check.stderr + check.stdout, /warning: parts\.schedules\[0\]\.fields\.text: holds a key-shaped value/);
+  const page = loadPage({ source: file });
+  page.click(page.key('mode'));
+  page.type(page.key('field:sched-start:text'), `Send ${key} to a@example.org second.`);
+  page.click(page.key('sign'));
+  const text = page.key('block').value;
+  const dir = scratch();
+  writeFileSync(join(dir, 'answers.json'), text);
+  const r = run(contractRender, [file, '--answers', join(dir, 'answers.json')]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.ok(!r.stdout.includes(key) && !r.stdout.includes('a@example.org'), 'the read-back printed the key or the email');
+  assert.match(r.stdout, /schedules\/sched-start wrote its own words; marked Decided/);
+  assert.match(r.stdout, /schedules\/sched-start text "Send \[masked\] to \[masked\] second\."/);
 });
 
 test('a field that holds more than a line wraps and grows, in the sheet as in the letter (#606)', () => {

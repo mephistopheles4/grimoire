@@ -12,7 +12,7 @@
 #
 # Every entry is keyed by rule identifier; MP1, TR2 and AS3 are also narrowed,
 # MP1 by a file glob, TR2 by the exact clause it is about, and AS3 by a message
-# glob that matches only a skill's own file path. For the rest, two
+# glob that matches only a skill's file path. For the rest, two
 # consequences, both deliberate:
 #
 #   - It survives a rewording. The prose under these findings is edited
@@ -45,7 +45,7 @@ rules:
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
   - rule_id: "AS3"
     message: "skills/*/SKILL.md"
-    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
+    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, a skill's contract naming the SKILL.md it was drafted from, and the contract skill's template citing, by its URL, the SKILL.md of Anthropic's published skill-creator skill as the source of three of its rules. Naming your own product or its own source file is not enumerating somebody else's, and a link a reader follows to check a rule's source lists no installed skill."
   - rule_id: "EA2"
     reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead; head-chef's cleanup, which at levels 1 and 2 acts at once on the owner's words naming each session, without a second yes; and head-chef's level 3, which acts toward a goal without a per-act word once a press of the slider or the level command sets level 3, and follows the owner's user-level instructions file for what waits: that part is no false positive, and is accepted on the owner's word (2026-10-28; reworded on 2026-11-04 for a press or a level command that sets level 3 at once, on the owner's word, relayed by the lead). And head-chef's README, which tells the owner that a session it starts takes its model and effort on the command line, so there is no approval card to accept: it describes the start the owner asks for, and the head chef starts a session only on the owner's words. None of the rest tells an agent to act without the person's say-so."
   - rule_id: "EA3"
