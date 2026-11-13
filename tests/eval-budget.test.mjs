@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Skill folder -> its budget. See the header before changing a number.
-const BUDGET = { contract: 6, 'head-chef': 46 };
+const BUDGET = { contract: 6, 'head-chef': 46, incantation: 7 };
 
 // The case count of each skill under an evals folder.
 function counts(evalsDir) {
@@ -26,6 +26,21 @@ function counts(evalsDir) {
     const n = readdirSync(join(evalsDir, skill.name), { withFileTypes: true })
       .filter(c => c.isDirectory() && existsSync(join(evalsDir, skill.name, c.name, 'prompt.md'))).length;
     if (n > 0) out[skill.name] = n;
+  }
+  return out;
+}
+
+// A plugin under plugins/ keeps its cases in its own evals/ folder, one level
+// down: plugins/<name>/evals/<case>/prompt.md. They are counted under the
+// plugin's name.
+function pluginCounts(pluginsDir) {
+  const out = {};
+  if (!existsSync(pluginsDir)) return out;
+  for (const plugin of readdirSync(pluginsDir, { withFileTypes: true })) {
+    const evals = join(pluginsDir, plugin.name, 'evals');
+    if (!plugin.isDirectory() || !existsSync(evals)) continue;
+    const n = readdirSync(evals, { withFileTypes: true }).filter(c => c.isDirectory() && existsSync(join(evals, c.name, 'prompt.md'))).length;
+    if (n > 0) out[plugin.name] = n;
   }
   return out;
 }
@@ -41,7 +56,27 @@ function faults(found, budget) {
 }
 
 test('each skill\'s eval cases are within its budget', () => {
-  assert.deepEqual(faults(counts(join(root, 'evals')), BUDGET), []);
+  assert.deepEqual(faults({ ...counts(join(root, 'evals')), ...pluginCounts(join(root, 'plugins')) }, BUDGET), []);
+});
+
+test('a plugin\'s cases are counted under its name, and one over its budget fails', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'eval-budget-plugins-'));
+  try {
+    for (const c of ['one', 'two']) {
+      mkdirSync(join(dir, 'p', 'evals', c), { recursive: true });
+      writeFileSync(join(dir, 'p', 'evals', c, 'prompt.md'), 'x');
+    }
+    mkdirSync(join(dir, 'p', 'evals', 'results', 'run-1'), { recursive: true });
+    mkdirSync(join(dir, 'q', 'evals'), { recursive: true });
+    mkdirSync(join(dir, 'r'), { recursive: true });
+    const found = pluginCounts(dir);
+    assert.deepEqual(found, { p: 2 });
+    assert.deepEqual(faults(found, { p: 2 }), []);
+    assert.equal(faults(found, { p: 1 }).length, 1);
+    assert.equal(faults(found, {}).length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the counter fails a skill over budget or without one, and ignores a folder with no case', () => {

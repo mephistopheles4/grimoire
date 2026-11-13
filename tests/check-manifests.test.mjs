@@ -34,7 +34,7 @@ test('a marketplace entry that points somewhere other than the repo root fails',
   const m = readJson(p);
   m.plugins[0].source = './skills/eagle-eye';
   writeJson(p, m);
-  assertFails(dir, /this repo is one plugin, so it must be "\.\/"/);
+  assertFails(dir, /the plugin at the root is one plugin, so its entry must be "\.\/"/);
 });
 
 test('a shelf and a book with the same name fail', () => {

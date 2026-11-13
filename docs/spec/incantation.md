@@ -246,15 +246,15 @@ With neither A nor B, the work stops and the owner says how to go on (S11).
 
 - The listener calls `warm()` as soon as it starts (S7.1 step 4), in the
   background.
-- `warm()` loads the transcription model with one second of silence, and the
-  speech model with `POST /models/load`, which 0.5.0's schema documents as
-  loading the speech model and which plays nothing. F1 confirms that the next
-  speak's first sound then comes within 2 s. Until it does, the greeting is
-  also treated as the speech warm (the next item's second case).
+- `warm()` loads the transcription model with one second of silence. 0.5.0's
+  schema also has `POST /models/load`, which loads a speech model and plays
+  nothing, but its default size names a large model that need not be the
+  profile's engine, so loading it could cost the time W6 wants saved. Until
+  F1 shows a load that warms the profile's own engine, `warm()` does not call
+  it, and the greeting is the speech warm.
 - `wait` reports `ready <ms>` once `warm()` resolves, and the greeting waits
-  for `ready`. The skill prints `Warming the voice…` before it. Until F1
-  passes, the greeting is left out of the 2 s target. If F1 fails, `warm()`
-  drops the speech-model load and the greeting is the speech warm.
+  for `ready`. The skill prints `Warming the voice…` before it. While the
+  greeting is the speech warm, it is left out of the 2 s target.
 - A warm that has not finished in 60 s ends the start with `listener error
   warm`.
 - **Target, measured:** after the greeting, no spoken turn pays the model's
@@ -633,10 +633,10 @@ silence, never recorded speech, on the runners S3 names:
     0.5.0's published interface (made-up replies in the schema's shapes):
     `health()` reads `GET /health`; `transcribe()` sends one multipart `file`
     part holding a WAV of the turn and returns the reply's `text`; `warm()`
-    calls `POST /models/load` and transcribes one second of silence;
+    transcribes one second of silence and loads no speech model;
     `playback()` turns speak-start and speak-end events into `start` and
-    `end`, keeps no text or id, and errors when the stream ends or sends
-    something it cannot parse; every request goes to `127.0.0.1` at the
+    `end`, keeps no text or id, and errors when the stream ends, answers other
+    than 200, or sends a line over 64 KB; every request goes to `127.0.0.1` at the
     settings' port, and with `NODE_USE_ENV_PROXY=1` and `HTTP_PROXY` set to a
     fake proxy, the proxy receives nothing. Its limit: the fake follows the
     schema, not a recorded exchange, so the prototype (S9) is what checks it
@@ -682,7 +682,7 @@ it runs:
 
 | Check | Until run (the build) | Pass | Fail |
 |---|---|---|---|
-| **F1, silent warm:** `POST /models/load` plays nothing, and the next speak's first sound comes within 2 s | `warm()` calls it; the greeting is left out of the 2 s target | the greeting joins the target | `warm()` drops it; the greeting is the speech warm (S5.3) |
+| **F1, silent warm:** a `POST /models/load` that loads the default profile's own engine plays nothing, and the next speak's first sound comes within 2 s | not called; the greeting is the speech warm, left out of the 2 s target (S5.3) | `warm()` calls that load, and the greeting joins the target | the greeting stays the speech warm |
 | **F2, playback feed:** route A, then B, reports every utterance from any caller, its start at or before the first sound, its end within 300 ms of the last; the measured delay sets the tail | route A, from the schema's event names; tail 300 ms | that route is kept | route B is tried; with neither, stop; the owner says how to go on (O1) |
 | **F3, the fast default:** time to first sound for each preset engine on a one-sentence line, warm | the README names Kokoro | the README names the fastest under 2 s | the README names the fastest, and the miss goes to the owner |
 | **F4, capture:** ffmpeg records the chosen mic through `dshow`, and the list parses | built as S5.4, on made-up listings | kept | stop |
