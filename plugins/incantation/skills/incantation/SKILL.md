@@ -165,7 +165,9 @@ the file write and `listen.mjs say` that make it.
 - **A request that changes nothing**: a question, a look at a file, a command that
   only reads. Acknowledge it aloud in one sentence, "Got it, I'll check the test run,
   give me a moment," and show the same words in chat. Then do the work, then
-  answer. It needs no yes.
+  answer aloud: the answer is a second say, after its own `idle`, and the same
+  words in chat. An acknowledgement is a promise, so never end the turn with the
+  answer in chat only. It needs no yes.
 - **A request that changes anything**: an edit, a write, a command with effects,
   a push, a merge, a delete, an install, a settings change. The say-back is the
   acknowledgement: say the request back in your own words, one sentence, and ask

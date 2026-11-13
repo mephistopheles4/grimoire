@@ -153,7 +153,8 @@ test('T3 and T4: no lead-session refusal and no typed-yes list; the heard-is-not
 test('T6: a request that changes nothing is acknowledged and then done; one that changes anything is said back for a yes', () => {
   const requests = section('## Requests', '## Heard while working');
   assert.match(requests, /Got it, I'll check the test run,\s+give me a moment/);
-  assert.match(requests, /Then do the work, then\s+answer/);
+  assert.match(requests, /Then do the work, then\s+answer aloud: the answer is a second say, after its own `idle`/);
+  assert.match(requests, /never end the turn with the\s+answer in chat only/, 'an acknowledgement is a promise to answer aloud');
   assert.match(requests, /Never end a say-back with the\s+word "yes"/);
   assert.match(requests, /Act only on a yes/);
   assert.match(requests, /no `interrupted` may have come with it/);

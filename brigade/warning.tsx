@@ -67,6 +67,9 @@ export function registerWarning(on: On) {
     const kept = await read($, ack)
     if (isAcknowledged(kept, VERSION)) return next(e)
 
+    // What lies beneath (the mic band, the level band, the engine's own) is
+    // drawn under this box, not hidden by it.
+    const beneath = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const box = await read($, ticked)
     // The stored time is drawn only as a date of that shape; anything else
@@ -74,7 +77,7 @@ export function registerWarning(on: On) {
     const at: unknown = kept !== null ? (kept as Ack).at : null
     const changed = at === null ? null : typeof at === 'string' && /^\d{4}-\d{2}-\d{2}/.test(at) ? at.slice(0, 10) : ''
 
-    return (
+    const warning = (
       <Box key="permission-warning" flexDirection="column" borderStyle="round" paddingX="lg" paddingY="md" gap="md">
         <Text bold>{TITLE}</Text>
         <Box flexDirection="column" gap="xs" paddingLeft="sm">
@@ -118,6 +121,12 @@ export function registerWarning(on: On) {
             />
           </Box>
         </Box>
+      </Box>
+    )
+    return (
+      <Box key="permission-warning-stack" flexDirection="column">
+        {warning}
+        {beneath}
       </Box>
     )
   })
