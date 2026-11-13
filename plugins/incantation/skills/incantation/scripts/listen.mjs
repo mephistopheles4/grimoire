@@ -17,7 +17,7 @@
 
 import { execFile, spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { lstatSync, readFileSync, rmSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -26,7 +26,8 @@ import { pathToFileURL } from 'node:url';
 import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
-import { checkFile, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
+import { checkFile, commandPath, levelsPath, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
+import { Meter, levelsLine } from './meter.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -210,6 +211,7 @@ export async function startListener(options = {}) {
     let lastPlayEvent = 0;
     let joinTimer = null;
     let heartbeat = null;
+    let commandTimer = null;
     let lastState = '';
     const activeIds = new Set(); // generations the feed says are speaking, in memory only (T8)
     const idlers = new Set(); // connections waiting for no reply to be playing (T12)
@@ -219,6 +221,7 @@ export async function startListener(options = {}) {
     const stateWord = () => (userMuted ? 'muted' : gate.hearing ? 'hearing' : playing > 0 ? 'speaking' : Date.now() < thinkingUntil ? 'thinking' : 'listening');
     const writeStatus = (force = false) => {
       const word = stateWord();
+      writeLevels(force);
       if (!force && word === lastState) return;
       lastState = word;
       try {
@@ -226,6 +229,41 @@ export async function startListener(options = {}) {
       } catch {
         // The status line is a convenience: a file that will not write never stops the listener.
       }
+    };
+    // The mic's loudness for the band (T16): the stamp, the word and 24 digits, written when
+    // the digits or the word change, and on the heartbeat so a reader can tell a gone listener.
+    const meter = new Meter();
+    let lastLevels = '';
+    let wroteLevels = false;
+    function writeLevels(force = false) {
+      const body = `${stateWord()} ${meter.digits}`;
+      if (!force && body === lastLevels) return;
+      lastLevels = body;
+      try {
+        writePrivate(levelsPath(home), levelsLine(Date.now(), stateWord(), meter.digits), fsOptions);
+        wroteLevels = true;
+      } catch {
+        // A convenience, like the status word.
+      }
+    }
+    // The band's click (T16): a file holding exactly `mute` or `unmute`, written to the private
+    // run folder, read once and removed. A link, a big file or a stale one is removed unread.
+    const pollCommand = () => {
+      const path = commandPath(home);
+      let st;
+      try {
+        st = lstatSync(path);
+      } catch {
+        return;
+      }
+      let word = '';
+      try {
+        if (st.isFile() && !st.isSymbolicLink() && st.size <= 16 && Date.now() - st.mtimeMs <= knobs.commandFreshMs) word = readFileSync(path, 'utf8').trim();
+      } catch {
+        // Unreadable: removed below, unread.
+      }
+      rmSync(path, { force: true });
+      if (word === 'mute' || word === 'unmute') setMuted(word === 'mute');
     };
 
     let resolveDone;
@@ -239,7 +277,9 @@ export async function startListener(options = {}) {
       clearInterval(idlePoll);
       for (const s of idlers) s.end('idle-timeout\n');
       idlers.clear();
+      clearInterval(commandTimer);
       if (lastState) rmSync(statusPath(home), { force: true });
+      if (wroteLevels) rmSync(levelsPath(home), { force: true });
       queue.items = [];
       joiner.take();
       feed?.close?.();
@@ -510,6 +550,7 @@ export async function startListener(options = {}) {
           if (e.type === 'turn') heard(e);
           else if (e.type === 'barge') bargeIn();
         }
+        meter.add(gate.level, clock(), userMuted);
         writeStatus();
       }
     });
@@ -523,6 +564,8 @@ export async function startListener(options = {}) {
     // The status file is touched on a beat, so a reader can tell a listener that has gone from one that is quiet.
     heartbeat = setInterval(() => writeStatus(true), knobs.heartbeatMs);
     heartbeat.unref?.();
+    commandTimer = setInterval(pollCommand, knobs.commandPollMs);
+    commandTimer.unref?.();
 
     return { done, stop: reason => finish(reason ?? 'ended'), port: server.address().port };
   } catch (e) {

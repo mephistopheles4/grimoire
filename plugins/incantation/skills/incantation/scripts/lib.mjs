@@ -13,6 +13,8 @@ export const runDir = home => join(stateDir(home), 'run');
 export const observeDir = home => join(stateDir(home), 'observe');
 export const settingsPath = home => join(stateDir(home), 'settings.json');
 export const statusPath = home => join(runDir(home), 'status');
+export const levelsPath = home => join(runDir(home), 'levels');
+export const commandPath = home => join(runDir(home), 'command');
 
 const posix = platform => platform !== 'win32';
 

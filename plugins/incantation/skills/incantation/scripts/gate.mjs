@@ -20,6 +20,8 @@ export const KNOBS = {
   joinMs: 2000, // a turn that stops mid-sentence waits this long for the next to join it
   maxJoins: 4, // at most this many turns join into one
   heartbeatMs: 2000, // the status file is touched this often
+  commandPollMs: 250, // the band's click file is looked for this often (T16)
+  commandFreshMs: 5000, // and a click older than this is dropped unread
   thinkingMs: 60_000, // "thinking" shows this long after a turn, at most
   idleWaitMs: 60_000, // an idle wait gives up after this long
   queueMax: 20,
@@ -117,6 +119,7 @@ export class Gate {
     const k = this.k;
     const events = [];
     const level = levelDb(buf);
+    this.level = level; // the last frame's loudness, for the meter (T16)
     if (this.floor === null) {
       this.calib.push(level);
       if (this.calib.length * k.frameMs >= k.floorMs) this.floor = this.calib.reduce((a, b) => a + b, 0) / this.calib.length;

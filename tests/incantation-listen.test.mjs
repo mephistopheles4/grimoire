@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -611,4 +611,85 @@ test('T14: a wait ends only on a real heard turn, the first ready line, a stop o
   await tick(30);
   assert.equal(await ask(readChannel(r.home), 'stop', 3000), 'stopped\n');
   assert.equal(await stopping, 'stopped\n');
+});
+
+const levelsOf = home => readFileSync(join(runDir(home), 'levels'), 'utf8').trim();
+const LEVELS_LINE = /^(\d{13}) (listening|hearing|thinking|speaking|muted) ([0-8]{24})$/;
+
+test('T16: the levels file holds the stamp, the state word and 24 digits, numbers only, and goes when the listener does', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  assert.match(levelsOf(r.home), LEVELS_LINE);
+  r.push(1000, 34);
+  r.push(3163, 20); // voice for 600 ms: two buckets
+  const m = LEVELS_LINE.exec(levelsOf(r.home));
+  assert.equal(m[2], 'hearing');
+  assert.match(m[3].slice(-4), /[1-8]/, 'the last buckets are loud');
+  assert.ok(Math.abs(Number(m[1]) - Date.now()) < 5000, 'the stamp is the wall clock in ms');
+  if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'levels')).mode & 0o777, 0o600);
+  await l.stop();
+  assert.equal(existsSync(join(runDir(r.home), 'levels')), false);
+});
+
+test('T16: a muted mic draws flat', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
+  r.push(3163, 40);
+  const m = LEVELS_LINE.exec(levelsOf(r.home));
+  assert.equal(m[2], 'muted');
+  assert.equal(m[3], '0'.repeat(24));
+});
+
+test('T16: a click file holding mute or unmute is read once, removed, and acts like the person\'s own mute', async t => {
+  const r = rig({ knobs: { commandPollMs: 20 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  const click = join(runDir(r.home), 'command');
+  writeFileSync(click, 'mute');
+  await tick(80);
+  assert.equal(existsSync(click), false, 'read once and removed');
+  assert.equal(statusOf(r.home), 'muted');
+  writeFileSync(click, 'unmute\n');
+  await tick(80);
+  assert.equal(statusOf(r.home), 'listening');
+  // The notice rides in the next delivery, as the voice mute's does; the last change wins.
+  r.turn();
+  await tick(80);
+  const out = await wait(r.home);
+  assert.match(out, /^mic-unmuted$/m);
+});
+
+test('T16: a click file that is anything else is removed and acts on nothing: wrong words, too big, stale, or a link', async t => {
+  const r = rig({ knobs: { commandPollMs: 20, commandFreshMs: 1000 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  const click = join(runDir(r.home), 'command');
+  for (const body of ['stop', 'mute now', 'mute'.padEnd(40, ' ') + 'mute', '']) {
+    writeFileSync(click, body);
+    await tick(80);
+    assert.equal(existsSync(click), false, `removed: ${JSON.stringify(body.slice(0, 8))}`);
+    assert.equal(statusOf(r.home), 'listening');
+  }
+  writeFileSync(click, 'mute');
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(click, old, old);
+  await tick(80);
+  assert.equal(existsSync(click), false);
+  assert.equal(statusOf(r.home), 'listening', 'a stale click does nothing');
+  const target = join(r.home, 'elsewhere.txt');
+  writeFileSync(target, 'mute');
+  try {
+    symlinkSync(target, click);
+  } catch {
+    return; // no link rights on this machine
+  }
+  await tick(80);
+  assert.equal(existsSync(click), false);
+  assert.equal(statusOf(r.home), 'listening', 'a link is never followed');
 });
