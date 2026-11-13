@@ -18,6 +18,17 @@ const roster = await import('../brigade/roster.ts');
 const { RECORDED } = await import('../brigade/recorded-stats.ts');
 const { MAX_ROSTER_BYTES, checkRoster, foldsCase, placeRoster, serialize, statRejection } = roster;
 
+// One schedule of the head-chef contract (#604): the text from its "### <home>: <heading>"
+// line to the next one, with whitespace collapsed. A schedule holds its home's wording.
+async function scheduleOf(title) {
+  const { readFile } = await import('node:fs/promises');
+  const text = (await readFile(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  const at = text.indexOf(`\n### ${title}\n`);
+  assert.ok(at >= 0, `the contract holds the schedule "${title}"`);
+  const end = text.indexOf('\n### ', at + 1);
+  return text.slice(at, end < 0 ? undefined : end).replace(/\s+/g, ' ');
+}
+
 const SID = '11111111-2222-3333-4444-555555555555';
 const card = (title, over = {}) => ({ title, work: '', settings: '', status: 'working', ...over });
 
@@ -997,8 +1008,8 @@ test('the head-chef roster reference gives the repo rule as the check holds it (
   // The skill's own text and its contract give the same rule.
   const skill = await readFile(new URL('../skills/head-chef/SKILL.md', import.meta.url), 'utf8');
   assert.match(skill.replace(/\s+/g, ' '), /Give a card whose pull request is in another repository than your own working folder's that repository as `repo`, an `owner\/name` with no host; give no other card one\./);
-  const contract = await readFile(new URL('../skills/head-chef/references/CONTRACT.md', import.meta.url), 'utf8');
-  assert.match(contract.replace(/\s+/g, ' '), /A card whose pull request is in another repository than the lead's own working folder's carries that repository as `repo`, an `owner\/name` with no host, and a card whose pull request is in the lead's own repository carries none\./);
+  // In the contract the rule stands in SKILL.md's wording, inside its schedule.
+  assert.match(await scheduleOf('SKILL.md: The Brigade pane'), /Give a card whose pull request is in another repository than your own working folder's that repository as `repo`, an `owner\/name` with no host; give no other card one\./);
   assert.match(ref.replace(/\s+/g, ' '), /`repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`; the name 1 to 100 letters, digits, `-`, `\.` or `_`, not starting with `-` or `\.`/);
 });
 
@@ -1160,7 +1171,7 @@ test('#560 C9: the roster reference, the skill and the contract give the to-do r
   assert.match(ref, /delete that session's roster file by hand/);
   const rule = /one line of at most 50 characters, one ask or one owner step\. It starts with a verb, then names the act and the work\. It names the question or the decision text only as the eased control below allows, and carries no facts but the count below/;
   assert.match(await read('SKILL.md'), rule);
-  assert.match(await read('references/CONTRACT.md'), rule);
+  assert.match(await scheduleOf('SKILL.md: The Brigade pane'), rule);
 });
 
 test('#567 C9: the roster reference, the skill and the contract give the comment link rule; the contract is 1.31.0 or later, with the 1.31.0 row and go', async () => {
@@ -1173,8 +1184,8 @@ test('#567 C9: the roster reference, the skill and the contract give the comment
   const use = /(?:Give|It gives) the comment link when the answer or the step is in one comment or review, and the issue or pull request link otherwise/;
   assert.match(await read('SKILL.md'), use);
   const contract = await read('references/CONTRACT.md');
-  assert.match(contract, use);
-  assert.match(contract, /^# .*?Version: 1\.(?:3[1-9]|[4-9]\d)\.\d+ /);
+  assert.match(await scheduleOf('SKILL.md: The Brigade pane'), use);
+  assert.match(contract, /^# .*?Version: (?:1\.(?:3[1-9]|[4-9]\d)|[2-9]\.\d+)\.\d+ /);
   assert.match(await read('SKILL.md'), /`#issuecomment-C` added/);
   const log = await read('references/contract.changelog.md');
   assert.match(log, /\| 1\.31\.0 \| [0-9-]+ \| \*Proposed\.\*/);
@@ -1187,8 +1198,8 @@ test('#578 C5: the contract, the skill, the Desktop page and the README give the
   const label = /<lead name>, not the owner, adds: <note>/;
   assert.match(await read('SKILL.md'), label);
   const contract = await read('references/CONTRACT.md');
-  assert.match(contract, label);
-  assert.match(contract, /^# .*?Version: 1\.(?:3[2-9]|[4-9]\d)\.\d+ /);
+  assert.match(await scheduleOf('SKILL.md: The start prompt'), label);
+  assert.match(contract, /^# .*?Version: (?:1\.(?:3[2-9]|[4-9]\d)|[2-9]\.\d+)\.\d+ /);
   assert.match(await read('references/desktop.md'), /You may add one note after it, written, labelled and bounded as "The start prompt" in `SKILL.md` says/);
   assert.match(await read('references/starting.md'), /optionally a `note`/);
   assert.match(await read('README.md'), /one short note from the head chef, labelled as the head chef's words and not yours/);
@@ -1206,9 +1217,10 @@ test('#581 C10: the roster reference, the skill and the contract name the four s
   assert.match(skill, rule);
   assert.match(skill, /and `working` again when it resumes; put what the owner must do in a to-do/);
   const contract = await read('references/CONTRACT.md');
-  assert.match(contract, rule);
-  assert.match(contract, /and `working` again when it resumes; what the owner must do goes in a to-do, not in the status/);
-  assert.match(contract, /^# .*?Version: 1\.\d+\.\d+ /);
+  const pane = await scheduleOf('SKILL.md: The Brigade pane');
+  assert.match(pane, rule);
+  assert.match(pane, /and `working` again when it resumes; put what the owner must do in a to-do/);
+  assert.match(contract, /^# .*?Version: \d+\.\d+\.\d+ /);
   assert.match(await read('references/contract.changelog.md'), /\| 1\.35\.0 \| [0-9-]+ \| \*Proposed\.\*/);
 });
 

@@ -263,7 +263,6 @@ const SHIPPED = {
   'head-chef': [
     ['RP1', 'README.md'],
     ['TR2', '*SKILL.md', TR2_MESSAGE],
-    ['P2', 'SKILL.md'],
     ['EA2', 'SKILL.md'],
     ['EA2', 'references/CONTRACT.md'],
     ['EA2', 'README.md'],

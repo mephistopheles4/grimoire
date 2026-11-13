@@ -711,8 +711,10 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   star), for a scan of the skill's own folder. The root file stays rule-wide, for a scan of the whole repository:
   there E1 and PE3 still hide a send or a credential read in any file, the
   mod's included. The contract skill keeps P2 and RA2 off for all of the
-  skill, and MP1 for its change log only; head-chef keeps P2 off for all of its
-  `SKILL.md`, and EA2 for its `SKILL.md` and `references/CONTRACT.md`. So an instruction hidden there in a comment, a
+  skill, and MP1 for its change log only; head-chef keeps EA2 off for its
+  `SKILL.md` and `references/CONTRACT.md`, and no P2, its files holding no
+  comment or link-reference line. So an instruction hidden in the contract
+  skill in a comment, a
   link-reference comment or a base64 data link, or an instruction to persist
   on the machine (a scheduled job, a startup or profile file, a background
   process or a hidden folder), would pass the scan. Rule 2c refuses invisible

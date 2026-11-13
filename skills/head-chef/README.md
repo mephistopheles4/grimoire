@@ -257,15 +257,15 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 
 | File | What it is |
 |---|---|
-| `SKILL.md` | The skill. Generated from the contract. |
+| `SKILL.md` | The skill. Its sections are schedules. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
 | `references/cleanup.md` | Cleanup's steps: your yes, the list, the archive or stop, the cleaner, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
 | `references/starting.md` | The steps of a start, background by default, read before each start. Generated with `SKILL.md`. |
 | `references/desktop.md` | The Desktop route, read only when your words name it. Generated with `SKILL.md`. |
 | `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |
-| `references/CONTRACT.md` | The contract `SKILL.md` is generated from. |
+| `references/CONTRACT.md` | The contract: intent, then its schedules. |
 | `references/contract.changelog.md` | The contract's history, from 0.1.0. |
 | `.skillspector-baseline.yaml` | Why four of the scanner's rules are false positives here. |
 
-Nothing seals a generated file. To change the skill, amend the contract and
-generate `SKILL.md` again; a reviewer reads every changed file in full.
+The drift test holds schedules equal to their sections. Change the schedule,
+then copy it; a reviewer reads every changed file in full.
