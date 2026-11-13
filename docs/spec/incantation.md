@@ -990,6 +990,28 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   about 0.11 ms, four a second at most; the band's read, parse and bars about
   0.016 ms a tick. The engine's redraw per tick is not measured: no desktop
   session ran.
+- **T17. A yes that starts a turn (proposed, not built).** Live trial, issue 208:
+  the owner said "Yes, please change it that way. And I want it...", then "Yes,
+  go ahead. This is the third time I said yes." Each was refused, because only a
+  turn that is "yes" and nothing else counted, and the count had to be `plays 1`.
+  Proposed: a heard turn is a yes when it starts with "yes" or an equivalent
+  ("go ahead", "do it", "okay do it", "sounds good"; the list lives in the skill
+  and is short) and holds none of the words `no`, `not`, `dont`, `wait`, `stop`,
+  `but`, `instead`, `actually`. The rest stays as S7.5 and T8 have it: the turn
+  is marked `(after reply)`, was delivered after the say-back, the say-back was
+  the session's last speech, and no `interrupted` came with it. The count rule
+  changes from `plays 1` to `plays` equal to the speak calls the session itself
+  made since the last delivery (an acknowledgement and then the say-back is 2),
+  so a stranger speaking in the same voice still voids it; a higher count voids,
+  a lower one does too. The yes covers the say-back's request only: whatever else
+  the turn asks is a new request, said back before it is acted on. Cost: a long
+  turn that opens with "yes" now counts, so a second speaker in the room who
+  starts a sentence with "yes" can approve a pending say-back, as one who says
+  only "yes" already can. This loosens the one-word yes of S7.5, T4 and T6; the
+  owner signs it, and nothing in the threat model's classes is edited here.
+  Claims for the build: a test per accepted opening, a test per voiding word, a
+  test that `plays 2` with one acknowledgement passes and `plays 2` with none
+  fails, and an eval in `evals/` for each.
 
 ## Open
 
