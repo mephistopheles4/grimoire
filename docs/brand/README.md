@@ -1,6 +1,6 @@
 # Brand marks
 
-Five marks, one for the repository and one for each skill. Every mark is one
+Six marks, one for the repository and one for each skill. Every mark is one
 24-unit SVG box drawn in the drafting language the pages use: paper, ink, and
 amber for the one thing that asks to be looked at.
 
@@ -11,6 +11,7 @@ amber for the one thing that asks to be looked at.
 | groundtrack | `skills/groundtrack/` | [`groundtrack/`](groundtrack) |
 | contract | `skills/contract/` | [`contract/`](contract) |
 | head-chef | `skills/head-chef/` | [`head-chef/`](head-chef) |
+| incantation | `skills/incantation/`, not yet built ([#208](https://github.com/mephistopheles4/grimoire/issues/208)) | [`incantation/`](incantation) |
 
 <p>
   <img src="grimoire/grimoire-mark.svg" width="96" alt="grimoire mark">
@@ -18,6 +19,7 @@ amber for the one thing that asks to be looked at.
   <img src="groundtrack/groundtrack-mark.svg" width="96" alt="groundtrack mark">
   <img src="contract/contract-mark.svg" width="96" alt="contract mark">
   <img src="head-chef/head-chef-mark.svg" width="96" alt="head-chef mark">
+  <img src="incantation/incantation-mark.svg" width="96" alt="incantation mark">
 </p>
 
 ## The marks
@@ -48,6 +50,12 @@ loops one level up. Hairlines carry the brief down from the upper loop to each
 of the three below and are dropped in the small variants. The amber loop is the
 session that has just reported back.
 
+**incantation.** A quiet line held inside a ring, the room's sound kept on the
+machine. A hairline chord above the line is the energy gate, the level speech
+must reach to count. One amber peak rises from the line through the gate: the
+utterance that clears it and becomes a turn. The gate is dropped in the small
+variants.
+
 ## Which file to use
 
 Each directory holds three sizes of the same drawing. All three are ink ground
@@ -74,7 +82,7 @@ intact.
 ## The cards
 
 `grimoire-card.svg`, `eagle-eye-card.svg`, `groundtrack-card.svg`,
-`contract-card.svg` and `head-chef-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
+`contract-card.svg`, `head-chef-card.svg` and `incantation-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
 type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
 Each one wears the design system's zone border, the pattern it keeps for
@@ -89,14 +97,15 @@ They are generated, not drawn by hand:
 node docs/brand/cards.mjs
 ```
 
-The script reads the marks beside it and writes the five cards beside it, and
+The script reads the marks beside it and writes the six cards beside it, and
 the sigils below. Change a tagline there, not in the SVG.
 
 ## The sigils
 
 `<name>/<name>-sigil-light.svg` and `<name>/<name>-sigil-dark.svg`, for
 eagle-eye, contract, groundtrack and head-chef, are the skill row at the top of the root
-README. Each one is the skill's large mark, on its own ink tile, with the
+README. Incantation's pair is generated too but not shown yet: the change that
+builds `skills/incantation/` ([#208](https://github.com/mephistopheles4/grimoire/issues/208)) adds it to the row. Each one is the skill's large mark, on its own ink tile, with the
 skill's name set under it in the wordmark's semibold face. The canvas around
 the tile is transparent, so the name sits on the page itself. The light
 variant sets the name in ink for GitHub's light theme; the dark variant sets
@@ -161,7 +170,8 @@ vanishes.
 
 **Amber is spent once per mark.** In eagle-eye it is the detached apex; in
 groundtrack it is the cursor sleeper; in contract it is the agreed terms; in
-head-chef it is the loop that reported. A second amber element would mean
+head-chef it is the loop that reported; in incantation it is the utterance
+that clears the gate. A second amber element would mean
 neither.
 
 Corner radius is zero everywhere. No gradients, no shadows, no blur.

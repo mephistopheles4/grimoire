@@ -1,7 +1,7 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Six of
+# what is in it, which is the right thing to do with a skill. Seven of
 # SkillSpector's rules fire on the files here, and this file says why for each,
 # so you can disagree with a reason rather than with silence.
 #
@@ -34,6 +34,14 @@
 # no other program; it writes and deletes only its own files in a scratch
 # folder it made. The owner accepted the entry on 2026-10-18.
 #
+# AS3, Skill Enumeration, fires on three links in references/template.md that
+# cite the SKILL.md of Anthropic's published skill-creator skill as the source
+# of three of its rules. A link a reader follows to check a source lists no
+# installed skill. The entry matches only a finding whose text is a skill's
+# file path, so a line telling an agent to list or read installed skills,
+# naming no such path, is still reported. The owner accepted the entry on
+# 2026-11-12.
+#
 # Each entry names the one file its rule fired on when the entries were
 # measured, with SkillSpector v2.13.0 on 2026-10-18. EA2 fires on five files,
 # so it has five entries. The path is exact, and the scanner matches it
@@ -52,7 +60,8 @@
 # a hidden folder) would pass too. RA2 also covers all of README.md, and EA3
 # all of assets/OFL.txt. Review is what holds those files; read them
 # yourself, the comments included. references/template.md, which seeds every
-# file this skill generates, is named by no entry. The owner accepted the EA2
+# file this skill generates, is named only by AS3, matched to a skill's file
+# path. The owner accepted the EA2
 # breadth on 2026-09-27, and the P2, RA2 and MP1 entries on 2026-10-15, each
 # then for the whole skill; the owner narrowed EA2, P2 and RA2 to these files
 # on 2026-10-18, and accepted the RA2 entry on README.md and the EA3 entry on
@@ -105,3 +114,7 @@ rules:
   - rule_id: "EA3"
     file: "assets/OFL.txt"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
+  - rule_id: "AS3"
+    file: "references/template.md"
+    message: "skills/*/SKILL.md"
+    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, a skill's contract naming the SKILL.md it was drafted from, and the contract skill's template citing, by its URL, the SKILL.md of Anthropic's published skill-creator skill as the source of three of its rules. Naming your own product or its own source file is not enumerating somebody else's, and a link a reader follows to check a rule's source lists no installed skill."

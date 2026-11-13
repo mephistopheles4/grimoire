@@ -63,7 +63,8 @@ request.
 
 The skill proposes what you are making (a skill, an agent or a CLAUDE.md),
 how thorough to be, and its name, from what you already said. You confirm.
-Then it asks one question at a time, and fills a contract of eight parts:
+Then it asks one question at a time, and fills a contract of nine parts, the
+last one optional:
 
 | Part | What it holds |
 | --- | --- |
@@ -75,10 +76,12 @@ Then it asks one question at a time, and fills a contract of eight parts:
 | `rules` | Its rules, and the failures they guard against |
 | `writing` | Its terms, and how it writes |
 | `open` | What is still open, and when you would retire it |
+| `schedules` | The text of the built file's sections, kept word for word, and the clauses each carries out |
 
 The level sets which parts it asks. Quick fills the first five, Standard adds
-`rules` and `writing`, and Thorough adds `open`. You can change the level at
-any time, by answering more or fewer questions.
+`rules` and `writing`, and Thorough adds `open`. Any level may also fill
+`schedules`. You can change the level at any time, by answering more or fewer
+questions.
 
 It drafts what it can and marks each draft *Proposed*. It never writes `why`
 for you. Before it builds anything, you agree what good output looks like:
@@ -221,7 +224,7 @@ old question to its part and keeps each answer's words and mark.
 | [`SKILL.md`](SKILL.md) | The skill. It is generated from the contract, so do not edit it by hand. |
 | [`references/CONTRACT.md`](references/CONTRACT.md) | This skill's own contract. Change the skill here, then generate `SKILL.md` again. |
 | [`references/contract.changelog.md`](references/contract.changelog.md) | This skill's history: every version, why, and where it came from. |
-| [`references/template.md`](references/template.md) | The eight parts, the levels and the marks. |
+| [`references/template.md`](references/template.md) | The parts, the rules for a schedule's home, the levels and the marks. |
 | [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes something that has a contract, and converts an older one. |
 | [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent or a CLAUDE.md for Claude Code. |
 | [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity. |

@@ -97,7 +97,8 @@ The draft is one JSON object. Its keys are exactly these:
 - `previous`, only in a redraft: `type`, `name` and `hash` of the draft it
   replaces.
 - `rewrite`, only in a rewrite: `version`, the old contract's version.
-- `parts`: the eight part names, each a list of clauses.
+- `parts`: the part names, each a list of clauses. `schedules` may be left
+  out: a draft without it reads as one with an empty list.
 - `questions`: a list of questions.
 
 A clause holds `id`, `kind`, then `fields` or `none: true`, and `mark`. It
@@ -105,6 +106,16 @@ may hold `freedom`, `gate` (not on `checked`) and `refs`, the ids of other
 clauses it cites. `fields` holds exactly the kind's fields. Mark every
 clause `Proposed`. The `why` clause is the one exception: it has an empty
 `text`, no mark and no question.
+
+A schedule of procedure is one clause of the kind `schedule`, in `schedules`.
+Its `refs` name the body clauses it carries out, and it needs at least one. Its
+fields are `name`, `home` and `text`, as the template's `schedules` part
+says; the check refuses a field outside those rules, and names the field. A
+home section longer than one field is drafted as consecutive schedules with
+the same `home`, each named with ` (n of m)` at the end, such as
+`Autonomy levels (2 of 3)`. Cut only on a blank line outside a code fence, and
+leave the blank line out of both pieces. The contract export joins the pieces
+with one blank line into one schedule, and gives it the weakest of their marks.
 
 A question holds `id`, `clause`, `situation`, `options`, `proposed` and
 `chips`. Write the situation as a short scene the person knows. Give two to
@@ -199,7 +210,11 @@ says for any file.
 ## Push-back
 
 The page lets the person add, move and remove a schedule's entries, not a
-term in the letter. A term they want removed or moved, they say in chat:
+term in the letter. The word has two senses, and they meet here. On the page,
+a schedule is a sheet attached to the letter that lists the entries of one
+kind. The `schedules` part's entries form one such sheet, and each entry is a
+schedule of procedure. The page cannot add one, because an entry added there
+names no clause it carries out: add it to the draft, and render again. A term they want removed or moved, they say in chat:
 take it as an answer in their own words.
 
 Ask one question at a time, on each clause the push-back list names. Also

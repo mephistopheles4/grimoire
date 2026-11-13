@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The five social cards, 1280 by 640, written as self-contained SVG, and the
+// The six social cards, 1280 by 640, written as self-contained SVG, and the
 // skill sigils the root README shows (see the end of this file).
 //
 //   node docs/brand/cards.mjs
@@ -73,6 +73,12 @@ const CARDS = [
     title: 'Head-chef',
     tagline: ['Lead the sessions;', 'let them do the work.'],
     footer: 'grimoire · skills/head-chef',
+  },
+  {
+    name: 'incantation',
+    title: 'Incantation',
+    tagline: ['Hands-free voice that speaks', 'only at the seams of the work.'],
+    footer: 'grimoire · skills/incantation',
   },
 ];
 
@@ -155,13 +161,13 @@ for (const c of CARDS) {
 }
 
 // The sigils: each skill's mark with its name set under it, 192 by 160, on a
-// transparent canvas. The root README shows them in a row at width 112, which
+// transparent canvas. The root README shows them, once their skill exists, in a row at width 112, which
 // puts the mark's 24-unit box at 56px. A caption beside an image centres as its
 // own line and drifts from the mark; a name inside the image cannot. The name
 // is anchored on the mark's centre line, so it is centred by construction.
 // Each skill gets two: the name in ink for a light page and in paper for a
 // dark one. The README picks between them with a <picture>.
-const SIGILS = ['eagle-eye', 'contract', 'groundtrack', 'head-chef'];
+const SIGILS = ['eagle-eye', 'contract', 'groundtrack', 'head-chef', 'incantation'];
 const THEMES = { light: INK, dark: PAPER };
 
 function sigil(name, fill) {
