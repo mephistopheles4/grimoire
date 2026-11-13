@@ -8,9 +8,10 @@ import { orbSvg } from './mic-svg.ts'
 // The Incantation mic band: a row above the prompt that shows what the voice
 // listener is doing, a wave of what it hears, and a button that mutes and
 // unmutes it. The terminal's status line is not drawn by the desktop app, so
-// this is the one place both draw. The terminal draws the wave as two block
-// rows as wide as the terminal; the other surfaces draw an orb with the wave
-// flowing out of it, as an `Svg` image (mic-svg.ts).
+// this is the one place both draw. A surface with an `Svg` element (the
+// desktop, the editor and the mobile app) draws an orb with the wave flowing
+// out of it as an image (mic-svg.ts); one without (the terminal) draws the wave
+// as two block rows as wide as the terminal.
 //
 // It reads one file the listener writes, run/levels, four times a second while
 // a listener is writing and once in eight ticks while none is, and it writes
@@ -167,13 +168,15 @@ export function registerMic(on: On) {
       const word = wordOf(frame.word)
       const color = colorAt(wordOf(ease.from), wordOf(ease.to), Math.min(EASE_STEPS, Math.max(0, Math.trunc(Number(ease.step)) || 0)))
       const toggle = toggleFor(word)
-      const terminal = e.surface === 'terminal'
+      const els = $.ui.resolve(e) as unknown as Record<string, (p: unknown) => unknown>
+      // The picture is an Svg on every surface that has one (the desktop, the
+      // editor, the mobile app); the terminal has none and draws two block rows.
+      const picture = e.surface !== 'terminal'
       // A new reading: take its picture clock now, once.
-      if (!terminal && shown.stamp !== frame.stamp) {
+      if (picture && shown.stamp !== frame.stamp) {
         const prev = String((await read($, prevAtom)) ?? '')
         shown = { stamp: frame.stamp, t: advance(frame.stamp, frame.digits, TICK_MS), digits: frame.digits, prev: shown.digits || prev, word, at: Number(await $.clock.now()) }
       }
-      const els = $.ui.resolve(e) as unknown as Record<string, (p: unknown) => unknown>
       const { Box, Button, Text } = $.ui.resolve(e)
       const Svg = els.Svg as any
       const columns = (e as { viewport?: { columns?: number } }).viewport?.columns
@@ -197,7 +200,7 @@ export function registerMic(on: On) {
               }}
             />
           </Box>
-          {terminal ? (
+          {!picture ? (
             <Box key="mic-wave" flexDirection="column" overflow="hidden">
               {fullWidth(frame.digits, word, columns ?? 80).map((row, i) => (
                 <Text key={`wave-${i}`} color={color} wrap="truncate-end">

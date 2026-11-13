@@ -39,11 +39,11 @@ function world(on: On) {
   return w
 }
 const levels = (w: ReturnType<typeof world>, word: string, digits = WAVE, at = w.clock.now()) => w.files.set(LEVELS, `${at} ${word} ${digits}\n`)
-const mount = ($: any, surface: 'terminal' | 'desktop' | 'mobile', props: Record<string, unknown> = {}) =>
+const mount = ($: any, surface: 'terminal' | 'desktop' | 'vscode' | 'mobile', props: Record<string, unknown> = {}) =>
   $.ui.mount({ plugin: 'grimoire', surface, ...BAND, props: { ...BAND.props, ...props } })
 
 describe('mic band', () => {
-  for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     test(`with no listener the band draws nothing, and with one it draws the state word, the wave and a mute button (${surface})`, async ($, on) => {
       const w = world(on)
       const ui = await mount($, surface)
