@@ -101,7 +101,7 @@ const WAIT_LINE = new RegExp(
     '|plays \\d{1,4}',
     '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
     '|dropped \\d{1,4}',
-    '|stt-dropped|mic-muted|mic-unmuted|interrupted|quiet|stopped',
+    '|stt-dropped|mic-muted|mic-unmuted|interrupted|quiet \\d{1,4}|stopped',
     `|listener error (?:${REASONS.join('|')})`,
     ')$',
   ].join(''),
@@ -195,7 +195,7 @@ export async function startListener(options = {}) {
     let child = null;
     let childExited = null;
     let server;
-    let quietTimer = null;
+    let lastDeliveryAt = Date.now();
     let rateTimer = null;
     let idleTimer = null;
     let noWaiterTimer = null;
@@ -233,7 +233,7 @@ export async function startListener(options = {}) {
     finish = async reason => {
       if (finished) return;
       finished = true;
-      for (const t of [quietTimer, rateTimer, idleTimer, noWaiterTimer, joinTimer]) clearTimeout(t);
+      for (const t of [rateTimer, idleTimer, noWaiterTimer, joinTimer]) clearTimeout(t);
       clearInterval(parentTimer);
       clearInterval(heartbeat);
       clearInterval(idlePoll);
@@ -267,7 +267,11 @@ export async function startListener(options = {}) {
     const serve = () => {
       if (!waiter || finished) return;
       const now = Date.now();
-      if (!queue.ready(now) && !notices.size) {
+      // A wait ends only on a real heard turn, the first ready line, a stop or an
+      // error (T14). Every other notice, a quiet stretch and a dropped count
+      // included, rides in the next such delivery, so silence costs the session
+      // no turn.
+      if (!queue.ready(now) && !notices.has('ready')) {
         clearTimeout(rateTimer);
         const at = queue.nextAt(now);
         if (at !== null) rateTimer = setTimeout(serve, Math.max(at - now, 0) + 5);
@@ -285,6 +289,9 @@ export async function startListener(options = {}) {
         plays = 0;
         dropped = taken.dropped;
         gate.delivered(clock());
+        const quiet = Math.floor((now - lastDeliveryAt) / knobs.quietMs);
+        if (quiet > 0) lines.push(`quiet ${Math.min(quiet, 9999)}`);
+        lastDeliveryAt = now;
       }
       if (notices.has('ready')) lines.push(notices.get('ready'));
       if (dropped) lines.push(`dropped ${dropped}`);
@@ -292,7 +299,6 @@ export async function startListener(options = {}) {
       notices.clear();
       const w = waiter;
       waiter = null;
-      clearTimeout(quietTimer);
       clearTimeout(rateTimer);
       armNoWaiter();
       w.end(`${lines.join('\n')}\n`);
@@ -428,18 +434,9 @@ export async function startListener(options = {}) {
         socket.on('close', () => {
           if (waiter === socket) {
             waiter = null;
-            clearTimeout(quietTimer);
             if (!finished) armNoWaiter();
           }
         });
-        clearTimeout(quietTimer);
-        quietTimer = setTimeout(() => {
-          if (waiter === socket) {
-            waiter = null;
-            armNoWaiter();
-            socket.end('quiet\n');
-          }
-        }, knobs.quietMs);
         serve();
       };
       socket.on('data', onData);

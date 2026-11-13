@@ -138,13 +138,14 @@ test('a turn goes through the engine and a waiter is told what was heard, with t
 
 test('T5: a turn the engine hears as a lone "you" or "Thank you." never reaches a waiter', async t => {
   for (const text of ['you', 'Thank you.']) {
-    const r = rig({ engineOptions: { text }, knobs: { quietMs: 200 } });
+    const r = rig({ engineOptions: { text } });
     const l = await r.start();
     assert.match(await wait(r.home), /^ready /m);
     await tick();
     r.turn();
-    const out = await wait(r.home);
-    assert.equal(out, 'quiet\n', text);
+    const pending = wait(r.home);
+    const out = await Promise.race([pending, tick(300).then(() => 'still waiting')]);
+    assert.equal(out, 'still waiting', `${text}: a dropped fragment costs the session no turn (T14)`);
     assert.equal(r.engine.calls, 1, 'it was transcribed, then dropped');
     await l.stop();
     r.cleanup();
@@ -165,13 +166,13 @@ test('T8 and T11: the mic stays open while a reply plays; a person talking over 
   r.engine.feed.emit('start', { at: 0, id: 'gen-7' }); // a reply, from any caller
   r.push(3163, 11);
   assert.deepEqual(r.engine.cancelled, [], 'a cough is not a barge-in');
-  const interrupted = wait(r.home);
   r.push(3163, 5);
-  assert.equal(await interrupted, 'interrupted\n');
   assert.deepEqual(r.engine.cancelled, ['gen-7']);
   r.push(1000, 15);
+  await tick(80);
   const out = await wait(r.home);
   assert.match(out, /^Heard \(after reply\): "hello there"$/m);
+  assert.match(out, /^interrupted$/m, 'the session is told its reply was cut, with the turn that cut it');
   assert.equal(r.engine.calls, 1);
   r.engine.feed.emit('end', { at: 0, id: 'gen-7' }); // an end after the cut is harmless
 });
@@ -181,22 +182,22 @@ test('T11: only the person mutes: a spoken mute, then nothing reaches the sessio
   t.after(r.cleanup);
   const l = await r.start();
   t.after(() => l.stop());
-  await tick();
+  assert.match(await wait(r.home), /^ready /m);
   r.turn();
-  const first = await wait(r.home);
-  assert.match(first, /^mic-muted$/m);
-  assert.doesNotMatch(first, /Mute/, 'the mute word is the listener\'s, not heard text');
+  await tick(60);
   assert.equal(statusOf(r.home), 'muted');
   r.turn();
   await tick(60);
   assert.equal(r.engine.calls, 2, 'a muted turn is still transcribed here, only to catch unmute');
   r.turn();
-  const second = await wait(r.home);
-  assert.match(second, /^mic-unmuted$/m);
-  assert.doesNotMatch(second, /Heard/, 'nothing said while muted reaches the session');
+  await tick(60);
   assert.notEqual(statusOf(r.home), 'muted');
   r.turn();
-  assert.match(await wait(r.home), /^Heard: "hello there"$/m);
+  await tick(60);
+  const out = await wait(r.home);
+  assert.match(out, /^Heard: "hello there"$/m);
+  assert.match(out, /^mic-unmuted$/m);
+  assert.doesNotMatch(out, /Heard: "(?:un)?mute|do not hear/i, 'the mute word is the listener\'s, and nothing said while muted reaches the session');
 });
 
 test('T11: the mute and unmute commands work through the channel, are the person\'s alone to give, and the status word follows', async t => {
@@ -508,12 +509,12 @@ test('wait prints only lines in the listener grammar, so a stray server on the p
     'mic-muted',
     'mic-unmuted',
     'interrupted',
-    'quiet',
+    'quiet 2',
     'listener error mic',
     'listener error waiting',
   ];
   assert.equal(waitLines(lines.join('\n')), lines.map(l => `${l}\n`).join(''));
-  for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' mic-muted', 'muted']) assert.equal(waitLines(stray), '', stray);
+  for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' mic-muted', 'muted', 'quiet', 'quiet many']) assert.equal(waitLines(stray), '', stray);
 });
 
 test('each delivery says how many playbacks began since the last one, from any caller', async t => {
@@ -588,4 +589,26 @@ test('T2: the grimoire folder may already hold other skills\' files, at a mode i
   secureState(home);
   assert.equal(readFileSync(join(home, '.grimoire', 'eagle-eye', 'log.jsonl'), 'utf8'), 'x', 'left as it was');
   if (process.platform !== 'win32') assert.equal(statSync(join(home, '.grimoire')).mode & 0o777, 0o755, 'its mode is not ours to change');
+});
+
+test('T14: a wait ends only on a real heard turn, the first ready line, a stop or an error; a quiet stretch and the other notices ride in the next real delivery', async t => {
+  const r = rig({ knobs: { quietMs: 100 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  await cli(r.home, 'mute');
+  await cli(r.home, 'unmute');
+  const pending = wait(r.home);
+  const early = await Promise.race([pending, tick(350).then(() => 'still waiting')]);
+  assert.equal(early, 'still waiting', 'neither a mute notice nor 350 ms of quiet ends a wait');
+  r.turn();
+  const out = await pending;
+  assert.match(out, /^Heard: "hello there"$/m);
+  assert.match(out, /^quiet [1-9]\d*$/m, 'the quiet stretch is counted in the delivery');
+  assert.match(out, /^mic-unmuted$/m);
+  const stopping = wait(r.home);
+  await tick(30);
+  assert.equal(await ask(readChannel(r.home), 'stop', 3000), 'stopped\n');
+  assert.equal(await stopping, 'stopped\n');
 });
