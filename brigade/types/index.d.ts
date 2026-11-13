@@ -172,6 +172,9 @@ declare module 'claude-code' {
       micFrame: { stamp: number; word: string; digits: string } | null
       /** The colour change of the state word: the word before, the word now
        *  and the step of the change, 0 to 4. Read through the fixed word list. */
-      micEase: { from: string; to: string; step: number }    }
+      micEase: { from: string; to: string; step: number }
+      /** The 24 digits of the reading before micFrame's, or '' with none: the
+       *  desktop picture draws the move from one to the other. Numbers only. */
+      micPrev: string    }
   }
 }

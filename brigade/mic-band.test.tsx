@@ -54,11 +54,57 @@ describe('mic band', () => {
       await w.clock.advance(2250)
       expect(await ui.find({ type: 'Text', text: /mic: hearing/ })).toBeDefined()
       expect(await ui.find({ key: 'mic-toggle', label: 'Mute' })).toBeDefined()
-      const wave = await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]{24}$/ })
-      expect(wave).toBeDefined()
+      if (surface === 'terminal') {
+        expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]{80}$/ })).toBeDefined()
+      } else {
+        expect(await ui.find({ type: 'Svg' } as any)).toBeDefined()
+      }
       await ui.unmount()
     })
   }
+
+  test('the desktop picture is an Svg image, not interactive, whose animations begin in the past and whose clock a redraw of the same reading keeps', async ($, on) => {
+    const w = world(on)
+    let ui = await mount($, 'desktop')
+    levels(w, 'listening')
+    await w.clock.advance(1000)
+    levels(w, 'hearing')
+    await w.clock.advance(400)
+    // A redraw with no new reading: the surface draws the band again (a fresh
+    // mount stands for it) and the picture is laid out again for the same reading.
+    const draw = async () => {
+      await ui.unmount()
+      ui = await mount($, 'desktop')
+      return (await ui.find({ type: 'Svg' } as any)) as any
+    }
+    const first = await draw()
+    expect(first.props.isInteractive).toBe(false)
+    const a = String(first.props.source)
+    expect(a).toContain('<animateTransform')
+    expect(a).toMatch(/<animateTransform[^>]*begin="-\d+ms"/)
+    // The same reading drawn again a moment later: the wave's points, which
+    // hold the picture's clock, do not move; only the start does.
+    await w.clock.advance(60)
+    const b = String((await draw()).props.source)
+    const paths = (s: string) => [...s.matchAll(/<path d="([^"]+)"/g)].map(m => m[1])
+    const begins = (s: string) => [...s.matchAll(/begin="(-\d+)ms"/g)].map(m => Number(m[1]))
+    expect(paths(a).length).toBe(2)
+    expect(paths(b)).toEqual(paths(a))
+    expect(Math.min(...begins(b))).toBeLessThan(Math.min(...begins(a)))
+    await ui.unmount()
+  })
+
+  test('the terminal rows are as wide as the viewport, two mirrored rows', async ($, on) => {
+    const w = world(on)
+    levels(w, 'hearing')
+    const ui = await $.ui.mount({ plugin: 'grimoire', surface: 'terminal', ...BAND, viewport: { columns: 120, rows: 40, isFullscreen: false } } as any)
+    await w.clock.advance(1000)
+    const up: any = await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]+$/ } as any)
+    const down: any = await ui.find({ type: 'Text', text: /^[▔▀█]+$/ } as any)
+    expect(String(up.text).length).toBe(120)
+    expect(String(down.text).length).toBe(120)
+    await ui.unmount()
+  })
 
   test('the button writes mute, and once muted unmute, to the listener\'s command file and nothing else', async ($, on) => {
     const w = world(on)
@@ -71,7 +117,8 @@ describe('mic band', () => {
     await w.clock.advance(1000)
     expect(await ui.find({ type: 'Text', text: /mic: muted/ })).toBeDefined()
     expect(await ui.find({ key: 'mic-toggle', label: 'Unmute' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /^·{24}$/ })).toBeDefined()
+    const svg: any = await ui.find({ type: 'Svg' } as any)
+    expect(String(svg.props.source)).toContain('#8a8f9c')
     await ui.press({ key: 'mic-toggle' })
     expect(w.writes).toEqual([[COMMAND, 'mute'], [COMMAND, 'unmute']])
     await ui.unmount()

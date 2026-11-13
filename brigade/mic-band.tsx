@@ -1,13 +1,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On, Timer } from 'claude-code'
 
-import { BARS, EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, bars, colorAt, commandFile, homeFrom, labelOf, levelsFile, parseLevels, toggleFor } from './mic-view.ts'
+import { EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, colorAt, commandFile, fullWidth, homeFrom, labelOf, levelsFile, parseLevels, toggleFor } from './mic-view.ts'
 import type { MicFrame, MicWord } from './mic-view.ts'
+import { orbSvg } from './mic-svg.ts'
 
 // The Incantation mic band: a row above the prompt that shows what the voice
-// listener is doing, with a bar wave of what it hears, and a button that mutes
-// and unmutes it. The terminal's status line is not drawn by the desktop app,
-// so this is the one place both draw.
+// listener is doing, a wave of what it hears, and a button that mutes and
+// unmutes it. The terminal's status line is not drawn by the desktop app, so
+// this is the one place both draw. The terminal draws the wave as two block
+// rows as wide as the terminal; the other surfaces draw an orb with the wave
+// flowing out of it, as an `Svg` image (mic-svg.ts).
 //
 // It reads one file the listener writes, run/levels, four times a second while
 // a listener is writing and once in eight ticks while none is, and it writes
@@ -16,7 +19,12 @@ import type { MicFrame, MicWord } from './mic-view.ts'
 // process and keeps nothing across sessions. With no listener, it draws nothing.
 
 const frameAtom = atom({ plugin: 'grimoire', key: 'micFrame' } as const, null)
+const prevAtom = atom({ plugin: 'grimoire', key: 'micPrev' } as const, '')
 const easeAtom = atom({ plugin: 'grimoire', key: 'micEase' } as const, { from: 'listening', to: 'listening', step: EASE_STEPS })
+
+/** How far ahead of the clock each picture is laid out, ms: the desktop starts
+ *  a picture's animations a moment after the draw. Fixed, from a live trial. */
+const LEAD_MS = 100
 
 let timer: Timer | undefined
 let eases: Timer[] = []
@@ -47,6 +55,10 @@ async function tick($: EngineInterface, dir: string, live: () => boolean) {
   quiet = next === null ? quiet + 1 : 0
   if (next === null && was === null) return
   if (next !== null && was !== null && next.word === was.word && next.digits === was.digits) return
+  // Every new reading is drawn (four a second), and nothing between: the band
+  // redraws only when it draws, since each redraw puts up a new picture and one
+  // in between flashed. A change of word draws at once, as any new reading does.
+  await update($, prevAtom, () => (was === null ? '' : was.digits))
   await update($, frameAtom, () => next)
   if (next !== null && (was === null || was.word !== next.word)) {
     const from = was === null ? next.word : wordOf(was.word)
@@ -98,6 +110,44 @@ async function begin($: EngineInterface) {
   }
 }
 
+// What the picture last drew. Its clock is taken once per reading, when that
+// reading is first drawn: any other redraw of the same reading (the colour
+// easing when the word changes, a button press) makes the very same picture,
+// so the desktop keeps it running instead of restarting it.
+let shown = { stamp: -1, t: 0, digits: '', prev: '', word: 'listening', at: 0 }
+
+// The moment of the newest reading, kept by the mod itself. The listener's
+// stamp is when it wrote the file, which can be a reading early or late, and
+// that slid the whole loudness outline by a reading against the wave. Instead,
+// match the new readings against the last ones to see how many places they
+// moved, and advance by exactly that many readings (the stamp's expected shift
+// weighs the match). The stamp only resets the count when it drifts by more
+// than two readings.
+let line = { t: -1, stamp: 0, digits: '' }
+function advance(stamp: number, digits: string, ms: number): number {
+  if (line.t < 0 || line.digits.length !== digits.length) {
+    line = { t: stamp, stamp, digits }
+    return line.t
+  }
+  const n = digits.length
+  const expected = (stamp - line.stamp) / ms
+  let best = 0
+  let bestScore = Infinity
+  for (let k = 0; k <= Math.min(8, n - 4); k++) {
+    let miss = 0
+    for (let i = 0; i < n - k; i++) if (digits[i] !== line.digits[i + k]) miss++
+    const score = miss / (n - k) + 0.15 * Math.abs(k - expected)
+    if (score < bestScore) {
+      bestScore = score
+      best = k
+    }
+  }
+  let t = line.t + best * ms
+  if (Math.abs(t - stamp) > 2 * ms) t = stamp
+  line = { t, stamp, digits }
+  return t
+}
+
 export function registerMic(on: On) {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // With nothing to draw the hook hands the chain on untouched, so a session
@@ -117,14 +167,24 @@ export function registerMic(on: On) {
       const word = wordOf(frame.word)
       const color = colorAt(wordOf(ease.from), wordOf(ease.to), Math.min(EASE_STEPS, Math.max(0, Math.trunc(Number(ease.step)) || 0)))
       const toggle = toggleFor(word)
+      const terminal = e.surface === 'terminal'
+      // A new reading: take its picture clock now, once.
+      if (!terminal && shown.stamp !== frame.stamp) {
+        const prev = String((await read($, prevAtom)) ?? '')
+        shown = { stamp: frame.stamp, t: advance(frame.stamp, frame.digits, TICK_MS), digits: frame.digits, prev: shown.digits || prev, word, at: Number(await $.clock.now()) }
+      }
+      const els = $.ui.resolve(e) as unknown as Record<string, (p: unknown) => unknown>
       const { Box, Button, Text } = $.ui.resolve(e)
+      const Svg = els.Svg as any
+      const columns = (e as { viewport?: { columns?: number } }).viewport?.columns
+      // Every animation in the picture begins this far in the past.
+      const el = Number(await $.clock.now()) - shown.at
       return (
         <Box key="mic-band" flexDirection="column">
           <Box key="mic-row" flexDirection="row" alignItems="center" gap="md">
             <Text color={color} bold>
               {labelOf(word)}
             </Text>
-            <Text color={color}>{bars(frame.digits, word).slice(0, BARS)}</Text>
             <Button
               key="mic-toggle"
               label={toggle.label}
@@ -137,6 +197,19 @@ export function registerMic(on: On) {
               }}
             />
           </Box>
+          {terminal ? (
+            <Box key="mic-wave" flexDirection="column" overflow="hidden">
+              {fullWidth(frame.digits, word, columns ?? 80).map((row, i) => (
+                <Text key={`wave-${i}`} color={color} wrap="truncate-end">
+                  {row}
+                </Text>
+              ))}
+            </Box>
+          ) : (
+            <Box key="mic-wave" flexDirection="column" width="100%">
+              <Svg key="mic-svg" source={orbSvg(shown.prev, shown.digits, wordOf(shown.word), TICK_MS, shown.t, shown.at + LEAD_MS, el)} alt={labelOf(word)} height={44} isInteractive={false} />
+            </Box>
+          )}
           {beneath}
         </Box>
       )

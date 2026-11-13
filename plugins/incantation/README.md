@@ -84,8 +84,10 @@ new one already exists.
 
 With the grimoire plugin installed, a row above the prompt shows the listener's
 state, `mic: listening`, `hearing`, `thinking`, `speaking` or `muted`, in a colour
-that eases from one state's to the next, with a bar wave of what the mic hears,
-and a Mute or Unmute button. It draws nothing when no listener runs. It lives in
+that eases from one state's to the next, with a wave of what the mic hears (two
+rows of blocks as wide as the terminal; on the desktop an orb with the wave
+flowing out of it and ripples while you talk, drawn as an image four times a
+second), and a Mute or Unmute button. It draws nothing when no listener runs. It lives in
 grimoire's own mod, beside Brigade, since a plugin cannot carry one here. It reads
 `~/.grimoire/incantation/run/levels` four times a second while a listener writes
 it, and a click writes `mute` or `unmute` to `run/command`, which the listener

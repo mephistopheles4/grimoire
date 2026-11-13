@@ -92,3 +92,23 @@ export function homeFrom(profile: unknown, home: unknown): string | undefined {
   }
   return undefined
 }
+
+const UP = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '█']
+const DOWN = ['▔', '▔', '▀', '▀', '▀', '█', '█', '█', '█']
+/** The terminal's wave: two mirrored rows of blocks meeting at a centre line,
+ *  the 24 readings stretched with a cosine blend to `cols` columns, so the rows
+ *  are as wide as the terminal (8 to 400). A muted mic is a flat line. */
+export function fullWidth(digits: string, word: MicWord, cols: number): [string, string] {
+  const n = Math.max(8, Math.min(400, Math.trunc(cols) || 80))
+  if (word === 'muted') return ['▁'.repeat(n), '▔'.repeat(n)]
+  const d = [...digits].map(c => Number(c) || 0)
+  const m = d.length || 1
+  const s = Array.from({ length: n }, (_, i) => {
+    const x = (i / (n - 1)) * (m - 1)
+    const a = d[Math.floor(x)] ?? 0
+    const b = d[Math.min(m - 1, Math.floor(x) + 1)] ?? 0
+    const v = a + (b - a) * ((1 - Math.cos(Math.PI * (x - Math.floor(x)))) / 2)
+    return Math.min(8, Math.max(0, Math.round(v)))
+  })
+  return [s.map(v => UP[v]).join(''), s.map(v => DOWN[v]).join('')]
+}
