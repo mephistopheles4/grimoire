@@ -37,7 +37,7 @@ test('a SKILL.md with a hooks key fails, naming the file and the key', () => {
   // The whole list, so a key added to it is a change a test sees.
   assertFails(
     dir,
-    /skills\/hooked\/SKILL\.md:4 has the frontmatter key "hooks", which is not one of name, description, compatibility, license, allowed-tools, metadata\./,
+    /skills\/hooked\/SKILL\.md:4 has the frontmatter key "hooks", which is not one of name, description, compatibility, license, allowed-tools, metadata, disable-model-invocation\./,
   );
 });
 

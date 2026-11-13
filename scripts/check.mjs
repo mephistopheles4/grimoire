@@ -360,8 +360,10 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
 // frontmatter parses and reads no key's name, so a key like that could merge
 // on review alone. This list is the keys the skills here use, decided at
 // triage of issue 305. A key added here is a security change: say in the pull
-// request what Claude Code does with it.
-const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
+// request what Claude Code does with it. `disable-model-invocation` (issue
+// 208): Claude Code then starts the skill only from the person's typed slash
+// command, never on the model's own call, so it narrows, never widens, reach.
+const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata', 'disable-model-invocation']);
 //
 // The frontmatter is read by hand, as the baseline reader in rule 7 is: a key
 // at the left margin, bare or quoted, then a colon. Indented lines, list items

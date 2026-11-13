@@ -321,8 +321,9 @@ session. Its rows:
 
 One file, `~/.incantation/settings.json`. It is written only by
 `setup.mjs`, which the person runs in their own terminal (README step 3),
-never a session. No session reads it: the listener passes the skill what it
-needs (S6, the `ready` line).
+never a session. A session may read it (the owner's decision, issue 208): it
+holds no secret, but the pinned recorder path can include the account name.
+The listener still passes the skill what it needs (S6, the `ready` line).
 
 | Key | Type and range | Default |
 |---|---|---|

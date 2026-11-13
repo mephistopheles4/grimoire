@@ -84,7 +84,9 @@ mic indicator for your status line.
 
 Your microphone's and voice's names appear in the chat while it does this, so
 they reach the model provider. The settings file, `~/.grimoire/incantation/settings.json`,
-is written by Incantation's own script, and the session never reads it. If your
+is written by Incantation's own script. A session may read it, for example to
+troubleshoot: it holds no secret, but it holds the full path to ffmpeg, which can
+include your account name. If your
 microphones change, run `/incantation install` again.
 
 Earlier drafts kept their files in `~/.incantation/`. The first run of the guard,

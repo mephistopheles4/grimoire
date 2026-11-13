@@ -61,15 +61,11 @@ export function claim15(name, body) {
     const command = `${script}${rest.replace(/[`.,].*$/, '')}`.trim();
     if (!ALLOWED.some(r => r.test(command))) out.push(`${name} builds a command the skill may not run: ${command}`);
   }
-  for (const m of body.matchAll(/settings\.json/g)) {
-    const around = body.slice(Math.max(0, m.index - 40), m.index + 20);
-    if (!/Never read `~\/\.grimoire\/incantation\/settings\.json`/.test(around) && !/~\/\.claude\/settings\.json/.test(around)) out.push(`${name} reads the settings file`);
-  }
   if (/\b(kokoro|whisper|qwen|chatterbox|luxtts)\b/i.test(body) && name !== 'SKILL.md') out.push(`${name} names a speech engine`);
   return out;
 }
 
-test('claim 15: the skill runs only its own commands, under the skill base, with no heard text or spoken line, never the settings file', () => {
+test('claim 15: the skill runs only its own commands, under the skill base, with no heard text or spoken line', () => {
   for (const [name, body] of prose()) assert.deepEqual(claim15(name, body), [], name);
 });
 
@@ -84,7 +80,6 @@ test('claim 15: the check fails on each thing it forbids', () => {
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say hello`').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say <8 hex>`').length, 0, 'T18: the line is in a file the session wrote, never in the command');
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say "Got it"`').length, 1);
-  assert.equal(claim15('x', 'cat ~/.grimoire/incantation/settings.json').length, 1);
   assert.equal(claim15('x', 'use the kokoro engine').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs wait`').length, 0);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs idle`').length, 0);
@@ -131,7 +126,7 @@ test('the guard runs before the listener, the first wait before the greeting, an
   assert.match(start.slice(at('**Greeting.**')), /Print `Warming the voice…`/);
   assert.match(start.slice(at('**Greeting.**')), /print `Stopped listening\.`/);
   assert.match(text.slice(text.indexOf('## Stop')), /whenever the listener's background command ends,\s+print `Stopped listening\.`/);
-  assert.match(start, /Start only on the person's own typed words in this chat/);
+  assert.match(start, /Start only on the person's own typed `\/incantation` or\s+`\/incantation observe` in this chat/);
   assert.match(text, /`plays <n>` must\s+equal the number of lines you had the listener say since the last delivery/, 'T17');
 });
 
@@ -180,6 +175,14 @@ test('the tuning file is marked a starting point and holds none of the fixed rul
   assert.match(tuning, /starting point/i);
   for (const fixed of ['"stop"', "that's all", 'merge, push', '(after reply)', '300 ms', 'a minute', '30 minutes']) assert.equal(tuning.includes(fixed), false, `tuning.md holds ${fixed}`);
   assert.match(text, /The say-back, the stop words and the never-speak list\s+are never subject to the settings/);
+});
+
+test('the skill is under 500 lines and its frontmatter holds only the keys the check allows', () => {
+  assert.ok(text.split('\n').length < 500);
+  const front = /^---\n([\s\S]*?)\n---\n/.exec(text)[1];
+  const keys = [...front.matchAll(/^([A-Za-z-]+):/gm)].map(m => m[1]);
+  assert.deepEqual(keys, ['name', 'description', 'disable-model-invocation']);
+  assert.ok(/description: (.+)/.exec(front)[1].length <= 1024);
 });
 
 // Claim 5: no wait before listening is estimated from the text. No timer in a
