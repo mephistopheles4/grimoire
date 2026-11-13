@@ -5,8 +5,8 @@ starting point, set before the first practice run. The person changes it by
 editing the file; no session writes it during a run. It holds no heard text and
 no stated preference.
 
-It never holds the yes rules, the typed-yes list, the stop words, the
-never-speak list, or any listener setting. Those stay fixed in `SKILL.md`.
+It never holds the yes rules, the stop words, the never-speak list, or any
+listener setting. Those stay fixed in `SKILL.md`.
 
 ## The speak gate
 
@@ -38,11 +38,12 @@ lands, or the person stops talking. It is never held past its deadline.
 
 ## How much
 
-- **Default length:** one sentence, written fresh for speech. Keep a clause only
-  if dropping it would lose something the person needs. Detail goes to chat.
+- **Default length:** one fact in one sentence, written fresh for speech, then an
+  offer of the next fact. Keep a clause only if dropping it would lose something
+  the person needs. Detail goes to chat.
 - **"Just the gist":** a clause or two, for that session.
-- **"Tell me everything":** as much as the person asked for, for that session.
-  The never-speak list still holds.
+- **"Tell me everything":** two facts a turn, each with its offer, for that
+  session. The never-speak list still holds, and so does one line at a time.
 
 ## After a long quiet
 
@@ -66,7 +67,7 @@ template.
 
 - A result: "The tests pass on your branch. Want the summary?"
 - A decision: "I need a choice: merge now, or wait for the review?"
-- A risk: "That command would delete the build folder. I need you to type the
-  yes for it."
+- A risk: "That command would delete the build folder. Do you still want it?"
+- An acknowledgement: "Got it, I'll check the test run. Give me a moment."
 - A failure: "The build failed on the first step. The error is in chat."
 - A check-in: "Hey, are you there? I have one thing waiting."

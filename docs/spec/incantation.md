@@ -890,6 +890,72 @@ At Test, the QA pair runs on every ticket, the security pair on the diff, and
 the standards pair on the widened checks if the owner takes it as a third
 pair. behaviour-lens waits for Test.
 
+## S15. Trial amendments (the owner's live trial of #626, 2026-11-14)
+
+Asks 1 to 14 on #208, built on #626's branch, which stays a draft. Where a
+line here and an earlier section differ, this section holds. Item 15 (check
+for a newer turn before acting) is deferred by the owner as a later polish.
+
+- **T1. `/incantation install`** runs the whole setup in the chat: devices,
+  voices, save, the MCP registration after a typed yes, an optional status
+  line entry. The person types the microphone number and the voice id; a
+  heard turn picks nothing. This changes S5.5's rule that device and profile
+  names stay out of the session: they now appear in the chat during install,
+  and the README and the skill say so first. `setup.mjs` is run by the
+  skill in the Install section only.
+- **T2. State folder** `~/.grimoire/incantation/`, beside eagle-eye's. The
+  grimoire folder is held to a plain folder inside the real home (never a link);
+  its mode is its owner's. The first run moves an existing `~/.incantation/`
+  there, never over a folder already there and never a link.
+- **T3. No lead-session refusal.** S7.1's refusal to start in a session that
+  leads a brigade is dropped; O4 is closed.
+- **T4. No typed-yes list.** The say-back and a spoken yes are enough for every
+  act, which then goes through the permission mode in force. What stays: heard
+  text never stands for typed words where a rule of the person's or of a
+  repository asks for them, never answers a permission prompt, never widens
+  what the session may do. This loosens S7.3's list and S10's rows that rest
+  on it; the owner signs that, and the threat model's classes are not edited
+  here.
+- **T5. Noise filter.** A frame is voice only at 10 dB over the floor and at
+  least -45 dBFS (a gated headset reads a floor near zero, so the relative
+  test alone passes breaths); a turn holds 400 ms of voice; a turn whose whole
+  text is a silence phrase or filler ("you", "Thank you.", "Thanks for
+  watching.", "um", a sound tag) is dropped before it is queued.
+- **T6. Acknowledge first.** A request that changes nothing is acknowledged
+  aloud ("Got it, I'll check the test run, give me a moment") and then done,
+  with no yes. A request that changes anything keeps the say-back and a yes;
+  the say-back is its acknowledgement. This loosens the say-back for read-only
+  requests that S7.3 required.
+- **T7. One fact per spoken turn,** then an offer of the next.
+- **T8. Barge-in.** The mic is not muted while Voicebox plays. 360 ms of voice
+  over a playing reply cancels the generation Voicebox reports (`POST
+  /generate/<id>/cancel`, the id from the speak-start event, kept in memory
+  only) and the next delivery carries `interrupted`, which voids a pending
+  say-back. Voicebox 0.5.0 has no stop-playback call, so whether audio already
+  generated stops is unverified.
+- **T9. Listening indicator.** The listener writes one word (`listening`,
+  `hearing`, `thinking`, `speaking`, `muted`) to `run/status`, touched every
+  2 s; `statusline.mjs` prints it for a status line. The engine's mod places
+  are refused inside this plugin (rule 6c), so a clickable control is not built.
+- **T10. Turns split on a breath.** End of speech is 1500 ms by default (range
+  300 to 3000). A turn whose text does not end a sentence is held 2 s and
+  joined to the next, up to four. A stop word and a reply to the session's
+  own speech are never held.
+- **T11. Mute is the person's alone.** A spoken "mute" or "unmute" as a whole
+  turn, or the typed `/incantation mute` and `unmute`, are the only mutes. The
+  mic stays open while the session speaks. While muted a turn is still
+  transcribed on this machine, only to catch "unmute", and nothing reaches the
+  session. S6's mute-while-playing gate and the tail after it are removed.
+- **T12. One line at a time.** `listen.mjs idle` returns when no reply is
+  playing (the feed's end, plus the tail), or `idle-timeout` after 60 s; the
+  skill runs it before every speak call.
+- **T13.** A second `wait` while one is live prints `listener error waiting`,
+  and the skill neither stops nor starts another.
+- **T14.** A `wait` ends only on a real heard turn, the first `ready` line, a
+  stop or an error. A dropped fragment, `quiet`, `stt-dropped`, `interrupted`,
+  `mic-muted`, `mic-unmuted` and `dropped` ride in the next real delivery;
+  quiet is `quiet <n>`, n stretches of 10 minutes.
+
 ## Open
 
 - **O1.** How to go on if neither route A nor B gives the end of playback
