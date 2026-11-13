@@ -305,7 +305,7 @@ test('the root baseline keeps its three narrowed entries', () => {
   const got = entriesOf(join(root, '.skillspector-baseline.yaml')).filter(e => e.file !== undefined || e.message !== undefined);
   assert.deepEqual(
     got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
-    [['AS3', 'skills/*/SKILL.md'], ['MP1', '*contract.changelog.md'], ['TR2', '*SKILL.md', TR2_MESSAGE]],
+    [['AS3', 'skills/*/SKILL.md'], ['MP1', '*contract.changelog.md'], ['TR2', '*SKILL.md']],
   );
 });
 
