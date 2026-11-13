@@ -1013,6 +1013,22 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   test that `plays 2` with one acknowledgement passes and `plays 2` with none
   fails, and an eval in `evals/` for each.
 
+  Evidence for T17, the same trial: the owner said a bare "yes" after a
+  say-back and the listener never delivered it; the next turn was "Did you
+  get my yes?". The likely cause is T5's 400 ms minimum of voice
+  (`minVoiceMs`, raised from 250): a spoken "yes" holds about 200 to 350 ms of
+  voice, so the gate dropped it as a fragment before transcription, and the
+  one-word yes was the only yes the rule accepted. The loosened wording above
+  does not help a yes that never arrives. Proposed with it: a turn marked
+  `(after reply)` needs only 150 ms of voice (`minVoiceAfterReplyMs`), so the
+  say-back's answer survives, while a turn with no reply before it keeps 400
+  ms; the text filter (silence phrases, fillers) still drops a breath or a
+  sound tag that gets through. Not measured: the real length of the owner's
+  "yes", which only a trace on their machine shows, and whether the 150 ms
+  floor lets a cough or a click start a turn after a reply (a claim for the
+  build: a scripted 200 ms tone after a reply is delivered, and after no reply
+  is dropped). The drop is silent today: it is not counted in a notice.
+
 ## Open
 
 - **O1.** How to go on if neither route A nor B gives the end of playback
