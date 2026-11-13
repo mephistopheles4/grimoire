@@ -1,6 +1,6 @@
 # The Brigade mod holds no idle rule
 
-Accepted, as built in 0.157.0 (issue 208, the Incantation mic band). It
+Accepted, as built in 0.158.0 (issue 208, the Incantation mic band). It
 supersedes [ADR 0008](0008-brigade-is-no-longer-idle-by-default.md), which
 recorded the one exception to the rule that the mod does nothing while idle.
 
