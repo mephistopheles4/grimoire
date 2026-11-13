@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Gate, HeardQueue, KNOBS, formatHeard, isStopWord } from '../plugins/incantation/skills/incantation/scripts/gate.mjs';
+import { Gate, HeardQueue, KNOBS, formatHeard, isFragment, isStopWord } from '../plugins/incantation/skills/incantation/scripts/gate.mjs';
 
 
 // Frames: 30 ms of a square wave, so its level is exactly the amplitude.
@@ -39,7 +39,7 @@ function rig(options = {}) {
 test('a frame 10 dB over the floor is voice and one just under is not', () => {
   const over = rig();
   over.calibrate();
-  over.feed(VOICE, 10);
+  over.feed(VOICE, 14);
   over.feed(QUIET, 12);
   assert.equal(over.turns.length, 1);
   const under = rig();
@@ -52,7 +52,7 @@ test('a frame 10 dB over the floor is voice and one just under is not', () => {
 test('a turn ends after the end-of-speech wait, not before', () => {
   const r = rig({ silenceMs: 300 });
   r.calibrate();
-  r.feed(VOICE, 12);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 9);
   assert.equal(r.turns.length, 0);
   r.feed(QUIET, 1);
@@ -60,14 +60,31 @@ test('a turn ends after the end-of-speech wait, not before', () => {
   assert.equal(r.turns[0].silenceMs, 300);
 });
 
-test('a 0.3 s turn is delivered and a 0.2 s blip is dropped', () => {
+test('a 0.42 s turn is delivered and a 0.36 s blip is dropped (T5: the minimum is 400 ms)', () => {
   const r = rig();
   r.calibrate();
-  r.feed(VOICE, 10); // 0.3 s
+  r.feed(VOICE, 14); // 0.42 s
   r.feed(QUIET, 12);
-  r.feed(VOICE, 7); // 0.21 s
+  r.feed(VOICE, 12); // 0.36 s
   r.feed(QUIET, 12);
   assert.equal(r.turns.length, 1);
+});
+
+test('T5: a headset that gates the room to zero cannot make a breath voice: the frame must also clear the absolute floor', () => {
+  const r = rig();
+  r.feed(0, 34); // noise cancelling: the room reads as silence, so the relative floor is meaningless
+  r.feed(100, 20); // 50 dB over a near-zero floor, but only -50 dBFS: a breath
+  r.feed(0, 12);
+  assert.equal(r.turns.length, 0, 'a breath is not a turn');
+  r.feed(VOICE, 15); // speech, -20 dBFS
+  r.feed(0, 12);
+  assert.equal(r.turns.length, 1, 'speech still is');
+  assert.ok(KNOBS.minVoiceDbfs <= -30 && KNOBS.minVoiceDbfs >= -60);
+});
+
+test('T5: a turn whose whole text is a silence phrase or a filler is dropped, each one named; a word a person could mean is not', () => {
+  for (const junk of ['you', 'You.', 'Thank you.', 'thank you', 'Thanks for watching.', 'Thank you for watching!', 'Uh', 'Um...', 'hmm', '[BLANK_AUDIO]', '(silence)', '...', '', '  ']) assert.equal(isFragment(junk), true, JSON.stringify(junk));
+  for (const real of ['yes', 'No.', 'stop', 'wait', 'you should rename it', 'thank you, run the tests', 'okay', 'Got it']) assert.equal(isFragment(real), false, real);
 });
 
 test('a turn is cut at 30 s and the rest goes on as the next turn', () => {
@@ -93,7 +110,7 @@ test('every frame is discarded from a playback start to its end and the tail aft
   r.feed(VOICE, 9); // 270 ms: inside the 300 ms tail
   r.feed(QUIET, 12);
   assert.equal(r.turns.length, 0);
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns.length, 1, 'heard again once the tail has passed');
 });
@@ -102,9 +119,9 @@ test('every frame is discarded from a playback start to its end and the tail aft
 test('a turn that playback cuts is dropped, not delivered late', () => {
   const r = rig();
   r.calibrate();
-  r.feed(VOICE, 10); // 300 ms of voice, enough to count as a turn on its own
+  r.feed(VOICE, 14); // 300 ms of voice, enough to count as a turn on its own
   r.play(1);
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.play(0);
   r.skip(400);
   r.feed(QUIET, 20);
@@ -127,12 +144,12 @@ test('a playback that restarts inside the tail goes on with the one mute, and mu
 test('a turn is marked after reply only when a playback began after the last delivery and ended, tail included, before the turn', () => {
   const r = rig();
   r.calibrate();
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[0].afterReply, false, 'no playback yet');
   r.gate.delivered(r.t);
   // A yes said after the delivery but before the say-back plays is not marked.
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[1].afterReply, false);
   r.gate.delivered(r.t);
@@ -141,16 +158,16 @@ test('a turn is marked after reply only when a playback began after the last del
   r.skip(900);
   r.play(0);
   r.feed(QUIET, 12); // the tail passes
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[2].afterReply, true);
   assert.equal(r.turns[2].firstAfterReply, true);
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[3].afterReply, true);
   assert.equal(r.turns[3].firstAfterReply, false, 'only the first after each playback');
   r.gate.delivered(r.t);
-  r.feed(VOICE, 10);
+  r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[4].afterReply, false, 'a delivery clears the mark until the next playback');
 });

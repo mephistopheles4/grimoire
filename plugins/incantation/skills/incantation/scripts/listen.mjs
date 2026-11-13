@@ -19,7 +19,7 @@ import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
-import { Gate, HeardQueue, KNOBS, formatHeard, frameBytes, isStopWord } from './gate.mjs';
+import { Gate, HeardQueue, KNOBS, formatHeard, frameBytes, isFragment, isStopWord } from './gate.mjs';
 import { checkFile, readSettings, readText, runDir, secureState, writePrivate } from './lib.mjs';
 
 class Stop extends Error {
@@ -277,7 +277,7 @@ export async function startListener(options = {}) {
           return serve();
         }
         sttFails = 0;
-        if (!text) return;
+        if (!text || isFragment(text)) return;
         clearTimeout(idleTimer);
         idleTimer = setTimeout(() => finish('ended'), knobs.idleMs);
         queue.push({ text, afterReply: turn.afterReply, exempt: turn.firstAfterReply || isStopWord(text), at: Date.now() });

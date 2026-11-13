@@ -133,6 +133,21 @@ test('a turn goes through the engine and a waiter is told what was heard, with t
   assert.deepEqual(r.recorder.spawned[0].file, RECORDER);
 });
 
+test('T5: a turn the engine hears as a lone "you" or "Thank you." never reaches a waiter', async t => {
+  for (const text of ['you', 'Thank you.']) {
+    const r = rig({ engineOptions: { text }, knobs: { quietMs: 200 } });
+    const l = await r.start();
+    assert.match(await wait(r.home), /^ready /m);
+    await tick();
+    r.turn();
+    const out = await wait(r.home);
+    assert.equal(out, 'quiet\n', text);
+    assert.equal(r.engine.calls, 1, 'it was transcribed, then dropped');
+    await l.stop();
+    r.cleanup();
+  }
+});
+
 test('every frame from a feed start to its end and the tail is discarded, another caller included; a turn open at start is dropped', async t => {
   const r = rig();
   t.after(r.cleanup);

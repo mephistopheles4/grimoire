@@ -10,7 +10,8 @@ export const KNOBS = {
   frameMs: 30,
   floorMs: 1000, // how long the room's level is measured at start
   voiceDb: 10, // a frame is voice at this many dB over the floor
-  minVoiceMs: 250, // a turn with less voice is dropped
+  minVoiceDbfs: -45, // ...and at least this loud in absolute terms, so a near-silent headset room cannot make a breath voice (T5)
+  minVoiceMs: 400, // a turn with less voice is dropped (T5; was 250)
   maxTurnMs: 30_000, // a longer turn is cut, and the rest goes on as the next
   tailMs: 300, // muted this long after the last playback ends (F2 may raise it, at most 1500)
   mutedAfterMs: 30_000, // a mute this long is reported once
@@ -45,6 +46,24 @@ export function formatHeard(text, afterReply, max = KNOBS.maxText) {
 // Does the whole turn say stop, that's all, or wait?
 export function isStopWord(text) {
   return STOP_WORDS.has(String(text).toLowerCase().replace(/['’.,!?]/g, '').replace(/\s+/g, ' ').trim());
+}
+
+// What the speech-to-text model delivers out of silence or room noise (T5): a
+// lone "you", "Thank you.", a filler, a sound tag such as [BLANK_AUDIO], or
+// nothing but punctuation. Such a turn is dropped before it is queued. A word a
+// person could mean, yes and no and a stop word included, is never in this set.
+const FRAGMENTS = new Set(['you', 'uh', 'um', 'uhm', 'er', 'erm', 'hmm', 'hm', 'mm', 'huh', 'ah', 'thank you', 'thanks for watching', 'thank you for watching']);
+export function isFragment(text) {
+  const t = String(text).trim();
+  if (!t) return true;
+  if (/^[\[(][^\])]{0,40}[\])]$/.test(t)) return true;
+  const w = t
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return w === '' || FRAGMENTS.has(w);
 }
 
 const levelDb = buf => {
@@ -126,7 +145,7 @@ export class Gate {
       if (this.calib.length * k.frameMs >= k.floorMs) this.floor = this.calib.reduce((a, b) => a + b, 0) / this.calib.length;
       return events;
     }
-    const voice = level >= this.floor + k.voiceDb;
+    const voice = level >= this.floor + k.voiceDb && level >= k.minVoiceDbfs;
     if (!this.turn) {
       if (!voice) {
         this.floor = this.floor * 0.98 + level * 0.02;
