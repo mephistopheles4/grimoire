@@ -267,6 +267,9 @@ on stdout, and discards its stderr. Its rows:
   names the setting (S3).
 - The macOS and Linux rows are written from ffmpeg's documentation and tested
   with a fake recorder only (S3).
+- The owner's run needed a temp folder on the system drive for 590's clip on
+  disk. No clip is written now, and nothing is played from a file, so that fix
+  does not apply.
 
 ### S5.5 Settings and setup
 
