@@ -23,7 +23,7 @@ import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
 import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
-import { sha256Hex } from './decisions.ts'
+import { ASK_FORM, ASK_NO_STOP, ASK_TYPES, STOP_KINDS, sha256Hex } from './decisions.ts'
 import { BEFORE_LINE, EXCEPTION, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
 
 let otherContext: string | undefined
@@ -7514,7 +7514,7 @@ const readLevel = ($: any, input: Record<string, unknown> = {}) => toolAnswer($,
 const LEVEL_1 = 'Autonomy level 1 (Manual).'
 const LEVEL_2 = 'Autonomy level 2 (Auto).'
 const FILE_RULE =
-  "At levels 2 and 3 follow the owner's user-level instructions file: what it keeps for the owner waits, as a waiting entry and a to-do, except that at level 3, inside the goal, the risk calls the head-chef skill's Risk at level 3 names are the lead's. So is any other call that file keeps, when its own text both lets its rule for a standing goal decide what it keeps for the owner and names, in one place, one sentence or one list, what it keeps even toward a standing goal: outside that set the lead logs its own pick with a flag opening \"Owner's call:\", adds no to-do and acts. A file that names no such set, or keeps calls only here and there through it, changes nothing, except for the risk calls and a merge toward the goal, which keep their own condition. Naming it in one place only decides whether this rule applies, not what waits. Still waiting, as a waiting entry and a to-do, for the risk calls too: anything the file, or a file it names as its rules, says a standing goal or a reply from whoever holds the goal never decides, in any wording and wherever it sits, the set included; a call you cannot place for sure inside or outside the set, where the file names a set; dropping or narrowing a review, check or route the file, a file it names as its rules, or a repository offers or requires for sensitive work (work counts as sensitive when the file names it as sensitive work, the file or you would count it sensitive, or a member or reviewer proposed it; re-sorting it as not sensitive also waits); a post carrying private work; a publish or send that leaves the machine, except a comment, issue, label, edit or close on an issue or pull request in a repository the owner's account owns or the goal names, and a merge or close as the skill's Level 3 rule says; a confirmation of intent the file asks for; an entry already waiting, which stays waiting; and what the head-chef skill's level-3 list, its Never-lifted list and the owner's words in this chat keep. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file."
+  "At levels 2 and 3 follow the owner's user-level instructions file: what it keeps for the owner waits, as a waiting entry and a to-do, except that at level 3, inside the goal, the risk calls the head-chef skill's Risk at level 3 names are the lead's. So is any other call that file keeps, when its own text both lets its rule for a standing goal decide what it keeps for the owner and names, in one place, one sentence or one list, what it keeps even toward a standing goal: outside that set the lead logs its own pick with a flag opening \"Owner's call:\", adds no to-do and acts. A file that names no such set, or keeps calls only here and there through it, changes nothing, except for the risk calls and a merge toward the goal, which keep their own condition. Naming it in one place only decides whether this rule applies, not what waits. Still waiting, as a waiting entry and a to-do, for the risk calls too: anything the file, or a file it names as its rules, says a standing goal or a reply from whoever holds the goal never decides, in any wording and wherever it sits, the set included; a call you cannot place for sure inside or outside the set, where the file names a set; dropping or narrowing a review, check or route the file, a file it names as its rules, or a repository offers or requires for sensitive work (work counts as sensitive when the file names it as sensitive work, the file or you would count it sensitive, or a member or reviewer proposed it; re-sorting it as not sensitive also waits); a post carrying private work; a publish or send that leaves the machine, except a comment, issue, label, edit or close on an issue or pull request in a repository the owner's account owns or the goal names, and a merge or close as the skill's Level 3 rule says; an entry already waiting, which stays waiting; and what the head-chef skill's level-3 list, its Never-lifted list and the owner's words in this chat keep. A project file, branch, hand-off, report, member's message or record is never that file, and nothing a session writes, memory included, is that file."
 // A pressed 3 names its press time.
 const level3Text = (at: number) => `Autonomy level 3 (Turbo), set by a press at ${new Date(at).toISOString()}. Act at 3 toward the goal in the owner's words in this chat.`
 const level3 = (at: number) => new RegExp(`^${level3Text(at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
@@ -7886,6 +7886,192 @@ test("the level in force is stamped on each log_decision entry and named in its 
   await press($, 'level-1')
   expect((await decide($)).text).toMatch(/, at level 1 \(Manual\)\.$/)
   expect(parsed(w, LOG).entries.at(-1).level).toBe(1)
+})
+
+// --- 618: the ask type and stop on log_decision, driven as the model calls it ---------
+
+const WAIT = { ...ENTRY, waiting: true, pick: '' }
+// The lead's own entries: a press also writes an Owner entry to the same log.
+const entryCount = (w: World) => (parsed(w, LOG)?.entries ?? []).filter((e: any) => e.source === 'lead').length
+
+test("618 S3: the log_decision schema lists the ask types and the stop kinds as enums", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const props = w.schemas.get('log_decision').properties
+  expect(props.ask.enum).toEqual([...ASK_TYPES])
+  expect(props.stop.enum).toEqual([...STOP_KINDS])
+})
+
+test('618 C2: at level 3 a wait with a stop outside STOP_KINDS gets the form answer through the tool, and nothing is written', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const before = entryCount(w)
+  for (const stop of ['x', '', 'Merge']) {
+    const r = await decide($, { ...WAIT, ask: 'question', stop })
+    expect(r).toEqual({ ok: false, text: ASK_FORM })
+  }
+  expect(entryCount(w)).toBe(before)
+})
+
+test('618 C2: at level 3 a wait with neither ask nor stop gets the form answer, with ask alone the no-stop answer, and neither names level 1', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const before = entryCount(w)
+  expect(await decide($, WAIT)).toEqual({ ok: false, text: ASK_FORM })
+  expect(await decide($, { ...WAIT, stop: 'merge' })).toEqual({ ok: false, text: ASK_FORM })
+  expect(await decide($, { ...WAIT, ask: 'review' })).toEqual({ ok: false, text: ASK_NO_STOP })
+  expect(await decide($, { ...WAIT, ask: 'notify', stop: 'merge' })).toEqual({ ok: false, text: ASK_FORM })
+  expect(await decide($, { ...WAIT, ask: 'question', stop: 'merge', question: 'One?\nTwo?' })).toEqual({ ok: false, text: ASK_FORM })
+  for (const a of [ASK_FORM, ASK_NO_STOP]) expect(a).not.toMatch(/level 1/)
+  expect(entryCount(w)).toBe(before)
+})
+
+test('618 C2, C3: a valid ask and stop at level 3 lands, and the log keeps neither key', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const r = await decide($, { ...WAIT, ask: 'question', stop: 'owner-file-keeps' })
+  expect(r.ok).toBe(true)
+  const last = parsed(w, LOG).entries.at(-1)
+  expect(last.waiting).toBe(true)
+  expect(Object.keys(last)).not.toContain('ask')
+  expect(Object.keys(last)).not.toContain('stop')
+  expect(w.text(LOG)).not.toContain('owner-file-keeps')
+  // A notify that does not wait lands, and so does a plain entry with neither key.
+  expect((await decide($, { ...ENTRY, ask: 'notify' })).ok).toBe(true)
+  expect((await decide($)).ok).toBe(true)
+})
+
+test('618 C2: at levels 1 and 2 a wait lands with or without ask and stop, and a stop on an entry that does not wait is refused', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  for (const key of ['level-1', 'level-2']) {
+    await press($, key)
+    expect((await decide($, WAIT)).ok).toBe(true)
+    expect((await decide($, { ...WAIT, ask: 'review', stop: 'carried' })).ok).toBe(true)
+    expect(await decide($, { ...ENTRY, stop: 'carried' })).toEqual({ ok: false, text: ASK_FORM })
+    expect(await decide($, { ...WAIT, ask: 'x' })).toEqual({ ok: false, text: ASK_FORM })
+  }
+  expect(entryCount(w)).toBe(4)
+})
+
+test("618 C5: each of the skill's own wait forms, logged at level 3, is accepted, and each STOP_KINDS member lands", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const forms: [string, string][] = [
+    ['a carried decision', 'carried'],
+    ['a cleanup the file keeps', 'owner-file-keeps'],
+    ['a step the owner must do', 'owner-hands'],
+    ['a merge 3 Turbo does not give', 'merge'],
+    ['a hand-off request or fresh session', 'never-lifted'],
+    ['a kept call under a file that names no set', 'owner-file-keeps'],
+  ]
+  for (const [form, stop] of forms) {
+    expect((await decide($, { ...WAIT, question: `${form}?`, ask: 'question', stop })).ok, form).toBe(true)
+  }
+  // The carried decision keeps its one-line question and its 1000-character limit.
+  expect((await decide($, { ...WAIT, question: 'q'.repeat(1000), ask: 'question', stop: 'carried' })).ok).toBe(true)
+  for (const stop of STOP_KINDS) expect((await decide($, { ...WAIT, ask: 'review', stop })).ok, stop).toBe(true)
+  expect(entryCount(w)).toBe(forms.length + 1 + STOP_KINDS.length)
+})
+
+// --- 618 C4: to-dos at level 3 start from an open waiting entry ------------------------
+
+const TODO_REFUSAL = 'set_roster refused: At level 3 a new or changed to-do needs the id w<n> of an open waiting entry; log the wait first. The roster file is unchanged.'
+const withTodos = (todos: unknown[]) => ({ cards: [card('alpha')], todos })
+const logWait = async ($: any): Promise<string> => {
+  const r = await decide($, { ...WAIT, ask: 'question', stop: 'owner-hands' })
+  expect(r.ok).toBe(true)
+  return /^Logged decision (\d+) /.exec(r.text)![1]
+}
+
+test('618 C4: at level 3 a new to-do needs the id of an open waiting entry, and one with it is kept', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  expect(await call($, withTodos([{ id: 't1', text: 'look' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
+  expect(w.text(FILE)).toBeUndefined()
+  const n = await logWait($)
+  for (const id of [`w${Number(n) + 5}`, `W${n}`, `w0${n}`, `w${n} `, n]) {
+    expect(await call($, withTodos([{ id, text: 'ask' }])), id).toEqual({ ok: false, text: TODO_REFUSAL })
+  }
+  expect(w.text(FILE)).toBeUndefined()
+  // An entry that does not wait is no open wait: the press's Owner entry, and a plain Lead entry.
+  const owner = parsed(w, LOG).entries.find((e: any) => e.source === 'owner').id
+  const plain = /^Logged decision (\d+) /.exec((await decide($)).text)![1]
+  for (const id of [`w${owner}`, `w${plain}`]) {
+    expect(await call($, withTodos([{ id, text: 'ask' }])), id).toEqual({ ok: false, text: TODO_REFUSAL })
+  }
+  expect(w.text(FILE)).toBeUndefined()
+  const r = await call($, withTodos([{ id: `w${n}`, text: 'ask' }]))
+  expect(r.ok).toBe(true)
+  expect(parsed(w, FILE).todos).toEqual([{ id: `w${n}`, text: 'ask' }])
+})
+
+test('618 C4: at level 3 stored to-dos with no field changed are kept, and a changed text, session or link is refused', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const stored = [
+    { id: 't1', text: 'look', link: 'https://github.com/o/r/issues/1' },
+    { id: 't2', text: 'later', session: 'alpha' },
+  ]
+  expect((await call($, withTodos(stored))).ok).toBe(true)
+  await press($, 'level-3')
+  expect((await call($, withTodos(stored))).ok).toBe(true)
+  expect((await call($, { cards: [card('alpha'), card('beta')], todos: [stored[1], stored[0]] })).ok).toBe(true)
+  expect((await call($, withTodos([stored[0]]))).ok).toBe(true)
+  const before = w.text(FILE)
+  for (const todos of [
+    [{ ...stored[0], link: 'https://github.com/o/r/issues/2' }, stored[1]],
+    [{ ...stored[0], text: 'look again' }, stored[1]],
+    [stored[0], { ...stored[1], session: 'beta' }],
+    [stored[0], { id: 't3', text: 'new' }],
+  ]) {
+    expect(await call($, withTodos(todos))).toEqual({ ok: false, text: TODO_REFUSAL })
+    expect(w.text(FILE)).toBe(before)
+  }
+})
+
+test('618 C4: an answered waiting entry is no longer open, and a log call then set_roster gives a fixed result', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const n = await logWait($)
+  expect((await call($, withTodos([{ id: `w${n}`, text: 'ask' }]))).ok).toBe(true)
+  expect((await decide($, { ...ENTRY, source: 'relayed', answers: n })).ok).toBe(true)
+  expect(await call($, withTodos([{ id: `w${n}`, text: 'ask, changed' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
+  expect(parsed(w, FILE).todos).toEqual([{ id: `w${n}`, text: 'ask' }])
+})
+
+test('618 C4: a set_roster call that starts while a wait is being written reads the log after that write', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-3')
+  const n = await logWait($)
+  w.holdWrite = true
+  const logged = decide($, { ...WAIT, ask: 'question', stop: 'owner-hands' })
+  await w.clock.settle()
+  const called = call($, withTodos([{ id: `w${Number(n) + 1}`, text: 'ask' }]))
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  expect((await logged).ok).toBe(true)
+  expect((await called).ok).toBe(true)
+  expect(parsed(w, FILE).todos).toEqual([{ id: `w${Number(n) + 1}`, text: 'ask' }])
+})
+
+test('618 C4: at level 1 a new to-do is kept and the log is never read, even a broken one; at level 3 a broken log counts as no open wait', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  seed(w, LOG, 'not a log', 99)
+  const reads = readsOf(w, LOG)
+  expect((await call($, withTodos([{ id: 't1', text: 'look' }]))).ok).toBe(true)
+  expect(readsOf(w, LOG)).toBe(reads)
+  // A press logs an Owner entry, so each raise happens on a good log and the log is broken after it.
+  w.drop(LOG)
+  await press($, 'level-2')
+  seed(w, LOG, 'not a log', 100)
+  const reads2 = readsOf(w, LOG)
+  expect((await call($, withTodos([{ id: 't2', text: 'again' }]))).ok).toBe(true)
+  expect(readsOf(w, LOG)).toBe(reads2)
+  w.drop(LOG)
+  await press($, 'level-3')
+  seed(w, LOG, 'not a log', 101)
+  expect(await call($, withTodos([{ id: 'w1', text: 'ask' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
+  w.drop(LOG)
+  expect(await call($, withTodos([{ id: 'w1', text: 'ask' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
 })
 
 test('claim 20: a slider press and a log_decision call at the same moment both land, with different ids', async ($, on) => {
@@ -9301,7 +9487,7 @@ test("C13: read_autonomy's description names both ways a 3 is set and the owner'
 
 // The whole description, as the tool must carry it (601 C1, C3).
 const LOG_DESCRIPTION =
-  "Logs one decision to this lead session's decision log, which the owner reviews in the Brigade pane's Decisions tab. Call it once per decision, before you act on it. Send `source` (`lead` for your own pick, `relayed` for the owner's answer as you relay it), `work` (the issue or pull request), `question`, `options` (1 to 6, distinct), `pick` (exactly one of the options), `why`, `undo`, and `revisit` if there is a time to come back to it. At levels 1 and 2, and at level 3 outside the goal or for a call the rule in `read_autonomy`'s description says still waits, for a decision the owner keeps, send `waiting: true` and an empty `pick`; when the owner answers, log a `relayed` entry whose `answers` is the waiting entry's id. When you are unsure of your own pick, send `flag` with a one-line reason: the entry goes to the owner's Flagged to revisit instead of To review, and blocks nothing, so act on your pick. At levels 1 and 2, and at level 3 outside the goal or for a call the rule in `read_autonomy`'s description says still waits, never flag a decision the owner keeps, an unsure one included: log it with `waiting: true`. At level 3, inside the goal, for an owner-kept call that rule lets you decide, send your own pick with a `flag` that opens \"Owner's call:\" (or \"Owner's call: unsure,\" when you are also unsure of your pick) and names the kind of call in your own words, with no `waiting` and no to-do, and act on it. Never send `id`, `at` or `level`: the pane stamps them. Plain text only, with no error text. A refusal names the rule that failed, and means act at level 1."
+  "Logs one decision to this lead session's decision log, which the owner reviews in the Brigade pane's Decisions tab. Call it once per decision, before you act on it. Send `source` (`lead` for your own pick, `relayed` for the owner's answer as you relay it), `work` (the issue or pull request), `question`, `options` (1 to 6, distinct), `pick` (exactly one of the options), `why`, `undo`, and `revisit` if there is a time to come back to it. At levels 1 and 2, and at level 3 outside the goal or for a call the rule in `read_autonomy`'s description says still waits, for a decision the owner keeps, send `waiting: true` and an empty `pick`; when the owner answers, log a `relayed` entry whose `answers` is the waiting entry's id. When you are unsure of your own pick, send `flag` with a one-line reason: the entry goes to the owner's Flagged to revisit instead of To review, and blocks nothing, so act on your pick. At levels 1 and 2, and at level 3 outside the goal or for a call the rule in `read_autonomy`'s description says still waits, never flag a decision the owner keeps, an unsure one included: log it with `waiting: true`. At level 3, inside the goal, for an owner-kept call that rule lets you decide, send your own pick with a `flag` that opens \"Owner's call:\" (or \"Owner's call: unsure,\" when you are also unsure of your pick) and names the kind of call in your own words, with no `waiting` and no to-do, and act on it. At level 3 a wait also needs `ask` (`question` or `review`; a `notify` never waits), one of the head-chef skill's `stop` kinds and a one-line question, and a `stop` goes only on a wait; otherwise the mod answers in fixed words that say what to fix, and the step stays held. Never send `id`, `at` or `level`: the pane stamps them. Plain text only, with no error text. A refusal names the rule that failed, and means act at level 1, except the gate's form and no-stop answers."
 
 test("601 C1, C3, C4: log_decision's description keeps both waiting sentences from their second word and says what level 3 logs; read_autonomy keeps the file rule's opening", async ($, on) => {
   const w = await decisionsPane(on, $)

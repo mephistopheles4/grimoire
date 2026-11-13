@@ -268,3 +268,103 @@ test('610 C3, C5: the note function reads nothing from an event, quotes no goal,
   assert.ok(lock >= 0 && lock < command, 'the level is read in the lock before the append');
   assert.doesNotMatch(body.slice(lock, command), /session\.append/);
 });
+
+// 618 C1: at level 3 the owner's file's ask for a confirmation holds nothing. The phrase is
+// built in pieces so this file is not one of the lines the claim counts.
+const PHRASE = ['confirmation', 'of', 'intent'].join(' ');
+const HOLDS_NOTHING =
+  `A ${PHRASE} the file asks for holds nothing at level 3, unless the file keeps it waiting even toward a standing goal, ` +
+  'or keeps it at all where the file has no rule for a standing goal or names no set: record it, marked unconfirmed, as the file asks, ' +
+  "and go on; a relay, a member's reply or a flagged pick never confirms it. When the owner's words later correct it, go back to the step " +
+  "they touch; past a merge, publish or install, tell the owner what can't be undone.";
+
+test('618 C1: the contract and SKILL.md each hold the new sentence once, and neither keeps the old wait', () => {
+  for (const p of ['skills/head-chef/references/CONTRACT.md', 'skills/head-chef/SKILL.md']) {
+    const t = text(p);
+    assert.equal(t.split(HOLDS_NOTHING).length - 1, 1, p);
+    assert.equal(t.includes('which a flagged pick never confirms'), false, p);
+  }
+});
+
+// 618 C2, C5: the clause on the mod's gate, in the contract and in SKILL.md, with its table of kinds.
+const GATE = "**Level 3, the mod's gate on waits.**";
+const flat = t => t.replace(/\s+/g, ' ');
+const gateOf = (path, end) => {
+  const raw = text(path);
+  const at = raw.indexOf(GATE);
+  assert.ok(at >= 0, `${path} holds the clause`);
+  const to = raw.indexOf(end, at + GATE.length);
+  return { clause: flat(raw.slice(at, to)), rest: flat(raw.slice(0, at) + raw.slice(to)), raw: raw.slice(at, to) };
+};
+// In 2.0.0 the contract holds the clause as a schedule, SKILL.md's own text, so both files end it the same way.
+const CLAUSES = [
+  ['skills/head-chef/references/CONTRACT.md', '\n\n**'],
+  ['skills/head-chef/SKILL.md', '\n\n**'],
+];
+// Each item of S4's source lists, as the contract words it, with the kind it maps to. The contract's table is
+// SKILL.md's own, which words two items in one phrase; a third entry gives the phrase the row holds, and the
+// item itself must still stand elsewhere in the contract.
+const SOURCE_ITEMS = [
+  ['whoever holds the goal never decides', 'owner-file-keeps'],
+  ['cannot place for sure inside or outside the set', 'owner-file-keeps'],
+  ['has no such rule or names no set', 'owner-file-keeps'],
+  ['any usage limit the file sets', 'owner-file-keeps'],
+  ['keeps it even toward a standing goal, which waits', 'owner-file-keeps'],
+  ['file keeps merges even toward a goal', 'owner-file-keeps'],
+  ["what the owner's words in this chat keep", 'owner-words'],
+  ["waits for the owner's words naming it", 'owner-words'],
+  ['a request in them goes to the owner', 'owner-words', "an item or request that waits for the owner's words naming it"],
+  ["rules keep for the owner goes to the owner", 'owner-words'],
+  ["owner's yes pending", 'owner-words', "an item or request that waits for the owner's words naming it"],
+  ["stays waiting until the owner's words answer it", 'carried'],
+  ['a classifier or permission check blocked', 'blocked'],
+  ["needs the owner's own hands", 'owner-hands'],
+  ['an install', 'install'],
+  ['a post carrying private work', 'private-post'],
+  ['a publish or send that leaves the machine', 'leaves-machine'],
+  ['dropping or narrowing a review, check or route', 'sensitive-route'],
+  ["Every other merge or close waits for the owner's words", 'merge'],
+  ["a merge that changes a threat model's scope or accepted risks", 'threat-model'],
+  ["an edit to a threat model's scope, to the line that names it", 'threat-model'],
+  ['what is never lifted', 'never-lifted'],
+  ['Never lifted, at any level', 'never-lifted'],
+  ['a fresh session a context figure prompts', 'never-lifted'],
+];
+
+for (const [path, end] of CLAUSES) {
+  test(`618 C5: ${path} names every stop kind, and its table pairs every source-list item with its kind`, async () => {
+    const { STOP_KINDS } = await import('../brigade/decisions.ts');
+    const { clause, rest, raw } = gateOf(path, end);
+    for (const kind of STOP_KINDS) assert.ok(clause.includes(`\`${kind}\``), kind);
+    if (!path.endsWith('CONTRACT.md')) return;
+    for (const [item, kind, inRow = item] of SOURCE_ITEMS) {
+      const row = flat(raw.split('\n').map(l => l.trim()).find(l => l.startsWith(`| \`${kind}\` |`)) ?? '').toLowerCase();
+      assert.ok(row.includes(inRow.toLowerCase()), `${kind} row holds: ${inRow}`);
+      assert.ok(rest.toLowerCase().includes(item.toLowerCase()), `the contract elsewhere holds: ${item}`);
+    }
+  });
+
+  test(`618 C2: ${path} holds the Log, then act exception and the to-do sentence`, () => {
+    const t = flat(text(path));
+    assert.ok(t.includes("the gate's form answer holds the step until the entry is logged again, and its no-stop answer is not a refused log for this rule"));
+    assert.ok(t.includes("every owner-facing to-do starts from a waiting entry, an owner's-hands step included"));
+  });
+}
+
+test('618 C1: the phrase appears in exactly two lines of the tree, the new sentence in the contract and in SKILL.md', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const hits = [];
+  const walk = rel => {
+    const abs = new URL(`../${rel}`, import.meta.url);
+    if (statSync(abs).isDirectory()) {
+      for (const n of readdirSync(abs)) walk(`${rel}/${n}`);
+      return;
+    }
+    if (rel.endsWith('contract.changelog.md') || !/\.(md|mjs|ts|tsx|json)$/.test(rel)) return;
+    text(rel).split('\n').forEach((l, i) => l.includes(PHRASE) && hits.push(`${rel}:${i + 1}`));
+  };
+  for (const d of ['skills', 'brigade', 'evals', 'docs', 'tests', 'scripts', 'hooks']) walk(d);
+  for (const f of ['SECURITY.md', 'README.md', 'CONTRIBUTING.md', 'CONTEXT.md', 'AGENTS.md']) walk(f);
+  assert.deepEqual(hits.map(h => h.replace(/:\d+$/, '')).sort(), ['skills/head-chef/SKILL.md', 'skills/head-chef/references/CONTRACT.md']);
+  for (const l of hits) assert.ok(text(l.replace(/:\d+$/, '')).split('\n')[Number(l.split(':').pop()) - 1].includes('holds nothing at level 3'));
+});
