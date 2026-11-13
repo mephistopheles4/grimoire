@@ -1,16 +1,18 @@
 # Incantation on Voicebox: the spec
 
-Draft 2.1, for issue #208, Thorough tier on the sensitive route (heard speech
+Draft 2.2, for issue #208, Thorough tier on the sensitive route (heard speech
 becomes input to a session with tools, so the security pair reviews it). It
 replaces the VoiceMode spec (draft 1.7, PR #622) and the `live` spec (closed
-PR #590). Nothing here is built. The owner reads it back before any build.
-#208 ends as a draft pull request, never merged (W12, S14).
+PR #590). Under W13 it is built test-first to a draft pull request, which is
+never marked ready and never merged (W12, W13). The owner reviews the spec
+and the build together there. The steps that need the owner are skipped, and
+S14 says what the build did in place of each one.
 
-Draft 2.1 holds the fixes drafted after spec round 1 on 2.0. None of them is
-accepted yet.
+Draft 2.1 held the fixes drafted after spec round 1. Draft 2.2 adds those
+drafted after round 2, the final round. None of them is accepted yet.
 
 Every choice below carries the tag of the owner's words it comes from, `W1` to
-`W12` (S1). A choice with no tag is the spec's own.
+`W13` (S1). A choice with no tag is the spec's own.
 
 ## S1. The owner's words
 
@@ -56,6 +58,13 @@ sentence, it says so.
   them." And: "We could use a $1 eval budget."
 - **W12, still standing:** "for 208 leave it as draft PR when its finished
   please"
+- **W13, 2026-11-13, relayed by the lead from the owner's chat:** "for
+  voicebox i want to push that till the PR is ready and ill review it tomorrow
+  too please". The lead's reading: run the final spec round, build
+  test-first, open a draft pull request that is never marked ready and never
+  merged, and skip and list every step that needs the owner. *It changes W2
+  the way W3 did: the prototype stands, and now runs after the build, against
+  it.*
 
 What the owner's words rule out, so no later section can drift back:
 
@@ -67,7 +76,7 @@ What the owner's words rule out, so no later section can drift back:
   exists only where the platform forces it, in the places S3 names (W3);
 - no fixed or guessed wait before listening (W6);
 - no reply at every turn (W8);
-- no merge of #208 (W12).
+- no merge of #208, and its pull request never marked ready (W12, W13).
 
 ## S2. Objective
 
@@ -147,7 +156,9 @@ socket checks, `parec` and `pactl` capture, and `/proc` reading. From closed
 PR #590 (`785904ed`): the Windows recorder resolution, `dshow` capture and
 device listing, and the stamped device list, kept as the Windows row of the
 capture adapter and in `setup.mjs`. Its clip on disk, its token passed as an
-argument, and its fixed speaking-time wait are dropped (W6, W7).
+argument, and its fixed speaking-time wait are dropped (W6, W7). Main at the base holds no
+Incantation plugin: everything comes from those branches, and S13 gives each
+file from #622 its state (kept, rewritten or dropped).
 
 **Dropping the proxy.** 1.7's proxy held one path: a web page in the
 person's browser reaching the speech engine's loopback API. The lead's reuse
@@ -173,14 +184,27 @@ An engine module exports:
 
 | Export | Does | Voicebox's version |
 |---|---|---|
-| `speakTools` | the exact full MCP tool names the session may call to speak, and the argument names it passes | `mcp__voicebox__voicebox_speak` (the server name the README registers) and its plugin form, as F8 records them, with the voice passed by profile id |
-| `mcpServer` | the server name the README registers, so the guard can read its entry | `voicebox` |
-| `host`, `port` | where the engine answers | the literal `127.0.0.1`, never `localhost`; port 17493 unless the settings name another; nothing else changes either |
+| `speakTools` | the exact full MCP tool names the session may call to speak, and the argument names it passes | `mcp__voicebox__voicebox_speak` only, with `text` and `profile` (the profile id) |
+| `mcpServer` | the server name the README registers, and the one form the guard accepts for it | `voicebox`, at user scope, `http` transport, URL `http://127.0.0.1:<port>/mcp` |
+| `host`, `port` | where the engine answers | the literal `127.0.0.1`, never `localhost`; port 17493 unless the settings name another; nothing else changes either, and no proxy setting is read (S6) |
 | `warm()` | loads the speech and transcription models, and resolves with the time it took | S5.3 |
-| `transcribe(pcm)` | one turn's audio, held in memory, to text | `POST /transcribe`, multipart, with the model F7 picks |
+| `transcribe(pcm)` | one turn's audio, held in memory, to text | `POST /transcribe`, multipart, a WAV `file` part, Voicebox's default model |
 | `playback()` | an emitter of `start` and `end` for every utterance the engine plays, from any caller | S5.2 |
 | `capture` | which capture adapter to use | the shared ffmpeg adapter (S5.4): Voicebox has no capture call |
-| `health()` | whether the engine answers | `GET /profiles`, a documented route, read and discarded |
+| `health()` | whether the engine answers | `GET /health`, read and discarded |
+
+**Where Voicebox's values come from, before the prototype runs (W13).** Each
+value in the right-hand column is taken from Voicebox 0.5.0's own published
+interface: its OpenAPI schema, served at `/openapi.json`, and its MCP tool
+list as Claude Code shows it. The tool list names the speak tool
+`mcp__voicebox__voicebox_speak`, with arguments `text`, `profile`, `engine`,
+`language` and `personality`. The server's own instructions call it
+`voicebox.speak`, which is its name inside the server, not a tool name a
+session can call. None of these values has been watched working. They sit in
+one table at the top of `engines/voicebox.mjs`, each marked unverified with
+the prototype check that confirms it (S9), and the pull request lists them.
+No value is guessed: one the schema does not give is left out, and the
+module fails closed without it.
 
 ### S5.2 Playback ended: the real end, not a guess (W6, W7)
 
@@ -192,13 +216,17 @@ every utterance from the engine's own feed, whoever started it. Voicebox
 documents no playback-ended event, so the prototype (S9, F2) picks the route,
 in this order:
 
-- **Route A, Voicebox's speech events.** Voicebox serves an event stream for
-  speech and shows a speaking pill for the full length of each speak. If that
-  stream reports every utterance's start at or before its first sound, and its
-  end within 300 ms of its last sound, the engine follows it.
-- **Route B, the generation queue.** If Voicebox's generation status stream
-  reports every generation, from any caller, with the moment it starts to play
-  and its duration, `end` is that moment plus that duration.
+- **Route A, Voicebox's speech events.** `GET /events/speak`, a server-sent
+  event stream of speak-start and speak-end events (0.5.0's schema). If it
+  reports every utterance's start at or before its first sound, and its end
+  within 300 ms of its last sound, the engine follows it.
+- **Route B, the generation queue.** `GET /generate/{id}/status`, a stream per
+  generation. If it reports every generation, from any caller, with the moment
+  it starts to play and its duration, `end` is that moment plus that duration.
+
+The build ships route A only, read from the schema's event names, since it is
+the one route that sees every caller without a generation id. Route B is
+built only if F2 fails route A.
 
 Route C of draft 2.0, Incantation playing the audio itself, is dropped: it
 would put a spoken line into a command, and it would not see other callers.
@@ -218,15 +246,15 @@ With neither A nor B, the work stops and the owner says how to go on (S11).
 
 - The listener calls `warm()` as soon as it starts (S7.1 step 4), in the
   background.
-- `warm()` loads the transcription model with one second of silence. If the
-  prototype (F1) finds a Voicebox generation that plays nothing, it also loads
-  the speech model with one such generation of one word on the default
-  profile.
-- `wait` reports `ready <ms>` once `warm()` resolves. With a silent speech
-  warm, the greeting waits for `ready`. Without one, `ready` follows the
-  transcription warm only, and the greeting is itself the speech warm: the
-  skill prints `Warming the voice…` and the greeting is left out of the 2 s
-  target.
+- `warm()` loads the transcription model with one second of silence, and the
+  speech model with `POST /models/load`, which 0.5.0's schema documents as
+  loading the speech model and which plays nothing. F1 confirms that the next
+  speak's first sound then comes within 2 s. Until it does, the greeting is
+  also treated as the speech warm (the next item's second case).
+- `wait` reports `ready <ms>` once `warm()` resolves, and the greeting waits
+  for `ready`. The skill prints `Warming the voice…` before it. Until F1
+  passes, the greeting is left out of the 2 s target. If F1 fails, `warm()`
+  drops the speech-model load and the greeting is the speech warm.
 - A warm that has not finished in 60 s ends the start with `listener error
   warm`.
 - **Target, measured:** after the greeting, no spoken turn pays the model's
@@ -242,7 +270,10 @@ With neither A nor B, the work stops and the owner says how to go on (S11).
 Voicebox has no capture call, so capture is a shared adapter,
 `scripts/capture/ffmpeg.mjs`, that any engine may use. It runs ffmpeg with no
 shell, with the state folder as its working folder, 16 kHz mono signed 16-bit
-on stdout, and discards its stderr. Its rows:
+on stdout. Capture discards ffmpeg's stderr. A device listing reads both
+stdout and stderr, since `-list_devices` prints to stderr and `-sources` to
+stdout, and only in `setup.mjs` and the listener's stamp check, never into a
+session. Its rows:
 
 | Platform | Input | Device list | Device kept as | Recorder found by |
 |---|---|---|---|---|
@@ -260,7 +291,15 @@ on stdout, and discards its stderr. Its rows:
   refuses a different real path (`listener error recorder`). On every
   platform a PATH entry that is relative, empty, the current folder, or inside
   the folder Claude Code started in, is skipped; settings, programs and test
-  seams are never taken from the working folder or the environment.
+  seams are never taken from the working folder or the environment. On macOS
+  and Linux the recorder and every folder above it must also be owned by root
+  or the person's account and be writable by neither group nor others, so no
+  other account can swap it. Its limit: a recorder installed under another
+  account (a shared Homebrew prefix, for one) is refused, and the README says
+  so.
+- **Test fixtures** for the device listings are made up: invented names and
+  ids, no real device, no path. A listing copied from a real machine never
+  lands in the repository.
 - **A silent mic.** When the OS mic permission is off, capture can give only
   digital silence with no error. Frames that are all zero for the first 3 s
   end the start with `listener error mic`, and the README's permission step
@@ -288,21 +327,23 @@ needs (S6, the `ready` line).
 | `endOfSpeechMs` | integer 300 to 2000 | 1000 |
 
 - `setup.mjs devices` prints the stamp and each device as an index and a
-  cleaned name, cut at 64 characters, and never a path. `setup.mjs choose
-  <index> <stamp>` checks both against a fresh list, resolves and pins the
-  recorder, picks the default profile, and writes the file. Both run in the
-  person's own terminal, so device names never reach a session.
+  cleaned name, cut at 64 characters, and never a path. `setup.mjs profiles`
+  prints Voicebox's profiles as id and cleaned name. `setup.mjs choose
+  <index> <stamp> <profile id>` checks the device against a fresh list and
+  the profile against Voicebox's list, resolves and pins the recorder, and
+  writes the file. All three run in the person's own terminal, so device and
+  profile names never reach a session.
 - **The state folder** `~/.incantation/`, with `run/` and `observe/` inside,
   sits in the person's home. On macOS and Linux every folder is 0700 and every
   file 0600, made so before anything is written, and a looser mode found later
   fails closed. On Windows the profile folder's default access holds it, since
   mode bits do nothing there (590's finding). A link or junction in its place,
   or a real path outside home, fails closed on every platform.
-- **The default voice stays on the fast engine (W6).** `choose` picks a preset
-  profile on the fastest engine the prototype measures (F3) under the 2 s
-  first-sound target; Kokoro is the expected pick. A profile on a heavier
-  engine is the person's own edit through `setup.mjs`; the skill then says
-  once, at start, in chat, about how long a line takes on it.
+- **The default voice stays on the fast engine (W6).** The README's setup step
+  tells the person to choose a preset profile on the fastest engine. Until F3
+  measures them, it names Kokoro, the engine the owner's demo found fast. When
+  F3 has run, the README names the engine it found fastest under the 2 s
+  first-sound target. A profile on a heavier engine is the person's own pick.
 - Incantation's settings file and anything under `~/.incantation/` other
   than the observe inbox are on the typed-yes list (S7.5).
 
@@ -319,15 +360,21 @@ It checks:
 3. the engine's `health()` answers on `127.0.0.1` at the settings' port;
 4. that port answers on no non-loopback address of this machine (1.7's reach
    check: each non-internal address, 500 ms, in parallel);
-5. the MCP entry for the engine's `mcpServer`, in the user, local and project
-   MCP configs and the plugin's own manifest, is a local stdio command or a
-   URL whose host is `127.0.0.1`; anything else fails (read for key names,
-   transport and host only, never printed);
+5. the engine's `mcpServer` has exactly one entry, at user scope in
+   `~/.claude.json`, in the engine's one accepted form (for Voicebox, `http`
+   at `http://127.0.0.1:<port>/mcp`); an entry under that name at local scope
+   (any project in `~/.claude.json`) or in the working folder's `.mcp.json`
+   fails, since it would outrank the user's own. The files are read for key
+   names, transport and URL only, and never printed. Config sources the guard
+   does not read (managed settings, a launch flag) are not checked, and the
+   README says so;
 6. the pinned recorder resolves by the platform's rule to the same real path;
 7. the state folder's checks (S5.5).
 
 It finishes within 2 s; the device list is not run here (the listener does
-it, S6).
+it, S6). One top-level handler in each script turns every error, a JSON
+parse error included, into its fixed line, so no message that quotes file
+content reaches a session.
 
 The skill checks the speak tool itself: exactly one of the engine's
 `speakTools` is present. None: it prints the README's Voicebox setup lines
@@ -348,9 +395,11 @@ reply" after a playback.
 - **Start.** The skill runs it only after the guard's `ok` (S7.1). It checks
   the engine against the table, the settings' ranges, the state folder, the
   pinned recorder and the device stamp, then calls `warm()` and opens the mic.
-- **One listener.** If `run/listen.json` names a port that answers with that
-  file's token, `start` exits with `listener error busy` and leaves the live
-  one running. A stale file (the port does not answer) is replaced.
+- **One listener.** `start` sends `ping <token>` to the port `run/listen.json`
+  names. A live listener answers the fixed line `alive`, never the token, and
+  the probe holds no slot and takes no turn. On `alive`, `start` exits with
+  `listener error busy` and leaves the live one running. A stale file (no
+  answer) is replaced.
 - **Always on (W7).** The mic stays open while the listener runs. Turns heard
   while no `wait` is connected wait in the queue.
 - **Muted during playback (W7).** Frames are dropped from each utterance's
@@ -368,9 +417,9 @@ reply" after a playback.
   F7's question, and the README says what it finds.
 - **The channel.** The listener binds `127.0.0.1` only, on a port the system
   picks, and writes the port and a 32-byte token from `crypto.randomBytes` to
-  `run/listen.json`. A connection must send `wait <token>` or `stop <token>`
-  within 2 s, compared in constant time, or it is closed; until then it holds
-  no slot. One waiter at a time; a second gets `listener error busy`. `wait`
+  `run/listen.json`. A connection must send `wait <token>`, `stop <token>` or
+  `ping <token>` within 2 s, compared in constant time, or it is closed;
+  until then it holds no slot. One waiter at a time; a second gets `listener error busy`. `wait`
   and `stop` read the token from the file themselves; it is never an argument,
   never printed, and the file is deleted on every exit. Against a program of
   the same account the token is cooperation only.
@@ -379,16 +428,26 @@ reply" after a playback.
   escaped, cut at 500 characters; then `timing: wait <ms> stt <ms>`; then,
   when they apply, `ready <ms> voice <profile id>`, `dropped <n>`,
   `stt-dropped` or `muted`. After 10 minutes with nothing it prints `quiet`.
+  When no listener answers (no `listen.json`, or the port refuses), `wait`
+  prints `listener error ended`.
 - **Stop.** `stop` sends `stop <token>` on the channel; the listener kills its
-  recorder, waits for it to exit, and exits. No PID is signalled and no
-  process is inspected. A listener that cannot be reached that way is gone or
-  is not this account's.
+  recorder, waits for it to exit, answers `stopped`, and exits. `stop` prints
+  `listener stopped` only on that answer, and `listener: not running` when
+  nothing answered. No PID is signalled and no process is inspected. A
+  listener that cannot be reached that way is gone or is not this account's.
+- **No proxy.** The engine's HTTP calls go out with Node's own `http` module
+  and an agent made per call, which reads no proxy setting from the
+  environment, so heard audio reaches only `127.0.0.1` even with
+  `NODE_USE_ENV_PROXY` and a proxy variable set.
 - **Bound to its session.** `start` records its parent process, the shell
-  Claude Code ran it in, and exits within 1 s of that process ending (a Node
-  built-in check), whatever waiters remain, dropping the queue. Node has no
-  portable start time for another process, so a parent PID reused at once
-  would hide the end; the second bound covers that: with no `wait` connected
-  for 5 minutes, the listener exits too. The skill keeps a `wait` connected at
+  Claude Code ran it in, and exits within 1 s of that process ending, or of
+  its own `process.ppid` changing (on macOS and Linux an orphan is moved to a
+  new parent, so this is exact there), whatever waiters remain, dropping the
+  queue. Node has no portable start time for another process, so on Windows
+  a parent PID reused at once would hide the end; the second bound covers
+  that: with no `wait` connected for 5 minutes, the listener exits too. This
+  replaces 1.7's start-time pin, a control the owner accepted, so it is the
+  owner's call (O8). The skill keeps a `wait` connected at
   all times, so in use the gap is the time between a delivery and the next
   `wait`. It also exits on `stop`, on any capture or playback failure, and
   after 30 minutes with no heard turn. Whether the parent ends when the session
@@ -414,7 +473,9 @@ stay as 1.7 set them unless a line below changes them.
 In order, stopping at the first failure; a failure prints the fix in chat and
 speaks nothing:
 
-1. refuse in a session that leads a brigade (O4);
+1. refuse in a session that leads a brigade, judged from the session's own
+   record, as #622's skill did: when unsure, treat it as a lead and refuse.
+   No head-chef change is made (O4);
 2. exactly one speak tool is present (S5.6), else the README's setup lines;
 3. `node <skill base>/scripts/guard.mjs`; unless it prints `ok`, show its line
    and stop;
@@ -422,9 +483,9 @@ speaks nothing:
    `listener error` line, show it and stop;
 5. print `Listening, always on.`, and start the first `wait` as a background
    command, before the greeting;
-6. on `ready`, the greeting is the first speak call, with the profile id from
-   the `ready` line; if it errors, show its first line, run `listen.mjs stop`,
-   print `Stopped listening.` and stop.
+6. print `Warming the voice…`; on `ready`, the greeting is the first speak
+   call, with the profile id from the `ready` line; if it errors, show its
+   first line, run `listen.mjs stop`, print `Stopped listening.` and stop.
 
 After each delivery, the skill's first act is to start the next `wait`. On
 every listener exit, whatever the reason, and on every stop the person asks
@@ -492,7 +553,8 @@ loop, "wait" halts.
 Node tests, run with a fake engine and a fake recorder that plays tones and
 silence, never recorded speech, on the runners S3 names:
 
-1. No file under `plugins/incantation/` names VoiceMode, `converse`, WSL,
+1. No file under `plugins/incantation/`, and not the incantation entry in
+   `.claude-plugin/marketplace.json`, names VoiceMode, `converse`, WSL,
    `parec`, `pactl` or a proxy, and the plugin's manifest and marketplace entry
    declare no dependency (W4).
 2. The listener reaches the engine only through the seam: a fake engine
@@ -502,9 +564,11 @@ silence, never recorded speech, on the runners S3 names:
 3. `guard.mjs` prints `ok` with valid settings, a fake engine on `127.0.0.1`
    and a fake recorder; it prints a fixed failure line and exits non-zero for
    each check in S5.6, including a fake engine on a stand-in non-loopback
-   address passed through its imported function, and an MCP entry for the
-   server with a non-loopback URL; no output holds an address, a path or a
-   value; it finishes within 2 s with every port timing out.
+   address passed through its imported function, an MCP entry for the
+   server with a non-loopback URL, a stdio entry, an entry at local scope and
+   one in the working folder's `.mcp.json`, and an unparsable MCP config that
+   holds a planted fake key; no output holds an address, a path, a value or
+   the planted key; it finishes within 2 s with every port timing out.
 4. The listener discards every frame from a fake `start` to `end` plus the
    tail, including an utterance another caller started; a turn open at
    `start` is dropped; a turn begun after `end` plus the tail is delivered and
@@ -524,44 +588,62 @@ silence, never recorded speech, on the runners S3 names:
    behave as 1.7's claim 19 said.
 10. The channel binds `127.0.0.1` only and refuses a connection on any other
     address; a connection with no token, a wrong one, or none within 2 s is
-    closed and holds no slot; a second waiter gets `busy`; a second `start`
+    closed and holds no slot; a second waiter gets `busy`; `ping` answers
+    `alive`, never the token, and takes no queued turn; a second `start`
     with a live listener exits `busy` and leaves it running; `listen.json` is
     deleted on every exit. On POSIX the state folder and files must be 0700 and
     0600 and a looser mode is refused; on every platform a link (POSIX) or
     junction (Windows) in place of the folder, or a real path outside home,
     fails closed.
-11. The listener exits within 1 s of its recorded parent ending, with a waiter
-    connected, and drops its queue; it exits after 5 minutes with no waiter,
+11. The listener exits within 1 s of its recorded parent ending, or of its
+    `process.ppid` changing while the recorded parent still looks alive, with
+    a waiter connected, and drops its queue; `wait` with no listener prints
+    `listener error ended`; it exits after 5 minutes with no waiter,
     on `stop` (which reaches it only through the channel, and after which its
     recorder child has exited, asserted on win32 too), and after 30 minutes
     with no turn.
 12. Incantation writes no audio and no heard text: after a turn, no file under
     the fixture home or temp folder holds either; `wait` prints each turn
-    cleaned and cut as S6 says; errors are fixed lines.
+    cleaned and cut as S6 says; errors are fixed lines, also for an
+    unparsable `listen.json` or settings file.
 13. The capture adapter picks each platform's row by a passed-in platform
     value, so every row runs on every runner; each row's device parser reads a
-    recorded listing (the Windows one with both `dshow` and `in#0` tags); a
+    made-up listing in that row's format, on the stream ffmpeg prints it to
+    (the Windows one with both `dshow` and `in#0` tags, on stderr); a
     recorder in the current folder, in the folder Claude Code started in, or
-    from a relative PATH entry is never run; a changed stamp ends the start
-    with `listener error device`; a pinned recorder whose real path changed is
-    refused.
+    from a relative PATH entry is never run; on macOS and Linux a recorder in
+    a group- or other-writable folder, or owned by another account, is
+    refused; a changed stamp ends the start with `listener error device`; a
+    pinned recorder whose real path changed is refused.
 14. `observe.mjs add` takes only an 8-hex name, reads only that inbox file,
     appends one line, deletes the file on every result, and refuses an
     unlisted key, an unknown kind or an unparsable line with nothing written;
     1.7's claim 24 holds for the rest, with its mode assertions on POSIX only.
 15. `tests/incantation-skill.test.mjs` fails if a skill file runs a script by a
-    path not under the skill base, builds a command holding heard text, a
-    spoken line, a profile name or a device name, reads the settings file, or
-    names an engine anywhere but through the speak-tool names and the README's
-    setup lines.
+    path not under the skill base, runs `setup.mjs`, builds a command holding
+    heard text, a spoken line, a profile name or a device name, reads the
+    settings file, or names an engine anywhere but through the speak-tool
+    names and the README's setup lines.
 16. `setup.mjs devices` prints only the stamp and index-and-name lines, never
     a path; `choose` refuses a stale stamp or an out-of-range index and writes
     a settings file whose every key is in range.
 17. The widened repo checks pass with the second marketplace entry and fail
     each widened rule's case under `plugins/incantation/` (1.7's claim 7).
+18. `engines/voicebox.mjs`, run against a fake server that speaks Voicebox
+    0.5.0's published interface (made-up replies in the schema's shapes):
+    `health()` reads `GET /health`; `transcribe()` sends one multipart `file`
+    part holding a WAV of the turn and returns the reply's `text`; `warm()`
+    calls `POST /models/load` and transcribes one second of silence;
+    `playback()` turns speak-start and speak-end events into `start` and
+    `end`, keeps no text or id, and errors when the stream ends or sends
+    something it cannot parse; every request goes to `127.0.0.1` at the
+    settings' port, and with `NODE_USE_ENV_PROXY=1` and `HTTP_PROXY` set to a
+    fake proxy, the proxy receives nothing. Its limit: the fake follows the
+    schema, not a recorded exchange, so the prototype (S9) is what checks it
+    against Voicebox itself.
 
 Eval cases, seven, budget $1 (W11), as 1.7's S6.1 with `converse` read as the
-speak tool: `no-speak-tool`, `guard-fails`, `greeting`, `spoken-style`,
+speak tool: `no-speak-tool` (#622's `no-converse`, renamed), `guard-fails`, `greeting`, `spoken-style`,
 `hear-back`, `typed-yes`, `lead-session`. `spoken-style` also grades `Listening,
 always on.` at start and `Stopped listening.` on a listener error line. Their
 tool-call parts move to the practice run, as 1.7 recorded.
@@ -594,20 +676,21 @@ device or profile names, or paths:
 ## S9. The 15-minute prototype, before the build (W2)
 
 The owner runs it on Windows 11; a session prepares it as throwaway scripts
-outside the repo, and the build waits for its results. Each check has its
-outcome:
+outside the repo. Under W13 it runs after the build, against it, before the
+practice run. Each check has its outcome, and the value the build uses until
+it runs:
 
-| Check | Pass | Fail |
-|---|---|---|
-| **F1, silent warm:** a Voicebox generation that plays nothing, after which the next speak's first sound comes within 2 s | the speech warm is used | the greeting is the speech warm (S5.3) |
-| **F2, playback feed:** route A, then B, reports every utterance from any caller, its start at or before the first sound, its end within 300 ms of the last; the measured delay sets the tail | that route is built | stop; the owner says how to go on (O1) |
-| **F3, the fast default:** time to first sound for each preset engine on a one-sentence line, warm | the fastest under 2 s is the default | the fastest is the default, and the miss goes to the owner |
-| **F4, capture:** ffmpeg records the chosen mic through `dshow`, and the list parses | built as S5.4 | stop |
-| **F5, mic released:** closing the session ends the listener's parent, and the mic-in-use indicator clears within 5 s | built as S6 | stop; the owner says how to go on |
-| **F6, wake while working:** a background command that ends wakes a working session, not only an idle one | built as S6 | stop and ask, as 1.7 did: heard "wait" could not halt work |
-| **F7, transcribe:** `POST /transcribe` with a WAV body from memory answers; its time; the model value; whether it leaves anything in Voicebox's history or captures | built; the README says what Voicebox keeps | stop |
-| **F8, names:** the speak tool's exact full names, its argument names, and that it takes a profile id | the engine table records them | the table records what is found, and the spec is corrected |
-| **F9, task output:** where Claude Code keeps a background command's output, which holds heard text | the README names the place | the README says it is unknown |
+| Check | Until run (the build) | Pass | Fail |
+|---|---|---|---|
+| **F1, silent warm:** `POST /models/load` plays nothing, and the next speak's first sound comes within 2 s | `warm()` calls it; the greeting is left out of the 2 s target | the greeting joins the target | `warm()` drops it; the greeting is the speech warm (S5.3) |
+| **F2, playback feed:** route A, then B, reports every utterance from any caller, its start at or before the first sound, its end within 300 ms of the last; the measured delay sets the tail | route A, from the schema's event names; tail 300 ms | that route is kept | route B is tried; with neither, stop; the owner says how to go on (O1) |
+| **F3, the fast default:** time to first sound for each preset engine on a one-sentence line, warm | the README names Kokoro | the README names the fastest under 2 s | the README names the fastest, and the miss goes to the owner |
+| **F4, capture:** ffmpeg records the chosen mic through `dshow`, and the list parses | built as S5.4, on made-up listings | kept | stop |
+| **F5, mic released:** closing the session ends the listener's parent, and the mic-in-use indicator clears within 5 s | built as S6 on fakes | kept | stop; the owner says how to go on |
+| **F6, wake while working:** a background command that ends wakes a working session, not only an idle one | built as S6 | kept | stop and ask, as 1.7 did: heard "wait" could not halt work |
+| **F7, transcribe:** `POST /transcribe` with a WAV `file` part from memory answers; its time; the default model; whether it leaves anything in Voicebox's history or captures | as S5.1; the README says what Voicebox keeps is unchecked | the README says what Voicebox keeps | stop |
+| **F8, names:** the speak tool's exact name and arguments as a session sees them, that `profile` takes an id, and whether a line can be kept out of Voicebox's history | `mcp__voicebox__voicebox_speak`, `text` and `profile` | kept; a history opt-out, if any, is used | the table is corrected, and so is the spec |
+| **F9, task output:** where Claude Code keeps a background command's output, which holds heard text | the README says it is unknown | the README names the place | the README says it is unknown |
 
 Results go on #208 as pass or fail and timings, with no device or profile
 names and no paths; the prototype deletes its scratch audio.
@@ -645,16 +728,22 @@ as chat.
 - **A web page and the speech engine.** A page in the person's browser
   reaching the engine's loopback API. 1.7's proxy held this; this change drops
   it, and no control in this change replaces it. It is open, for the owner
-  (O7). How the engine treats such a page is in a private note, kept out of
-  this record.
-- **The speak tool.** Only the engine's exact speak-tool names count, exactly
-  one must be present, and the guard refuses an MCP entry for it that is not
-  local (S5.6). Controls: those checks, and the harness's approval of a
-  project's MCP servers.
+  (O7). How the engine treats such a page will be in a private note, from a
+  private probe before O7 is decided (O9), kept out of this record. Its risk
+  grows with what Incantation puts into the engine's store, so O7 is decided
+  with F7's finding in hand, and the practice run waits for it. One effect is
+  Incantation's own: the listener mutes on every utterance from any caller,
+  so a page that made the engine speak would mute the mic and could hold it
+  muted.
+- **The speak tool.** Only the engine's exact speak-tool name counts, exactly
+  one must be present, and the guard accepts only the user-scope entry in the
+  README's form and refuses one at local or project scope under the same name
+  (S5.6). Controls: those checks, and the harness's approval of a project's
+  MCP servers. Its limit: config sources the guard does not read.
 - **The microphone, bystanders, and a microphone in every session:** as 1.7's
   S8, with the speak tool in place of `converse`, the token channel in place
-  of the socket, one listener at a time (S6), and the 5-minute no-waiter bound
-  in place of 1.7's start-time pin.
+  of the socket, one listener at a time (S6), and the parent and `ppid` checks
+  with the 5-minute no-waiter bound in place of 1.7's start-time pin (O8).
 - **The listener's reach.** It runs only the recorder pinned at setup and
   resolved again by the platform rule, never from the working folder or the
   environment, and only engines from the fixed table, with no shell, from the
@@ -669,10 +758,11 @@ The security pair runs on the diff at Test as well.
 
 ## S11. Rollback and stop
 
-- **Rollback:** remove the marketplace entry and `plugins/incantation/`; the
-  widened checks stay. On the person's machine, `listen.mjs stop`, and delete
-  `~/.incantation/`. Voicebox is untouched, since Incantation changes none of
-  its settings.
+- **Rollback:** the pull request is a draft and never merges, so main is
+  untouched; closing it is the rollback. On the person's machine,
+  `listen.mjs stop` first, then delete `~/.incantation/`, in that order, so
+  no listener is left without its file. Voicebox is untouched, since
+  Incantation changes none of its settings.
 - **Stop if:** any prototype check whose Fail column says stop (S9); the
   practice run shows a spoken yes starting a typed-yes act, the session
   hearing its own voice, or the mute starting after the first sound; the mic
@@ -700,6 +790,21 @@ The security pair runs on the diff at Test as well.
 
 ## S13. Files
 
+Every file is new to main. The ones that start from #622 (`6d7dec86`):
+
+| From #622 | State |
+|---|---|
+| the check widening: `scripts/check.mjs`, the two workflows, `athanor.json`, AGENTS.md's `scripts/` paragraph, `tests/check-plugins.test.mjs`, `tests/check-fixture.mjs`, `tests/check-manifests.test.mjs`, `tests/eval-budget.test.mjs`, `tests/registry.test.mjs` | kept |
+| CONTRIBUTING.md's suite line | rewritten: the new test files, not #622's launch and proxy tests |
+| `observe.mjs`, `tests/incantation-observe.test.mjs` | rewritten for the inbox file (S7.4) |
+| `lib.mjs` | rewritten: the state folder, settings and text cleaning; the VoiceMode settings reader goes |
+| `listen.mjs` | split: the gate and queue move to `gate.mjs` unchanged; the rest is rewritten for the seam and the channel |
+| `guard.mjs`, `SKILL.md`, `README.md`, `plugin.json`, the marketplace entry, the eval cases, `tests/incantation-skill.test.mjs`, `tests/incantation-helpers.mjs` | rewritten; `evals/no-converse/` becomes `evals/no-speak-tool/` |
+| `tuning.md` | kept |
+| `launch.mjs`, `proxy.mjs`, `tests/incantation-launch.test.mjs`, `tests/incantation-proxy.test.mjs` | dropped |
+
+The files:
+
 - `plugins/incantation/.claude-plugin/plugin.json`, its own version, no
   dependencies
 - `plugins/incantation/skills/incantation/SKILL.md`, through `contract`
@@ -716,7 +821,7 @@ The security pair runs on the diff at Test as well.
   Code keeps task output, as F9 finds); the allow rules that stay the owner's
   step (`listen.mjs wait`, `observe.mjs add`, and the write of observe inbox
   files)
-- tests: `tests/incantation-{gate,listen,guard,setup,capture,observe,skill}.test.mjs`,
+- tests: `tests/incantation-{gate,listen,guard,setup,capture,voicebox,observe,skill}.test.mjs`,
   a fake engine and a fake recorder, and #622's check-widening tests
 - the seven eval cases, `BUDGET` entry `incantation: 7`
 - `.claude-plugin/marketplace.json`, the second entry
@@ -725,21 +830,28 @@ The security pair runs on the diff at Test as well.
 
 ## S14. What needs the owner
 
-| Item | When |
-|---|---|
-| Read this spec back, and say go or not | before any build |
-| The 15-minute prototype on Windows 11 (S9, O6) | after the read-back; the build waits for it |
-| O7, the web-page path left open by dropping the proxy | before the build |
-| O4, the lead-session signal | before the build |
-| O2, the scope lines as shown | before the build |
-| O1, how to go on if F2 fails | only if it fails |
-| O5, the round-trip number; 2.5 s stands until then | before the practice run |
-| The practice run (S8) | after Test passes |
-| Allow rules for `listen.mjs wait`, `observe.mjs add` and the inbox write | the owner's own step, any time |
-| Sign-off on the files only the owner signs: `.github/workflows/`, `scripts/check.mjs`, `athanor.json`, AGENTS.md, the threat model | at any merge; #208 itself is never merged (W12) |
+Under W13 the build went ahead without these. Each row says what the build did
+in place of the owner's step, and when the step now comes.
 
-At Test, the QA pair runs on every ticket, the standards pair on the widened
-checks, and the security pair on the diff.
+| Item | Skipped; the build did instead | When now |
+|---|---|---|
+| Read this spec back, and say go or not | built it, with every pick below as a question in the pull request | the owner's review of the draft pull request |
+| The 15-minute prototype on Windows 11 (S9, O6) | used each check's "until run" value, all listed in the pull request | after the review, before the practice run |
+| O7, the web-page path left open by dropping the proxy | built no control and invented none; the pull request lists the path as open, with no detail | after F7, before the practice run |
+| O9, the private probe of how the engine treats a browser page | not run; no note exists yet | before O7 is decided, its results kept private |
+| O4, the lead-session signal | kept #622's rule: judged from the session's own record, refused when unsure; no head-chef change | at the review |
+| O8, the parent and `ppid` checks and the 5-minute bound in place of 1.7's start-time pin | built them | at the review |
+| O2, the scope lines as shown | left them as candidates | at the review |
+| O10, the practice run while both ambient classes are only candidates | nothing; the run waits | the owner's own words in chat, before the run |
+| O1, how to go on if F2 fails | nothing | only if it fails |
+| O5, the round-trip number | 2.5 s stands | before the practice run |
+| The practice run (S8) | skipped; there is no end-to-end evidence yet | after the prototype, O7 and O10 |
+| Allow rules for `listen.mjs wait`, `observe.mjs add` and the inbox write | none added; the README gives the exact patterns | the owner's own step, any time |
+| Sign-off on the files only the owner signs: `.github/workflows/`, `scripts/check.mjs`, `athanor.json`, AGENTS.md, the threat model | the draft changes the first four and leaves the threat model alone | at any merge; #208 itself is never merged or marked ready (W12, W13) |
+
+At Test, the QA pair runs on every ticket, the security pair on the diff, and
+the standards pair on the widened checks if the owner takes it as a third
+pair. behaviour-lens waits for Test.
 
 ## Open
 
@@ -748,14 +860,19 @@ checks, and the security pair on the diff.
 - **O2.** The scope lines as S10 shows them.
 - **O3.** Who runs a real-mic practice run on macOS or Linux, if anyone;
   until then both stay claimed.
-- **O4.** The lead-session signal (1.7's O14): head-chef gains a readable lead
-  marker, or the build stops and asks. The owner's answer is needed before
-  the build.
+- **O4.** The lead-session signal (1.7's O14): keep the build's rule (the
+  session's own record, refused when unsure), or head-chef gains a readable
+  lead marker.
 - **O5.** The round-trip target, 2.5 s for the speech side (1.7's O17): the
   owner's own number; 2.5 s stands until then.
-- **O6.** The 15-minute prototype's time on the owner's machine (W2).
+- **O6.** The 15-minute prototype's time on the owner's machine (W2, W13).
 - **O7.** The web-page path to the speech engine, open since the proxy is
   dropped (S4, S10).
+- **O8.** The session binding: the parent and `ppid` checks and the 5-minute
+  no-waiter bound, in place of 1.7's start-time pin (S6).
+- **O9.** The private probe behind O7 (S10).
+- **O10.** Whether the practice run goes ahead while the two ambient classes
+  stay candidates, since #208 never merges (S10).
 
 One rule holds for every session on this work: no third-party weakness detail
 goes in the spec, the README, the threat model, a commit, the pull request, a
