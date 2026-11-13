@@ -1019,15 +1019,48 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   (`minVoiceMs`, raised from 250): a spoken "yes" holds about 200 to 350 ms of
   voice, so the gate dropped it as a fragment before transcription, and the
   one-word yes was the only yes the rule accepted. The loosened wording above
-  does not help a yes that never arrives. Proposed with it: a turn marked
-  `(after reply)` needs only 150 ms of voice (`minVoiceAfterReplyMs`), so the
-  say-back's answer survives, while a turn with no reply before it keeps 400
-  ms; the text filter (silence phrases, fillers) still drops a breath or a
-  sound tag that gets through. Not measured: the real length of the owner's
-  "yes", which only a trace on their machine shows, and whether the 150 ms
-  floor lets a cough or a click start a turn after a reply (a claim for the
-  build: a scripted 200 ms tone after a reply is delivered, and after no reply
-  is dropped). The drop is silent today: it is not counted in a notice.
+  does not help a yes that never arrives. The drop is silent today: it is not
+  counted in a notice.
+
+  **Reworked, on the owner's word** (issue 208, relayed from their chat, 2026-11-13:
+  "We are being aggressive with that part there. We should loosen it by a lot...
+  rely more on what the user would use for noise cancelling"). The gate stops
+  being the main noise filter; the person's own noise cancelling (NVIDIA
+  Broadcast, a headset's, the OS's) is. For every turn, after a reply or not:
+  - `minVoiceMs` 400 becomes 120, a little under a clipped "yes" at its
+    shortest. T5's value was a guess against a noisy room, and the owner's
+    room has a canceller in front of the mic.
+  - `voiceDb` 10 becomes 6 and `minVoiceDbfs` -45 becomes -55, so a quiet word
+    counts as voice. The relative test and the floor stay, since a canceller
+    that gates to digital silence makes a breath at -55 dBFS very rare but
+    leaves the floor near zero.
+  - `silenceMs`, `joinMs` and the joiner stay. What stays as the last filter is
+    the text filter (T5: silence phrases, fillers, sound tags), which now sees
+    more turns, and the stop-word and mute-word rules.
+  - The values are starting points in `KNOBS`, each a number the person can
+    change; the skill's tuning.md names them and says what a louder room needs
+    (raise them again, or turn the canceller on).
+  The yes rule above stays coupled to this: the yes can only count if the gate
+  lets it through, so T17 is both halves or neither. An `(after reply)`-only
+  floor is no longer proposed; the lower floor is for every turn.
+
+  What it costs, named: a cough, a click or a room's speech that the canceller
+  lets through opens a turn, is transcribed (up to 15 s of STT each, with
+  three failures ending the listener), and, if its text is not a silence
+  phrase or filler, reaches the session as chat and so the model provider. That
+  is the same path as any heard turn, at a higher rate in a noisy room; the
+  README's line about telling people within the mic's reach stands and gets
+  one sentence on it. The queue limit (4 a minute, 20 held) bounds what a
+  noisy room can push in.
+
+  Not measured, and not to be claimed before it is: the length of the owner's
+  real "yes" (a trace of the levels file on their machine; the gate's own
+  frames count it), the false-turn rate at 120 ms, -55 dBFS and 6 dB in the
+  owner's room with Broadcast on and with it off, and the STT time per short
+  turn on Voicebox. Claims for the build: a scripted 150 ms tone is a turn
+  after a reply and after none; a 60 ms click is dropped; a headset-quiet room
+  at -70 dBFS opens no turn; the numbers sit in `KNOBS` and tuning.md; and a
+  practice run on the owner's machine reports turns per minute at rest.
 
 ## Open
 
