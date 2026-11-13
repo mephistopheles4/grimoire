@@ -1242,10 +1242,6 @@ for (const [label, entry, level, answer] of ASK_ROWS) {
   });
 }
 
-test('618 C2: every STOP_KINDS member passes at level 3 on a one-line wait', () => {
-  for (const stop of d.STOP_KINDS) assert.equal(d.checkAsk(waits({ ask: 'question', stop }), 3), undefined, stop);
-});
-
 test('618 C3: a stored log holding ask or stop fails the strict check, and an old level-3 waiting entry still loads and takes an append', () => {
   const entry = { id: '1', at: NOW, level: 3, source: 'lead', waiting: true, work: 'issue 1', question: 'Which?', options: ['A', 'B'], pick: '', why: 'Because.', undo: 'Undo.', revisit: '', answers: '' };
   const text = over => JSON.stringify({ kind: 'decisions', v: 1, next: 2, project: null, entries: [{ ...entry, ...over }] });

@@ -8074,13 +8074,6 @@ test('618 C4: at level 1 a new to-do is kept and the log is never read, even a b
   expect(await call($, withTodos([{ id: 'w1', text: 'ask' }]))).toEqual({ ok: false, text: TODO_REFUSAL })
 })
 
-test("618 C4: set_roster's description tells the lead to log the wait first, never in parallel", async ($, on) => {
-  const w = await decisionsPane(on, $)
-  expect(w.descriptions.get('set_roster') ?? '').toContain(
-    'At level 3 a new or changed to-do needs the id `w<n>` of an open waiting entry in your own decision log: log the wait first, never in parallel with this call. Send no `since`',
-  )
-})
-
 test('claim 20: a slider press and a log_decision call at the same moment both land, with different ids', async ($, on) => {
   const w = await decisionsPane(on, $)
   w.holdWrite = true

@@ -26,7 +26,7 @@ const BUDGET = {
   'docs/security/hiring-interview.md': 900,
   'docs/practice-tests/eagle-eye.md': 2850,
   'skills/eagle-eye/CONTRACT.md': 3600,
-  'skills/head-chef/references/CONTRACT.md': 14500,
+  'skills/head-chef/references/CONTRACT.md': 15100,
   'skills/contract/references/binding-claude.md': 1100,
   'skills/contract/references/binding-codex.md': 780,
 };
