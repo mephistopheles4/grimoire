@@ -44,6 +44,7 @@ test('claim 1: the check fails on each name it forbids', () => {
 const ALLOWED = [
   /^guard\.mjs$/,
   /^listen\.mjs (start|wait|stop|idle|mute|unmute)$/,
+  /^listen\.mjs say <8 hex>$/,
   /^observe\.mjs add <8 hex>$/,
   /^observe\.mjs freeze <n>$/,
   /^setup\.mjs (devices|profiles)$/,
@@ -80,6 +81,8 @@ test('claim 15: the check fails on each thing it forbids', () => {
   assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs reset`').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/observe.mjs add "the build is green"`').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say hello`').length, 1);
+  assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say <8 hex>`').length, 0, 'T18: the line is in a file the session wrote, never in the command');
+  assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs say "Got it"`').length, 1);
   assert.equal(claim15('x', 'cat ~/.grimoire/incantation/settings.json').length, 1);
   assert.equal(claim15('x', 'use the kokoro engine').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs wait`').length, 0);
@@ -105,13 +108,15 @@ test('every script and reference the skill names exists', () => {
   }
 });
 
-test('the speak tool is the one exact name, passed text and profile only, one line at a time', () => {
-  assert.match(text, /named exactly `mcp__voicebox__voicebox_speak`/);
-  assert.match(text, /No other name counts/);
-  assert.match(text, /passing `text` and `profile`/);
-  assert.match(text, /Never listen through Voicebox/);
+test('T18: the session speaks through the listener, the line in a file it wrote and never in a command, one line at a time', () => {
+  assert.doesNotMatch(text, /voicebox_speak|mcp__voicebox|claude mcp add/, 'no Voicebox tool and no MCP registration');
   const speaking = section('## Speaking', '## Hearing');
-  assert.match(speaking, /Before every speak call, run\s+`node <skill base>\/scripts\/listen\.mjs idle`/, 'T12');
+  assert.match(speaking, /so the words never pass through a command/);
+  assert.match(speaking, /write the one line to a new file,\s+`~\/\.grimoire\/incantation\/observe\/say-<8 hex>\.txt`/);
+  assert.match(speaking, /`node <skill base>\/scripts\/listen\.mjs say <8 hex>`/);
+  for (const reply of ['speaking', 'say-refused', 'say-busy', 'say-failed', 'say-no-player']) assert.ok(speaking.includes(`\`${reply}\``), reply);
+  assert.match(speaking, /Never speak through Voicebox's own tools/);
+  assert.match(speaking, /Before every say, run\s+`node <skill base>\/scripts\/listen\.mjs idle`/, 'T12');
   assert.match(speaking, /One fact per turn/, 'T7');
   assert.match(speaking, /then an offer of the next/, 'T7');
 });
@@ -119,13 +124,22 @@ test('the speak tool is the one exact name, passed text and profile only, one li
 test('the guard runs before the listener, the first wait before the greeting, and the signs are printed', () => {
   const start = section('## Start', '## Speaking');
   const at = word => start.indexOf(word);
-  assert.ok(at('**Who asked.**') > 0 && at('**Speak tool.**') > at('**Who asked.**') && at('**Setup check.**') > at('**Speak tool.**') && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
+  assert.equal(at('**Speak tool.**'), -1, 'T18: no Voicebox speak tool to look for');
+  assert.ok(at('**Who asked.**') > 0 && at('**Setup check.**') > at('**Who asked.**') && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
   assert.match(start.slice(at('**First wait.**')), /Print `Listening, always on\.`/);
   assert.match(start.slice(at('**Greeting.**')), /Print `Warming the voice…`/);
   assert.match(start.slice(at('**Greeting.**')), /print `Stopped listening\.`/);
   assert.match(text.slice(text.indexOf('## Stop')), /whenever the listener's background command ends,\s+print `Stopped listening\.`/);
   assert.match(start, /Start only on the person's own typed words in this chat/);
-  assert.match(text, /its delivery says `plays 1`/);
+  assert.match(text, /`plays <n>` must\s+equal the number of lines you had the listener say since the last delivery/, 'T17');
+});
+
+test('T17: a yes may start a turn, with an equivalent opening and none of the voiding words; it covers the say-back only', () => {
+  const requests = section('## Requests', '## Heard while working');
+  assert.match(requests, /starts with "yes" or\s+an equivalent \("go ahead", "do it", "okay do it", "sounds good"\)/);
+  assert.match(requests, /none of\s+the words no, not, don't, wait, stop, but, instead or actually/);
+  assert.match(requests, /The yes covers the\s+say-back's request and nothing more/);
+  assert.doesNotMatch(requests, /only "yes" is a yes|whole of a turn/, 'the one-word rule is gone');
 });
 
 test('T3 and T4: no lead-session refusal and no typed-yes list; the heard-is-not-typed rule stays', () => {
@@ -142,17 +156,17 @@ test('T6: a request that changes nothing is acknowledged and then done; one that
   assert.match(requests, /Then do the work, then\s+answer/);
   assert.match(requests, /Never end a say-back with the\s+word "yes"/);
   assert.match(requests, /Act only on a yes/);
-  assert.match(requests, /no `interrupted` came with it/);
+  assert.match(requests, /no `interrupted` may have come with it/);
 });
 
 test('the next wait is the first act after each delivery, and nothing but the wait and the idle check comes before the answer', () => {
   assert.match(text, /Your first act after that is to start\s+the next `listen\.mjs wait`/);
-  assert.match(text, /you make no other tool call before\s+it except the next `listen\.mjs wait` and the\s+`listen\.mjs idle`/);
+  assert.match(text, /you make no other tool call before\s+them except the next `listen\.mjs wait`, the `listen\.mjs idle` before the say, and\s+the file write and `listen\.mjs say` that make it/);
 });
 
 test('T8, T11 and T14: the notices the listener sends are the ones the skill reads', () => {
   const hearing = section('## Hearing', '## Requests');
-  for (const line of ['interrupted', 'mic-muted', 'mic-unmuted', 'quiet <n>', 'stt-dropped', 'dropped <n>', 'listener error waiting']) assert.ok(hearing.includes(line), line);
+  for (const line of ['interrupted', 'mic-muted', 'mic-unmuted', 'quiet <n>', 'stt-dropped', 'say-failed', 'dropped <n>', 'listener error waiting']) assert.ok(hearing.includes(line), line);
   assert.doesNotMatch(hearing, /`muted` means something is\s+playing/);
   assert.match(hearing, /Never mute it/);
   assert.match(hearing, /The mic stays open while you speak/);

@@ -12,13 +12,11 @@ import { performance } from 'node:perf_hooks';
 // of it work (W13). Each value names the prototype check that confirms it
 // (S9). The pull request lists them all.
 export const VALUES = Object.freeze({
-  speakTool: { value: 'mcp__voicebox__voicebox_speak', args: ['text', 'profile'], verified: false, check: 'F8' },
-  mcpForm: { value: 'user scope, http, http://127.0.0.1:<port>/mcp', verified: false, check: 'F8' },
   health: { value: 'GET /health', verified: false, check: 'F7' },
   transcribe: { value: 'POST /transcribe, multipart, one WAV part named file, default model', verified: false, check: 'F7' },
   playback: { value: 'GET /events/speak, server-sent events speak-start and speak-end (route A)', verified: false, check: 'F2' },
   tailMs: { value: 300, verified: false, check: 'F2' },
-  cancel: { value: 'POST /generate/<id>/cancel, the id from the speak-start event', verified: false, check: 'T8' },
+  synthesize: { value: 'POST /generate/stream with {profile_id, text, language, engine}: a WAV back, PCM 16-bit mono 24 kHz, and no speak events (a probe on one machine, 2026-11-13: silent, 147 ms to the first byte for 12 s of audio)', verified: false, check: 'F2' },
   speechWarm: { value: 'none: the greeting is the speech warm', verified: false, check: 'F1' },
 });
 
@@ -26,6 +24,7 @@ const HOST = '127.0.0.1';
 const RATE = 16_000;
 const MAX_REPLY = 1_000_000;
 const MAX_LINE = 64 * 1024;
+const MAX_WAV = 12 * 1024 * 1024; // a reply of about four minutes at 24 kHz, 16-bit, mono
 
 export function wavHeader(dataLength) {
   const h = Buffer.alloc(44);
@@ -46,7 +45,7 @@ export function wavHeader(dataLength) {
 }
 
 // One request to Voicebox. Resolves { status, body } or null on any failure.
-function call(port, { method, path, headers = {}, body, timeoutMs = 15_000 }) {
+function call(port, { method, path, headers = {}, body, timeoutMs = 15_000, maxBytes = MAX_REPLY }) {
   return new Promise(resolve => {
     const agent = new Agent({ keepAlive: false });
     const req = request({ host: HOST, port, path, method, agent, timeout: timeoutMs, headers: { host: `${HOST}:${port}`, ...headers } }, res => {
@@ -54,10 +53,10 @@ function call(port, { method, path, headers = {}, body, timeoutMs = 15_000 }) {
       let size = 0;
       res.on('data', c => {
         size += c.length;
-        if (size <= MAX_REPLY) chunks.push(c);
+        if (size <= maxBytes) chunks.push(c);
         else req.destroy();
       });
-      res.on('end', () => resolve(size <= MAX_REPLY ? { status: res.statusCode, body: Buffer.concat(chunks) } : null));
+      res.on('end', () => resolve(size <= maxBytes ? { status: res.statusCode, body: Buffer.concat(chunks) } : null));
       res.on('error', () => resolve(null));
     });
     req.on('timeout', () => req.destroy());
@@ -77,8 +76,9 @@ const parseJson = buf => {
 
 // The engine's speech-event feed: `start` and `end` with a time and the
 // generation's id when the event names one, `error` when the stream fails. The
-// id stays in memory, for a barge-in to cancel (T8); it is never printed or
-// kept. Unknown events are skipped; text and voice are dropped as they arrive.
+// id stays in memory and is never printed or kept. Unknown events are skipped;
+// text and voice are dropped as they arrive. The listener counts these events
+// for replies other callers speak through Voicebox itself (T18).
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const idOf = data => {
   const id = parseJson(Buffer.from(data || '{}'))?.generation_id;
@@ -149,7 +149,8 @@ function speakFeed(port) {
 // timeoutMs bounds one transcription; warmMs bounds the first, which loads the
 // model and can take tens of seconds on a cold start (W6). The listener bounds
 // the warm again with its own warmMs.
-export function makeEngine({ port, timeoutMs = 15_000, warmMs = 60_000 }) {
+export function makeEngine({ port, profile, timeoutMs = 15_000, warmMs = 60_000, speakMs = 60_000, maxWavBytes = MAX_WAV }) {
+  let voice = null; // the profile's engine and language, once read
   const transcribe = async (pcm, limit = timeoutMs) => {
     const boundary = `----incantation${Date.now().toString(16)}${Math.floor(Math.random() * 1e9).toString(16)}`;
     const body = Buffer.concat([
@@ -165,13 +166,6 @@ export function makeEngine({ port, timeoutMs = 15_000, warmMs = 60_000 }) {
   };
   return {
     name: 'voicebox',
-    mcpServer: 'voicebox',
-    speakTools: [VALUES.speakTool.value],
-    speakArgs: VALUES.speakTool.args,
-    mcpUrl: `http://${HOST}:${port}/mcp`,
-    // The one header the entry may carry: Voicebox's own setup adds a client id.
-    // The guard checks its name only and never reads or prints its value.
-    mcpHeaders: ['x-voicebox-client-id'],
     host: HOST,
     port,
     capture: 'ffmpeg',
@@ -199,14 +193,28 @@ export function makeEngine({ port, timeoutMs = 15_000, warmMs = 60_000 }) {
       if (text === null) throw new Error('warm');
       return Math.round(performance.now() - began);
     },
-    // A person talking over a reply cuts it off (T8): the generation Voicebox
-    // reports as speaking is cancelled. Voicebox has no stop-playback call, so
-    // this is the one it has; true when it answered 200.
-    async cancel(id) {
-      if (typeof id !== 'string' || !ID.test(id)) return false;
-      const res = await call(port, { method: 'POST', path: `/generate/${id}/cancel`, timeoutMs: 2000, headers: { accept: 'application/json', 'content-length': 0 } });
-      return !!res && res.status === 200;
+    // A reply as audio (T18): the WAV for `text` in the settings' profile, from
+    // the route that generates without playing. The text goes in a JSON body and
+    // nowhere else. The engine to ask for is the profile's own, read once from
+    // /profiles and kept: Voicebox refuses a preset profile on any other. Null
+    // when anything fails, so a caller never plays what is not a WAV.
+    async synthesize(text) {
+      if (typeof text !== 'string' || !text) return null;
+      if (!voice) {
+        const res = await call(port, { method: 'GET', path: '/profiles', headers: { accept: 'application/json' } });
+        const list = res?.status === 200 ? parseJson(res.body) : null;
+        const p = Array.isArray(list) ? list.find(x => x && x.id === profile) : null;
+        const kind = p && (typeof p.preset_engine === 'string' ? p.preset_engine : p.default_engine);
+        if (typeof kind !== 'string' || !kind) return null;
+        voice = { engine: kind, language: typeof p.language === 'string' && p.language ? p.language : 'en' };
+      }
+      const body = Buffer.from(JSON.stringify({ profile_id: profile, text, language: voice.language, engine: voice.engine }), 'utf8');
+      const res = await call(port, { method: 'POST', path: '/generate/stream', body, timeoutMs: speakMs, maxBytes: maxWavBytes, headers: { 'content-type': 'application/json', 'content-length': body.length, accept: 'audio/wav' } });
+      if (!res || res.status !== 200 || res.body.length < 44 || res.body.toString('latin1', 0, 4) !== 'RIFF') return null;
+      return res.body;
     },
+    // Replies that other callers speak through Voicebox itself still show on this
+    // feed; the listener counts them, and no more (T18).
     playback: () => speakFeed(port),
   };
 }

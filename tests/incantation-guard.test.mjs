@@ -35,7 +35,7 @@ function fixture({ settings = {}, claude, project } = {}) {
   return { home, projectDir, remove: () => (rmSync(home, { recursive: true, force: true }), rmSync(projectDir, { recursive: true, force: true })) };
 }
 
-const engine = (over = {}) => ({ mcpServer: 'voicebox', mcpUrl: URL_OK, mcpHeaders: ['x-voicebox-client-id'], health: async () => true, ...over });
+const engine = (over = {}) => ({ health: async () => true, ...over });
 
 const guard = (f, over = {}) =>
   runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, engine: engine(), addresses: () => [], ...over });
@@ -60,14 +60,6 @@ test('each check fails with its fixed line and no value', async t => {
     [{ settings: { engine: '../../evil' } }, {}, 'settings'],
     [{}, { engine: engine({ health: async () => false }) }, 'health'],
     [{}, { addresses: () => ['192.0.2.10'], tcpOpen: async () => true }, 'reach'],
-    [{ claude: { mcpServers: { voicebox: { type: 'http', url: 'http://192.0.2.10:17493/mcp' } } } }, {}, 'mcp'],
-    [{ claude: { mcpServers: { voicebox: { type: 'stdio', command: '/usr/bin/bridge', args: [] } } } }, {}, 'mcp'],
-    [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: { '/some/project': { mcpServers: { voicebox: { type: 'http', url: URL_OK } } } } } }, {}, 'mcp'],
-    [{ project: { mcpServers: { voicebox: { type: 'http', url: URL_OK } } } }, {}, 'mcp'],
-    [{ claude: { mcpServers: {} } }, {}, 'mcp'],
-    [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { Authorization: 'made-up' } } } } }, {}, 'mcp'],
-    [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { 'X-Voicebox-Client-Id': 'made-up', Host: 'elsewhere' } } } } }, {}, 'mcp'],
-    [{ claude: `{"mcpServers": {"other": {"headers": {"Authorization": "${PLANTED}"` }, {}, 'mcp'],
     [{ settings: { recorder: win ? 'C:\\elsewhere\\ffmpeg.exe' : '/elsewhere/ffmpeg' } }, {}, 'recorder'],
     [{}, { pathValue: '' }, 'recorder'],
   ];
@@ -97,10 +89,13 @@ test('it finishes within 2 s with every port timing out', async t => {
   assert.equal(line, LINES.late);
 });
 
-test('a Claude Code config past our own 1 MB file cap is still read', async t => {
-  const f = fixture({ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: {}, padding: 'x'.repeat(2_000_000) } });
-  t.after(f.remove);
-  assert.equal(await guard(f), 'ok');
+test('T18: the guard no longer asks for a voicebox MCP registration, and never reads Claude Code\'s own config', async t => {
+  for (const claude of [{ mcpServers: {} }, 'not json at all ' + PLANTED, { mcpServers: { voicebox: { type: 'stdio', command: '/usr/bin/bridge' } } }]) {
+    const f = fixture({ claude });
+    assert.equal(await guard(f), 'ok', 'the session speaks through the listener now, so the MCP entry is not its business');
+    f.remove();
+  }
+  assert.equal(LINES.mcp, undefined);
 });
 
 // A link in place of the state folder: a junction on Windows, a symlink elsewhere.
@@ -175,10 +170,4 @@ test('the command line exits 1 on a failed check, and prints only its fixed line
   const r = await new Promise(res => execFile(process.execPath, [GUARD], { cwd: home, env: { HOME: home, USERPROFILE: home, PATH: '' }, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res({ code: e ? e.code : 0, stdout })));
   assert.equal(r.code, 1);
   assert.ok(Object.values(LINES).includes(r.stdout.trimEnd()), r.stdout);
-});
-
-test("the entry may carry Voicebox's own client-id header, and no other", async t => {
-  const f = fixture({ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { 'X-Voicebox-Client-Id': 'made-up-client' } } }, projects: {} } });
-  t.after(f.remove);
-  assert.equal(await guard(f), 'ok');
 });

@@ -184,7 +184,7 @@ An engine module exports:
 
 | Export | Does | Voicebox's version |
 |---|---|---|
-| `speakTools` | the exact full MCP tool names the session may call to speak, and the argument names it passes | `mcp__voicebox__voicebox_speak` only, with `text` and `profile` (the profile id) |
+| `speakTools` (replaced by T18: the listener plays) | the exact full MCP tool names the session may call to speak, and the argument names it passes | `mcp__voicebox__voicebox_speak` only, with `text` and `profile` (the profile id) |
 | `mcpServer` | the server name the README registers, and the one form the guard accepts for it | `voicebox`, at user scope, `http` transport, URL `http://127.0.0.1:<port>/mcp` |
 | `host`, `port` | where the engine answers | the literal `127.0.0.1`, never `localhost`; port 17493 unless the settings name another; nothing else changes either, and no proxy setting is read (S6) |
 | `warm()` | loads the speech and transcription models, and resolves with the time it took | S5.3 |
@@ -378,7 +378,7 @@ it, S6). One top-level handler in each script turns every error, a JSON
 parse error included, into its fixed line, so no message that quotes file
 content reaches a session.
 
-The skill checks the speak tool itself: exactly one of the engine's
+(Replaced by T18: no speak tool is looked for.) The skill checks the speak tool itself: exactly one of the engine's
 `speakTools` is present. None: it prints the README's Voicebox setup lines
 and stops, with no other tool call. More than one: it says so and stops.
 
@@ -488,7 +488,7 @@ speaks nothing:
    heard turn; and refuse in a session that leads a brigade, judged from the session's own
    record, as #622's skill did: when unsure, treat it as a lead and refuse.
    No head-chef change is made (O4);
-2. exactly one speak tool is present (S5.6), else the README's setup lines;
+2. (T18: dropped; no speak tool is looked for.) exactly one speak tool is present (S5.6), else the README's setup lines;
 3. `node <skill base>/scripts/guard.mjs`; unless it prints `ok`, show its line
    and stop;
 4. `node <skill base>/scripts/listen.mjs start` as a background command; on a
@@ -897,7 +897,7 @@ line here and an earlier section differ, this section holds. Item 15 (check
 for a newer turn before acting) is deferred by the owner as a later polish.
 
 - **T1. `/incantation install`** runs the whole setup in the chat: devices,
-  voices, save, the MCP registration after a typed yes, an optional status
+  voices, save, (T18: no MCP registration now) an optional status
   line entry. The person types the microphone number and the voice id; a
   heard turn picks nothing. This changes S5.5's rule that device and profile
   names stay out of the session: they now appear in the chat during install,
@@ -1061,6 +1061,68 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   after a reply and after none; a 60 ms click is dropped; a headset-quiet room
   at -70 dBFS opens no turn; the numbers sit in `KNOBS` and tuning.md; and a
   practice run on the owner's machine reports turns per minute at rest.
+
+- **T17 build status.** Built with T18, both halves: the gate numbers above are
+  in `KNOBS` (`voiceDb` 6, `minVoiceDbfs` -55, `minVoiceMs` 120), and the skill's
+  yes rule is the one above, with the count taken against the session's own
+  `say` calls. The owner's yes to the build was relayed through the lead; it is
+  quoted on issue 208. The unmeasured items above stay unmeasured.
+- **T18. The listener plays the replies (the owner's word, issue 208, relayed:
+  "Yes, build (d)").** Barge-in (T8) did not work in the trial: the owner could
+  not interrupt. The cause was measured: Voicebox's `speak-end` event fires
+  0.1 to 0.9 s after `speak-start`, not at the end of the audio (history: audio of
+  10.5, 13.85 and 17.1 s against events at 0.86, 0.2 and 0.19 s), so the listener
+  believed nothing was playing, and Voicebox 0.5.0 has no stop-playback route.
+  Option (d), chosen: Voicebox generates and the listener plays.
+  - **The route.** `POST /generate/stream` with `{profile_id, text, language,
+    engine}` (engine and language are the profile's own, read once from
+    `GET /profiles`) answers a WAV (PCM 16-bit mono 24 kHz in the probe) and plays
+    nothing, adds no feed event and, in that probe, no History entry. The probe ran
+    once, on Kokoro, 582,044 bytes in 150 ms. Not measured: other engines
+    (qwen's generation speed), long lines, other Voicebox versions.
+  - **The player.** `scripts/player.mjs`: `ffplay` in the folder of the pinned
+    recorder, audio on its stdin (`-nodisp -autoexit -loglevel quiet -i pipe:0`);
+    else a system player from a file: `/usr/bin/afplay`, `/usr/bin/paplay`,
+    `/usr/bin/aplay -q`, Windows PowerShell's `SoundPlayer` with the file's path
+    in an environment variable. No shell is used and the text never reaches it.
+    The file, mode 0600, lives in the run folder and goes when the reply ends, is
+    cut or fails. With no player, `say-no-player`.
+  - **The command.** The session writes the line to
+    `~/.grimoire/incantation/observe/say-<8 hex>.txt` with its file tool and runs
+    `listen.mjs say <8 hex>`. The command reads that one file (a plain file, no
+    link, at most 3,200 bytes), deletes it whatever happens and sends it over the
+    channel as `say <token> <byte count>` and the bytes. The words are never in a
+    command (claim 15 holds). One fixed line comes back: `speaking` once the
+    player has started, `say-refused` (empty, over 800 characters, or the file
+    unreadable), `say-busy` (three queued), `say-failed`, `say-no-player`.
+  - **What the listener owns.** Start and end of each reply, so the status word,
+    `plays`, the gate's playback mark and `idle` (T12) follow the real audio.
+    Talking over a reply (360 ms of voice, as T8) ends the player, drops what is
+    queued, and the next delivery says `interrupted`. A reply that fails after it
+    started rides in the next delivery as `say-failed`. A muted mic does not stop
+    the session speaking. Voicebox's own speak events now only count a reply
+    another caller spoke (`plays`), and never set the playing state.
+  - **Controls changed.** The guard no longer asks for the `voicebox` MCP
+    registration, and install no longer offers `claude mcp add`; S5.6's MCP check
+    is gone, so the listener never reads Claude Code's config. The skill no longer
+    looks for a speak tool and the `no-speak-tool` eval is removed. The session
+    holds no Voicebox tool and the guard checks none. The README says Voicebox's
+    tools are not needed. This drops a control and the owner signs it.
+  - **Replaces.** S5.1's `speakTools` and its cancel route, S5.2's use of the
+    speak events as the end of playback, T8's cancel call, T1's MCP registration,
+    S7.1's speak-tool step and S7.2's single speak call.
+  - **Not measured.** Time from `say` to the first sound on the owner's machine;
+    whether `ffplay -i pipe:0` on a pipe plays at once; how fast it stops when
+    killed; the fallback players on a real macOS or Linux (the unit tests use
+    fakes); whether a person's headset noise cancelling hears the player's own
+    sound as speech (it will, on speakers: use a headset).
+  - **Claims for the build.** A say plays through the player and is `speaking`;
+    the status word, `plays` and `idle` follow the player; talking over it kills
+    the player, drops the queue and says `interrupted`; a failed player or
+    synthesis says `say-failed` or `say-no-player`; the command refuses an
+    argument and deletes its file; no value is printed; each is a test in
+    `tests/incantation-listen.test.mjs`, `-player` and `-voicebox`, and the skill's
+    wording is held by `tests/incantation-skill.test.mjs`.
 
 ## Open
 

@@ -7,10 +7,12 @@
 //   node listen.mjs mute    the person's mic mute (T11); unmute undoes it
 //   node listen.mjs idle    returns once no reply is playing (T12)
 //   node listen.mjs status  prints listening, hearing, thinking, speaking or muted
+//   node listen.mjs say <8 hex>  speaks the text in observe/say-<8 hex>.txt, in the person's voice (T18)
 //
-// It reaches the engine only through the seam (S5): playback() to learn when a
-// reply plays, cancel() to cut one off, and transcribe() for each turn, in
-// memory, on 127.0.0.1. The mic is never muted by the session: only the person
+// It reaches the engine only through the seam (S5): synthesize() for each reply,
+// which it plays itself through a player it owns (so it knows when a reply
+// starts and ends, and can kill it), playback() to count replies that other
+// callers speak, and transcribe() for each turn, in memory, on 127.0.0.1. The mic is never muted by the session: only the person
 // mutes it, by voice or through the channel (T11). It writes no audio and no
 // heard text to any file or log. Its status file holds one fixed word. Every
 // line it prints is fixed text, or the heard text a waiter asked for.
@@ -26,8 +28,9 @@ import { pathToFileURL } from 'node:url';
 import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
-import { checkFile, commandPath, levelsPath, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
+import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
 import { Meter, levelsLine } from './meter.mjs';
+import { makePlayer } from './player.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -102,7 +105,7 @@ const WAIT_LINE = new RegExp(
     '|plays \\d{1,4}',
     '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
     '|dropped \\d{1,4}',
-    '|stt-dropped|mic-muted|mic-unmuted|interrupted|quiet \\d{1,4}|stopped',
+    '|stt-dropped|say-failed|mic-muted|mic-unmuted|interrupted|quiet \\d{1,4}|stopped',
     `|listener error (?:${REASONS.join('|')})`,
     ')$',
   ].join(''),
@@ -113,6 +116,32 @@ export const waitLines = out =>
     .filter(l => WAIT_LINE.test(l))
     .map(l => `${l}\n`)
     .join('');
+
+// One `say` on the channel: `say <token> <byte count>` and then that many bytes
+// of UTF-8 text. Resolves the listener's one fixed line, or null when nothing
+// answers. The text goes to the listener in memory, over 127.0.0.1, and nowhere else.
+export const SAY_REPLIES = ['speaking', 'say-failed', 'say-refused', 'say-busy', 'say-no-player'];
+function sendSay(channel, text, timeoutMs = 0) {
+  return new Promise(resolve => {
+    if (!channel) return resolve(null);
+    const body = Buffer.from(String(text), 'utf8');
+    if (body.length > 99_999) return resolve('say-refused\n');
+    const socket = connect({ host: '127.0.0.1', port: channel.port });
+    let out = '';
+    let timer = null;
+    if (timeoutMs) timer = setTimeout(() => socket.destroy(), timeoutMs);
+    socket.setEncoding('utf8');
+    socket.on('connect', () => socket.write(Buffer.concat([Buffer.from(`say ${channel.token} ${body.length}\n`, 'latin1'), body])));
+    socket.on('data', d => {
+      if (out.length < 1000) out += d;
+    });
+    socket.on('error', () => {});
+    socket.on('close', () => {
+      clearTimeout(timer);
+      resolve(out || null);
+    });
+  });
+}
 
 const withTimeout = (promise, ms) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms).unref())]);
 
@@ -213,7 +242,14 @@ export async function startListener(options = {}) {
     let heartbeat = null;
     let commandTimer = null;
     let lastState = '';
-    const activeIds = new Set(); // generations the feed says are speaking, in memory only (T8)
+    // The replies this listener plays itself (T18): the one playing, the says
+    // accepted and not yet finished, and a count that a barge-in or a stop moves on,
+    // so a say that was waiting behind a cut reply is dropped with it.
+    const player = options.player ?? makePlayer({ platform, recorder: settings.recorder, tempDir: run });
+    let current = null;
+    let inSay = 0;
+    let speechTail = Promise.resolve();
+    let speechEpoch = 0;
     const idlers = new Set(); // connections waiting for no reply to be playing (T12)
     let idlePoll = null;
 
@@ -282,6 +318,9 @@ export async function startListener(options = {}) {
       if (wroteLevels) rmSync(levelsPath(home), { force: true });
       queue.items = [];
       joiner.take();
+      speechEpoch++;
+      current?.stop();
+      current = null;
       feed?.close?.();
       if (child && childExited) {
         child.kill();
@@ -335,7 +374,7 @@ export async function startListener(options = {}) {
       }
       if (notices.has('ready')) lines.push(notices.get('ready'));
       if (dropped) lines.push(`dropped ${dropped}`);
-      for (const n of ['stt-dropped', 'mic-muted', 'mic-unmuted', 'interrupted']) if (notices.has(n)) lines.push(n);
+      for (const n of ['stt-dropped', 'say-failed', 'mic-muted', 'mic-unmuted', 'interrupted']) if (notices.has(n)) lines.push(n);
       notices.clear();
       const w = waiter;
       waiter = null;
@@ -411,40 +450,120 @@ export async function startListener(options = {}) {
 
     // A person who talks over a reply cuts it off (T8). The mic was never shut,
     // so the turn goes on as any other; the session is told its reply was cut.
+    // The player is killed, and a reply that was waiting behind it never plays (T18).
     const bargeIn = () => {
       if (userMuted) return;
-      const ids = [...activeIds];
-      activeIds.clear();
+      const cut = current;
+      current = null;
+      speechEpoch++;
       playing = 0;
       gate.playback(0, clock());
       notices.set('interrupted', true);
-      for (const id of ids) engine.cancel?.(id)?.catch?.(() => {});
+      cut?.stop();
       writeStatus();
       serve();
     };
 
-    // Replies still playing, or ended less than the tail ago, hold an idle wait (T12).
+    // One reply, start to end (T18): generated by the engine, played by the player
+    // this listener owns, so the status word and the idle wait follow the audio
+    // itself. `reply` answers the one `say` that asked, once, with a fixed line.
+    const speakOne = async (text, epoch, reply) => {
+      const gone = () => finished || epoch !== speechEpoch;
+      if (gone()) return reply('say-failed');
+      let wav = null;
+      try {
+        wav = await engine.synthesize(text);
+      } catch {
+        wav = null;
+      }
+      if (gone() || !wav) return reply('say-failed');
+      const handle = player.play(wav);
+      if (!handle) return reply('say-failed');
+      current = handle;
+      playing = 1;
+      plays++;
+      thinkingUntil = 0;
+      lastPlayEvent = Date.now();
+      gate.playback(1, clock());
+      writeStatus();
+      reply('speaking');
+      const outcome = await handle.done;
+      if (current !== handle) return; // cut off, or the listener stopped: already settled
+      current = null;
+      playing = 0;
+      lastPlayEvent = Date.now();
+      gate.playback(0, clock());
+      if (outcome === 'failed') notices.set('say-failed', true);
+      writeStatus();
+    };
+
+    const sayText = (socket, raw) => {
+      const answer = line => {
+        if (!socket.destroyed) socket.end(`${line}\n`);
+      };
+      const text = cleanText(raw, knobs.maxSayChars + 1);
+      if (!text || [...text].length > knobs.maxSayChars) return answer('say-refused');
+      if (!player.available) return answer('say-no-player');
+      if (inSay >= 1 + knobs.sayQueueMax) return answer('say-busy');
+      inSay++;
+      const epoch = speechEpoch;
+      speechTail = speechTail
+        .then(() => speakOne(text, epoch, answer))
+        .catch(() => answer('say-failed'))
+        .finally(() => inSay--);
+    };
+
+    // The text of one say: the bytes the header counted, within the handshake time.
+    const takeSay = (socket, have, count) => {
+      if (count > knobs.maxSayChars * 4) return void socket.end('say-refused\n');
+      const parts = [have];
+      let size = have.length;
+      const timer = setTimeout(() => socket.destroy(), knobs.handshakeMs);
+      const more = d => {
+        parts.push(d);
+        size += d.length;
+        if (size >= count) enough();
+      };
+      const enough = () => {
+        clearTimeout(timer);
+        socket.off('data', more);
+        sayText(socket, Buffer.concat(parts).subarray(0, count).toString('utf8'));
+      };
+      socket.once('close', () => clearTimeout(timer));
+      if (size >= count) return enough();
+      socket.on('data', more);
+    };
+
+    // Replies still playing or waiting, or ended less than the tail ago, hold an idle wait (T12).
     const checkIdle = () => {
-      if (playing > 0 || Date.now() - lastPlayEvent < tailMs) return;
+      if (playing > 0 || inSay > 0 || Date.now() - lastPlayEvent < tailMs) return;
       for (const s of idlers) s.end('idle\n');
       idlers.clear();
       clearInterval(idlePoll);
       idlePoll = null;
     };
 
-    // A connection says `wait`, `stop` or `ping`, with the token, within 2 s,
-    // or it is closed. Until then it holds no slot.
+    // A connection says `wait`, `stop`, `ping` and the other one-word commands, or
+    // `say` with its byte count and text, with the token, within 2 s, or it is
+    // closed. Until then it holds no slot.
     server = createServer(socket => {
       socket.on('error', () => {});
       const idle = setTimeout(() => socket.destroy(), knobs.handshakeMs);
       let pending = '';
       const onData = d => {
         pending += d.toString('latin1');
-        if (pending.length > 256) return socket.destroy();
         const nl = pending.indexOf('\n');
-        if (nl < 0) return;
+        if (nl < 0 || nl > 256) {
+          if (pending.length > 256) socket.destroy();
+          return;
+        }
         socket.off('data', onData);
         clearTimeout(idle);
+        const head = /^say ([0-9a-f]{64}) (\d{1,5})\r?$/.exec(pending.slice(0, nl));
+        if (head) {
+          if (!sameToken(head[1], token)) return socket.destroy();
+          return void takeSay(socket, Buffer.from(pending.slice(nl + 1), 'latin1'), Number(head[2]));
+        }
         const m = /^(wait|stop|ping|mute|unmute|idle|status) ([0-9a-f]{64})\r?$/.exec(pending.slice(0, nl));
         if (!m || !sameToken(m[2], token)) return socket.destroy();
         if (m[1] === 'ping') return void socket.end('alive\n');
@@ -495,21 +614,12 @@ export async function startListener(options = {}) {
       feed.once('open', resolve);
       feed.once('error', reject);
     });
-    feed.on('start', e => {
-      playing++;
+    // A reply another caller speaks through Voicebox itself is counted and no
+    // more: Voicebox ends it on this feed within a second of its start, long
+    // before the audio ends, so it says nothing about what is playing (T18).
+    // The listener's own replies never appear here.
+    feed.on('start', () => {
       plays++;
-      if (e?.id) activeIds.add(e.id);
-      thinkingUntil = 0;
-      lastPlayEvent = Date.now();
-      gate.playback(playing, clock());
-      writeStatus();
-    });
-    feed.on('end', e => {
-      playing = Math.max(0, playing - 1);
-      if (e?.id) activeIds.delete(e.id);
-      lastPlayEvent = Date.now();
-      gate.playback(playing, clock());
-      writeStatus();
     });
     feed.on('error', () => finish('playback'));
     try {
@@ -609,13 +719,33 @@ async function main(argv, home = homedir()) {
     if (out === 'stopped\n') return say('listener stopped'), 0;
     return say('listener: not running'), 0;
   }
+  // The session's speech: the text comes on stdin, never as an argument, so no
+  // shell ever sees it. One fixed line comes back.
+  if (command === 'say') {
+    const hex = argv[3];
+    if (argv.length !== 4 || !/^[0-9a-f]{8}$/.test(hex)) return say('usage: listen.mjs say <8 hex>'), 2;
+    // The session's own words, in a file it wrote with its file tool: read once,
+    // then deleted whatever the result. A link, a folder or a file over the cap is refused.
+    const path = join(observeDir(home), `say-${hex}.txt`);
+    let text = null;
+    try {
+      const st = lstatSync(path);
+      if (st.isFile() && !st.isSymbolicLink() && st.size <= KNOBS.maxSayChars * 4) text = readFileSync(path, 'utf8');
+    } catch {
+      // not there
+    }
+    rmSync(path, { force: true });
+    if (text === null) return say('say-refused'), 0;
+    const out = ((await sendSay(readChannel(home), text, KNOBS.sayWaitMs)) ?? '').trim();
+    return say(SAY_REPLIES.includes(out) ? out : 'listener: not running'), 0;
+  }
   // The person's mute, the idle wait and the status word: each answers one fixed line.
   const ONE = { mute: ['mic-muted'], unmute: ['mic-unmuted'], idle: ['idle', 'idle-timeout'], status: ['listening', 'hearing', 'thinking', 'speaking', 'muted'] };
   if (Object.hasOwn(ONE, command)) {
     const out = ((await ask(readChannel(home), command, KNOBS.idleWaitMs + 2000)) ?? '').trim();
     return say(ONE[command].includes(out) ? out : 'listener: not running'), 0;
   }
-  say('usage: listen.mjs start | wait | stop | mute | unmute | idle | status');
+  say('usage: listen.mjs start | wait | stop | mute | unmute | idle | status | say <8 hex>');
   return 2;
 }
 
@@ -630,4 +760,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   process.exit(code);
 }
 
-export { main };
+export { main, sendSay as say };

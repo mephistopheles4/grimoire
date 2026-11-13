@@ -17,6 +17,8 @@ const frame = amp => {
 const QUIET = 1000;
 const VOICE = 3163; // 10.0006 dB over QUIET
 const JUST_UNDER = 3162; // 9.9996 dB over QUIET
+const OVER_6 = 1996; // 6.003 dB over QUIET: voice at the 6 dB the gate asks (T17)
+const UNDER_6 = 1995; // 5.999 dB over QUIET
 
 // A gate and a clock that feeds it: each call advances 30 ms.
 function rig(options = {}) {
@@ -36,17 +38,18 @@ function rig(options = {}) {
 
 // Claim 19: the turn logic.
 
-test('a frame 10 dB over the floor is voice and one just under is not', () => {
+test('T17: a frame 6 dB over the floor is voice and one just under is not; the person\'s own noise cancelling, not this gate, is the main filter', () => {
   const over = rig();
   over.calibrate();
-  over.feed(VOICE, 14);
+  over.feed(OVER_6, 14);
   over.feed(QUIET, 12);
   assert.equal(over.turns.length, 1);
   const under = rig();
   under.calibrate();
-  under.feed(JUST_UNDER, 10);
+  under.feed(UNDER_6, 10);
   under.feed(QUIET, 12);
   assert.equal(under.turns.length, 0);
+  assert.equal(KNOBS.voiceDb, 6);
 });
 
 test('a turn ends after the end-of-speech wait, not before', () => {
@@ -60,26 +63,41 @@ test('a turn ends after the end-of-speech wait, not before', () => {
   assert.equal(r.turns[0].silenceMs, 300);
 });
 
-test('a 0.42 s turn is delivered and a 0.36 s blip is dropped (T5: the minimum is 400 ms)', () => {
-  const r = rig();
-  r.calibrate();
-  r.feed(VOICE, 14); // 0.42 s
-  r.feed(QUIET, 12);
-  r.feed(VOICE, 12); // 0.36 s
-  r.feed(QUIET, 12);
-  assert.equal(r.turns.length, 1);
+test('T17: a 0.12 s turn, a clipped "yes", is delivered and a 0.09 s click is dropped, after a reply or not', () => {
+  for (const afterReply of [false, true]) {
+    const r = rig();
+    r.calibrate();
+    if (afterReply) {
+      r.play(1);
+      r.skip(60);
+      r.play(0);
+    }
+    r.feed(VOICE, 4); // 0.12 s
+    r.feed(QUIET, 12);
+    r.feed(VOICE, 3); // 0.09 s
+    r.feed(QUIET, 12);
+    assert.equal(r.turns.length, 1, afterReply ? 'after a reply' : 'with no reply before it');
+  }
+  assert.equal(KNOBS.minVoiceMs, 120);
 });
 
-test('T5: a headset that gates the room to zero cannot make a breath voice: the frame must also clear the absolute floor', () => {
+test('T5 and T17: a headset that gates the room to zero: a room at -70 dBFS opens no turn, a quiet word at -50 dBFS does, and speech does', () => {
   const r = rig();
   r.feed(0, 34); // noise cancelling: the room reads as silence, so the relative floor is meaningless
-  r.feed(100, 20); // 50 dB over a near-zero floor, but only -50 dBFS: a breath
+  r.feed(10, 40); // -70 dBFS: a headset's own hiss
   r.feed(0, 12);
-  assert.equal(r.turns.length, 0, 'a breath is not a turn');
+  assert.equal(r.turns.length, 0, 'a quiet room is not a turn');
+  r.feed(33, 20); // -60 dBFS, under the absolute floor
+  r.feed(0, 12);
+  assert.equal(r.turns.length, 0, 'nor is a sound under the floor');
+  r.feed(100, 8); // -50 dBFS: a quiet word, over a near-zero floor
+  r.feed(0, 12);
+  assert.equal(r.turns.length, 1, 'a quiet word is a turn: the canceller in front of the mic is trusted to keep the rest out');
   r.feed(VOICE, 15); // speech, -20 dBFS
   r.feed(0, 12);
-  assert.equal(r.turns.length, 1, 'speech still is');
-  assert.ok(KNOBS.minVoiceDbfs <= -30 && KNOBS.minVoiceDbfs >= -60);
+  assert.equal(r.turns.length, 2, 'speech still is');
+  assert.ok(KNOBS.minVoiceDbfs <= -45 && KNOBS.minVoiceDbfs >= -65);
+  assert.equal(KNOBS.minVoiceDbfs, -55);
 });
 
 test('a turn is cut at 30 s and the rest goes on as the next turn', () => {

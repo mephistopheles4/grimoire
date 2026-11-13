@@ -14,10 +14,10 @@ import { PassThrough } from 'node:stream';
 import { stampOf } from '../plugins/incantation/skills/incantation/scripts/capture/ffmpeg.mjs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ask, readChannel, runListing, startListener, waitLines } from '../plugins/incantation/skills/incantation/scripts/listen.mjs';
+import { ask, readChannel, runListing, say, startListener, waitLines } from '../plugins/incantation/skills/incantation/scripts/listen.mjs';
 
 const LISTEN = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/listen.mjs', import.meta.url));
-import { runDir, secureState, settingsPath, writePrivate } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
+import { observeDir, runDir, secureState, settingsPath, writePrivate } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
 
 const RECORDER = process.platform === 'win32' ? 'C:\\fake\\bin\\ffmpeg.exe' : '/fake/bin/ffmpeg';
 // A made-up listing in the Windows format; the Linux and macOS rows read their own.
@@ -44,13 +44,14 @@ function makeHome(overrides = {}) {
   return home;
 }
 
-function fakeEngine({ text = 'hello there', warm = async () => 42, health = true } = {}) {
+function fakeEngine({ text = 'hello there', warm = async () => 42, health = true, synth } = {}) {
   const feed = new EventEmitter();
   feed.close = () => {};
   const engine = {
     calls: 0,
-    cancelled: [],
-    cancel: async id => (engine.cancelled.push(id), true),
+    synthesized: [],
+    wav: Buffer.from('RIFF-made-up-audio'),
+    synthesize: async text => (engine.synthesized.push(text), synth === undefined ? engine.wav : typeof synth === 'function' ? synth(text) : synth),
     feed,
     tailMs: 300,
     health: async () => health,
@@ -62,6 +63,20 @@ function fakeEngine({ text = 'hello there', warm = async () => 42, health = true
     playback: () => (setImmediate(() => feed.emit('open')), feed),
   };
   return engine;
+}
+
+// A player the test drives: each play is a handle that ends when the test says so.
+function fakePlayer({ available = true } = {}) {
+  const p = { available, plays: [], stops: 0 };
+  p.play = wav => {
+    if (!available) return null;
+    let resolve;
+    const done = new Promise(r => (resolve = r));
+    const h = { wav, done, stopped: false, end: outcome => resolve(outcome ?? 'ended'), stop: () => ((h.stopped = true), p.stops++, resolve('killed')) };
+    p.plays.push(h);
+    return h;
+  };
+  return p;
 }
 
 function fakeRecorder({ path = RECORDER, list = listing } = {}) {
@@ -90,12 +105,14 @@ function rig(options = {}) {
   const home = options.home ?? makeHome(options.settings);
   const engine = options.engine ?? fakeEngine(options.engineOptions);
   const recorder = options.recorder ?? fakeRecorder();
-  const r = { home, engine, recorder, t: 0 };
+  const player = options.player ?? fakePlayer();
+  const r = { home, engine, recorder, player, t: 0 };
   r.start = () =>
     startListener({
       home,
       engine,
       recorder,
+      player,
       clock: () => r.t,
       parentPid: options.parentPid ?? 1234,
       ppid: options.ppid ?? (() => 1234),
@@ -156,25 +173,45 @@ const statusOf = home => readFileSync(join(runDir(home), 'status'), 'utf8').trim
 const texts = (...list) => () => list.shift() ?? 'hello there';
 const cli = (home, command) => ask(readChannel(home), command, 3000);
 
-test('T8 and T11: the mic stays open while a reply plays; a person talking over it cuts it off, the session is told, and the turn is heard as a reply', async t => {
+test('T8, T11 and T18: the mic stays open while the listener plays a reply; talking over it kills the player, tells the session, and the turn is heard as a reply', async t => {
   const r = rig();
   t.after(r.cleanup);
   const l = await r.start();
   t.after(() => l.stop());
   assert.match(await wait(r.home), /^ready /m);
   r.push(1000, 34);
-  r.engine.feed.emit('start', { at: 0, id: 'gen-7' }); // a reply, from any caller
+  assert.equal(await say(readChannel(r.home), 'Got it, I will check the test run.', 3000), 'speaking\n');
+  assert.equal(r.player.plays.length, 1);
   r.push(3163, 11);
-  assert.deepEqual(r.engine.cancelled, [], 'a cough is not a barge-in');
+  assert.equal(r.player.stops, 0, 'a cough is not a barge-in');
   r.push(3163, 5);
-  assert.deepEqual(r.engine.cancelled, ['gen-7']);
+  assert.equal(r.player.stops, 1, 'the player is killed, not asked to finish');
+  assert.equal(r.player.plays[0].stopped, true);
   r.push(1000, 15);
   await tick(80);
   const out = await wait(r.home);
   assert.match(out, /^Heard \(after reply\): "hello there"$/m);
   assert.match(out, /^interrupted$/m, 'the session is told its reply was cut, with the turn that cut it');
+  assert.match(out, /^plays 1$/m);
   assert.equal(r.engine.calls, 1);
-  r.engine.feed.emit('end', { at: 0, id: 'gen-7' }); // an end after the cut is harmless
+});
+
+test('T18: a reply that is cut drops what was queued behind it, and a person who is muted can still be spoken to', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  r.push(1000, 34);
+  const channel = readChannel(r.home);
+  const first = say(channel, 'First line.', 3000);
+  assert.equal(await first, 'speaking\n');
+  const second = say(channel, 'Second line.', 3000);
+  await tick(40);
+  assert.equal(r.player.plays.length, 1, 'the second line waits for the first');
+  r.push(3163, 16);
+  assert.equal(await second, 'say-failed\n', 'cut with the reply before it');
+  assert.equal(r.player.plays.length, 1, 'and never played');
 });
 
 test('T11: only the person mutes: a spoken mute, then nothing reaches the session until a spoken unmute; the mic stays open', async t => {
@@ -225,10 +262,11 @@ test('T9: the status file holds one word, listening, hearing, speaking or muted,
   r.push(3163, 3);
   assert.equal(statusOf(r.home), 'hearing');
   r.push(1000, 15);
-  r.engine.feed.emit('start', { at: 0 });
-  assert.equal(statusOf(r.home), 'speaking');
-  r.engine.feed.emit('end', { at: 0 });
-  assert.notEqual(statusOf(r.home), 'speaking');
+  assert.equal(await say(readChannel(r.home), 'A line.', 3000), 'speaking\n');
+  assert.equal(statusOf(r.home), 'speaking', 'from the moment the player starts');
+  r.player.plays[0].end();
+  await tick(30);
+  assert.notEqual(statusOf(r.home), 'speaking', 'and not a moment past its real end');
   if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'status')).mode & 0o777, 0o600);
   await l.stop();
   assert.equal(existsSync(join(runDir(r.home), 'status')), false);
@@ -249,16 +287,16 @@ test('T12: idle returns only once no reply is playing, and gives up after the id
   const l = await r.start();
   t.after(() => l.stop());
   assert.equal(await cli(r.home, 'idle'), 'idle\n', 'nothing playing: at once');
-  r.engine.feed.emit('start', { at: 0, id: 'gen-1' });
+  assert.equal(await say(readChannel(r.home), 'One.', 3000), 'speaking\n');
   let settled = false;
   const pending = cli(r.home, 'idle').then(v => ((settled = true), v));
   await tick(150);
   assert.equal(settled, false, 'held while a reply plays');
-  r.engine.feed.emit('end', { at: 0, id: 'gen-1' });
+  r.player.plays[0].end();
   await tick(100);
   assert.equal(settled, false, 'and for the tail after it');
   assert.equal(await pending, 'idle\n');
-  r.engine.feed.emit('start', { at: 0 });
+  assert.equal(await say(readChannel(r.home), 'Two.', 3000), 'speaking\n');
   assert.equal(await cli(r.home, 'idle'), 'idle-timeout\n', 'a reply that never ends does not hold the session for ever');
 });
 
@@ -517,35 +555,29 @@ test('wait prints only lines in the listener grammar, so a stray server on the p
   for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' mic-muted', 'muted', 'quiet', 'quiet many']) assert.equal(waitLines(stray), '', stray);
 });
 
-test('each delivery says how many playbacks began since the last one, from any caller', async t => {
+test('each delivery says how many playbacks began since the last one: the listener\'s own, and any another caller makes through Voicebox itself', async t => {
   const r = rig();
   t.after(r.cleanup);
   const l = await r.start();
   t.after(() => l.stop());
   assert.match(await wait(r.home), /^ready /m);
-  const play = () => {
-    r.engine.feed.emit('start');
-    r.push(1000, 10);
-    r.engine.feed.emit('end');
+  const play = async text => {
+    assert.equal(await say(readChannel(r.home), text, 3000), 'speaking\n');
+    r.player.plays.at(-1).end();
+    await tick(30);
     r.push(1000, 12); // past the tail
   };
-  play();
+  await play('One.');
   r.turn();
   assert.match(await wait(r.home), /^plays 1$/m);
-  play();
-  play();
+  await play('Two.');
+  await play('Three.');
+  r.engine.feed.emit('start', { at: 0, id: 'someone-else' });
+  assert.notEqual(statusOf(r.home), 'speaking', 'another caller\'s reply starts and ends on the feed within a second, so it is counted and never shown as playing');
   r.turn();
-  assert.match(await wait(r.home), /^plays 2$/m);
+  assert.match(await wait(r.home), /^plays 3$/m);
   r.turn();
   assert.match(await wait(r.home), /^plays 0$/m);
-});
-
-test('the listing reads ffmpeg\'s stderr, where Windows and macOS print it, as well as stdout', async () => {
-  const fake = (out, err, error = null) => (file, args, options, cb) => setImmediate(() => cb(error, out, err));
-  const run = runListing('.', fake('', '[in#0 @ 0] "Desk Mic One" (audio)\n'));
-  assert.match(await run('ffmpeg', []), /Desk Mic One/);
-  assert.match(await runListing('.', fake('* made_up.one [Desk Mic One]\n', ''))('ffmpeg', []), /made_up\.one/);
-  assert.equal(await runListing('.', fake('', '', Object.assign(new Error('x'), { code: 'ENOENT' })))('ffmpeg', []), null);
 });
 
 test('the mic stays closed until the playback feed answers, and a feed that never answers ends it with playback', async t => {
@@ -692,4 +724,173 @@ test('T16: a click file that is anything else is removed and acts on nothing: wr
   await tick(80);
   assert.equal(existsSync(click), false);
   assert.equal(statusOf(r.home), 'listening', 'a link is never followed');
+});
+
+// T18: the listener plays the replies itself.
+const spoken = (r, text) => say(readChannel(r.home), text, 3000);
+
+test('T18: say hands the text to the engine whole, plays the WAV it gets back, and answers once the player has started', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  const text = 'Got it: "check the run" $(not run) ; `nor this` \\ and a new\nline, café.';
+  assert.equal(await spoken(r, text), 'speaking\n');
+  assert.deepEqual(r.engine.synthesized, [text.replace('\n', '')], 'the control character is cleaned, nothing else is touched');
+  assert.equal(r.player.plays.length, 1);
+  assert.deepEqual(r.player.plays[0].wav, r.engine.wav);
+});
+
+test('T18: say needs the token, text, and a player; and it refuses text that is too long rather than cutting it', async t => {
+  const r = rig({ knobs: { maxSayChars: 40 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await say({ ...readChannel(r.home), token: '0'.repeat(64) }, 'Hello.', 1000), null, 'no say without the token');
+  assert.equal(await spoken(r, ''), 'say-refused\n');
+  assert.equal(await spoken(r, '\u0000​  '), 'say-refused\n', 'nothing left once control and invisible characters go');
+  assert.equal(await spoken(r, 'x'.repeat(41)), 'say-refused\n');
+  assert.equal(await spoken(r, 'x'.repeat(40)), 'speaking\n');
+  assert.equal(r.engine.synthesized.length, 1, 'a refused say never reaches the engine');
+  const none = rig({ player: fakePlayer({ available: false }) });
+  t.after(none.cleanup);
+  const l2 = await none.start();
+  t.after(() => l2.stop());
+  assert.equal(await spoken(none, 'Hello.'), 'say-no-player\n');
+  assert.equal(none.engine.synthesized.length, 0, 'no generation when nothing could play it');
+});
+
+test('T18: a say whose audio fails is say-failed and plays nothing; a full queue is say-busy', async t => {
+  const r = rig({ engineOptions: { synth: () => null }, knobs: { sayQueueMax: 2 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await spoken(r, 'Hello.'), 'say-failed\n');
+  assert.equal(r.player.plays.length, 0);
+  assert.notEqual(statusOf(r.home), 'speaking');
+  const q = rig({ knobs: { sayQueueMax: 2 } });
+  t.after(q.cleanup);
+  const l2 = await q.start();
+  t.after(() => l2.stop());
+  assert.equal(await spoken(q, 'One.'), 'speaking\n');
+  const two = spoken(q, 'Two.');
+  const three = spoken(q, 'Three.');
+  await tick(40);
+  assert.equal(await spoken(q, 'Four.'), 'say-busy\n', 'one playing, two waiting, the next is refused');
+  q.player.plays[0].end();
+  assert.equal(await two, 'speaking\n');
+  q.player.plays[1].end();
+  assert.equal(await three, 'speaking\n');
+});
+
+test('T18: the person muting the mic does not stop the session speaking to them', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
+  assert.equal(await spoken(r, 'Still here.'), 'speaking\n');
+  assert.equal(r.player.plays.length, 1);
+});
+
+test('T18: a player that fails after it started frees the line and rides a say-failed notice in the next delivery', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  assert.equal(await spoken(r, 'Hello.'), 'speaking\n');
+  r.player.plays[0].end('failed');
+  await tick(30);
+  assert.notEqual(statusOf(r.home), 'speaking');
+  r.push(1000, 34);
+  r.turn();
+  assert.match(await wait(r.home), /^say-failed$/m);
+});
+
+test('T18: a reply that ends on its own is not an interruption, and the turn after it is "after reply" with no notice', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  r.push(1000, 34);
+  assert.equal(await spoken(r, 'A line.'), 'speaking\n');
+  r.player.plays[0].end();
+  await tick(30);
+  r.push(1000, 12);
+  r.push(3163, 15);
+  r.push(1000, 15);
+  await tick(80);
+  const out = await wait(r.home);
+  assert.match(out, /^Heard \(after reply\): "hello there"$/m);
+  assert.doesNotMatch(out, /^interrupted$/m);
+  assert.equal(r.player.stops, 0);
+});
+
+test('T18: stopping the listener kills a reply that is playing and drops the ones queued', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  assert.equal(await spoken(r, 'One.'), 'speaking\n');
+  const two = spoken(r, 'Two.');
+  await tick(30);
+  await l.stop();
+  assert.equal(r.player.stops, 1);
+  assert.equal(r.player.plays.length, 1);
+  assert.equal(await two, 'say-failed\n');
+});
+
+test('T18: the say command line reads the session\'s file, prints one fixed line, deletes the file whatever happens, and takes no text as an argument', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  const run = (home, args) =>
+    new Promise(res => {
+      const env = { ...process.env, HOME: home, USERPROFILE: home };
+      execFile(process.execPath, [LISTEN, ...args], { env, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res(stdout));
+    });
+  const fileFor = (home, hex) => join(observeDir(home), `say-${hex}.txt`);
+  writeFileSync(fileFor(r.home, 'abcd1234'), 'Hello from a file.');
+  assert.equal(await run(r.home, ['say', 'abcd1234']), 'speaking\n');
+  assert.deepEqual(r.engine.synthesized, ['Hello from a file.']);
+  assert.equal(existsSync(fileFor(r.home, 'abcd1234')), false, 'read once, then gone');
+  for (const args of [['say'], ['say', 'text as an argument'], ['say', 'abcd1234', 'extra'], ['say', 'ABCD1234'], ['say', '../abcd12']]) {
+    assert.match(await run(r.home, args), /^usage: /, args.join(' '));
+  }
+  assert.equal(await run(r.home, ['say', 'ffff0000']), 'say-refused\n', 'no such file');
+  writeFileSync(fileFor(r.home, 'abcd1235'), 'x'.repeat(5000));
+  assert.equal(await run(r.home, ['say', 'abcd1235']), 'say-refused\n', 'a file over the cap');
+  assert.equal(existsSync(fileFor(r.home, 'abcd1235')), false, 'and gone all the same');
+  assert.equal(r.engine.synthesized.length, 1);
+  if (process.platform !== 'win32') {
+    const target = join(r.home, 'elsewhere.txt');
+    writeFileSync(target, 'a link must not be followed');
+    symlinkSync(target, fileFor(r.home, 'abcd1236'));
+    assert.equal(await run(r.home, ['say', 'abcd1236']), 'say-refused\n');
+    assert.equal(r.engine.synthesized.length, 1);
+    assert.equal(existsSync(target), true, 'only the link goes');
+  }
+  const gone = makeHome();
+  t.after(() => rmSync(gone, { recursive: true, force: true }));
+  writeFileSync(fileFor(gone, 'abcd1237'), 'Hello.');
+  assert.equal(await run(gone, ['say', 'abcd1237']), 'listener: not running\n');
+  assert.equal(existsSync(fileFor(gone, 'abcd1237')), false);
+});
+
+test('T18: no file under the fixture home holds the reply text or its audio after a say', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  assert.equal(await spoken(r, 'A private sentence about the migration.'), 'speaking\n');
+  r.player.plays[0].end();
+  await tick(30);
+  await l.stop();
+  const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
+  for (const file of walk(r.home)) {
+    const bytes = readFileSync(file);
+    assert.equal(bytes.includes('private sentence'), false, file);
+    assert.equal(bytes.includes('RIFF'), false, file);
+  }
 });

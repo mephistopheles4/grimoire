@@ -45,7 +45,72 @@ test('the values table marks every Voicebox value unverified, with its prototype
     assert.equal(v.verified, false, name);
     assert.match(v.check, /^[FT][1-9]$/, name);
   }
-  assert.deepEqual(makeEngine({ port: 17493 }).speakTools, ['mcp__voicebox__voicebox_speak']);
+  const engine = makeEngine({ port: 17493 });
+  assert.equal(engine.speakTools, undefined, 'the session no longer speaks through Voicebox\'s MCP tool (T18)');
+  assert.equal(engine.mcpUrl, undefined);
+  assert.equal(typeof engine.synthesize, 'function');
+});
+
+const wavBytes = n => Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt '), Buffer.alloc(Math.max(n - 16, 0), 2)]);
+const profiles = list => json(list);
+const BELLA = [{ id: 'prof-1', name: 'Bella', language: 'en', preset_engine: 'kokoro', default_engine: 'kokoro' }];
+
+test('T18: synthesize asks /generate/stream for the WAV with the profile\'s own engine, and sends the text only as JSON', async t => {
+  const hostile = 'say "hi" $(rm -rf /) ; `x` \\ and\nnew line, café \u{1F600} <b>';
+  const vb = await fakeVoicebox({
+    'GET /profiles': profiles(BELLA),
+    'POST /generate/stream': (req, res) => {
+      res.setHeader('content-type', 'audio/wav');
+      res.end(wavBytes(2000));
+    },
+  });
+  t.after(vb.close);
+  const wav = await makeEngine({ port: vb.port, profile: 'prof-1' }).synthesize(hostile);
+  assert.ok(Buffer.isBuffer(wav) && wav.toString('latin1', 0, 4) === 'RIFF');
+  const post = vb.seen.find(s => s.method === 'POST');
+  assert.match(post.headers['content-type'], /^application\/json/);
+  assert.equal(post.headers.host, `127.0.0.1:${vb.port}`);
+  const sent = JSON.parse(post.body.toString('utf8'));
+  assert.deepEqual(Object.keys(sent).sort(), ['engine', 'language', 'profile_id', 'text']);
+  assert.equal(sent.text, hostile, 'the text arrives byte for byte, nothing escaped by hand and nothing run');
+  assert.equal(sent.engine, 'kokoro');
+  assert.equal(sent.profile_id, 'prof-1');
+  assert.equal(sent.language, 'en');
+});
+
+test('T18: synthesize is null on a refused request, a reply that is not a WAV, an unknown profile, or a Voicebox that does not answer', async t => {
+  const refused = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => ((res.statusCode = 400), res.end('{"detail":"x"}')) });
+  t.after(refused.close);
+  assert.equal(await makeEngine({ port: refused.port, profile: 'prof-1' }).synthesize('hello'), null);
+  const notWav = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => res.end('<html>nope</html>') });
+  t.after(notWav.close);
+  assert.equal(await makeEngine({ port: notWav.port, profile: 'prof-1' }).synthesize('hello'), null);
+  const unknown = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => res.end(wavBytes(100)) });
+  t.after(unknown.close);
+  assert.equal(await makeEngine({ port: unknown.port, profile: 'someone-else' }).synthesize('hello'), null);
+  assert.equal(unknown.seen.filter(s => s.method === 'POST').length, 0, 'no generation for a profile it cannot place');
+  const gone = await fakeVoicebox({});
+  const port = gone.port;
+  await gone.close();
+  assert.equal(await makeEngine({ port, profile: 'prof-1' }).synthesize('hello'), null);
+});
+
+test('T18: synthesize is bounded: a slow generation and a reply over the size cap both end as null', async t => {
+  const slow = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => setTimeout(() => res.end(wavBytes(100)), 300) });
+  t.after(slow.close);
+  assert.equal(await makeEngine({ port: slow.port, profile: 'prof-1', speakMs: 50 }).synthesize('hello'), null);
+  const big = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => res.end(wavBytes(5000)) });
+  t.after(big.close);
+  assert.equal(await makeEngine({ port: big.port, profile: 'prof-1', maxWavBytes: 1000 }).synthesize('hello'), null);
+});
+
+test('T18: the profile\'s engine is looked up once and kept', async t => {
+  const vb = await fakeVoicebox({ 'GET /profiles': profiles(BELLA), 'POST /generate/stream': (req, res) => res.end(wavBytes(100)) });
+  t.after(vb.close);
+  const engine = makeEngine({ port: vb.port, profile: 'prof-1' });
+  await engine.synthesize('one');
+  await engine.synthesize('two');
+  assert.equal(vb.seen.filter(s => s.method === 'GET' && s.url === '/profiles').length, 1);
 });
 
 test('health reads GET /health on 127.0.0.1 at the settings port', async t => {
@@ -98,7 +163,6 @@ test('the warm has its own, longer limit than one transcription, for a cold mode
   assert.equal(await engine.transcribe(Buffer.alloc(320)), null, 'one transcription past its limit');
   assert.equal(typeof (await engine.warm()), 'number', 'the warm waits past it');
   await assert.rejects(makeEngine({ port: vb.port, warmMs: 50 }).warm());
-  assert.equal(makeEngine({ port: 1 }).mcpHeaders.length, 1);
 });
 
 test('warm transcribes one second of silence and loads no speech model', async t => {

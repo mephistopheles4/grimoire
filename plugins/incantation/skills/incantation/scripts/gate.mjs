@@ -11,9 +11,9 @@ import { cleanText } from './lib.mjs';
 export const KNOBS = {
   frameMs: 30,
   floorMs: 1000, // how long the room's level is measured at start
-  voiceDb: 10, // a frame is voice at this many dB over the floor
-  minVoiceDbfs: -45, // ...and at least this loud in absolute terms, so a near-silent headset room cannot make a breath voice (T5)
-  minVoiceMs: 400, // a turn with less voice is dropped (T5; was 250)
+  voiceDb: 6, // a frame is voice at this many dB over the floor (T17; was 10)
+  minVoiceDbfs: -55, // ...and at least this loud in absolute terms, so a near-silent headset room (hiss, -70) cannot make a turn (T5; T17: was -45)
+  minVoiceMs: 120, // a turn with less voice is dropped: under a clipped "yes", over a click (T17; T5 had 400, and before it 250)
   maxTurnMs: 30_000, // a longer turn is cut, and the rest goes on as the next
   tailMs: 300, // a reply counts as ended this long after its last playback ends (F2 may raise it, at most 1500)
   bargeMs: 360, // this much voice while a reply plays cuts the reply off
@@ -24,6 +24,9 @@ export const KNOBS = {
   commandFreshMs: 5000, // and a click older than this is dropped unread
   thinkingMs: 60_000, // "thinking" shows this long after a turn, at most
   idleWaitMs: 60_000, // an idle wait gives up after this long
+  maxSayChars: 800, // one spoken reply, at most; a longer text is refused and goes to chat (T18)
+  sayQueueMax: 3, // replies waiting behind the one playing; the next is refused as busy (T18)
+  sayWaitMs: 90_000, // the say command waits this long for its answer: a generation can be slow (T18)
   queueMax: 20,
   ageMs: 5 * 60_000,
   perMinute: 4,

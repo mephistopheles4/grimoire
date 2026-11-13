@@ -37,43 +37,38 @@ The code is the same everywhere. These places differ by platform:
   Incantation's guard refuses to go on when Voicebox answers on any of the
   machine's other addresses at that moment; a network that comes up later is
   not checked until the next start.
-- ffmpeg, on your PATH. On macOS and Linux it must sit in a folder owned by
+- ffmpeg, on your PATH, with its `ffplay` beside it (step 2). On macOS and Linux it must sit in a folder owned by
   root or by you that no other account can write; a shared Homebrew prefix
   owned by another account is refused.
 
-## 2. Register Voicebox's MCP server
+## 2. A player for the replies
 
-`/incantation install` does this for you, after you type a yes. To do it
-yourself, once, at user scope, in this one form:
+Nothing is registered in Claude Code. The listener asks Voicebox for each reply as
+audio (the stream route, which generates without playing) and plays it itself, so
+it knows when a reply starts and ends and kills it the moment you talk over it.
+Voicebox's own speaking is not used, and its MCP tools are not needed.
 
-```text
-claude mcp add --scope user --transport http voicebox http://127.0.0.1:17493/mcp
-```
+The player is `ffplay`, which comes with most ffmpeg builds, found in the same
+folder as the ffmpeg that install pinned, never by searching PATH. When that
+folder has no `ffplay`, the listener falls back to one system player: `afplay` on
+macOS, `paplay` or `aplay` on Linux, Windows PowerShell's sound player on Windows.
+These play from a file, so the listener writes one private file for the length of
+a reply and deletes it when the reply ends or is cut. With none of them, the
+first line fails with `say-no-player`: install an ffmpeg build that includes
+`ffplay` and run `/incantation install` again. The player is started with no
+shell, and the reply's text never reaches it: it gets audio only.
 
-If it says an entry named `voicebox` already exists, and the guard later
-refuses it, remove that one first with
-`claude mcp remove --scope user voicebox`, then add it again.
-
-The guard accepts only that entry, with at most Voicebox's own
-`X-Voicebox-Client-Id` header, whose value it never reads. It refuses an entry
-named `voicebox` at local scope or in a project's `.mcp.json`, since either
-would take the place of yours. Config sources the guard does not read, such as
-managed settings or a launch flag, are not checked.
-
-At user scope, Voicebox's tools load in every Claude Code session on this
-machine, not only voice ones, and Incantation calls only the speak tool. If you
-want other sessions kept away from what Voicebox stores, add deny rules
-yourself for `mcp__voicebox__voicebox_transcribe`,
-`mcp__voicebox__voicebox_list_captures` and
-`mcp__voicebox__voicebox_list_profiles`.
+The session hands the listener each line in a small file it writes under
+`~/.grimoire/incantation/observe/`, which the listener reads once and deletes, so
+what the session says never passes through a command line.
 
 ## 3. Install, in a session
 
 Type `/incantation install`. It runs the whole setup in the chat: it lists your
 microphones and asks you to type the number of yours, lists Voicebox's voices
 and asks you to type the id of the one you want (pick a preset on Kokoro: a
-heavier engine costs seconds a line), saves them, registers the MCP server
-after your yes, and offers a mic indicator for your status line.
+heavier engine costs seconds a line), saves them, checks the setup, and offers a
+mic indicator for your status line.
 
 Your microphone's and voice's names appear in the chat while it does this, so
 they reach the model provider. The settings file, `~/.grimoire/incantation/settings.json`,
@@ -130,28 +125,36 @@ Type `/incantation` in a session, the lead session of a brigade included. It
 checks the setup, starts the listener, prints `Listening, always on.`, warms the
 voice, and greets you. It prints `Stopped listening.` whenever it stops.
 
-- **Use a headset.** The mic stays open while Voicebox speaks, so the session can
-  hear you talk over it, and it stops the reply it was saying. A mic that picks up
+- **Use a headset.** The mic stays open while a reply plays, so the session can
+  hear you talk over it, and the listener stops the reply it was playing. A mic that picks up
   the speakers will hear the session's own voice and answer it. Sound from other
   programs (a browser, a call, media) is heard as speech.
-- **Barge-in is best effort.** Voicebox has no stop-playback call. Incantation cancels
-  the generation Voicebox reports as speaking; audio already generated may play out.
+- **Barge-in stops the player.** The listener plays each reply itself, so it ends the
+  player when you talk over it, drops the replies queued behind it and tells the
+  session the reply was cut. How fast the sound stops on your machine is not
+  measured.
 - **Mute is yours alone.** Say "mute" or "unmute" as a whole turn, or type
   `/incantation mute` or `/incantation unmute`. The session never mutes you. While
   muted, the listener still transcribes on this machine, only to catch "unmute",
   and nothing reaches the session.
 - **Noise.** A quiet headset can make breaths look like speech, and the transcriber
-  turns them into words such as "you". A frame must be at least -45 dBFS and a turn
-  holds 400 ms of voice, and a turn that is only such a word is dropped. Adjust
-  `minVoiceDbfs` in `gate.mjs` if your room needs it.
+  turns them into words such as "you". The gate is loose on purpose and leaves
+  the noise to your own cancelling (NVIDIA Broadcast, your headset's, the OS's): a
+  frame counts as voice at 6 dB over the floor and at least -55 dBFS, and a turn
+  holds 120 ms of voice, so a short "yes" is heard. More turns open than before, in
+  a noisy room too. A turn that is only a filler word is dropped. Raise
+  `voiceDb`, `minVoiceDbfs` and `minVoiceMs` in `gate.mjs` if your room needs it.
 - **Long turns.** A turn ends after 1.5 s of quiet (`endOfSpeechMs` in the settings,
   300 to 3000), and one that stops mid-sentence is held 2 s and joined to the next.
 - **Say yes aloud.** A request that changes anything is said back, and a spoken yes
-  is enough. Rules of your own that name typed words still need them: heard text
+  is enough: a turn that starts with "yes", "go ahead", "do it" or the like, with no
+  "no", "not", "wait", "but" or "stop" in it. Rules of your own that name typed words still need them: heard text
   never stands in for what you type.
 - You may add allow rules so turns don't stop on a prompt. Add them yourself;
   Incantation adds none:
-  - exactly `node <skill base>/scripts/listen.mjs wait`, and `node <skill base>/scripts/listen.mjs idle`;
+  - exactly `node <skill base>/scripts/listen.mjs wait`, `node <skill base>/scripts/listen.mjs idle`,
+    and `node <skill base>/scripts/listen.mjs say` followed by 8 hex digits, with a file
+    write only to `~/.grimoire/incantation/observe/say-` followed by 8 hex digits and `.txt`;
   - in observe-only mode, exactly `node <skill base>/scripts/observe.mjs add`
     followed by 8 hex digits, and a file write only to
     `~/.grimoire/incantation/observe/inbox-` followed by 8 hex digits and `.json`.
@@ -175,8 +178,9 @@ state, to `~/.grimoire/incantation/run/status`. It passes the microphone's
 device id, which can name the hardware, to ffmpeg on its command line, so
 anything that reads or reports this machine's command lines sees it. Claude Code keeps every heard line
 in the session transcript, and in its background-task output; where that output
-is kept is not yet checked. Voicebox saves what it says to its Captures and
-History. Whether it also keeps what it transcribes is not yet checked. Clear
+is kept is not yet checked. The listener asks Voicebox for each reply through its stream
+route; one probe left no History entry, which is not checked on every version.
+Whether Voicebox keeps what it transcribes is not yet checked. Clear
 both from Voicebox's own History and Captures tabs.
 
 In observe-only mode (`/incantation observe`), the session's unspoken candidates,
