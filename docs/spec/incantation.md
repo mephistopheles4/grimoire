@@ -968,11 +968,12 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   grimoire installed and not Incantation sees nothing and pays one failed read in
   eight ticks. It also gives the mod a timer and a file read, and a file write
   on a press, outside its data folder, from the first draw of the band in every
-  session that has the plugin. That contradicts the idle-by-default line that
-  `SECURITY.md`, row 15 of the threat model and `docs/security/brigade.md` rest
-  on, which ADR 0008 relaxed for the usage writer alone. None of those was
-  edited here: the owner decides whether the band ships in grimoire's mod, and
-  the threat model's scope is theirs to change.
+  session that has the plugin. That contradicted the idle-by-default rule that
+  `SECURITY.md` and `docs/security/brigade.md` (its row 15) rested on, which
+  ADR 0008 had relaxed for the usage writer alone. The owner removed the rule
+  (issue 208, 2026-11-13): those two files now say what the band does and that
+  the mod holds no idle rule, and ADR 0019 supersedes ADR 0008. The threat
+  model's classes and scope are not edited here.
 - **T16. The levels file and the click file.** The listener writes
   `run/levels`: `<epoch ms> <state word> <24 digits>`, each digit 0 to 8 the
   loudest frame of a 250 ms bucket on a scale from -60 to -15 dBFS, 0 while
