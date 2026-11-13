@@ -12,7 +12,8 @@ const { makeEngine, VALUES } = await import(ENGINE);
 
 // A fake Voicebox on 127.0.0.1. `routes` maps "METHOD /path" to a handler.
 async function fakeVoicebox(routes) {
-  const table = new Map(Object.entries(routes)); // a lookup by request text never reaches a prototype member
+  // The request text is only compared with each route's own key, never used as a property name.
+  const table = Object.entries(routes).map(([key, handler]) => ({ key, handler }));
   const seen = [];
   const server = createServer((req, res) => {
     const chunks = [];
@@ -20,12 +21,13 @@ async function fakeVoicebox(routes) {
     req.on('end', () => {
       const body = Buffer.concat(chunks);
       seen.push({ method: req.method, url: req.url, headers: req.headers, body });
-      const handler = table.get(`${req.method} ${req.url}`);
-      if (!handler) {
+      const key = `${req.method} ${req.url}`;
+      const route = table.find(r => r.key === key);
+      if (!route) {
         res.statusCode = 404;
         return res.end('{}');
       }
-      handler(req, res, body);
+      route.handler(req, res, body);
     });
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
