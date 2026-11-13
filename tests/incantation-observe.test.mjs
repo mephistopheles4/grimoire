@@ -100,7 +100,7 @@ test('add refuses an unlisted key, an unknown kind and a line it cannot parse, w
   const h = home(t);
   assert.equal(cli(h, ['add'], 'x'.repeat(20_000)).stdout, REFUSED, 'a line over the cap');
   assert.equal(cli(h, ['bogus']).stdout, 'usage: observe.mjs add <8 hex> | freeze <n>\n');
-  assert.equal(existsSync(join(h, '.incantation')), false);
+  assert.deepEqual(readdirSync(join(h, '.incantation', 'observe')), [], 'the over-cap inbox is deleted, and nothing written');
 });
 
 test('add keeps ordinary words that only resemble a path or a key', t => {
