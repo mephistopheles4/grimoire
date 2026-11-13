@@ -167,6 +167,16 @@ export function makeEngine({ port }) {
       return !!res && res.status === 200;
     },
     transcribe,
+    // Voicebox's profiles, for setup.mjs in the person's own terminal only:
+    // id, name and engine. Null when it does not answer.
+    async profiles() {
+      const res = await call(port, { method: 'GET', path: '/profiles', headers: { accept: 'application/json' } });
+      const list = res?.status === 200 ? parseJson(res.body) : null;
+      if (!Array.isArray(list)) return null;
+      return list
+        .filter(p => p && typeof p.id === 'string' && typeof p.name === 'string')
+        .map(p => ({ id: p.id, name: p.name, engine: typeof p.preset_engine === 'string' ? p.preset_engine : typeof p.default_engine === 'string' ? p.default_engine : '' }));
+    },
     // The transcription model, loaded with one second of silence. No speech
     // model is loaded until F1 shows a load that warms the profile's own engine.
     async warm() {

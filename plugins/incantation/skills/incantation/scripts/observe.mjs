@@ -1,7 +1,9 @@
-// The observe-only log (docs/spec/incantation.md, S4.4). A Node script with no
+// The observe-only log (docs/spec/incantation.md, S7.4). A Node script with no
 // dependencies.
 //
-//   node observe.mjs add          one JSON line on stdin, appended to today's file
+//   node observe.mjs add <8 hex>  reads ~/.incantation/observe/inbox-<8 hex>.json,
+//                                 appends its one line to today's file, and
+//                                 deletes the inbox file whatever the result
 //   node observe.mjs freeze <n>   copies n random lines into eval/
 //
 // It writes only under ~/.incantation/observe/, in a 0700 folder, 0600 files,
@@ -11,7 +13,7 @@
 // touches eval/.
 
 import { randomInt } from 'node:crypto';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -122,12 +124,22 @@ export function freeze({ home, now = new Date(), n, random = randomInt }) {
   return sample.length;
 }
 
-function readStdin() {
+// The session's inbox file for one line: read once, then deleted whatever the
+// result. A link, a folder or a file over the line cap is refused.
+export const INBOX = /^[0-9a-f]{8}$/;
+export function takeInbox(home, hex) {
+  if (!INBOX.test(hex ?? '')) refuse();
+  const path = join(folderOf(home), `inbox-${hex}.json`);
+  let text = null;
   try {
-    return readFileSync(0, 'utf8');
+    const st = lstatSync(path);
+    if (st.isFile() && !st.isSymbolicLink() && st.size <= MAX_LINE) text = readFileSync(path, 'utf8');
   } catch {
-    return '';
+    // not there
   }
+  rmSync(path, { force: true });
+  if (text === null) refuse();
+  return text;
 }
 
 function main(argv) {
@@ -136,7 +148,7 @@ function main(argv) {
   const [, , command, arg] = argv;
   try {
     if (command === 'add') {
-      add({ home, input: readStdin() });
+      add({ home, input: takeInbox(home, arg) });
       return say('observe: ok'), 0;
     }
     if (command === 'freeze') {
@@ -146,7 +158,7 @@ function main(argv) {
   } catch {
     return say('observe error: refused'), 1;
   }
-  say('usage: observe.mjs add | freeze <n>');
+  say('usage: observe.mjs add <8 hex> | freeze <n>');
   return 2;
 }
 

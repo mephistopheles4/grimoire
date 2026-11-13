@@ -459,7 +459,7 @@ reply" after a playback.
   output and nowhere else. No command the skill runs holds heard text, a
   spoken line or a device name as an argument or on stdin (S7.4).
 - **Errors** are fixed lines, `listener error <reason>`: `recorder`, `device`,
-  `mic`, `playback`, `engine`, `settings`, `session`, `stt`, `busy`, `warm`,
+  `mic`, `playback`, `engine`, `settings`, `state`, `session`, `stt`, `busy`, `warm`,
   `ended`.
 
 ## S7. The skill and how it speaks
@@ -555,7 +555,7 @@ silence, never recorded speech, on the runners S3 names:
 
 1. No file under `plugins/incantation/`, and not the incantation entry in
    `.claude-plugin/marketplace.json`, names VoiceMode, `converse`, WSL,
-   `parec`, `pactl` or a proxy, and the plugin's manifest and marketplace entry
+   `parec`, `pactl`, `proxy.mjs` or `launch.mjs`, and the plugin's manifest and marketplace entry
    declare no dependency (W4).
 2. The listener reaches the engine only through the seam: a fake engine
    passes every listener test with no other change; an engine name not in the

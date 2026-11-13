@@ -1,134 +1,98 @@
 # Incantation
 
-Voice pair-programming for Claude Code. You talk, it talks back, and it says
-every request back to you before it acts.
+A voice pair-programming partner for Claude Code. `/incantation` turns a session
+into one you talk with: it greets you, speaks short plain turns, listens at all
+times, says each request back before acting, and speaks unasked only when
+something needs you.
 
-Incantation targets **WSL 2, with everything inside one distribution**: Claude
-Code, VoiceMode, both speech engines, the proxy and the listener. Native Windows
-is not supported yet, and neither is Claude Code on Windows talking to VoiceMode
-inside WSL. WSL 2 must be in its default NAT networking mode; mirrored mode is not
-supported yet.
+[Voicebox](https://voicebox.sh) does the speaking and the transcribing, on your
+machine. Incantation adds a setup check (the guard), a setup script, an
+always-on listener that never hears its own voice, and a skill with a speak
+policy. It declares no dependency: the guard checks the setup at each start and
+says what to do.
 
-VoiceMode does the speaking. Incantation adds a setup check (the guard), a
-loopback proxy, an engine launcher, an always-on listener and a skill with a
-speech policy. Run the steps in order.
+## Platforms
 
-## 1. Install Node, VoiceMode and the audio tools
+| Platform | Voicebox | Status |
+|---|---|---|
+| Windows 11 | MSI installer | Tested with a real mic: the earlier prototype and listener. This build is not yet run against a real Voicebox. |
+| macOS | DMG (Apple Silicon and Intel) | Claimed only. No check runs on macOS. |
+| Linux | built from source | Claimed only. Unit tests run on Linux with fakes; no real-mic run. |
 
-You run each line yourself. Nothing here is run for you.
+The code is the same everywhere. These places differ by platform:
 
-Install Node 20 or later, and the audio tools the listener uses:
+| Place | Windows | macOS and Linux |
+|---|---|---|
+| Capture input and device list | `dshow` | `avfoundation`, `pulse` or `alsa` |
+| Finding ffmpeg | fully qualified drive folders on PATH | absolute PATH entries, owned by root or you, writable by no one else |
+| The `~/.incantation` folder's privacy | your profile folder's default access | 0700 folders and 0600 files, refused when looser |
+| The OS mic permission | Settings, Privacy, Microphone, "Let desktop apps access your microphone" | macOS: give the terminal or app that runs Claude Code Microphone access; Linux: none beyond the sound server |
 
-```bash
-sudo apt update
-sudo apt install -y pulseaudio-utils libasound2-plugins
-```
+## 1. Install Node, Voicebox and ffmpeg
 
-Audio inside WSL 2 comes through WSLg's sound server, at `/mnt/wslg/PulseServer`.
-In Windows, turn on Settings, Privacy & security, Microphone, "Let desktop apps
-access your microphone". Check that the sound server answers:
+- Node 24 or later.
+- Voicebox 0.5.0 or later, from its site (Linux: build it from source as its
+  README says). Start it, and keep it on this machine only: Incantation's guard
+  refuses to start when Voicebox answers on any address but 127.0.0.1.
+- ffmpeg, on your PATH. On macOS and Linux it must sit in a folder owned by
+  root or by you that no other account can write; a shared Homebrew prefix
+  owned by another account is refused.
 
-```bash
-PULSE_SERVER=unix:/mnt/wslg/PulseServer pactl info
-```
+## 2. Register Voicebox's MCP server
 
-Install VoiceMode. These lines are VoiceMode's own, from its getting-started page
-at commit `c825f2a062d55fc2c42655d74a97df458211a494` (release v9.0.2), with the
-version pinned and its launcher used in place of a fresh download on each start:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install voice-mode==9.0.2
-claude mcp add --scope user voicemode -- voicemode-mcp-launcher
-```
-
-The guard was checked against VoiceMode **9.0.2** only. Any other version fails
-the guard until the guard is checked against it.
-
-## 2. Install the speech engines
-
-Run VoiceMode's service setup. It downloads the engines (Whisper for speech to
-text, Kokoro for text to speech) and their models:
-
-```bash
-voicemode service install whisper
-voicemode service install kokoro
-```
-
-Do not start VoiceMode's HTTP server. Incantation never uses it.
-
-## 3. Turn off VoiceMode's engine services and start the engines on sockets
-
-Stop VoiceMode's own engine services, and turn off their start at boot:
-
-```bash
-voicemode service stop whisper
-voicemode service disable whisper
-voicemode service stop kokoro
-voicemode service disable kokoro
-```
-
-Start the engines with the launcher. Each listens on a socket in
-`~/.incantation/run/` and on no TCP port. The launcher edits nothing VoiceMode
-installed, and it sets the text-to-speech engine's web player and its cross-origin
-access off:
-
-```bash
-node <skill base>/scripts/launch.mjs start
-```
-
-`<skill base>` is the skill's base directory: the "Base directory for this skill"
-line a session prints when `/incantation` runs. `node <skill base>/scripts/launch.mjs
-stop` stops the engines. A VoiceMode update may turn its engine services back on;
-the guard then fails until you turn them off again.
-
-## 4. VoiceMode's settings
-
-Every VoiceMode setting lives in one file, `~/.voicemode/voicemode.env`. Never put
-one in the MCP server's own environment, and never in a project-level VoiceMode
-settings file. Set exactly these:
+Once, at user scope, in this one form:
 
 ```text
-VOICEMODE_TTS_BASE_URLS=http://127.0.0.1:8880/v1
-VOICEMODE_STT_BASE_URLS=http://127.0.0.1:2022/v1
-VOICEMODE_SERVICE_AUTO_ENABLE=false
-VOICEMODE_AUTO_START_KOKORO=false
-VOICEMODE_VOICES=af_sky
-VOICEMODE_STREAMING_ENABLED=true
-VOICEMODE_SILENCE_THRESHOLD_MS=1000
+claude mcp add --scope user --transport http voicebox http://127.0.0.1:17493/mcp
 ```
 
-- Leave `VOICEMODE_MCP_URL` and `VOICEMODE_MLX_AUDIO_BASE_URL` unset.
-- The end-of-speech wait, `VOICEMODE_SILENCE_THRESHOLD_MS`, is also read by the
-  listener. Keep it at 1000 or less.
-- No OpenAI key is needed. Do not install VoiceMode's heard hook.
+The guard accepts only that entry. It refuses an entry named `voicebox` at
+local scope or in a project's `.mcp.json`, since either would take the place of
+yours. Config sources the guard does not read, such as managed settings or a
+launch flag, are not checked.
 
-## 5. The proxy
+## 3. Run setup, in your own terminal
 
-The proxy stands in front of both engines. It owns the ports VoiceMode calls
-(2022 and 8880) and forwards to the sockets.
+Not in a session: device and voice names stay in your terminal.
 
-- `/incantation` starts it, and it keeps running after the session.
-- `node <skill base>/scripts/proxy.mjs stop` stops it.
-- VoiceMode used on its own needs it running, since the engines are on sockets.
+```text
+node <skill base>/scripts/setup.mjs devices
+node <skill base>/scripts/setup.mjs profiles
+node <skill base>/scripts/setup.mjs choose <index> <stamp> <profile id>
+```
 
-## 6. Using it
+`devices` prints a stamp and your microphones by index. `profiles` prints
+Voicebox's voice profiles by id, with the engine each runs on. Pick a preset
+profile on the fastest engine, Kokoro until measured otherwise: a heavier engine
+costs seconds a line. `choose` checks all three, pins the ffmpeg it found, and
+writes `~/.incantation/settings.json`. If your microphones change, run
+`devices` and `choose` again.
 
-- Never run VoiceMode's HTTP server alongside Incantation.
-- Use a headset.
-- Approve `converse` in each session when asked. Do not allow it through a rule in
-  settings. Never add an allow rule for `listen.mjs start` or `stop`.
-- To keep each turn from stopping on a prompt, you may add one allow rule for
-  exactly `node <skill base>/scripts/listen.mjs wait`. It lets a session read heard
-  text without a prompt while the listener runs. In observe-only mode you may add
-  one more, for exactly `node <skill base>/scripts/observe.mjs add`, which lets a
-  session append lines to the observe log without a prompt. `freeze` stays
-  prompted. Adding a rule is your step; Incantation adds none.
-- The mic is muted while Linux-side audio plays, so talking over the session is not
-  heard. Sound from the Windows side (a browser, a call, media) is not muted and is
-  heard as speech. Keep it off, or use a headset.
+## 4. Give the OS mic permission
 
-## 7. Who hears
+As the platform table says. With the permission off, the mic gives only
+silence, and the listener stops with `listener error mic`.
+
+## 5. Start
+
+Type `/incantation` in a session. It checks the setup, starts the listener,
+prints `Listening, always on.`, warms the voice, and greets you. It prints
+`Stopped listening.` whenever it stops.
+
+- Use a headset. The mic is muted while Voicebox plays anything, from any
+  caller, so talking over the session is not heard. Sound from other programs
+  (a browser, a call, media) is not muted and is heard as speech.
+- You may add allow rules so turns don't stop on a prompt. Add them yourself;
+  Incantation adds none:
+  - exactly `node <skill base>/scripts/listen.mjs wait`;
+  - in observe-only mode, exactly `node <skill base>/scripts/observe.mjs add`
+    followed by 8 hex digits, and a file write only to
+    `~/.incantation/observe/inbox-` followed by 8 hex digits and `.json`.
+    Never allow wider writes under `~/.incantation/`: a session could then
+    change your settings or the eval set without asking.
+  Never add an allow rule for `listen.mjs start` or `stop`, or for `setup.mjs`.
+
+## 6. Who hears
 
 While Incantation runs, the mic is open at all times. Everything said within its
 reach, by anyone, reaches the model provider as chat, not only replies to the
@@ -138,18 +102,25 @@ people within the mic's reach that it is always listening.**
 Say "stop" or type to end it. It also stops after 30 minutes with nothing heard,
 and when the Claude Code session it belongs to ends.
 
-`listen.mjs` keeps no audio and no heard text. Claude Code keeps every heard line in
-the session transcript, and may keep it in its background-task output. VoiceMode keeps what it
-hears and says on this machine under `~/.voicemode/`.
+`listen.mjs` keeps no audio and no heard text. Claude Code keeps every heard line
+in the session transcript, and in its background-task output; where that output
+is kept is not yet checked. Voicebox saves what it says to its Captures and
+History. Whether it also keeps what it transcribes is not yet checked. Clear
+both from Voicebox's own History and Captures tabs.
 
 In observe-only mode (`/incantation observe`), the session's unspoken candidates,
 which can repeat what was said near the mic, go to `~/.incantation/observe/`. Day
 files are dropped after 30 days, the next time it runs. A frozen sample stays until
 you delete it. Delete the folder to clear both.
 
+## Stopping and removing it
+
+`node <skill base>/scripts/listen.mjs stop` first, then delete `~/.incantation/`,
+in that order. Incantation changes none of Voicebox's settings.
+
 ## Tuning
 
 How often it speaks unasked is set in
 `skills/incantation/references/tuning.md`, a file of starting points. Edit it and
 start a new session. The listener's own numbers are at the top of
-`skills/incantation/scripts/listen.mjs`.
+`skills/incantation/scripts/gate.mjs`.

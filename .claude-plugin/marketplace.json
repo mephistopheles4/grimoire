@@ -16,9 +16,9 @@
     {
       "name": "incantation",
       "source": "./plugins/incantation",
-      "description": "A voice pair-programming partner for Claude Code on WSL 2, through VoiceMode. /incantation listens at all times, says each request back before it acts, and speaks only when something needs you. Needs VoiceMode in the same WSL 2 distribution.",
+      "description": "A voice pair-programming partner for Claude Code, through Voicebox. /incantation listens at all times, says each request back before it acts, and speaks only when something needs you. Needs Voicebox and ffmpeg on the same machine.",
       "category": "productivity",
-      "keywords": ["voice", "voicemode", "pair-programming", "speech", "wsl2"]
+      "keywords": ["voice", "voicebox", "pair-programming", "speech"]
     }
   ]
 }

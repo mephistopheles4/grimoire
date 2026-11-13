@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +22,16 @@ const home = t => {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 };
-const cli = (h, args, input) => spawnSync(process.execPath, [OBSERVE, ...args], { env: { HOME: h, USERPROFILE: h, PATH: process.env.PATH }, input, encoding: 'utf8', timeout: 8000 });
+// The command line, with this fixture as its home. For `add`, the line goes
+// where the session's write tool puts it: a fresh inbox file, passed by name.
+const run = (h, args) => spawnSync(process.execPath, [OBSERVE, ...args], { env: { HOME: h, USERPROFILE: h, PATH: process.env.PATH }, encoding: 'utf8', timeout: 8000 });
+const cli = (h, args, input) => {
+  if (args[0] !== 'add' || input === undefined) return run(h, args);
+  const hex = randomBytes(4).toString('hex');
+  mkdirSync(join(h, '.incantation', 'observe'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(h, '.incantation', 'observe', `inbox-${hex}.json`), input);
+  return run(h, ['add', hex]);
+};
 const line = (over = {}) => JSON.stringify({ kind: 'result', urgency: 3, score: 0.62, words: 'The build is green.', spoken: false, ...over });
 const everything = dir => readdirSync(dir, { withFileTypes: true, recursive: true }).map(e => join(e.parentPath ?? e.path, e.name).slice(dir.length));
 
@@ -82,12 +92,14 @@ test('add refuses an unlisted key, an unknown kind and a line it cannot parse, w
     assert.equal(r.stdout, REFUSED, JSON.stringify(input).slice(0, 60));
     assert.equal(r.status, 1);
     assert.equal(r.stderr, '');
-    assert.equal(existsSync(join(h, '.incantation')), false, 'nothing written, not even the folder');
+    // The inbox file needs its folder; past that, nothing is left: the inbox is gone and no day file was made.
+    assert.deepEqual(readdirSync(join(h, '.incantation')), ['observe']);
+    assert.deepEqual(readdirSync(join(h, '.incantation', 'observe')), [], 'nothing written, and the inbox deleted');
     assert.ok(!r.stdout.includes(marker));
   }
   const h = home(t);
   assert.equal(cli(h, ['add'], 'x'.repeat(20_000)).stdout, REFUSED, 'a line over the cap');
-  assert.equal(cli(h, ['bogus']).stdout, 'usage: observe.mjs add | freeze <n>\n');
+  assert.equal(cli(h, ['bogus']).stdout, 'usage: observe.mjs add <8 hex> | freeze <n>\n');
   assert.equal(existsSync(join(h, '.incantation')), false);
 });
 
@@ -168,4 +180,19 @@ test('freeze with an empty log refuses and writes nothing', t => {
   const h = home(t);
   assert.equal(cli(h, ['freeze', '3']).stdout, REFUSED);
   assert.equal(existsSync(join(h, '.incantation', 'observe', 'eval')), false);
+});
+
+test('add takes only an 8-hex name, reads only that inbox file, and deletes it on every result', t => {
+  const h = home(t);
+  const inbox = hex => join(h, '.incantation', 'observe', `inbox-${hex}.json`);
+  mkdirSync(join(h, '.incantation', 'observe'), { recursive: true, mode: 0o700 });
+  writeFileSync(inbox('0badf00d'), line());
+  writeFileSync(inbox('deadbeef'), '{"not": "valid"}');
+  for (const bad of ['', 'DEADBEEF', '0badf00', '0badf00d0', '../x', 'inbox-0badf00d']) assert.equal(run(h, ['add', bad]).stdout, REFUSED, bad);
+  assert.equal(existsSync(inbox('0badf00d')), true, 'a refused name touches no file');
+  assert.equal(run(h, ['add', 'deadbeef']).stdout, REFUSED);
+  assert.equal(existsSync(inbox('deadbeef')), false, 'deleted after a refusal');
+  assert.equal(run(h, ['add', '0badf00d']).stdout, 'observe: ok\n');
+  assert.equal(existsSync(inbox('0badf00d')), false, 'deleted after an append');
+  assert.equal(run(h, ['add', '0badf00d']).stdout, REFUSED, 'gone: nothing to read');
 });
