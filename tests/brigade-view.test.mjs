@@ -5147,3 +5147,17 @@ test('issue 598: a step with a well-formed model id writes it, and the reader gi
   assert.equal(view.compactSettings(view.settingsOrModel('', undefined)).text, '?');
   assert.deepEqual([...view.modelLines([{ name: 'a', value: 'opus' }, { name: 'b', value: 'free text' }])], [['a', 'opus']]);
 });
+
+// Issue 608: Desktop's Box has no z-index, so paint order is tree order, and a card's tab buttons
+// (positioned, with a press layer) sit later in the tree than the popover. While a popover is open
+// the tab row draws still boxes in place of the buttons and their tooltips.
+test('608: while a popover is open the tab row draws no Button and no tooltip', () => {
+  const src = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  const from = src.indexOf('{views.map(v =>');
+  assert.ok(from > 0, 'the tab row is in register.tsx');
+  const row = src.slice(from, src.indexOf('On Desktop the PR pill sits at the right', from));
+  const still = row.slice(row.indexOf('popLive ?'), row.indexOf(') : tip('));
+  assert.ok(still.length > 0 && row.indexOf('popLive ?') < row.indexOf('tip('), 'popLive is tested before the tooltip wrapper');
+  assert.ok(!/<Button|tip\(/.test(still), 'the still branch holds no Button and no tip');
+  assert.match(still, /borderStyle="round"/, 'it keeps the outline, so the row keeps its size');
+});
