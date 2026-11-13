@@ -1,0 +1,147 @@
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, On, Timer } from 'claude-code'
+
+import { BARS, EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, bars, colorAt, commandFile, homeFrom, labelOf, levelsFile, parseLevels, toggleFor } from './mic-view.ts'
+import type { MicFrame, MicWord } from './mic-view.ts'
+
+// The Incantation mic band: a row above the prompt that shows what the voice
+// listener is doing, with a bar wave of what it hears, and a button that mutes
+// and unmutes it. The terminal's status line is not drawn by the desktop app,
+// so this is the one place both draw.
+//
+// It reads one file the listener writes, run/levels, four times a second while
+// a listener is writing and once in eight ticks while none is, and it writes
+// one word, mute or unmute, to run/command when the button is pressed. It
+// holds the mic's loudness as 24 digits and nothing of what was said, runs no
+// process and keeps nothing across sessions. With no listener, it draws nothing.
+
+const frameAtom = atom({ plugin: 'grimoire', key: 'micFrame' } as const, null)
+const easeAtom = atom({ plugin: 'grimoire', key: 'micEase' } as const, { from: 'listening', to: 'listening', step: EASE_STEPS })
+
+let timer: Timer | undefined
+let eases: Timer[] = []
+let generation = 0
+let quiet = 0
+
+const wordOf = (v: unknown): MicWord => ((WORDS as readonly unknown[]).includes(v) ? (v as MicWord) : 'listening')
+
+const homeOf = async ($: EngineInterface): Promise<string | undefined> => homeFrom(await $.env.get('USERPROFILE'), await $.env.get('HOME'))
+
+// One reading. A file that is not there clears the band at once; one that
+// will not read leaves what it showed until its stamp goes stale.
+async function tick($: EngineInterface, dir: string, live: () => boolean) {
+  if (!live()) return
+  const path = levelsFile(dir)
+  const now = await $.clock.now()
+  // A file that is not there is no listener: null at once. Any other read
+  // failure (a rename mid-write on Windows) is no new reading.
+  let next: MicFrame | null | undefined
+  try {
+    next = parseLevels(String(await $.fs.read(path)), now)
+  } catch (e) {
+    next = /ENOENT|no such file|not found/i.test(String((e as Error)?.message ?? e)) ? null : undefined
+  }
+  if (!live()) return
+  const was = (await read($, frameAtom)) as MicFrame | null
+  if (next === undefined) next = was !== null && Math.abs(now - was.stamp) <= 10_000 ? was : null
+  quiet = next === null ? quiet + 1 : 0
+  if (next === null && was === null) return
+  if (next !== null && was !== null && next.word === was.word && next.digits === was.digits) return
+  await update($, frameAtom, () => next)
+  if (next !== null && (was === null || was.word !== next.word)) {
+    const from = was === null ? next.word : wordOf(was.word)
+    const to = next.word
+    await update($, easeAtom, () => ({ from, to, step: 0 }))
+    for (const t of eases) t.cancel()
+    eases = []
+    for (let i = 1; i <= EASE_STEPS; i++) {
+      eases.push($.clock.after(EASE_MS * i, () => void (live() && update($, easeAtom, s => (s.to === to ? { ...s, step: i } : s)))))
+    }
+  }
+}
+
+// The reads start at the first draw of the band, once: the mod has one
+// session.start hook already, and the band draws as soon as the prompt does.
+// A draw writes no state, so the reads are told apart by their own beat: the
+// timer stamps each period on the engine clock, and a stamp within a second
+// of now means they run. A timer that has gone quiet, one a reload left
+// behind, or a clock that has started over, is started again.
+const ALIVE_MS = 1000
+let beat = -Infinity
+let starting = false
+async function begin($: EngineInterface) {
+  if (starting) return
+  starting = true
+  try {
+    const now = await $.clock.now()
+    if (timer !== undefined && now - beat >= 0 && now - beat <= ALIVE_MS) return
+    timer?.cancel()
+    const dir = await homeOf($)
+    if (dir === undefined) return
+    const mine = ++generation
+    const live = () => generation === mine
+    quiet = 0
+    beat = now
+    let skip = 0
+    timer = $.clock.every(TICK_MS, () => {
+      if (!live()) return
+      void Promise.resolve($.clock.now()).then(t => (beat = t), () => undefined)
+      // With no listener writing, one tick in SLOW_EVERY reads.
+      if (quiet > 0) {
+        skip = (skip + 1) % SLOW_EVERY
+        if (skip !== 0) return
+      }
+      void tick($, dir, live).catch(() => undefined)
+    })
+  } finally {
+    starting = false
+  }
+}
+
+export function registerMic(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    // With nothing to draw the hook hands the chain on untouched, so a session
+    // with no listener sees the band exactly as it was.
+    let frame: MicFrame | null = null
+    try {
+      await begin($)
+      frame = e.props.hasSurvey ? null : ((await read($, frameAtom)) as MicFrame | null)
+      if (frame !== null && parseLevels(`${frame.stamp} ${frame.word} ${frame.digits}`, frame.stamp) === null) frame = null
+    } catch {
+      frame = null
+    }
+    if (frame === null) return next(e)
+    const beneath = await next(e)
+    try {
+      const ease = await read($, easeAtom)
+      const word = wordOf(frame.word)
+      const color = colorAt(wordOf(ease.from), wordOf(ease.to), Math.min(EASE_STEPS, Math.max(0, Math.trunc(Number(ease.step)) || 0)))
+      const toggle = toggleFor(word)
+      const { Box, Button, Text } = $.ui.resolve(e)
+      return (
+        <Box key="mic-band" flexDirection="column">
+          <Box key="mic-row" flexDirection="row" alignItems="center" gap="md">
+            <Text color={color} bold>
+              {labelOf(word)}
+            </Text>
+            <Text color={color}>{bars(frame.digits, word).slice(0, BARS)}</Text>
+            <Button
+              key="mic-toggle"
+              label={toggle.label}
+              onPress={async () => {
+                // Only for a listener that is writing now: the file is the listener's own folder's.
+                const dir = await homeOf($)
+                const now = (await read($, frameAtom)) as MicFrame | null
+                if (dir === undefined || now === null) return
+                await $.fs.write(commandFile(dir), toggleFor(wordOf(now.word)).command)
+              }}
+            />
+          </Box>
+          {beneath}
+        </Box>
+      )
+    } catch {
+      return beneath
+    }
+  }).catch(($, e, next) => next(e))
+}

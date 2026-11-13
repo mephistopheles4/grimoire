@@ -85,9 +85,27 @@ setup or the listener moves that folder to `~/.grimoire/incantation/`, beside
 eagle-eye's. A link in its place is never moved, and neither is a folder when the
 new one already exists.
 
-### The mic indicator
+### The mic band (Claude Desktop and the terminal)
 
-`/incantation install` offers a status line segment that reads `mic: listening`,
+With the grimoire plugin installed, a row above the prompt shows the listener's
+state, `mic: listening`, `hearing`, `thinking`, `speaking` or `muted`, in a colour
+that eases from one state's to the next, with a bar wave of what the mic hears,
+and a Mute or Unmute button. It draws nothing when no listener runs. It lives in
+grimoire's own mod, beside Brigade, since a plugin cannot carry one here. It reads
+`~/.grimoire/incantation/run/levels` four times a second while a listener writes
+it, and a click writes `mute` or `unmute` to `run/command`, which the listener
+reads once and removes. Nothing else in the run folder is read or written by it.
+
+`levels` holds numbers only: a stamp, the state word and 24 digits, 0 to 8, one a
+quarter second, the loudest frame of each. It holds no audio and no text, but it
+does show when you were talking. The listener writes it at most four times a second
+(about 0.1 ms each) and removes it when it stops. Anything that can write to your
+`~/.grimoire/incantation/run/` folder can click for you, which it could already do by reading the
+listener's channel token in the same folder.
+
+### The mic indicator, for a terminal status line
+
+Claude Desktop does not draw a status line; a terminal does. `/incantation install` offers a status line segment that reads `mic: listening`,
 `mic: hearing`, `mic: thinking`, `mic: speaking` or `mic: muted`. It is the
 script `skills/incantation/scripts/statusline.mjs`, which prints nothing when no
 listener runs. To add it yourself, set this in your Claude Code user settings

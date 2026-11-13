@@ -936,7 +936,8 @@ for a newer turn before acting) is deferred by the owner as a later polish.
 - **T9. Listening indicator.** The listener writes one word (`listening`,
   `hearing`, `thinking`, `speaking`, `muted`) to `run/status`, touched every
   2 s; `statusline.mjs` prints it for a status line. The engine's mod places
-  are refused inside this plugin (rule 6c), so a clickable control is not built.
+  are refused inside this plugin (rule 6c), so a clickable control is not built
+  there; T15 puts one in grimoire's mod.
 - **T10. Turns split on a breath.** End of speech is 1500 ms by default (range
   300 to 3000). A turn whose text does not end a sentence is held 2 s and
   joined to the next, up to four. A stop word and a reply to the session's
@@ -955,6 +956,39 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   stop or an error. A dropped fragment, `quiet`, `stt-dropped`, `interrupted`,
   `mic-muted`, `mic-unmuted` and `dropped` ride in the next real delivery;
   quiet is `quiet <n>`, n stretches of 10 minutes.
+- **T15. The mic band** (the owner's later ask, 2026-11-14). Rule 6c refuses a
+  mod inside `plugins/incantation`, and the rule stands. The band is a module of
+  grimoire's own mod, `brigade/mic-band.tsx`, called from `register.tsx` beside the
+  permission warning, so `hooks/hooks.json` and rule 6c are untouched. It draws a
+  row above the prompt on the terminal, desktop and mobile surfaces: the state
+  word with its colour easing over four steps of 75 ms, the wave, and a Mute or
+  Unmute button. It draws nothing with no listener, or while a survey holds the
+  band. `statusline.mjs` stays for a terminal's status line, which Desktop does
+  not draw. It is the grimoire plugin that holds the band, so a person with
+  grimoire installed and not Incantation sees nothing and pays one failed read in
+  eight ticks. It also gives the mod a timer and a file read, and a file write
+  on a press, outside its data folder, from the first draw of the band in every
+  session that has the plugin. That contradicts the idle-by-default line that
+  `SECURITY.md`, row 15 of the threat model and `docs/security/brigade.md` rest
+  on, which ADR 0008 relaxed for the usage writer alone. None of those was
+  edited here: the owner decides whether the band ships in grimoire's mod, and
+  the threat model's scope is theirs to change.
+- **T16. The levels file and the click file.** The listener writes
+  `run/levels`: `<epoch ms> <state word> <24 digits>`, each digit 0 to 8 the
+  loudest frame of a 250 ms bucket on a scale from -60 to -15 dBFS, 0 while
+  muted: numbers only. It is written when the digits or the word change, and on
+  the 2 s beat, and removed at stop. The band reads it 4 times a second while it
+  is fresh (stamp within 10 s) and once in eight ticks while it is not, and writes
+  `mute` or `unmute` to `run/command`. The listener looks for that file every
+  250 ms, accepts a plain file of at most 16 bytes, written in the last 5 s, whose
+  whole text is `mute` or `unmute`, removes it whatever it held, and acts as the
+  person's own mute does. The click file carries no token, so anything that can
+  write to the private run folder can mute or unmute; the token file is in the
+  same folder, so it holds no one the folder did not already admit. This is a new
+  way to unmute and the owner signs it. Measured here: the listener's write is
+  about 0.11 ms, four a second at most; the band's read, parse and bars about
+  0.016 ms a tick. The engine's redraw per tick is not measured: no desktop
+  session ran.
 
 ## Open
 

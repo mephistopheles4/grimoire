@@ -165,6 +165,13 @@ declare module 'claude-code' {
       /** The owner's "Don't show again", as the store holds it: when, and the
        *  version of the wording. Checked again before use. */
       warningAck: { at: string; version: string } | null
-    }
+      /** The Incantation mic band's last reading of the listener's levels
+       *  file: the file's stamp, a state word and 24 digits, 0 to 8. Numbers
+       *  only. Checked again by the file's own pattern before it is drawn;
+       *  null when no listener is writing. */
+      micFrame: { stamp: number; word: string; digits: string } | null
+      /** The colour change of the state word: the word before, the word now
+       *  and the step of the change, 0 to 4. Read through the fixed word list. */
+      micEase: { from: string; to: string; step: number }    }
   }
 }
