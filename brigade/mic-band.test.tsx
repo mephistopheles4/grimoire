@@ -1,7 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { commandFile, levelsFile } from './mic-view.ts'
+import { advanceLine, commandFile, fullWidth, levelsFile } from './mic-view.ts'
+import { orbSvg, phase } from './mic-svg.ts'
 
 // The Incantation mic band, driven the way the person sees it: the listener's
 // levels file appears, changes and goes, and the button is pressed. Runs under
@@ -57,7 +58,9 @@ describe('mic band', () => {
       if (surface === 'terminal') {
         expect(await ui.find({ type: 'Text', text: /^[▁▂▃▄▅▆▇█]{80}$/ })).toBeDefined()
       } else {
-        expect(await ui.find({ type: 'Svg' } as any)).toBeDefined()
+        const svg: any = await ui.find({ type: 'Svg' } as any)
+        expect(svg).toBeDefined()
+        expect(svg.props.isInteractive).toBe(false)
       }
       await ui.unmount()
     })
@@ -179,4 +182,82 @@ describe('mic band', () => {
     expect(w.reads).toBeLessThanOrEqual(34)
     await ui.unmount()
   })
+
+  // The picture itself, a pure function: no mount, no clock but the ones it is given.
+  const SOFT = '2'.repeat(24)
+  const LOUD = '8'.repeat(24)
+  const animations = (src: string) => [...src.matchAll(/<animate(?:Transform)?\s[^>]*>/g)].map(m => m[0])
+
+  test('the speaking picture has no wave, one slow ripple and a breathing orb, each kept in phase by a begin', async () => {
+    const now = 5000
+    const el = 120
+    const src = orbSvg(WAVE, WAVE, 'speaking', 250, 1000, now, el)
+    expect(src).not.toContain('<path d=')
+    expect(src.match(/<circle[^>]*stroke-opacity="0"/g)?.length).toBe(1)
+    expect(src).toContain(`dur="2200ms" begin="${Math.round(phase(now + el, 2200))}ms" repeatCount="indefinite"`)
+    expect(src).toContain('values="12;19;14;21;13;18;12" dur="1900ms" begin="' + Math.round(phase(now + el, 1900)) + 'ms" repeatCount="indefinite"')
+    // A redraw of the same reading a moment later resumes the breath at the later phase.
+    const later = orbSvg(WAVE, WAVE, 'speaking', 250, 1000, now + 60, el + 60)
+    expect(later).not.toBe(src)
+    expect(later).toContain('begin="' + Math.round(phase(now + 60 + el + 60, 1900)) + 'ms"')
+  })
+
+  test('every animation in the hearing, speaking and first pictures carries a begin', async () => {
+    for (const src of [orbSvg(WAVE, WAVE, 'hearing', 250, 1000, 5000, 400), orbSvg('', WAVE, 'hearing', 250, 1000, 5000, 100), orbSvg(WAVE, WAVE, 'speaking', 250, 1000, 5000, 100), orbSvg(WAVE, WAVE, 'muted', 250, 1000, 5000, 100)]) {
+      const all = animations(src)
+      expect(all.length).toBeGreaterThan(0)
+      for (const a of all) expect(a).toMatch(/\sbegin="-?\d+ms"/)
+    }
+    // The first picture's grow reveal is among them.
+    expect(animations(orbSvg('', WAVE, 'hearing', 250, 1000, 5000, 100)).filter(a => a.includes('dur="350ms"')).length).toBe(2)
+  })
+
+  test('ripples: none for soft sound, at most one every fourth reading, reaching 15 + 60 v/8 over 2.2 s from r 2', async () => {
+    expect(orbSvg(SOFT, SOFT, 'hearing', 250, 1000, 5000, 100).match(/<circle[^>]*stroke-opacity="0"/g)).toBeNull()
+    const loud = orbSvg(LOUD, LOUD, 'hearing', 250, 1000, 5000, 100)
+    const rings = loud.match(/<circle[^>]*stroke-opacity="0"/g) ?? []
+    // Ages under 2.2 s are under 9 readings: with one a fourth reading, two or three.
+    expect(rings.length).toBeGreaterThanOrEqual(2)
+    expect(rings.length).toBeLessThanOrEqual(3)
+    expect(loud).toContain('<animate attributeName="r" from="2.0" to="77.0" dur="2200ms"')
+    // Muted: no ripple at all.
+    expect(orbSvg(LOUD, LOUD, 'muted', 250, 1000, 5000, 100).match(/<circle[^>]*stroke-opacity="0"/g)).toBeNull()
+  })
+
+  test('a muted picture is a flat line: every point of the wave sits on the middle', async () => {
+    const src = orbSvg(LOUD, LOUD, 'muted', 250, 1000, 5000, 100)
+    const paths = [...src.matchAll(/<path d="([^"]+)"/g)].map(m => m[1])
+    expect(paths.length).toBe(2)
+    for (const d of paths) {
+      const ys = new Set([...d.matchAll(/,(-?[\d.]+)/g)].map(m => m[1]))
+      expect([...ys]).toEqual(['22.0'])
+    }
+    const live = [...orbSvg(LOUD, LOUD, 'hearing', 250, 1000, 5000, 100).matchAll(/<path d="([^"]+)"/g)].map(m => m[1])
+    expect(new Set([...live[0].matchAll(/,(-?[\d.]+)/g)].map(m => m[1])).size).toBeGreaterThan(5)
+  })
+
+  test('the terminal draws a muted mic as a flat line, and rows past 400 columns stay full width', async () => {
+    expect(fullWidth(WAVE, 'muted', 10)).toEqual(['▁'.repeat(10), '▔'.repeat(10)])
+    expect(fullWidth(WAVE, 'hearing', 500)[0].length).toBe(500)
+  })
+
+  test('the reading clock steps by the shift the digits show, and resets to the stamp only past two readings of drift', async () => {
+    const ms = 250
+    const a = '012345678765432101234567'
+    const next = a.slice(1) + '3'
+    const first = advanceLine({ t: -1, stamp: 0, digits: '' }, 10_000, a, ms)
+    expect(first).toEqual({ t: 10_000, stamp: 10_000, digits: a })
+    // The wave moved one place; the stamp is a reading late (jitter): still one reading.
+    const one = advanceLine(first, 10_000 + 2 * ms, next, ms)
+    expect(one.t).toBe(10_000 + ms)
+    // Drift past two readings from the stamp resets the clock to it.
+    const far = advanceLine(first, 10_000 + 5 * ms, next, ms)
+    expect(far.t).toBe(10_000 + 5 * ms)
+    // Two readings of drift do not.
+    const two = advanceLine(first, 10_000 + 3 * ms, next, ms)
+    expect(two.t).toBe(10_000 + ms)
+    // A different number of digits starts over.
+    expect(advanceLine(first, 20_000, a.slice(0, 20), ms).t).toBe(20_000)
+  })
+
 })

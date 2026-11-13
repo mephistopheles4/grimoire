@@ -43,6 +43,7 @@ const RUN = 40 // readings (10 s) the line keeps sliding, so silence never stall
 const SAMPLES = 360
 const CARRIER_MS = 1000 // one full wave per four readings
 const RIP_MS = 2200
+const BREATH_MS = 1900 // the speaking orb's breath, kept in phase across pictures
 const ORB_R = 2 // ripples are born at the orb's middle
 
 /** The picture. `prevDigits` and `digits` are the readings before and now ('' for
@@ -130,7 +131,7 @@ export function orbSvg(prevDigits: string, digits: string, word: MicWord, ms: nu
     `<clipPath id="halfr"><rect x="${CX}" y="0" width="${CX}" height="${H}"/></clipPath><clipPath id="halfl"><rect x="0" y="0" width="${CX}" height="${H}"/></clipPath>` +
     `<filter id="tg" x="-5%" y="-50%" width="110%" height="200%"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>` +
     (fresh
-      ? `<clipPath id="grow"><rect x="${CX}" y="0" width="0" height="${H}"><animate attributeName="x" from="${CX}" to="0" dur="350ms" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0 1"/><animate attributeName="width" from="0" to="${W}" dur="350ms" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0 1"/></rect></clipPath>`
+      ? `<clipPath id="grow"><rect x="${CX}" y="0" width="0" height="${H}"><animate attributeName="x" from="${CX}" to="0" dur="350ms" ${B} fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0 1"/><animate attributeName="width" from="0" to="${W}" dur="350ms" ${B} fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0 0 1"/></rect></clipPath>`
       : `<clipPath id="grow"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath>`)
 
   const wave = word === 'speaking' ? '' : `${side(1)}${side(-1)}`
@@ -138,7 +139,7 @@ export function orbSvg(prevDigits: string, digits: string, word: MicWord, ms: nu
   // breathes on its own, at about the size it reaches for a person's voice.
   const orb =
     word === 'speaking'
-      ? `<circle cx="${CX}" cy="${MID}" r="15" fill="url(#o)"><animate attributeName="r" values="12;19;14;21;13;18;12" dur="1900ms" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.16;0.33;0.5;0.66;0.83;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/></circle>`
+      ? `<circle cx="${CX}" cy="${MID}" r="15" fill="url(#o)"><animate attributeName="r" values="12;19;14;21;13;18;12" dur="${BREATH_MS}ms" begin="${Math.round(phase(now + el, BREATH_MS))}ms" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.16;0.33;0.5;0.66;0.83;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/></circle>`
       : `<circle cx="${CX}" cy="${MID}" r="${f(r1 * 1.5)}" fill="url(#o)">${tween('r', f(r0 * 1.5), f(r1 * 1.5), ms).replace('<animate ', `<animate ${B} `)}</circle>`
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMidYMid meet"><defs>${defs}</defs>${wave}${ring}${orb}</svg>`
 }

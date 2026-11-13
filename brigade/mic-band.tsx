@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On, Timer } from 'claude-code'
 
-import { EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, colorAt, commandFile, fullWidth, homeFrom, labelOf, levelsFile, parseLevels, toggleFor } from './mic-view.ts'
-import type { MicFrame, MicWord } from './mic-view.ts'
+import { EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, advanceLine, colorAt, commandFile, fullWidth, homeFrom, labelOf, levelsFile, parseLevels, toggleFor } from './mic-view.ts'
+import type { Line, MicFrame, MicWord } from './mic-view.ts'
 import { orbSvg } from './mic-svg.ts'
 
 // The Incantation mic band: a row above the prompt that shows what the voice
@@ -56,9 +56,10 @@ async function tick($: EngineInterface, dir: string, live: () => boolean) {
   quiet = next === null ? quiet + 1 : 0
   if (next === null && was === null) return
   if (next !== null && was !== null && next.word === was.word && next.digits === was.digits) return
-  // Every new reading is drawn (four a second), and nothing between: the band
-  // redraws only when it draws, since each redraw puts up a new picture and one
-  // in between flashed. A change of word draws at once, as any new reading does.
+  // Every new reading is drawn (four a second), and nothing between but the
+  // colour ease: on a change of word the ease redraws the same reading at 75 ms
+  // steps, and the picture's clock holds through those redraws. A change of word
+  // draws at once, as any new reading does.
   await update($, prevAtom, () => (was === null ? '' : was.digits))
   await update($, frameAtom, () => next)
   if (next !== null && (was === null || was.word !== next.word)) {
@@ -117,36 +118,11 @@ async function begin($: EngineInterface) {
 // so the desktop keeps it running instead of restarting it.
 let shown = { stamp: -1, t: 0, digits: '', prev: '', word: 'listening', at: 0 }
 
-// The moment of the newest reading, kept by the mod itself. The listener's
-// stamp is when it wrote the file, which can be a reading early or late, and
-// that slid the whole loudness outline by a reading against the wave. Instead,
-// match the new readings against the last ones to see how many places they
-// moved, and advance by exactly that many readings (the stamp's expected shift
-// weighs the match). The stamp only resets the count when it drifts by more
-// than two readings.
-let line = { t: -1, stamp: 0, digits: '' }
+// The moment of the newest reading, kept by the mod itself (advanceLine, mic-view.ts).
+let line: Line = { t: -1, stamp: 0, digits: '' }
 function advance(stamp: number, digits: string, ms: number): number {
-  if (line.t < 0 || line.digits.length !== digits.length) {
-    line = { t: stamp, stamp, digits }
-    return line.t
-  }
-  const n = digits.length
-  const expected = (stamp - line.stamp) / ms
-  let best = 0
-  let bestScore = Infinity
-  for (let k = 0; k <= Math.min(8, n - 4); k++) {
-    let miss = 0
-    for (let i = 0; i < n - k; i++) if (digits[i] !== line.digits[i + k]) miss++
-    const score = miss / (n - k) + 0.15 * Math.abs(k - expected)
-    if (score < bestScore) {
-      bestScore = score
-      best = k
-    }
-  }
-  let t = line.t + best * ms
-  if (Math.abs(t - stamp) > 2 * ms) t = stamp
-  line = { t, stamp, digits }
-  return t
+  line = advanceLine(line, stamp, digits, ms)
+  return line.t
 }
 
 export function registerMic(on: On) {

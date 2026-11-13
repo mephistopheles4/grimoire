@@ -97,9 +97,9 @@ const UP = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '█']
 const DOWN = ['▔', '▔', '▀', '▀', '▀', '█', '█', '█', '█']
 /** The terminal's wave: two mirrored rows of blocks meeting at a centre line,
  *  the 24 readings stretched with a cosine blend to `cols` columns, so the rows
- *  are as wide as the terminal (8 to 400). A muted mic is a flat line. */
+ *  are as wide as the terminal (8 to 2000). A muted mic is a flat line. */
 export function fullWidth(digits: string, word: MicWord, cols: number): [string, string] {
-  const n = Math.max(8, Math.min(400, Math.trunc(cols) || 80))
+  const n = Math.max(8, Math.min(2000, Math.trunc(cols) || 80))
   if (word === 'muted') return ['▁'.repeat(n), '▔'.repeat(n)]
   const d = [...digits].map(c => Number(c) || 0)
   const m = d.length || 1
@@ -111,4 +111,32 @@ export function fullWidth(digits: string, word: MicWord, cols: number): [string,
     return Math.min(8, Math.max(0, Math.round(v)))
   })
   return [s.map(v => UP[v]).join(''), s.map(v => DOWN[v]).join('')]
+}
+
+/** The newest reading's moment as the mod keeps it. The listener's stamp is
+ *  when it wrote the file, which can be a reading early or late, and that slid
+ *  the whole loudness outline by a reading against the wave. Instead, match the
+ *  new readings against the last ones to see how many places they moved, and
+ *  advance by exactly that many readings (the stamp's expected shift weighs the
+ *  match). The stamp only resets the count when it drifts by more than two
+ *  readings. Returns the new line; its `t` is the moment. */
+export type Line = { t: number; stamp: number; digits: string }
+export function advanceLine(line: Line, stamp: number, digits: string, ms: number): Line {
+  if (line.t < 0 || line.digits.length !== digits.length) return { t: stamp, stamp, digits }
+  const n = digits.length
+  const expected = (stamp - line.stamp) / ms
+  let best = 0
+  let bestScore = Infinity
+  for (let k = 0; k <= Math.min(8, n - 4); k++) {
+    let miss = 0
+    for (let i = 0; i < n - k; i++) if (digits[i] !== line.digits[i + k]) miss++
+    const score = miss / (n - k) + 0.15 * Math.abs(k - expected)
+    if (score < bestScore) {
+      bestScore = score
+      best = k
+    }
+  }
+  let t = line.t + best * ms
+  if (Math.abs(t - stamp) > 2 * ms) t = stamp
+  return { t, stamp, digits }
 }
