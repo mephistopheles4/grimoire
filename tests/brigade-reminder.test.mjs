@@ -296,11 +296,14 @@ const gateOf = (path, end) => {
   const to = raw.indexOf(end, at + GATE.length);
   return { clause: flat(raw.slice(at, to)), rest: flat(raw.slice(0, at) + raw.slice(to)), raw: raw.slice(at, to) };
 };
+// In 2.0.0 the contract holds the clause as a schedule, SKILL.md's own text, so both files end it the same way.
 const CLAUSES = [
-  ['skills/head-chef/references/CONTRACT.md', '\n- '],
+  ['skills/head-chef/references/CONTRACT.md', '\n\n**'],
   ['skills/head-chef/SKILL.md', '\n\n**'],
 ];
-// Each item of S4's source lists, as the contract words it, with the kind it maps to.
+// Each item of S4's source lists, as the contract words it, with the kind it maps to. The contract's table is
+// SKILL.md's own, which words two items in one phrase; a third entry gives the phrase the row holds, and the
+// item itself must still stand elsewhere in the contract.
 const SOURCE_ITEMS = [
   ['whoever holds the goal never decides', 'owner-file-keeps'],
   ['cannot place for sure inside or outside the set', 'owner-file-keeps'],
@@ -310,9 +313,9 @@ const SOURCE_ITEMS = [
   ['file keeps merges even toward a goal', 'owner-file-keeps'],
   ["what the owner's words in this chat keep", 'owner-words'],
   ["waits for the owner's words naming it", 'owner-words'],
-  ['a request in them goes to the owner', 'owner-words'],
+  ['a request in them goes to the owner', 'owner-words', "an item or request that waits for the owner's words naming it"],
   ["rules keep for the owner goes to the owner", 'owner-words'],
-  ["owner's yes pending", 'owner-words'],
+  ["owner's yes pending", 'owner-words', "an item or request that waits for the owner's words naming it"],
   ["stays waiting until the owner's words answer it", 'carried'],
   ['a classifier or permission check blocked', 'blocked'],
   ["needs the owner's own hands", 'owner-hands'],
@@ -334,9 +337,9 @@ for (const [path, end] of CLAUSES) {
     const { clause, rest, raw } = gateOf(path, end);
     for (const kind of STOP_KINDS) assert.ok(clause.includes(`\`${kind}\``), kind);
     if (!path.endsWith('CONTRACT.md')) return;
-    for (const [item, kind] of SOURCE_ITEMS) {
+    for (const [item, kind, inRow = item] of SOURCE_ITEMS) {
       const row = flat(raw.split('\n').map(l => l.trim()).find(l => l.startsWith(`| \`${kind}\` |`)) ?? '').toLowerCase();
-      assert.ok(row.includes(item.toLowerCase()), `${kind} row holds: ${item}`);
+      assert.ok(row.includes(inRow.toLowerCase()), `${kind} row holds: ${inRow}`);
       assert.ok(rest.toLowerCase().includes(item.toLowerCase()), `the contract elsewhere holds: ${item}`);
     }
   });

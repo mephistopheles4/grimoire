@@ -65,9 +65,13 @@ test("the skill's and the contract's copies of the warning are the band's wordin
     return lines.filter(l => l !== '');
   };
   const skill = read('../skills/head-chef/SKILL.md').split('\n## The permission warning\n')[1]?.split('\n\n').find(p => p.startsWith('> '));
-  const contract = read('../skills/head-chef/references/CONTRACT.md').split('\n\n').find(p => p.startsWith('> Head chef is on.'));
+  // In the contract the warning stands in the permission warning's schedule, in SKILL.md's wording.
+  const whole = read('../skills/head-chef/references/CONTRACT.md');
+  const at = whole.indexOf('\n### SKILL.md: The permission warning\n');
+  assert.ok(at >= 0, 'CONTRACT.md holds the permission warning schedule');
+  const contract = whole.slice(at, whole.indexOf('\n### ', at + 1)).split('\n\n').find(p => p.startsWith('> Head chef is on.'));
   assert.ok(skill, 'SKILL.md quotes the warning under "## The permission warning"');
-  assert.ok(contract, 'CONTRACT.md quotes the warning');
+  assert.ok(contract, 'the permission warning schedule quotes the warning');
   assert.deepEqual(quoted(skill), [...WORDING]);
   assert.deepEqual(quoted(contract), [...WORDING]);
 });
