@@ -94,6 +94,7 @@ function speakFeed(port) {
     let pending = '';
     let event = '';
     let data = '';
+    feed.emit('open');
     const dispatch = () => {
       let type = event;
       if (!type && data) type = parseJson(Buffer.from(data))?.type ?? '';
@@ -138,8 +139,11 @@ function speakFeed(port) {
   return feed;
 }
 
-export function makeEngine({ port }) {
-  const transcribe = async pcm => {
+// timeoutMs bounds one transcription; warmMs bounds the first, which loads the
+// model and can take tens of seconds on a cold start (W6). The listener bounds
+// the warm again with its own warmMs.
+export function makeEngine({ port, timeoutMs = 15_000, warmMs = 60_000 }) {
+  const transcribe = async (pcm, limit = timeoutMs) => {
     const boundary = `----incantation${Date.now().toString(16)}${Math.floor(Math.random() * 1e9).toString(16)}`;
     const body = Buffer.concat([
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="turn.wav"\r\nContent-Type: audio/wav\r\n\r\n`, 'latin1'),
@@ -147,7 +151,7 @@ export function makeEngine({ port }) {
       pcm,
       Buffer.from(`\r\n--${boundary}--\r\n`, 'latin1'),
     ]);
-    const res = await call(port, { method: 'POST', path: '/transcribe', body, headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, 'content-length': body.length, accept: 'application/json' } });
+    const res = await call(port, { method: 'POST', path: '/transcribe', body, timeoutMs: limit, headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, 'content-length': body.length, accept: 'application/json' } });
     if (!res || res.status !== 200) return null;
     const text = parseJson(res.body)?.text;
     return typeof text === 'string' ? text.trim() : null;
@@ -158,6 +162,9 @@ export function makeEngine({ port }) {
     speakTools: [VALUES.speakTool.value],
     speakArgs: VALUES.speakTool.args,
     mcpUrl: `http://${HOST}:${port}/mcp`,
+    // The one header the entry may carry: Voicebox's own setup adds a client id.
+    // The guard checks its name only and never reads or prints its value.
+    mcpHeaders: ['x-voicebox-client-id'],
     host: HOST,
     port,
     capture: 'ffmpeg',
@@ -181,7 +188,7 @@ export function makeEngine({ port }) {
     // model is loaded until F1 shows a load that warms the profile's own engine.
     async warm() {
       const began = performance.now();
-      const text = await transcribe(Buffer.alloc(RATE * 2));
+      const text = await transcribe(Buffer.alloc(RATE * 2), warmMs);
       if (text === null) throw new Error('warm');
       return Math.round(performance.now() - began);
     },

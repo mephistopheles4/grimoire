@@ -28,6 +28,7 @@ export const KNOBS = {
   silentStartMs: 3000, // all-zero frames this long at start: the OS mic permission is off
   warmMs: 60_000,
   handshakeMs: 2000,
+  feedOpenMs: 5000, // the playback feed must answer before the mic opens
 };
 
 export const SAMPLE_RATE = 16_000;

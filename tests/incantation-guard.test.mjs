@@ -3,7 +3,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { LINES, runGuard } from '../plugins/incantation/skills/incantation/scripts/guard.mjs';
@@ -33,7 +35,7 @@ function fixture({ settings = {}, claude, project } = {}) {
   return { home, projectDir, remove: () => (rmSync(home, { recursive: true, force: true }), rmSync(projectDir, { recursive: true, force: true })) };
 }
 
-const engine = (over = {}) => ({ mcpServer: 'voicebox', mcpUrl: URL_OK, health: async () => true, ...over });
+const engine = (over = {}) => ({ mcpServer: 'voicebox', mcpUrl: URL_OK, mcpHeaders: ['x-voicebox-client-id'], health: async () => true, ...over });
 
 const guard = (f, over = {}) =>
   runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, engine: engine(), addresses: () => [], ...over });
@@ -52,6 +54,7 @@ test('ok with valid settings, a fake engine on 127.0.0.1 and a fake recorder', a
 test('each check fails with its fixed line and no value', async t => {
   const cases = [
     [{}, { nodeVersion: '22.11.0' }, 'node'],
+    [{}, { nodeVersion: '23.9.0' }, 'node'],
     [{ settings: { port: 80 } }, {}, 'settings'],
     [{ settings: { engine: 'elsewhere' } }, {}, 'engine'],
     [{ settings: { engine: '../../evil' } }, {}, 'settings'],
@@ -62,6 +65,8 @@ test('each check fails with its fixed line and no value', async t => {
     [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: { '/some/project': { mcpServers: { voicebox: { type: 'http', url: URL_OK } } } } } }, {}, 'mcp'],
     [{ project: { mcpServers: { voicebox: { type: 'http', url: URL_OK } } } }, {}, 'mcp'],
     [{ claude: { mcpServers: {} } }, {}, 'mcp'],
+    [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { Authorization: 'made-up' } } } } }, {}, 'mcp'],
+    [{ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { 'X-Voicebox-Client-Id': 'made-up', Host: 'elsewhere' } } } } }, {}, 'mcp'],
     [{ claude: `{"mcpServers": {"other": {"headers": {"Authorization": "${PLANTED}"` }, {}, 'mcp'],
     [{ settings: { recorder: win ? 'C:\\elsewhere\\ffmpeg.exe' : '/elsewhere/ffmpeg' } }, {}, 'recorder'],
     [{}, { pathValue: '' }, 'recorder'],
@@ -88,6 +93,53 @@ test('it finishes within 2 s with every port timing out', async t => {
   t.after(f.remove);
   const began = Date.now();
   const line = await guard(f, { addresses: () => ['192.0.2.10'], tcpOpen: () => new Promise(() => {}) });
-  assert.ok(Date.now() - began < 2500);
+  assert.ok(Date.now() - began < 2100);
   assert.equal(line, LINES.late);
+});
+
+test('a Claude Code config past our own 1 MB file cap is still read', async t => {
+  const f = fixture({ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: {}, padding: 'x'.repeat(2_000_000) } });
+  t.after(f.remove);
+  assert.equal(await guard(f), 'ok');
+});
+
+// A link in place of the state folder: a junction on Windows, a symlink elsewhere.
+const linkFolder = (target, path) => symlinkSync(target, path, win ? 'junction' : 'dir');
+
+test('the state check fails closed on a link or junction in place, a real path outside home, and a looser mode', async t => {
+  const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const moved = fixture();
+  renameSync(join(moved.home, '.incantation'), join(outside, '.incantation'));
+  linkFolder(join(outside, '.incantation'), join(moved.home, '.incantation'));
+  assert.equal(await guard(moved), LINES.state, 'a link whose real path is outside home');
+  moved.remove();
+  const inside = fixture();
+  renameSync(join(inside.home, '.incantation'), join(inside.home, 'kept'));
+  linkFolder(join(inside.home, 'kept'), join(inside.home, '.incantation'));
+  assert.equal(await guard(inside), LINES.state, 'a link, even to a folder inside home');
+  inside.remove();
+  if (!win) {
+    for (const [path, mode] of [['.incantation', 0o755], [join('.incantation', 'run'), 0o750], [join('.incantation', 'settings.json'), 0o644]]) {
+      const f = fixture();
+      chmodSync(join(f.home, path), mode);
+      assert.equal(await guard(f), LINES.state, `${path} at ${mode.toString(8)}`);
+      f.remove();
+    }
+  }
+});
+
+test('the command line exits 1 on a failed check, and prints only its fixed line', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'incantation-guard-cli-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const GUARD = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/guard.mjs', import.meta.url));
+  const r = await new Promise(res => execFile(process.execPath, [GUARD], { cwd: home, env: { HOME: home, USERPROFILE: home, PATH: '' }, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res({ code: e ? e.code : 0, stdout })));
+  assert.equal(r.code, 1);
+  assert.ok(Object.values(LINES).includes(r.stdout.trimEnd()), r.stdout);
+});
+
+test("the entry may carry Voicebox's own client-id header, and no other", async t => {
+  const f = fixture({ claude: { mcpServers: { voicebox: { type: 'http', url: URL_OK, headers: { 'X-Voicebox-Client-Id': 'made-up-client' } } }, projects: {} } });
+  t.after(f.remove);
+  assert.equal(await guard(f), 'ok');
 });

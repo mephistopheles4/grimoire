@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveRecorder } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
-import { readSettings, readText, secureState } from './lib.mjs';
+import { MAX_CONFIG, readSettings, readText, secureState } from './lib.mjs';
 
 const CONNECT_MS = 500;
 const DEADLINE_MS = 2000;
@@ -57,8 +57,9 @@ const externalAddresses = () =>
     .filter(a => a && !a.internal)
     .map(a => a.address);
 
+// Claude Code's config files grow past our own cap, so they get a larger one.
 const readJson = path => {
-  const text = readText(path);
+  const text = readText(path, MAX_CONFIG);
   if (text === null) return null;
   return JSON.parse(text); // a parse error is caught by the caller and never printed
 };
@@ -78,7 +79,12 @@ export function mcpEntryOk({ home, projectDir, engine }) {
   const entry = user?.mcpServers?.[engine.mcpServer];
   if (!entry || typeof entry !== 'object') return false;
   if (entry.type !== 'http' || entry.url !== engine.mcpUrl) return false;
-  if (entry.headers && Object.keys(entry.headers).length) return false;
+  if (entry.headers !== undefined) {
+    const h = entry.headers;
+    if (h === null || typeof h !== 'object' || Array.isArray(h)) return false;
+    const allowed = engine.mcpHeaders ?? [];
+    if (!Object.keys(h).every(k => allowed.includes(k.toLowerCase()) && typeof h[k] === 'string')) return false;
+  }
   for (const p of Object.values(user?.projects ?? {})) if (p?.mcpServers && Object.hasOwn(p.mcpServers, engine.mcpServer)) return false;
   if (project?.mcpServers && Object.hasOwn(project.mcpServers, engine.mcpServer)) return false;
   return true;
@@ -91,8 +97,8 @@ async function check(o) {
   let settings;
   try {
     settings = readSettings(o.home, { platform });
-  } catch {
-    return fail('settings');
+  } catch (e) {
+    return fail(e.message === 'state' ? 'state' : 'settings');
   }
   if (!isEngine(settings.engine)) fail('engine');
   try {

@@ -112,3 +112,11 @@ test('posix: a recorder in a group- or other-writable folder, or owned by anothe
   assert.equal(resolve({ '/opt/x/bin/ffmpeg': { uid: 501, mode: 0o100755 } }), null, 'owned by another account');
   assert.equal(resolve({ '/opt/x/bin/ffmpeg': { uid: 0, mode: 0o100775 } }), null, 'a group-writable file');
 });
+
+test('a relative or current-folder entry is refused by the rule itself, though a file sits there with an acceptable real path', () => {
+  const ok = 'D:\\ok\\ffmpeg.exe';
+  const win = fsOf({ 'ffmpeg.exe': ok, 'bin\\ffmpeg.exe': ok, 'C:relative\\ffmpeg.exe': ok, '.\\ffmpeg.exe': ok });
+  for (const entry of ['.', '', 'bin', 'C:relative']) assert.equal(resolveRecorder({ platform: 'win32', pathValue: entry, startDir: 'C:\\proj', fs: win }), null, JSON.stringify(entry));
+  const posix = fsOf({ ffmpeg: '/opt/ok/ffmpeg', 'bin/ffmpeg': '/opt/ok/ffmpeg', './ffmpeg': '/opt/ok/ffmpeg' });
+  for (const entry of ['.', '', 'bin']) assert.equal(resolveRecorder({ platform: 'linux', pathValue: entry, startDir: '/proj', fs: posix }), null, JSON.stringify(entry));
+});

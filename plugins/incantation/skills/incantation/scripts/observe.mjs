@@ -13,9 +13,9 @@
 // touches eval/.
 
 import { randomInt } from 'node:crypto';
-import { appendFileSync, chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cleanText } from './lib.mjs';
 
@@ -46,12 +46,42 @@ function dropOld(folder, now) {
     const days = (today - Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) / 86_400_000;
     if (days > KEEP_DAYS) rmSync(join(folder, name), { force: true });
   }
+  // An inbox file the session wrote but never passed to add: gone after a day.
+  for (const name of readdirSync(folder)) {
+    if (!/^inbox-[0-9a-f]{8}.json$/.test(name)) continue;
+    const p = join(folder, name);
+    try {
+      if (now.getTime() - lstatSync(p).mtimeMs > 86_400_000) rmSync(p, { force: true });
+    } catch {
+      // gone already
+    }
+  }
 }
 
+// Each folder from ~/.incantation down, made 0700: never a link or junction, and
+// its real path inside the real home (S5.5). A file written there is checked the
+// same way first. Anything else is refused.
 function secure(home, folder) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  chmodSync(join(home, '.incantation'), 0o700);
-  chmodSync(folder, 0o700);
+  const realHome = realpathSync(home);
+  const top = join(home, '.incantation');
+  for (let p = folder; ; p = dirname(p)) {
+    const st = lstatSync(p);
+    if (st.isSymbolicLink() || !st.isDirectory()) refuse();
+    const rel = relative(realHome, realpathSync(p));
+    if (!rel || rel.startsWith('..') || isAbsolute(rel)) refuse();
+    if (process.platform !== 'win32') chmodSync(p, 0o700);
+    if (p === top) break;
+  }
+}
+function plainOrAbsent(file) {
+  let st;
+  try {
+    st = lstatSync(file);
+  } catch {
+    return;
+  }
+  if (st.isSymbolicLink() || !st.isFile()) refuse();
 }
 
 // Words that look like a path, an address or a key never enter the log (claim 3).
@@ -93,6 +123,7 @@ export function add({ home, now = new Date(), input }) {
   const entry = entryOf(input, now);
   secure(home, folder);
   const file = join(folder, `${dayOf(now)}.jsonl`);
+  plainOrAbsent(file);
   appendFileSync(file, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
   chmodSync(file, 0o600);
 }
@@ -104,7 +135,9 @@ export function freeze({ home, now = new Date(), n, random = randomInt }) {
   if (!Number.isInteger(n) || n < 1 || n > MAX_FREEZE || !existsSync(folder)) refuse();
   const lines = [];
   for (const name of readdirSync(folder).sort()) {
-    if (DAY_FILE.test(name)) lines.push(...readFileSync(join(folder, name), 'utf8').split('\n').filter(Boolean));
+    if (!DAY_FILE.test(name)) continue;
+    plainOrAbsent(join(folder, name));
+    lines.push(...readFileSync(join(folder, name), 'utf8').split('\n').filter(Boolean));
   }
   if (!lines.length) refuse();
   for (let i = lines.length - 1; i > 0; i--) {
@@ -113,13 +146,11 @@ export function freeze({ home, now = new Date(), n, random = randomInt }) {
   }
   const sample = lines.slice(0, Math.min(n, lines.length));
   const evalDir = join(folder, 'eval');
-  secure(home, folder);
-  mkdirSync(evalDir, { recursive: true, mode: 0o700 });
-  chmodSync(evalDir, 0o700);
+  secure(home, evalDir);
   const stamp = `${dayOf(now)}T${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${sample.length}`;
   let file = join(evalDir, `${stamp}.jsonl`);
   for (let i = 2; existsSync(file); i++) file = join(evalDir, `${stamp}-${i}.jsonl`);
-  writeFileSync(file, `${sample.join('\n')}\n`, { mode: 0o600 });
+  writeFileSync(file, `${sample.join('\n')}\n`, { mode: 0o600, flag: 'wx' });
   chmodSync(file, 0o600);
   return sample.length;
 }

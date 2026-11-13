@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, utimesSync, renameSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -60,7 +60,7 @@ test('add writes one line to that day\'s file, in a 0700 folder with a 0600 file
   assert.equal(readFileSync(join(folder, files[0]), 'utf8').split('\n').filter(Boolean).length, 2, 'a second line is appended to the same day');
 });
 
-test('add refuses an unlisted key, an unknown kind and a line it cannot parse, with a fixed line and nothing written', { skip: modes }, t => {
+test('add refuses an unlisted key, an unknown kind and a line it cannot parse, with a fixed line and nothing written', t => {
   const marker = 'MARKER-8e41c0';
   const bad = [
     line({ extra: marker }),
@@ -195,4 +195,36 @@ test('add takes only an 8-hex name, reads only that inbox file, and deletes it o
   assert.equal(run(h, ['add', '0badf00d']).stdout, 'observe: ok\n');
   assert.equal(existsSync(inbox('0badf00d')), false, 'deleted after an append');
   assert.equal(run(h, ['add', '0badf00d']).stdout, REFUSED, 'gone: nothing to read');
+});
+
+test('add refuses an observe folder that is a link or junction, or a day file that is a link, and writes nothing through it', t => {
+  const h = home(t);
+  const outside = home(t);
+  mkdirSync(join(outside, 'observe'), { recursive: true });
+  mkdirSync(join(h, '.incantation'), { recursive: true });
+  symlinkSync(join(outside, 'observe'), join(h, '.incantation', 'observe'), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => add({ home: h, now: NOW, input: line() }));
+  assert.deepEqual(readdirSync(join(outside, 'observe')), [], 'nothing written through the link');
+  if (process.platform === 'win32') return; // a file symlink needs a privilege Windows withholds
+  const h2 = home(t);
+  const target = join(outside, 'target.jsonl');
+  writeFileSync(target, '');
+  mkdirSync(join(h2, '.incantation', 'observe'), { recursive: true });
+  symlinkSync(target, join(h2, '.incantation', 'observe', '2026-11-12.jsonl'));
+  assert.throws(() => add({ home: h2, now: NOW, input: line() }));
+  assert.equal(readFileSync(target, 'utf8'), '');
+});
+
+test('an inbox file never passed to add is dropped after a day, a fresh one is kept', t => {
+  const h = home(t);
+  const folder = join(h, '.incantation', 'observe');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, 'inbox-0000aaaa.json'), line());
+  writeFileSync(join(folder, 'inbox-0000bbbb.json'), line());
+  const old = (NOW.getTime() - 2 * 86_400_000) / 1000;
+  utimesSync(join(folder, 'inbox-0000aaaa.json'), old, old);
+  utimesSync(join(folder, 'inbox-0000bbbb.json'), NOW.getTime() / 1000, NOW.getTime() / 1000);
+  add({ home: h, now: NOW, input: line() });
+  assert.equal(existsSync(join(folder, 'inbox-0000aaaa.json')), false);
+  assert.equal(existsSync(join(folder, 'inbox-0000bbbb.json')), true);
 });

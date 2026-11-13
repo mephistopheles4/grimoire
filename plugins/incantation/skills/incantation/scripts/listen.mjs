@@ -76,13 +76,36 @@ const sameToken = (given, token) => {
 };
 
 // A device listing through the recorder: stdout and stderr joined, or null.
-const runListing = cwd => (file, args) =>
+// ffmpeg prints the Windows and macOS listings on stderr, the Linux one on stdout.
+export const runListing = (cwd, run = execFile) => (file, args) =>
   new Promise(resolve =>
-    execFile(file, args, { cwd, shell: false, windowsHide: true, timeout: 15_000, maxBuffer: 1_000_000, encoding: 'utf8' }, (error, stdout, stderr) => {
+    run(file, args, { cwd, shell: false, windowsHide: true, timeout: 15_000, maxBuffer: 1_000_000, encoding: 'utf8' }, (error, stdout, stderr) => {
       if (error && (error.code === 'ENOENT' || error.killed)) return resolve(null);
       resolve(`${stdout ?? ''}\n${stderr ?? ''}`);
     }),
   );
+
+// What `wait` may print: only lines in the listener's own grammar (S6). Any
+// other line, from whatever answers on the port listen.json names, is dropped.
+const WAIT_LINE = new RegExp(
+  [
+    '^(?:',
+    'Heard(?: \\(after reply\\))?: "(?:[^"\\\\\\n]|\\\\["\\\\])*"',
+    '|timing: wait \\d{1,5} stt \\d{1,6}',
+    '|plays \\d{1,4}',
+    '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
+    '|dropped \\d{1,4}',
+    '|stt-dropped|muted|quiet|stopped',
+    `|listener error (?:${REASONS.join('|')})`,
+    ')$',
+  ].join(''),
+);
+export const waitLines = out =>
+  String(out)
+    .split('\n')
+    .filter(l => WAIT_LINE.test(l))
+    .map(l => `${l}\n`)
+    .join('');
 
 const withTimeout = (promise, ms) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms).unref())]);
 
@@ -105,8 +128,8 @@ export async function startListener(options = {}) {
     let settings;
     try {
       settings = readSettings(home, fsOptions);
-    } catch {
-      return stop('settings');
+    } catch (e) {
+      return stop(e.message === 'state' ? 'state' : 'settings');
     }
     if (!isEngine(settings.engine)) stop('engine');
     try {
@@ -174,6 +197,7 @@ export async function startListener(options = {}) {
     let sttFails = 0;
     let transcribing = Promise.resolve();
     let playing = 0;
+    let plays = 0;
 
     let resolveDone;
     const done = new Promise(r => (resolveDone = r));
@@ -189,7 +213,8 @@ export async function startListener(options = {}) {
         await Promise.race([childExited, new Promise(r => setTimeout(r, 2000).unref())]);
       }
       if (waiter) {
-        waiter.end(`listener error ${reason === 'stopped' ? 'ended' : reason}\n`);
+        // A stop the person asked for is no error.
+        waiter.end(reason === 'stopped' ? 'stopped\n' : `listener error ${reason}\n`);
         waiter = null;
       }
       server?.close();
@@ -219,6 +244,10 @@ export async function startListener(options = {}) {
         const taken = queue.take(now);
         for (const t of taken.turns) lines.push(formatHeard(t.text, t.afterReply, knobs.maxText));
         lines.push(`timing: wait ${settings.endOfSpeechMs} stt ${Math.round(sttMs)}`);
+        // Playbacks since the last delivery, from any caller: the skill counts a
+        // heard yes only when exactly one, its own say-back, came between.
+        lines.push(`plays ${Math.min(plays, 9999)}`);
+        plays = 0;
         dropped = taken.dropped;
         gate.delivered(clock());
       }
@@ -302,10 +331,16 @@ export async function startListener(options = {}) {
     });
     writePrivate(listenFile(home), JSON.stringify({ port: server.address().port, token: token.toString('hex') }), fsOptions);
 
-    // The playback feed first: nothing is captured until it answers.
+    // The playback feed first: nothing is captured until it answers, so no
+    // playback can begin unseen while the mic is open.
     feed = engine.playback();
+    const opened = new Promise((resolve, reject) => {
+      feed.once('open', resolve);
+      feed.once('error', reject);
+    });
     feed.on('start', () => {
       playing++;
+      plays++;
       gate.playback(playing, clock());
     });
     feed.on('end', () => {
@@ -313,6 +348,11 @@ export async function startListener(options = {}) {
       gate.playback(playing, clock());
     });
     feed.on('error', () => finish('playback'));
+    try {
+      await withTimeout(opened, knobs.feedOpenMs);
+    } catch {
+      stop('playback');
+    }
 
     // Warm in the background; `ready` goes to the next waiter.
     withTimeout(engine.warm(), knobs.warmMs).then(
@@ -383,7 +423,14 @@ async function main(argv, home = homedir()) {
     return say(`listener error ${REASONS.includes(reason) ? reason : 'ended'}`), 1;
   }
   if (command === 'wait') {
-    const out = await ask(readChannel(home), 'wait');
+    // The first wait can start before the listener is up: look for its channel
+    // for a few seconds before saying it is not running.
+    let channel = readChannel(home);
+    for (let i = 0; !channel && i < 30; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      channel = readChannel(home);
+    }
+    const out = waitLines((await ask(channel, 'wait')) ?? '');
     if (!out) return say('listener error ended'), 1;
     process.stdout.write(out);
     return /^listener error /m.test(out) ? 1 : 0;

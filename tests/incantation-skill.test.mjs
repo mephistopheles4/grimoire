@@ -88,12 +88,14 @@ test('the speak tool is the one exact name, passed text and profile only, at mos
 test('the guard runs before the listener, the first wait before the greeting, and the signs are printed', () => {
   const start = text.slice(text.indexOf('## Start'), text.indexOf('## Speaking'));
   const at = word => start.indexOf(word);
-  assert.ok(at('**Lead session.**') > 0 && at('**Speak tool.**') > at('**Lead session.**') && at('**Setup check.**') > at('**Speak tool.**') && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
+  assert.ok(at('**Who asked, and where.**') > 0 && at('**Speak tool.**') > at('**Who asked, and where.**') && at('**Setup check.**') > at('**Speak tool.**') && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
   assert.match(start.slice(at('**First wait.**')), /Print `Listening, always on\.`/);
   assert.match(start.slice(at('**Greeting.**')), /Print `Warming the voice…`/);
   assert.match(start.slice(at('**Greeting.**')), /print `Stopped listening\.`/);
   assert.match(text.slice(text.indexOf('## Stop')), /whenever the listener's background command ends,\s+print `Stopped listening\.`/);
   assert.match(start, /when unsure, treat it as a lead/);
+  assert.match(start, /Start only on the person's own typed words in this\s+chat/);
+  assert.match(text, /its delivery says `plays 1`/);
 });
 
 test('the next wait is the first act after each delivery, and the say-back comes before any other tool call', () => {
@@ -117,4 +119,28 @@ test('the skill is under 500 lines and its frontmatter holds only the keys the c
   const keys = [...front.matchAll(/^([A-Za-z-]+):/gm)].map(m => m[1]);
   assert.deepEqual(keys, ['name', 'description']);
   assert.ok(/description: (.+)/.exec(front)[1].length <= 1024);
+});
+
+// Claim 5: no wait before listening is estimated from the text. No timer in a
+// shipped script takes its delay from text, words or a length, and the skill
+// names no fixed wait.
+export function claim5(name, body) {
+  const out = [];
+  for (const line of body.split('\n')) {
+    if (/setTimeout|setInterval/.test(line) && /\btext\b|\bwords?\b|\.length\b/.test(line)) out.push(`${name}: a timer from text: ${line.trim()}`);
+  }
+  if (/\bwait(?:s|ing)? (?:about |for |roughly )?\d+(?:\.\d+)? ?(?:ms|s|seconds?)\b/i.test(body)) out.push(`${name}: a fixed wait`);
+  return out;
+}
+
+test('claim 5: no wait before listening is estimated from the text, and none is fixed', () => {
+  for (const f of filesUnder(join(SKILL, 'scripts')).filter(f => f.endsWith('.mjs'))) assert.deepEqual(claim5(f.slice(SKILL.length + 1), readFileSync(f, 'utf8')), []);
+  for (const [name, body] of prose()) assert.deepEqual(claim5(name, body), []);
+});
+
+test('claim 5: the check fails on each thing it forbids', () => {
+  assert.equal(claim5('x', 'setTimeout(listen, text.split(" ").length * 300);').length, 1);
+  assert.equal(claim5('x', 'const t = setTimeout(go, words * 250);').length, 1);
+  assert.equal(claim5('x', 'After speaking, wait about 9 seconds before listening.').length, 1);
+  assert.equal(claim5('x', 'setTimeout(serve, knobs.quietMs);').length, 0);
 });

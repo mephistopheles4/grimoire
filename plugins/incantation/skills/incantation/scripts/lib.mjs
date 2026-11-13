@@ -13,12 +13,14 @@ export const settingsPath = home => join(stateDir(home), 'settings.json');
 
 const posix = platform => platform !== 'win32';
 
-// A file larger than this is not one of ours. A read past it fails.
+// A file larger than this is not one of ours. A read past it fails. A caller
+// reading a file it does not own (Claude Code's config) passes its own cap.
 const MAX_FILE = 1_000_000;
+export const MAX_CONFIG = 64_000_000;
 
 // The bytes of a file, or null when it is not there. Any other error, and a
 // file over the cap, throws: a file the caller cannot read is not an absent one.
-export function readBuffer(path) {
+export function readBuffer(path, max = MAX_FILE) {
   let st;
   try {
     st = statSync(path);
@@ -26,12 +28,12 @@ export function readBuffer(path) {
     if (e.code === 'ENOENT' || e.code === 'ENOTDIR') return null;
     throw e;
   }
-  if (!st.isFile() || st.size > MAX_FILE) throw new Error('unreadable');
+  if (!st.isFile() || st.size > max) throw new Error('unreadable');
   return readFileSync(path);
 }
 
-export function readText(path) {
-  const bytes = readBuffer(path);
+export function readText(path, max) {
+  const bytes = readBuffer(path, max);
   return bytes === null ? null : bytes.toString('utf8');
 }
 
@@ -146,11 +148,13 @@ export function parseSettings(text) {
   return out;
 }
 
+// Error('state') when the folder or the file is a link, looser than private,
+// or outside home; Error('settings') when the file is missing or out of range.
 export function readSettings(home, options = {}) {
   let text;
+  secureFolder(home, stateDir(home), { ...options, create: false });
+  if (!checkFile(settingsPath(home), options)) throw new Error('settings');
   try {
-    secureFolder(home, stateDir(home), { ...options, create: false });
-    if (!checkFile(settingsPath(home), options)) throw new Error('settings');
     text = readText(settingsPath(home));
   } catch {
     throw new Error('settings');

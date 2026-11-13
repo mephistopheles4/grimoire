@@ -32,8 +32,10 @@ The code is the same everywhere. These places differ by platform:
 
 - Node 24 or later.
 - Voicebox 0.5.0 or later, from its site (Linux: build it from source as its
-  README says). Start it, and keep it on this machine only: Incantation's guard
-  refuses to start when Voicebox answers on any address but 127.0.0.1.
+  README says). Start it, and keep it on this machine only. At each start,
+  Incantation's guard refuses to go on when Voicebox answers on any of the
+  machine's other addresses at that moment; a network that comes up later is
+  not checked until the next start.
 - ffmpeg, on your PATH. On macOS and Linux it must sit in a folder owned by
   root or by you that no other account can write; a shared Homebrew prefix
   owned by another account is refused.
@@ -46,14 +48,32 @@ Once, at user scope, in this one form:
 claude mcp add --scope user --transport http voicebox http://127.0.0.1:17493/mcp
 ```
 
-The guard accepts only that entry. It refuses an entry named `voicebox` at
-local scope or in a project's `.mcp.json`, since either would take the place of
-yours. Config sources the guard does not read, such as managed settings or a
-launch flag, are not checked.
+If it says an entry named `voicebox` already exists, and the guard later
+refuses it, remove that one first with
+`claude mcp remove --scope user voicebox`, then add it again.
+
+The guard accepts only that entry, with at most Voicebox's own
+`X-Voicebox-Client-Id` header, whose value it never reads. It refuses an entry
+named `voicebox` at local scope or in a project's `.mcp.json`, since either
+would take the place of yours. Config sources the guard does not read, such as
+managed settings or a launch flag, are not checked.
+
+At user scope, Voicebox's tools load in every Claude Code session on this
+machine, not only voice ones, and Incantation calls only the speak tool. If you
+want other sessions kept away from what Voicebox stores, add deny rules
+yourself for `mcp__voicebox__voicebox_transcribe`,
+`mcp__voicebox__voicebox_list_captures` and
+`mcp__voicebox__voicebox_list_profiles`.
 
 ## 3. Run setup, in your own terminal
 
 Not in a session: device and voice names stay in your terminal.
+
+`<skill base>` is the installed plugin's `skills/incantation` folder, inside
+the plugins folder of your Claude Code config folder. To find it, search that
+plugins folder for a `setup.mjs` under an `incantation` folder, or ask any
+session where the incantation skill is installed: a session can tell you its
+base directory, though it never runs setup itself.
 
 ```text
 node <skill base>/scripts/setup.mjs devices
@@ -102,7 +122,9 @@ people within the mic's reach that it is always listening.**
 Say "stop" or type to end it. It also stops after 30 minutes with nothing heard,
 and when the Claude Code session it belongs to ends.
 
-`listen.mjs` keeps no audio and no heard text. Claude Code keeps every heard line
+`listen.mjs` keeps no audio and no heard text. It passes the microphone's
+device id, which can name the hardware, to ffmpeg on its command line, so
+anything that reads or reports this machine's command lines sees it. Claude Code keeps every heard line
 in the session transcript, and in its background-task output; where that output
 is kept is not yet checked. Voicebox saves what it says to its Captures and
 History. Whether it also keeps what it transcribes is not yet checked. Clear
@@ -110,7 +132,8 @@ both from Voicebox's own History and Captures tabs.
 
 In observe-only mode (`/incantation observe`), the session's unspoken candidates,
 which can repeat what was said near the mic, go to `~/.incantation/observe/`. Day
-files are dropped after 30 days, the next time it runs. A frozen sample stays until
+files are dropped after 30 days, and an inbox file never logged after a day,
+the next time it runs. A frozen sample stays until
 you delete it. Delete the folder to clear both.
 
 ## Stopping and removing it

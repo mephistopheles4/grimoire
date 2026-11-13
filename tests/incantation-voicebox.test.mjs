@@ -82,6 +82,20 @@ test('transcribe returns null on a non-200 answer or a reply with no text', asyn
   const vb = await fakeVoicebox({ 'POST /transcribe': (req, res) => ((res.statusCode = 500), res.end('{"detail":"x"}')) });
   t.after(vb.close);
   assert.equal(await makeEngine({ port: vb.port }).transcribe(Buffer.alloc(320)), null);
+  const empty = await fakeVoicebox({ 'POST /transcribe': json({}) });
+  t.after(empty.close);
+  assert.equal(await makeEngine({ port: empty.port }).transcribe(Buffer.alloc(320)), null, 'a 200 reply with no text');
+});
+
+test('the warm has its own, longer limit than one transcription, for a cold model load', async t => {
+  const slow = (req, res) => setTimeout(() => json({ text: '', duration: 1 })(req, res), 150);
+  const vb = await fakeVoicebox({ 'POST /transcribe': slow });
+  t.after(vb.close);
+  const engine = makeEngine({ port: vb.port, timeoutMs: 50, warmMs: 2000 });
+  assert.equal(await engine.transcribe(Buffer.alloc(320)), null, 'one transcription past its limit');
+  assert.equal(typeof (await engine.warm()), 'number', 'the warm waits past it');
+  await assert.rejects(makeEngine({ port: vb.port, warmMs: 50 }).warm());
+  assert.equal(makeEngine({ port: 1 }).mcpHeaders.length, 1);
 });
 
 test('warm transcribes one second of silence and loads no speech model', async t => {
@@ -113,6 +127,9 @@ test('playback turns speak-start and speak-end events into start and end, keepin
   t.after(vb.close);
   const feed = makeEngine({ port: vb.port }).playback();
   const got = [];
+  let openedFirst = null;
+  feed.once('open', () => (openedFirst ??= true));
+  feed.once('start', () => (openedFirst ??= false));
   await new Promise((resolve, reject) => {
     feed.on('start', e => got.push(['start', e]));
     feed.on('end', e => {
@@ -123,18 +140,23 @@ test('playback turns speak-start and speak-end events into start and end, keepin
   });
   feed.close();
   assert.deepEqual(got.map(g => g[0]), ['start', 'end']);
+  assert.equal(openedFirst, true, 'open comes once the feed answers, before any event');
   for (const [, e] of got) assert.deepEqual(Object.keys(e), ['at']);
 });
 
 test('playback errors when the stream ends, answers other than 200, or sends a line over 64 KB', async t => {
   for (const handler of [
     (req, res) => res.writeHead(200, { 'content-type': 'text/event-stream' }).end('event: speak-start\ndata: {}\n\n'),
-    (req, res) => ((res.statusCode = 503), res.end()),
+    // A 503 that still streams an event and stays open: only the status check refuses it.
+    (req, res) => res.writeHead(503, { 'content-type': 'text/event-stream' }).write('event: speak-start\ndata: {}\n\n'),
     (req, res) => res.writeHead(200, { 'content-type': 'text/event-stream' }).write(`data: ${'x'.repeat(70_000)}`),
   ]) {
     const vb = await fakeVoicebox({ 'GET /events/speak': handler });
     const feed = makeEngine({ port: vb.port }).playback();
+    let started = false;
+    feed.on('start', () => (started = true));
     await new Promise(resolve => feed.on('error', resolve));
+    if (handler.toString().includes('503')) assert.equal(started, false, 'no start from a refused stream');
     feed.close();
     await vb.close();
   }

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { connect } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +14,7 @@ import { PassThrough } from 'node:stream';
 import { stampOf } from '../plugins/incantation/skills/incantation/scripts/capture/ffmpeg.mjs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ask, readChannel, startListener } from '../plugins/incantation/skills/incantation/scripts/listen.mjs';
+import { ask, readChannel, runListing, startListener, waitLines } from '../plugins/incantation/skills/incantation/scripts/listen.mjs';
 
 const LISTEN = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/listen.mjs', import.meta.url));
 import { runDir, secureState, settingsPath, writePrivate } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
@@ -57,20 +57,24 @@ function fakeEngine({ text = 'hello there', warm = async () => 42, health = true
       engine.calls++;
       return typeof text === 'function' ? text() : text;
     },
-    playback: () => feed,
+    playback: () => (setImmediate(() => feed.emit('open')), feed),
   };
   return engine;
 }
 
 function fakeRecorder({ path = RECORDER, list = listing } = {}) {
-  const r = { path, spawned: [], killed: false };
-  r.list = async () => list;
+  const r = { path, spawned: [], killed: false, exited: false, listed: 0 };
+  r.list = async () => (r.listed++, list);
   r.spawn = (file, args) => {
     const child = new EventEmitter();
     child.stdout = new PassThrough();
+    // The recorder takes a moment to exit, so a stop that does not wait for it shows.
     child.kill = () => {
       r.killed = true;
-      setImmediate(() => child.emit('exit', 0));
+      setTimeout(() => {
+        r.exited = true;
+        child.emit('exit', 0);
+      }, 40);
     };
     r.child = child;
     r.spawned.push({ file, args });
@@ -238,9 +242,13 @@ test('stop reaches the listener only through the channel; its recorder has exite
   const r = rig();
   t.after(r.cleanup);
   const l = await r.start();
+  assert.match(await wait(r.home), /^ready /m);
+  const waiting = wait(r.home);
+  await tick(50);
   assert.equal(await ask(readChannel(r.home), 'stop', 3000), 'stopped\n');
+  assert.equal(await waiting, 'stopped\n', 'a waiter is told of a stop the person asked for, not an error');
+  assert.equal(r.recorder.exited, true, 'the recorder had exited before stopped was sent');
   assert.equal(await l.done, 'stopped');
-  assert.equal(r.recorder.killed, true);
   assert.equal(existsSync(join(runDir(r.home), 'listen.json')), false);
 });
 
@@ -282,11 +290,16 @@ test('it refuses to start, with a fixed reason, on a changed recorder, a changed
     [{ settings: { device: { index: 0, stamp: '0123456789abcdef' } } }, 'device'],
     [{ settings: { device: { index: 5, stamp: STAMP } } }, 'device'],
     [{ settings: { engine: 'elsewhere' } }, 'engine'],
+    [{ settings: { engine: '../x' } }, 'settings'],
     [{ engineOptions: { health: false } }, 'engine'],
   ];
   for (const [options, reason] of cases) {
     const r = rig(options);
     await assert.rejects(r.start(), { reason });
+    if (options.settings?.engine) {
+      assert.equal(r.recorder.listed, 0, 'refused before any device listing');
+      assert.equal(r.recorder.spawned.length, 0, 'refused before the mic opens');
+    }
     r.cleanup();
   }
   const r = rig();
@@ -297,6 +310,7 @@ test('it refuses to start, with a fixed reason, on a changed recorder, a changed
 
 test('no file under the fixture home or the temp folder holds audio or heard text after a turn', async t => {
   const marker = `zq${Date.now()}heardmarker`;
+  const before = new Set(readdirSync(tmpdir()));
   const r = rig({ engineOptions: { text: marker } });
   t.after(r.cleanup);
   const l = await r.start();
@@ -310,10 +324,26 @@ test('no file under the fixture home or the temp folder holds audio or heard tex
     assert.ok(!bytes.includes(marker), f);
     assert.ok(!bytes.includes('RIFF'), f);
   }
-  const fresh = readdirSync(tmpdir()).filter(n => /incantation|turn\.wav/.test(n) && !r.home.endsWith(n));
+  // Every entry new in the temp folder since the turn began, whatever its name.
+  const fresh = readdirSync(tmpdir()).filter(n => !before.has(n) && !r.home.endsWith(n));
   for (const n of fresh) {
     const p = join(tmpdir(), n);
-    if (statSync(p).isFile()) assert.ok(!readFileSync(p).includes(marker), n);
+    let files = [];
+    try {
+      files = statSync(p).isFile() ? [p] : walk(p);
+    } catch {
+      continue; // another test's entry, gone already
+    }
+    for (const file of files) {
+      let bytes;
+      try {
+        bytes = readFileSync(file);
+      } catch {
+        continue;
+      }
+      assert.ok(!bytes.includes(marker), n);
+      if (/^incantation|\.wav$/i.test(n)) assert.ok(!bytes.includes('RIFF'), n);
+    }
   }
 });
 
@@ -327,4 +357,72 @@ test('wait and stop with no listener, and an unparsable listen.json, print fixed
   assert.equal(await cli('stop'), 'listener: not running\n');
   writePrivate(join(runDir(home), 'listen.json'), '{"port": 1, "token": "planted-key-sk-123');
   assert.equal(await cli('wait'), 'listener error ended\n');
+});
+
+test('wait prints only lines in the listener grammar, so a stray server on the port reaches the session with nothing', () => {
+  const lines = [
+    'Heard: "fine \\"quoted\\" words"',
+    'Heard (after reply): "yes"',
+    'timing: wait 1000 stt 420',
+    'plays 1',
+    'ready 850 voice made-up-profile',
+    'dropped 2',
+    'stt-dropped',
+    'muted',
+    'quiet',
+    'listener error mic',
+  ];
+  assert.equal(waitLines(lines.join('\n')), lines.map(l => `${l}\n`).join(''));
+  for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' muted']) assert.equal(waitLines(stray), '', stray);
+});
+
+test('each delivery says how many playbacks began since the last one, from any caller', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  const play = () => {
+    r.engine.feed.emit('start');
+    r.push(1000, 10);
+    r.engine.feed.emit('end');
+    r.push(1000, 12); // past the tail
+  };
+  play();
+  r.turn();
+  assert.match(await wait(r.home), /^plays 1$/m);
+  play();
+  play();
+  r.turn();
+  assert.match(await wait(r.home), /^plays 2$/m);
+  r.turn();
+  assert.match(await wait(r.home), /^plays 0$/m);
+});
+
+test('the listing reads ffmpeg\'s stderr, where Windows and macOS print it, as well as stdout', async () => {
+  const fake = (out, err, error = null) => (file, args, options, cb) => setImmediate(() => cb(error, out, err));
+  const run = runListing('.', fake('', '[in#0 @ 0] "Desk Mic One" (audio)\n'));
+  assert.match(await run('ffmpeg', []), /Desk Mic One/);
+  assert.match(await runListing('.', fake('* made_up.one [Desk Mic One]\n', ''))('ffmpeg', []), /made_up\.one/);
+  assert.equal(await runListing('.', fake('', '', Object.assign(new Error('x'), { code: 'ENOENT' })))('ffmpeg', []), null);
+});
+
+test('the mic stays closed until the playback feed answers, and a feed that never answers ends it with playback', async t => {
+  const engine = fakeEngine();
+  engine.playback = () => engine.feed; // never opens
+  const r = rig({ engine, knobs: { feedOpenMs: 100 } });
+  t.after(r.cleanup);
+  await assert.rejects(r.start(), { reason: 'playback' });
+  assert.equal(r.recorder.spawned.length, 0);
+});
+
+test('it refuses to start with state when a link or junction stands in place of the state folder', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  renameSync(join(r.home, '.incantation'), join(outside, '.incantation'));
+  symlinkSync(join(outside, '.incantation'), join(r.home, '.incantation'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(r.start(), { reason: 'state' });
+  assert.equal(r.recorder.spawned.length, 0);
 });
