@@ -1,7 +1,9 @@
-// The gate and the heard queue (docs/spec/incantation.md, S6), from #622's
-// listener with the engine seam in place of the sound server. Pure: time comes
-// in with each call, so a test drives it with scripted frames and scripted
-// playback, and nothing here reads a clock, a file or the network.
+// The gate and the heard queue (docs/spec/incantation.md, S6, and its trial
+// amendments), from #622's listener with the engine seam in place of the sound
+// server. Pure: time comes in with each call, so a test drives it with scripted
+// frames and scripted playback, and nothing here reads a clock, a file or the
+// network. The mic is never closed to the session's own speech: only the person
+// mutes it (T11), and a person who talks over a reply cuts it off (T8).
 
 import { cleanText } from './lib.mjs';
 
@@ -13,8 +15,13 @@ export const KNOBS = {
   minVoiceDbfs: -45, // ...and at least this loud in absolute terms, so a near-silent headset room cannot make a breath voice (T5)
   minVoiceMs: 400, // a turn with less voice is dropped (T5; was 250)
   maxTurnMs: 30_000, // a longer turn is cut, and the rest goes on as the next
-  tailMs: 300, // muted this long after the last playback ends (F2 may raise it, at most 1500)
-  mutedAfterMs: 30_000, // a mute this long is reported once
+  tailMs: 300, // a reply counts as ended this long after its last playback ends (F2 may raise it, at most 1500)
+  bargeMs: 360, // this much voice while a reply plays cuts the reply off
+  joinMs: 2000, // a turn that stops mid-sentence waits this long for the next to join it
+  maxJoins: 4, // at most this many turns join into one
+  heartbeatMs: 2000, // the status file is touched this often
+  thinkingMs: 60_000, // "thinking" shows this long after a turn, at most
+  idleWaitMs: 60_000, // an idle wait gives up after this long
   queueMax: 20,
   ageMs: 5 * 60_000,
   perMinute: 4,
@@ -48,24 +55,6 @@ export function isStopWord(text) {
   return STOP_WORDS.has(String(text).toLowerCase().replace(/['’.,!?]/g, '').replace(/\s+/g, ' ').trim());
 }
 
-// What the speech-to-text model delivers out of silence or room noise (T5): a
-// lone "you", "Thank you.", a filler, a sound tag such as [BLANK_AUDIO], or
-// nothing but punctuation. Such a turn is dropped before it is queued. A word a
-// person could mean, yes and no and a stop word included, is never in this set.
-const FRAGMENTS = new Set(['you', 'uh', 'um', 'uhm', 'er', 'erm', 'hmm', 'hm', 'mm', 'huh', 'ah', 'thank you', 'thanks for watching', 'thank you for watching']);
-export function isFragment(text) {
-  const t = String(text).trim();
-  if (!t) return true;
-  if (/^[\[(][^\])]{0,40}[\])]$/.test(t)) return true;
-  const w = t
-    .toLowerCase()
-    .replace(/['’]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return w === '' || FRAGMENTS.has(w);
-}
-
 const levelDb = buf => {
   let sum = 0;
   const n = Math.floor(buf.length / 2);
@@ -79,8 +68,11 @@ const levelDb = buf => {
 
 // Turns out of frames. Pure: time comes in with each call, so a test drives it
 // with scripted frames and scripted playback, and nothing here reads a clock.
+// Every frame is heard, a reply playing or not. While a reply plays and a turn
+// holds enough voice, the gate says so once ({ type: 'barge' }), so the
+// listener can cut the reply off.
 export class Gate {
-  constructor({ silenceMs = 1000, knobs = KNOBS, playing = 0, t = 0 } = {}) {
+  constructor({ silenceMs = 1500, knobs = KNOBS, playing = 0, t = 0 } = {}) {
     this.k = knobs;
     this.silenceMs = silenceMs;
     this.count = playing;
@@ -89,30 +81,22 @@ export class Gate {
     this.playId = playing > 0 ? 1 : 0;
     this.exemptPlay = 0;
     this.deliveredAt = -Infinity;
-    this.muteStart = playing > 0 ? t : null;
-    this.mutedReported = false;
     this.floor = null;
     this.calib = [];
     this.roll = [];
     this.turn = null;
   }
 
-  muted(t) {
-    return this.count > 0 || (this.playEnd !== null && t < this.playEnd + this.k.tailMs);
+  // Is a reply playing now?
+  get playing() {
+    return this.count > 0;
   }
 
   // The number of streams now playing, at time t.
   playback(count, t) {
     if (count > 0 && this.count === 0) {
-      if (!this.muted(t)) {
-        // a new mute; a restart inside the tail goes on with the one in force
-        this.muteStart = t;
-        this.mutedReported = false;
-      }
       this.playStart = t;
       this.playId++;
-      this.turn = null; // a turn open when playback starts is dropped
-      this.roll = [];
     } else if (count === 0 && this.count > 0) {
       this.playEnd = t;
     }
@@ -123,22 +107,15 @@ export class Gate {
     this.deliveredAt = t;
   }
 
-  // One frame; returns the events it caused: { type: 'turn', ... } or { type: 'muted' }.
+  // Is a turn open, with voice in it, now?
+  get hearing() {
+    return !!this.turn;
+  }
+
+  // One frame; returns the events it caused: { type: 'turn', ... } or { type: 'barge' }.
   frame(buf, t) {
     const k = this.k;
     const events = [];
-    if (this.muted(t)) {
-      if (this.muteStart === null) {
-        this.muteStart = t;
-        this.mutedReported = false;
-      }
-      if (!this.mutedReported && t - this.muteStart > k.mutedAfterMs) {
-        this.mutedReported = true;
-        events.push({ type: 'muted' });
-      }
-      return events;
-    }
-    this.muteStart = null;
     const level = levelDb(buf);
     if (this.floor === null) {
       this.calib.push(level);
@@ -153,8 +130,9 @@ export class Gate {
         if (this.roll.length > k.preRollFrames) this.roll.shift();
         return events;
       }
-      const afterReply = this.playStart !== null && this.playEnd !== null && this.playStart > this.deliveredAt && this.playEnd + k.tailMs <= t;
-      this.turn = { frames: [...this.roll, buf], voice: 1, silent: 0, afterReply, playId: this.playId };
+      // A turn is a reply to the session once any playback began after the last delivery.
+      const afterReply = this.playStart !== null && this.playStart > this.deliveredAt;
+      this.turn = { frames: [...this.roll, buf], voice: 1, silent: 0, afterReply, playId: this.playId, barged: false };
       this.roll = [];
     } else {
       this.turn.frames.push(buf);
@@ -167,6 +145,10 @@ export class Gate {
       }
     }
     const turn = this.turn;
+    if (this.count > 0 && !turn.barged && turn.voice * k.frameMs >= k.bargeMs) {
+      turn.barged = true;
+      events.push({ type: 'barge' });
+    }
     const length = turn.frames.length * k.frameMs;
     if (turn.silent * k.frameMs >= this.silenceMs || length >= k.maxTurnMs) {
       this.turn = null;
@@ -177,10 +159,82 @@ export class Gate {
           first = true;
           this.exemptPlay = turn.playId;
         }
-        events.push({ type: 'turn', pcm: Buffer.concat(turn.frames.slice(0, keep)), afterReply: turn.afterReply, firstAfterReply: first, silenceMs: this.silenceMs });
+        events.push({ type: 'turn', pcm: Buffer.concat(turn.frames.slice(0, keep)), afterReply: turn.afterReply, firstAfterReply: first, barged: turn.barged, silenceMs: this.silenceMs });
       }
     }
     return events;
+  }
+}
+
+// The words of a turn, lowercased, with punctuation taken out.
+const words = text =>
+  String(text)
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// What the speech-to-text model delivers out of silence or room noise (T5): a
+// lone "you", a filler, a sound tag such as [BLANK_AUDIO], or nothing but
+// punctuation. Such a turn is dropped before it is queued. A word a person
+// could mean, yes and no and a stop word included, is never in this set.
+const FRAGMENTS = new Set(['you', 'uh', 'um', 'uhm', 'er', 'erm', 'hmm', 'hm', 'mm', 'huh', 'ah', 'thank you', 'thanks for watching', 'thank you for watching']);
+export function isFragment(text) {
+  const t = String(text).trim();
+  if (!t) return true;
+  if (/^[\[(][^\])]{0,40}[\])]$/.test(t)) return true;
+  const w = words(t);
+  return w === '' || FRAGMENTS.has(w);
+}
+
+// The person's own mic words (T11): the whole turn says mute or unmute.
+const MUTE = new Set(['mute', 'mute mic', 'mute the mic', 'mute microphone', 'mute the microphone']);
+const UNMUTE = new Set(['unmute', 'un mute', 'unmute mic', 'unmute the mic', 'unmute microphone', 'unmute the microphone']);
+export const isMuteWord = text => MUTE.has(words(text));
+export const isUnmuteWord = text => UNMUTE.has(words(text));
+
+// Does the text end a sentence? A turn that does not may be a turn cut at a breath.
+export const isComplete = text => /[.?!…]["')\]]*$/.test(String(text).trim());
+
+// A turn cut at a breath is joined to the next one (T10). Pure: time comes in
+// with each call. A turn that ends a sentence, a stop word and a reply to the
+// session's own speech are never held, and any of them lets a held turn go first.
+export class Joiner {
+  constructor(knobs = KNOBS) {
+    this.k = knobs;
+    this.hold = null;
+    this.deadline = null;
+  }
+
+  take() {
+    const held = this.hold;
+    this.hold = null;
+    this.deadline = null;
+    return held;
+  }
+
+  // Items to queue now, in order.
+  offer(item, now) {
+    if (item.exempt || item.afterReply) return [...(this.hold ? [this.take()] : []), item];
+    const merged = this.hold ? { ...this.hold, text: `${this.hold.text} ${item.text}`, joins: this.hold.joins + 1, at: item.at } : { ...item, joins: 0 };
+    if (isComplete(merged.text) || merged.joins >= this.k.maxJoins || merged.text.length >= this.k.maxText - 100) {
+      this.hold = null;
+      this.deadline = null;
+      return [merged];
+    }
+    this.hold = merged;
+    this.deadline = now + this.k.joinMs;
+    return [];
+  }
+
+  // The held turn, once its wait is over.
+  due(now) {
+    return this.hold && now >= this.deadline ? [this.take()] : [];
+  }
+
+  nextAt() {
+    return this.hold ? this.deadline : null;
   }
 }
 

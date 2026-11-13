@@ -18,6 +18,7 @@ export const VALUES = Object.freeze({
   transcribe: { value: 'POST /transcribe, multipart, one WAV part named file, default model', verified: false, check: 'F7' },
   playback: { value: 'GET /events/speak, server-sent events speak-start and speak-end (route A)', verified: false, check: 'F2' },
   tailMs: { value: 300, verified: false, check: 'F2' },
+  cancel: { value: 'POST /generate/<id>/cancel, the id from the speak-start event', verified: false, check: 'T8' },
   speechWarm: { value: 'none: the greeting is the speech warm', verified: false, check: 'F1' },
 });
 
@@ -74,9 +75,15 @@ const parseJson = buf => {
   }
 };
 
-// The engine's speech-event feed: `start` and `end` with only a time, `error`
-// when the stream fails. Unknown events are skipped; text, voice and id are
-// dropped as they arrive.
+// The engine's speech-event feed: `start` and `end` with a time and the
+// generation's id when the event names one, `error` when the stream fails. The
+// id stays in memory, for a barge-in to cancel (T8); it is never printed or
+// kept. Unknown events are skipped; text and voice are dropped as they arrive.
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const idOf = data => {
+  const id = parseJson(Buffer.from(data || '{}'))?.generation_id;
+  return typeof id === 'string' && ID.test(id) ? id : undefined;
+};
 function speakFeed(port) {
   const feed = new EventEmitter();
   const agent = new Agent({ keepAlive: false });
@@ -98,8 +105,8 @@ function speakFeed(port) {
     const dispatch = () => {
       let type = event;
       if (!type && data) type = parseJson(Buffer.from(data))?.type ?? '';
-      if (type === 'speak-start') feed.emit('start', { at: performance.now() });
-      else if (type === 'speak-end') feed.emit('end', { at: performance.now() });
+      if (type === 'speak-start') feed.emit('start', { at: performance.now(), id: idOf(data) });
+      else if (type === 'speak-end') feed.emit('end', { at: performance.now(), id: idOf(data) });
       event = '';
       data = '';
     };
@@ -191,6 +198,14 @@ export function makeEngine({ port, timeoutMs = 15_000, warmMs = 60_000 }) {
       const text = await transcribe(Buffer.alloc(RATE * 2), warmMs);
       if (text === null) throw new Error('warm');
       return Math.round(performance.now() - began);
+    },
+    // A person talking over a reply cuts it off (T8): the generation Voicebox
+    // reports as speaking is cancelled. Voicebox has no stop-playback call, so
+    // this is the one it has; true when it answered 200.
+    async cancel(id) {
+      if (typeof id !== 'string' || !ID.test(id)) return false;
+      const res = await call(port, { method: 'POST', path: `/generate/${id}/cancel`, timeoutMs: 2000, headers: { accept: 'application/json', 'content-length': 0 } });
+      return !!res && res.status === 200;
     },
     playback: () => speakFeed(port),
   };

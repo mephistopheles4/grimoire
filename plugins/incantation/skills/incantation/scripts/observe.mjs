@@ -1,12 +1,12 @@
 // The observe-only log (docs/spec/incantation.md, S7.4). A Node script with no
 // dependencies.
 //
-//   node observe.mjs add <8 hex>  reads ~/.incantation/observe/inbox-<8 hex>.json,
+//   node observe.mjs add <8 hex>  reads ~/.grimoire/incantation/observe/inbox-<8 hex>.json,
 //                                 appends its one line to today's file, and
 //                                 deletes the inbox file whatever the result
 //   node observe.mjs freeze <n>   copies n random lines into eval/
 //
-// It writes only under ~/.incantation/observe/, in a 0700 folder, 0600 files,
+// It writes only under ~/.grimoire/incantation/observe/, in a 0700 folder, 0600 files,
 // one file a day. A line holds the session's own candidate words, never heard
 // text. Anything it does not accept is refused with one fixed line and nothing
 // is written. Each run drops day files older than 30 days first, and never
@@ -32,7 +32,7 @@ const refuse = () => {
   throw new Refused('refused');
 };
 
-const folderOf = home => join(home, '.incantation', 'observe');
+const folderOf = home => join(home, '.grimoire', 'incantation', 'observe');
 const pad = n => String(n).padStart(2, '0');
 const dayOf = now => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
@@ -58,13 +58,13 @@ function dropOld(folder, now) {
   }
 }
 
-// Each folder from ~/.incantation down, made 0700: never a link or junction, and
+// Each folder from ~/.grimoire/incantation down, made 0700: never a link or junction, and
 // its real path inside the real home (S5.5). A file written there is checked the
 // same way first. Anything else is refused.
 function secure(home, folder) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const realHome = realpathSync(home);
-  const top = join(home, '.incantation');
+  const top = join(home, '.grimoire', 'incantation');
   for (let p = folder; ; p = dirname(p)) {
     const st = lstatSync(p);
     if (st.isSymbolicLink() || !st.isDirectory()) refuse();

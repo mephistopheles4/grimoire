@@ -1,13 +1,19 @@
-// The always-on listener (docs/spec/incantation.md, S6). Node built-ins only.
+// The always-on listener (docs/spec/incantation.md, S6, and its trial
+// amendments). Node built-ins only.
 //
 //   node listen.mjs start   holds the mic open until its session ends or it is stopped
 //   node listen.mjs wait    prints what was heard, once a turn is waiting
 //   node listen.mjs stop    stops the running listener, through its own channel
+//   node listen.mjs mute    the person's mic mute (T11); unmute undoes it
+//   node listen.mjs idle    returns once no reply is playing (T12)
+//   node listen.mjs status  prints listening, hearing, thinking, speaking or muted
 //
-// It reaches the engine only through the seam (S5): playback() to mute, and
-// transcribe() for each turn, in memory, on 127.0.0.1. It writes no audio and
-// no heard text to any file or log. Every line it prints is fixed text, or
-// the heard text a waiter asked for.
+// It reaches the engine only through the seam (S5): playback() to learn when a
+// reply plays, cancel() to cut one off, and transcribe() for each turn, in
+// memory, on 127.0.0.1. The mic is never muted by the session: only the person
+// mutes it, by voice or through the channel (T11). It writes no audio and no
+// heard text to any file or log. Its status file holds one fixed word. Every
+// line it prints is fixed text, or the heard text a waiter asked for.
 
 import { execFile, spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -19,8 +25,8 @@ import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
-import { Gate, HeardQueue, KNOBS, formatHeard, frameBytes, isFragment, isStopWord } from './gate.mjs';
-import { checkFile, readSettings, readText, runDir, secureState, writePrivate } from './lib.mjs';
+import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
+import { checkFile, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -32,7 +38,7 @@ const stop = reason => {
   throw new Stop(reason);
 };
 
-export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended'];
+export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended', 'waiting'];
 
 const listenFile = home => join(runDir(home), 'listen.json');
 
@@ -95,7 +101,7 @@ const WAIT_LINE = new RegExp(
     '|plays \\d{1,4}',
     '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
     '|dropped \\d{1,4}',
-    '|stt-dropped|muted|quiet|stopped',
+    '|stt-dropped|mic-muted|mic-unmuted|interrupted|quiet|stopped',
     `|listener error (?:${REASONS.join('|')})`,
     ')$',
   ].join(''),
@@ -169,6 +175,7 @@ export async function startListener(options = {}) {
 
     const gate = new Gate({ silenceMs: settings.endOfSpeechMs, knobs: gateKnobs, t: clock() });
     const queue = new HeardQueue(gateKnobs);
+    const joiner = new Joiner(gateKnobs);
     const notices = new Map();
     const token = randomBytes(32);
     const parentPid = options.parentPid ?? process.ppid;
@@ -198,15 +205,43 @@ export async function startListener(options = {}) {
     let transcribing = Promise.resolve();
     let playing = 0;
     let plays = 0;
+    let userMuted = false; // the person's mute, by voice or through the channel, and nobody else's (T11)
+    let thinkingUntil = 0;
+    let lastPlayEvent = 0;
+    let joinTimer = null;
+    let heartbeat = null;
+    let lastState = '';
+    const activeIds = new Set(); // generations the feed says are speaking, in memory only (T8)
+    const idlers = new Set(); // connections waiting for no reply to be playing (T12)
+    let idlePoll = null;
+
+    // The one word on screen (T9): muted, hearing, speaking, thinking or listening.
+    const stateWord = () => (userMuted ? 'muted' : gate.hearing ? 'hearing' : playing > 0 ? 'speaking' : Date.now() < thinkingUntil ? 'thinking' : 'listening');
+    const writeStatus = (force = false) => {
+      const word = stateWord();
+      if (!force && word === lastState) return;
+      lastState = word;
+      try {
+        writePrivate(statusPath(home), `${word}\n`, fsOptions);
+      } catch {
+        // The status line is a convenience: a file that will not write never stops the listener.
+      }
+    };
 
     let resolveDone;
     const done = new Promise(r => (resolveDone = r));
     finish = async reason => {
       if (finished) return;
       finished = true;
-      for (const t of [quietTimer, rateTimer, idleTimer, noWaiterTimer]) clearTimeout(t);
+      for (const t of [quietTimer, rateTimer, idleTimer, noWaiterTimer, joinTimer]) clearTimeout(t);
       clearInterval(parentTimer);
+      clearInterval(heartbeat);
+      clearInterval(idlePoll);
+      for (const s of idlers) s.end('idle-timeout\n');
+      idlers.clear();
+      if (lastState) rmSync(statusPath(home), { force: true });
       queue.items = [];
+      joiner.take();
       feed?.close?.();
       if (child && childExited) {
         child.kill();
@@ -253,7 +288,7 @@ export async function startListener(options = {}) {
       }
       if (notices.has('ready')) lines.push(notices.get('ready'));
       if (dropped) lines.push(`dropped ${dropped}`);
-      for (const n of ['stt-dropped', 'muted']) if (notices.has(n)) lines.push(n);
+      for (const n of ['stt-dropped', 'mic-muted', 'mic-unmuted', 'interrupted']) if (notices.has(n)) lines.push(n);
       notices.clear();
       const w = waiter;
       waiter = null;
@@ -261,6 +296,40 @@ export async function startListener(options = {}) {
       clearTimeout(rateTimer);
       armNoWaiter();
       w.end(`${lines.join('\n')}\n`);
+    };
+
+    const armIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = userMuted ? null : setTimeout(() => finish('ended'), knobs.idleMs);
+    };
+
+    // The person's mute, and nobody else's (T11). The mic stays open either way:
+    // while muted a turn is still transcribed here, on this machine, only to
+    // catch "unmute", and nothing else reaches the session.
+    const setMuted = muted => {
+      if (muted === userMuted) return;
+      userMuted = muted;
+      notices.delete(muted ? 'mic-unmuted' : 'mic-muted');
+      notices.set(muted ? 'mic-muted' : 'mic-unmuted', true);
+      if (muted) {
+        queue.items = [];
+        joiner.take();
+      }
+      armIdle();
+      writeStatus();
+      serve();
+    };
+
+    // Held turns go to the queue once their wait is over (T10).
+    const armJoin = () => {
+      clearTimeout(joinTimer);
+      const at = joiner.nextAt();
+      if (at === null) return;
+      joinTimer = setTimeout(() => {
+        for (const item of joiner.due(Date.now())) queue.push(item);
+        armJoin();
+        serve();
+      }, Math.max(at - Date.now(), 0) + 5);
     };
 
     const heard = turn => {
@@ -271,18 +340,50 @@ export async function startListener(options = {}) {
         sttMs = clock() - began;
         if (finished) return;
         if (text === null) {
+          if (userMuted) return;
           sttFails++;
           if (sttFails >= knobs.sttFailures) return finish('stt');
           notices.set('stt-dropped', true);
           return serve();
         }
         sttFails = 0;
-        if (!text || isFragment(text)) return;
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => finish('ended'), knobs.idleMs);
-        queue.push({ text, afterReply: turn.afterReply, exempt: turn.firstAfterReply || isStopWord(text), at: Date.now() });
+        if (userMuted) {
+          if (isUnmuteWord(text)) setMuted(false);
+          return;
+        }
+        if (isMuteWord(text)) return setMuted(true);
+        if (isFragment(text)) return;
+        armIdle();
+        thinkingUntil = Date.now() + knobs.thinkingMs;
+        const item = { text, afterReply: turn.afterReply, exempt: turn.firstAfterReply || isStopWord(text), at: Date.now() };
+        for (const out of joiner.offer(item, Date.now())) queue.push(out);
+        armJoin();
+        writeStatus();
         serve();
       });
+    };
+
+    // A person who talks over a reply cuts it off (T8). The mic was never shut,
+    // so the turn goes on as any other; the session is told its reply was cut.
+    const bargeIn = () => {
+      if (userMuted) return;
+      const ids = [...activeIds];
+      activeIds.clear();
+      playing = 0;
+      gate.playback(0, clock());
+      notices.set('interrupted', true);
+      for (const id of ids) engine.cancel?.(id)?.catch?.(() => {});
+      writeStatus();
+      serve();
+    };
+
+    // Replies still playing, or ended less than the tail ago, hold an idle wait (T12).
+    const checkIdle = () => {
+      if (playing > 0 || Date.now() - lastPlayEvent < tailMs) return;
+      for (const s of idlers) s.end('idle\n');
+      idlers.clear();
+      clearInterval(idlePoll);
+      idlePoll = null;
     };
 
     // A connection says `wait`, `stop` or `ping`, with the token, within 2 s,
@@ -298,11 +399,30 @@ export async function startListener(options = {}) {
         if (nl < 0) return;
         socket.off('data', onData);
         clearTimeout(idle);
-        const m = /^(wait|stop|ping) ([0-9a-f]{64})\r?$/.exec(pending.slice(0, nl));
+        const m = /^(wait|stop|ping|mute|unmute|idle|status) ([0-9a-f]{64})\r?$/.exec(pending.slice(0, nl));
         if (!m || !sameToken(m[2], token)) return socket.destroy();
         if (m[1] === 'ping') return void socket.end('alive\n');
+        if (m[1] === 'status') return void socket.end(`${stateWord()}\n`);
+        if (m[1] === 'mute' || m[1] === 'unmute') {
+          setMuted(m[1] === 'mute');
+          return void socket.end(m[1] === 'mute' ? 'mic-muted\n' : 'mic-unmuted\n');
+        }
+        if (m[1] === 'idle') {
+          if (idlers.size >= 4) return void socket.end('idle-timeout\n');
+          idlers.add(socket);
+          const gaveUp = setTimeout(() => {
+            if (idlers.delete(socket)) socket.end('idle-timeout\n');
+          }, knobs.idleWaitMs);
+          socket.once('close', () => {
+            clearTimeout(gaveUp);
+            idlers.delete(socket);
+          });
+          idlePoll ??= setInterval(checkIdle, 50);
+          return void checkIdle();
+        }
         if (m[1] === 'stop') return void finish('stopped').then(() => socket.end('stopped\n'));
-        if (waiter) return void socket.end('listener error busy\n');
+        // A second wait while one is live is not the listener failing: it says a wait is already running (T13).
+        if (waiter) return void socket.end('listener error waiting\n');
         waiter = socket;
         clearTimeout(noWaiterTimer);
         socket.on('close', () => {
@@ -338,14 +458,21 @@ export async function startListener(options = {}) {
       feed.once('open', resolve);
       feed.once('error', reject);
     });
-    feed.on('start', () => {
+    feed.on('start', e => {
       playing++;
       plays++;
+      if (e?.id) activeIds.add(e.id);
+      thinkingUntil = 0;
+      lastPlayEvent = Date.now();
       gate.playback(playing, clock());
+      writeStatus();
     });
-    feed.on('end', () => {
+    feed.on('end', e => {
       playing = Math.max(0, playing - 1);
+      if (e?.id) activeIds.delete(e.id);
+      lastPlayEvent = Date.now();
       gate.playback(playing, clock());
+      writeStatus();
     });
     feed.on('error', () => finish('playback'));
     try {
@@ -384,19 +511,21 @@ export async function startListener(options = {}) {
         }
         for (const e of gate.frame(frame, clock())) {
           if (e.type === 'turn') heard(e);
-          else if (e.type === 'muted') {
-            notices.set('muted', true);
-            serve();
-          }
+          else if (e.type === 'barge') bargeIn();
         }
+        writeStatus();
       }
     });
 
     parentTimer = setInterval(() => {
       if (currentPpid() !== parentPid || !parentAlive(parentPid)) finish('ended');
     }, knobs.parentPollMs);
-    idleTimer = setTimeout(() => finish('ended'), knobs.idleMs);
+    armIdle();
     armNoWaiter();
+    writeStatus(true);
+    // The status file is touched on a beat, so a reader can tell a listener that has gone from one that is quiet.
+    heartbeat = setInterval(() => writeStatus(true), knobs.heartbeatMs);
+    heartbeat.unref?.();
 
     return { done, stop: reason => finish(reason ?? 'ended'), port: server.address().port };
   } catch (e) {
@@ -440,7 +569,13 @@ async function main(argv, home = homedir()) {
     if (out === 'stopped\n') return say('listener stopped'), 0;
     return say('listener: not running'), 0;
   }
-  say('usage: listen.mjs start | wait | stop');
+  // The person's mute, the idle wait and the status word: each answers one fixed line.
+  const ONE = { mute: ['mic-muted'], unmute: ['mic-unmuted'], idle: ['idle', 'idle-timeout'], status: ['listening', 'hearing', 'thinking', 'speaking', 'muted'] };
+  if (Object.hasOwn(ONE, command)) {
+    const out = ((await ask(readChannel(home), command, KNOBS.idleWaitMs + 2000)) ?? '').trim();
+    return say(ONE[command].includes(out) ? out : 'listener: not running'), 0;
+  }
+  say('usage: listen.mjs start | wait | stop | mute | unmute | idle | status');
   return 2;
 }
 

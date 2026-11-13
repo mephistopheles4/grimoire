@@ -1,6 +1,6 @@
 // Setup (docs/spec/incantation.md, S5.5). The person runs it in their own
 // terminal, never a session: device and profile names go to that terminal
-// only, and it is the one writer of ~/.incantation/settings.json.
+// only, and it is the one writer of ~/.grimoire/incantation/settings.json.
 //
 //   node setup.mjs devices                              the stamp and each microphone, by index
 //   node setup.mjs profiles                             Voicebox's profiles, by id
@@ -21,7 +21,7 @@ export const LINES = {
   index: 'setup: there is no microphone with that index.',
   voicebox: 'setup: Voicebox is not answering on this machine. Start it: README step 1.',
   profile: 'setup: Voicebox has no profile with that id. Run setup.mjs profiles.',
-  state: 'setup: the ~/.incantation folder is not private or not a plain folder. See README step 3.',
+  state: 'setup: the ~/.grimoire/incantation folder is not private or not a plain folder. See README step 3.',
   saved: 'setup: saved. Run /incantation in a session.',
 };
 

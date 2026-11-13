@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,6 +49,8 @@ function fakeEngine({ text = 'hello there', warm = async () => 42, health = true
   feed.close = () => {};
   const engine = {
     calls: 0,
+    cancelled: [],
+    cancel: async id => (engine.cancelled.push(id), true),
     feed,
     tailMs: 300,
     health: async () => health,
@@ -98,7 +100,7 @@ function rig(options = {}) {
       parentPid: options.parentPid ?? 1234,
       ppid: options.ppid ?? (() => 1234),
       parentAlive: options.parentAlive ?? (() => true),
-      knobs: { parentPollMs: 20, handshakeMs: 200, ...options.knobs },
+      knobs: { parentPollMs: 20, handshakeMs: 200, joinMs: 0, ...options.knobs },
     });
   r.push = (amp, n = 1) => {
     for (let i = 0; i < n; i++) {
@@ -125,6 +127,7 @@ test('a turn goes through the engine and a waiter is told what was heard, with t
   t.after(() => l.stop());
   await tick();
   r.turn();
+  await tick(80); // the turn is queued before the wait asks
   const out = await wait(r.home);
   assert.match(out, /^Heard: "hello there"$/m);
   assert.match(out, /^timing: wait 300 stt \d+$/m);
@@ -148,25 +151,143 @@ test('T5: a turn the engine hears as a lone "you" or "Thank you." never reaches 
   }
 });
 
-test('every frame from a feed start to its end and the tail is discarded, another caller included; a turn open at start is dropped', async t => {
+const statusOf = home => readFileSync(join(runDir(home), 'status'), 'utf8').trim();
+const texts = (...list) => () => list.shift() ?? 'hello there';
+const cli = (home, command) => ask(readChannel(home), command, 3000);
+
+test('T8 and T11: the mic stays open while a reply plays; a person talking over it cuts it off, the session is told, and the turn is heard as a reply', async t => {
   const r = rig();
   t.after(r.cleanup);
   const l = await r.start();
   t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
   r.push(1000, 34);
-  r.push(3163, 5); // a turn opens
-  r.engine.feed.emit('start', { at: 0 }); // an utterance from any caller
-  r.push(3163, 20);
-  r.engine.feed.emit('end', { at: 0 });
-  r.push(3163, 9); // inside the 300 ms tail
-  r.push(1000, 15);
-  await tick(50);
-  assert.equal(r.engine.calls, 0);
-  r.push(3163, 15);
+  r.engine.feed.emit('start', { at: 0, id: 'gen-7' }); // a reply, from any caller
+  r.push(3163, 11);
+  assert.deepEqual(r.engine.cancelled, [], 'a cough is not a barge-in');
+  const interrupted = wait(r.home);
+  r.push(3163, 5);
+  assert.equal(await interrupted, 'interrupted\n');
+  assert.deepEqual(r.engine.cancelled, ['gen-7']);
   r.push(1000, 15);
   const out = await wait(r.home);
   assert.match(out, /^Heard \(after reply\): "hello there"$/m);
   assert.equal(r.engine.calls, 1);
+  r.engine.feed.emit('end', { at: 0, id: 'gen-7' }); // an end after the cut is harmless
+});
+
+test('T11: only the person mutes: a spoken mute, then nothing reaches the session until a spoken unmute; the mic stays open', async t => {
+  const r = rig({ engineOptions: { text: texts('Mute.', 'do not hear this', 'Unmute.', 'hello there') } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  await tick();
+  r.turn();
+  const first = await wait(r.home);
+  assert.match(first, /^mic-muted$/m);
+  assert.doesNotMatch(first, /Mute/, 'the mute word is the listener\'s, not heard text');
+  assert.equal(statusOf(r.home), 'muted');
+  r.turn();
+  await tick(60);
+  assert.equal(r.engine.calls, 2, 'a muted turn is still transcribed here, only to catch unmute');
+  r.turn();
+  const second = await wait(r.home);
+  assert.match(second, /^mic-unmuted$/m);
+  assert.doesNotMatch(second, /Heard/, 'nothing said while muted reaches the session');
+  assert.notEqual(statusOf(r.home), 'muted');
+  r.turn();
+  assert.match(await wait(r.home), /^Heard: "hello there"$/m);
+});
+
+test('T11: the mute and unmute commands work through the channel, are the person\'s alone to give, and the status word follows', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await cli(r.home, 'status'), 'listening\n');
+  assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
+  assert.equal(await cli(r.home, 'status'), 'muted\n');
+  r.turn();
+  await tick(60);
+  assert.equal(r.engine.calls, 1, 'transcribed locally only for the unmute word');
+  assert.equal(await cli(r.home, 'unmute'), 'mic-unmuted\n');
+  assert.equal(await ask({ ...readChannel(r.home), token: '0'.repeat(64) }, 'mute', 1000), null, 'no mute without the token');
+  assert.equal(await cli(r.home, 'status'), 'listening\n');
+});
+
+test('T9: the status file holds one word, listening, hearing, speaking or muted, and goes when the listener does', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  assert.equal(statusOf(r.home), 'listening');
+  r.push(1000, 34);
+  r.push(3163, 3);
+  assert.equal(statusOf(r.home), 'hearing');
+  r.push(1000, 15);
+  r.engine.feed.emit('start', { at: 0 });
+  assert.equal(statusOf(r.home), 'speaking');
+  r.engine.feed.emit('end', { at: 0 });
+  assert.notEqual(statusOf(r.home), 'speaking');
+  if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'status')).mode & 0o777, 0o600);
+  await l.stop();
+  assert.equal(existsSync(join(runDir(r.home), 'status')), false);
+});
+
+test('T9: a second start that is refused as busy leaves the first listener\'s status file alone', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  await assert.rejects(rig({ home: r.home }).start(), { reason: 'busy' });
+  assert.equal(statusOf(r.home), 'listening');
+});
+
+test('T12: idle returns only once no reply is playing, and gives up after the idle wait', async t => {
+  const r = rig({ knobs: { idleWaitMs: 900 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.equal(await cli(r.home, 'idle'), 'idle\n', 'nothing playing: at once');
+  r.engine.feed.emit('start', { at: 0, id: 'gen-1' });
+  let settled = false;
+  const pending = cli(r.home, 'idle').then(v => ((settled = true), v));
+  await tick(150);
+  assert.equal(settled, false, 'held while a reply plays');
+  r.engine.feed.emit('end', { at: 0, id: 'gen-1' });
+  await tick(100);
+  assert.equal(settled, false, 'and for the tail after it');
+  assert.equal(await pending, 'idle\n');
+  r.engine.feed.emit('start', { at: 0 });
+  assert.equal(await cli(r.home, 'idle'), 'idle-timeout\n', 'a reply that never ends does not hold the session for ever');
+});
+
+test('T10: a turn cut at a breath is joined to the next; one that is left hanging goes on its own after the join wait', async t => {
+  const r = rig({ engineOptions: { text: texts('and then rename the', 'parse helper, please.', 'so I was thinking') }, knobs: { joinMs: 150 } });
+  t.after(r.cleanup);
+  const l = await r.start();
+  t.after(() => l.stop());
+  assert.match(await wait(r.home), /^ready /m);
+  r.turn();
+  await tick(40);
+  r.turn();
+  const joined = await wait(r.home);
+  assert.match(joined, /^Heard: "and then rename the parse helper, please\."$/m);
+  r.turn();
+  const hung = await wait(r.home);
+  assert.match(hung, /^Heard: "so I was thinking"$/m);
+});
+
+test('T13: a second wait while one is live says a wait is already running, and does not end the listener', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  const l = await r.start();
+  assert.match(await wait(r.home), /^ready /m);
+  const first = wait(r.home);
+  await tick(50);
+  assert.equal(await wait(r.home), 'listener error waiting\n');
+  assert.equal(await cli(r.home, 'ping'), 'alive\n');
+  await l.stop();
+  await first;
 });
 
 test('a feed that fails ends the listener with playback, capturing nothing more', async t => {
@@ -232,7 +353,7 @@ test('no token, a wrong token, or none within the handshake is closed and holds 
   assert.match(await wait(r.home), /^ready /m, 'the ready line goes to the first waiter');
   const first = ask(channel, 'wait', 3000);
   await tick(50);
-  assert.equal(await ask(channel, 'wait', 1000), 'listener error busy\n');
+  assert.equal(await ask(channel, 'wait', 1000), 'listener error waiting\n', 'T13: it says a wait is already running');
   l.stop();
   await first;
 });
@@ -331,6 +452,7 @@ test('no file under the fixture home or the temp folder holds audio or heard tex
   const l = await r.start();
   await tick();
   r.turn();
+  await tick(80);
   assert.match(await wait(r.home), new RegExp(marker));
   await l.stop();
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
@@ -383,12 +505,15 @@ test('wait prints only lines in the listener grammar, so a stray server on the p
     'ready 850 voice made-up-profile',
     'dropped 2',
     'stt-dropped',
-    'muted',
+    'mic-muted',
+    'mic-unmuted',
+    'interrupted',
     'quiet',
     'listener error mic',
+    'listener error waiting',
   ];
   assert.equal(waitLines(lines.join('\n')), lines.map(l => `${l}\n`).join(''));
-  for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' muted']) assert.equal(waitLines(stray), '', stray);
+  for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' mic-muted', 'muted']) assert.equal(waitLines(stray), '', stray);
 });
 
 test('each delivery says how many playbacks began since the last one, from any caller', async t => {
@@ -436,8 +561,31 @@ test('it refuses to start with state when a link or junction stands in place of 
   t.after(r.cleanup);
   const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
-  renameSync(join(r.home, '.incantation'), join(outside, '.incantation'));
-  symlinkSync(join(outside, '.incantation'), join(r.home, '.incantation'), process.platform === 'win32' ? 'junction' : 'dir');
+  renameSync(join(r.home, '.grimoire', 'incantation'), join(outside, 'incantation'));
+  symlinkSync(join(outside, 'incantation'), join(r.home, '.grimoire', 'incantation'), process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(r.start(), { reason: 'state' });
   assert.equal(r.recorder.spawned.length, 0);
+});
+
+test('T2: the state folder is ~/.grimoire/incantation, beside eagle-eye\'s; a link in place of .grimoire is refused; one the owner made looser is left alone', async t => {
+  const r = rig();
+  t.after(r.cleanup);
+  assert.equal(existsSync(join(r.home, '.grimoire', 'incantation', 'settings.json')), true);
+  assert.equal(existsSync(join(r.home, '.incantation')), false, 'no top-level folder');
+  const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  renameSync(join(r.home, '.grimoire'), join(outside, 'grimoire'));
+  symlinkSync(join(outside, 'grimoire'), join(r.home, '.grimoire'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(r.start(), { reason: 'state' });
+  assert.equal(r.recorder.spawned.length, 0);
+});
+
+test('T2: the grimoire folder may already hold other skills\' files, at a mode its owner chose', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'incantation-home-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(join(home, '.grimoire', 'eagle-eye'), { recursive: true, mode: 0o755 });
+  writeFileSync(join(home, '.grimoire', 'eagle-eye', 'log.jsonl'), 'x');
+  secureState(home);
+  assert.equal(readFileSync(join(home, '.grimoire', 'eagle-eye', 'log.jsonl'), 'utf8'), 'x', 'left as it was');
+  if (process.platform !== 'win32') assert.equal(statSync(join(home, '.grimoire')).mode & 0o777, 0o755, 'its mode is not ours to change');
 });

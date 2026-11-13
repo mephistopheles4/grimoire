@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -110,23 +110,62 @@ test('the state check fails closed on a link or junction in place, a real path o
   const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const moved = fixture();
-  renameSync(join(moved.home, '.incantation'), join(outside, '.incantation'));
-  linkFolder(join(outside, '.incantation'), join(moved.home, '.incantation'));
+  renameSync(join(moved.home, '.grimoire', 'incantation'), join(outside, 'incantation'));
+  linkFolder(join(outside, 'incantation'), join(moved.home, '.grimoire', 'incantation'));
   assert.equal(await guard(moved), LINES.state, 'a link whose real path is outside home');
   moved.remove();
   const inside = fixture();
-  renameSync(join(inside.home, '.incantation'), join(inside.home, 'kept'));
-  linkFolder(join(inside.home, 'kept'), join(inside.home, '.incantation'));
+  renameSync(join(inside.home, '.grimoire', 'incantation'), join(inside.home, 'kept'));
+  linkFolder(join(inside.home, 'kept'), join(inside.home, '.grimoire', 'incantation'));
   assert.equal(await guard(inside), LINES.state, 'a link, even to a folder inside home');
   inside.remove();
   if (!win) {
-    for (const [path, mode] of [['.incantation', 0o755], [join('.incantation', 'run'), 0o750], [join('.incantation', 'settings.json'), 0o644]]) {
+    for (const [path, mode] of [[join('.grimoire', 'incantation'), 0o755], [join('.grimoire', 'incantation', 'run'), 0o750], [join('.grimoire', 'incantation', 'settings.json'), 0o644]]) {
       const f = fixture();
       chmodSync(join(f.home, path), mode);
       assert.equal(await guard(f), LINES.state, `${path} at ${mode.toString(8)}`);
       f.remove();
     }
   }
+});
+
+test('T2: the guard says ok with the grimoire folder as its owner made it (eagle-eye\'s files beside ours, a looser mode on this platform)', async t => {
+  const f = fixture();
+  t.after(f.remove);
+  mkdirSync(join(f.home, '.grimoire', 'eagle-eye'), { mode: 0o755 });
+  if (!win) chmodSync(join(f.home, '.grimoire'), 0o755);
+  assert.equal(await guard(f), 'ok');
+});
+
+test('T2: the first run moves an old ~/.incantation to ~/.grimoire/incantation, settings and all, and goes on; a folder already at the new place is never overwritten', async t => {
+  const f = fixture();
+  t.after(f.remove);
+  const fresh = join(f.home, '.grimoire', 'incantation');
+  const old = join(f.home, '.incantation');
+  renameSync(fresh, old); // the shape the owner's machine has: settings, run/ and observe/ in the old place
+  rmSync(join(f.home, '.grimoire'), { recursive: true, force: true });
+  assert.equal(await guard(f), 'ok', 'the old settings are found where they were moved');
+  assert.equal(existsSync(old), false);
+  assert.equal(existsSync(join(fresh, 'settings.json')), true);
+  assert.equal(existsSync(join(fresh, 'run')) && existsSync(join(fresh, 'observe')), true);
+  // Both folders present: the old one is left alone.
+  mkdirSync(old);
+  writeFileSync(join(old, 'settings.json'), 'old');
+  assert.equal(await guard(f), 'ok');
+  assert.equal(readFileSync(join(old, 'settings.json'), 'utf8'), 'old');
+});
+
+test('T2: an old ~/.incantation that is a link is never moved', async t => {
+  const f = fixture();
+  t.after(f.remove);
+  const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const fresh = join(f.home, '.grimoire', 'incantation');
+  renameSync(fresh, join(outside, 'incantation'));
+  rmSync(join(f.home, '.grimoire'), { recursive: true, force: true });
+  linkFolder(join(outside, 'incantation'), join(f.home, '.incantation'));
+  assert.equal(await guard(f), LINES.state);
+  assert.equal(existsSync(fresh), false);
 });
 
 test('the command line exits 1 on a failed check, and prints only its fixed line', async t => {

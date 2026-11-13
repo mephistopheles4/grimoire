@@ -51,7 +51,7 @@ test('choose writes settings whose every key is in range, with the pinned record
   t.after(r.remove);
   assert.deepEqual(r.lines, [LINES.saved]);
   const s = parseSettings(readFileSync(settingsPath(r.home), 'utf8'));
-  assert.deepEqual(s, { engine: 'voicebox', port: 17493, endOfSpeechMs: 1000, profile: 'made-up-profile-1', device: { index: 1, stamp: STAMP }, recorder: RECORDER });
+  assert.deepEqual(s, { engine: 'voicebox', port: 17493, endOfSpeechMs: 1500, profile: 'made-up-profile-1', device: { index: 1, stamp: STAMP }, recorder: RECORDER });
 });
 
 test('choose refuses a stale stamp, an out-of-range index, an unknown profile and a malformed call, writing nothing', async t => {

@@ -5,11 +5,14 @@
 import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { join, relative, isAbsolute, sep } from 'node:path';
 
-// The state folder and the two inside it (docs/spec/incantation.md, S5.5).
-export const stateDir = home => join(home, '.incantation');
+// The state folder and the two inside it (docs/spec/incantation.md, S5.5, and
+// its trial amendments). It sits beside eagle-eye's, in the grimoire folder.
+export const grimoireDir = home => join(home, '.grimoire');
+export const stateDir = home => join(grimoireDir(home), 'incantation');
 export const runDir = home => join(stateDir(home), 'run');
 export const observeDir = home => join(stateDir(home), 'observe');
 export const settingsPath = home => join(stateDir(home), 'settings.json');
+export const statusPath = home => join(runDir(home), 'status');
 
 const posix = platform => platform !== 'win32';
 
@@ -81,8 +84,67 @@ export function secureFolder(home, path, { platform = process.platform, create =
   if (posix(platform) && (st.mode & 0o077) !== 0) fail();
 }
 
+// The grimoire folder, shared with the other skills that keep files there, so
+// it is held to less than ours: a plain folder, not a link or a junction, its
+// real path inside the real home. Its mode is left as its owner made it. Made
+// 0700 when it is missing. Throws Error('state') on any failure.
+export function plainGrimoire(home, { platform = process.platform, create = true } = {}) {
+  const fail = () => {
+    throw new Error('state');
+  };
+  const path = grimoireDir(home);
+  let st;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    if (e.code !== 'ENOENT' || !create) return fail();
+    try {
+      mkdirSync(path, { mode: 0o700 });
+      if (posix(platform)) chmodSync(path, 0o700);
+      st = lstatSync(path);
+    } catch {
+      return fail();
+    }
+  }
+  if (st.isSymbolicLink() || !st.isDirectory()) fail();
+  try {
+    const real = realpathSync(path);
+    if (!inside(realpathSync(home), real) || real === realpathSync(home)) fail();
+  } catch {
+    fail();
+  }
+}
+
+// The drafts before this one kept their files in ~/.incantation. The first run
+// that finds that folder and no new one moves it to ~/.grimoire/incantation, so
+// the owner takes no extra step (T2). Only a plain folder, never a link, inside
+// the real home, and never over a folder already there. A move that fails (a
+// listener of the old build still holds a file on Windows) leaves both as they
+// are, and the run goes on to find no settings. Returns true when it moved.
+export function migrateOldState(home, options = {}) {
+  const old = join(home, '.incantation');
+  try {
+    const st = lstatSync(old);
+    if (st.isSymbolicLink() || !st.isDirectory()) return false;
+    if (!inside(realpathSync(home), realpathSync(old))) return false;
+    try {
+      lstatSync(stateDir(home));
+      return false; // a new folder is there: the old one is left alone
+    } catch (e) {
+      if (e.code !== 'ENOENT') return false;
+    }
+    plainGrimoire(home, options);
+    renameSync(old, stateDir(home));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The whole state tree, in order, so no file is written before its folder holds.
 export function secureState(home, options = {}) {
+  migrateOldState(home, options);
+  plainGrimoire(home, options);
   for (const p of [stateDir(home), runDir(home), observeDir(home)]) secureFolder(home, p, options);
 }
 
@@ -122,9 +184,9 @@ export const SETTINGS_KEYS = {
   profile: v => typeof v === 'string' && PROFILE.test(v),
   device: v => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && Number.isInteger(v.index) && v.index >= 0 && v.index <= 999 && typeof v.stamp === 'string' && /^[0-9a-f]{16}$/.test(v.stamp),
   recorder: v => typeof v === 'string' && v.length <= 1024 && isAbsolute(v) && !v.includes('\0'),
-  endOfSpeechMs: v => Number.isInteger(v) && v >= 300 && v <= 2000,
+  endOfSpeechMs: v => Number.isInteger(v) && v >= 300 && v <= 3000,
 };
-export const SETTINGS_DEFAULTS = { engine: 'voicebox', port: 17493, endOfSpeechMs: 1000 };
+export const SETTINGS_DEFAULTS = { engine: 'voicebox', port: 17493, endOfSpeechMs: 1500 };
 
 // The settings, checked whole, or Error('settings'). Every key must be known
 // and in range; profile, device and recorder must be there (setup writes them).
@@ -152,6 +214,7 @@ export function parseSettings(text) {
 // or outside home; Error('settings') when the file is missing or out of range.
 export function readSettings(home, options = {}) {
   let text;
+  migrateOldState(home, options);
   secureFolder(home, stateDir(home), { ...options, create: false });
   if (!checkFile(settingsPath(home), options)) throw new Error('settings');
   try {

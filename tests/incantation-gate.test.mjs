@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Gate, HeardQueue, KNOBS, formatHeard, isFragment, isStopWord } from '../plugins/incantation/skills/incantation/scripts/gate.mjs';
+import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, isComplete, isFragment, isMuteWord, isStopWord, isUnmuteWord } from '../plugins/incantation/skills/incantation/scripts/gate.mjs';
 
 
 // Frames: 30 ms of a square wave, so its level is exactly the amplitude.
@@ -21,10 +21,10 @@ const JUST_UNDER = 3162; // 9.9996 dB over QUIET
 // A gate and a clock that feeds it: each call advances 30 ms.
 function rig(options = {}) {
   const gate = new Gate({ silenceMs: 300, ...options });
-  const r = { gate, t: options.t ?? 0, turns: [], muted: 0 };
+  const r = { gate, t: options.t ?? 0, turns: [], barges: 0 };
   r.feed = (amp, n = 1) => {
     for (let i = 0; i < n; i++) {
-      for (const e of gate.frame(frame(amp), r.t)) (e.type === 'turn' ? r.turns.push(e) : r.muted++);
+      for (const e of gate.frame(frame(amp), r.t)) (e.type === 'turn' ? r.turns.push(e) : r.barges++);
       r.t += 30;
     }
   };
@@ -82,11 +82,6 @@ test('T5: a headset that gates the room to zero cannot make a breath voice: the 
   assert.ok(KNOBS.minVoiceDbfs <= -30 && KNOBS.minVoiceDbfs >= -60);
 });
 
-test('T5: a turn whose whole text is a silence phrase or a filler is dropped, each one named; a word a person could mean is not', () => {
-  for (const junk of ['you', 'You.', 'Thank you.', 'thank you', 'Thanks for watching.', 'Thank you for watching!', 'Uh', 'Um...', 'hmm', '[BLANK_AUDIO]', '(silence)', '...', '', '  ']) assert.equal(isFragment(junk), true, JSON.stringify(junk));
-  for (const real of ['yes', 'No.', 'stop', 'wait', 'you should rename it', 'thank you, run the tests', 'okay', 'Got it']) assert.equal(isFragment(real), false, real);
-});
-
 test('a turn is cut at 30 s and the rest goes on as the next turn', () => {
   const r = rig();
   r.calibrate();
@@ -96,52 +91,40 @@ test('a turn is cut at 30 s and the rest goes on as the next turn', () => {
   assert.ok(r.turns[0].pcm.length >= 960 * 990 && r.turns[0].pcm.length <= 960 * 1000);
 });
 
-test('every frame is discarded from a playback start to its end and the tail after, one playing before start included, whoever started it', () => {
-  const before = rig({ playing: 1 });
-  before.feed(VOICE, 20);
-  before.feed(QUIET, 12);
-  assert.equal(before.turns.length, 0);
-
+test('T11: the mic is never closed to the session\'s own speech: a turn is heard while a reply plays, and right after it', () => {
   const r = rig();
   r.calibrate();
   r.play(1);
   r.feed(VOICE, 20);
+  r.feed(QUIET, 12);
+  assert.equal(r.turns.length, 1, 'heard while a reply plays');
   r.play(0);
-  r.feed(VOICE, 9); // 270 ms: inside the 300 ms tail
+  r.feed(VOICE, 15); // no tail: it is heard at once
   r.feed(QUIET, 12);
-  assert.equal(r.turns.length, 0);
-  r.feed(VOICE, 14);
-  r.feed(QUIET, 12);
-  assert.equal(r.turns.length, 1, 'heard again once the tail has passed');
+  assert.equal(r.turns.length, 2, 'heard the moment it ends');
+  assert.equal(rig({ playing: 1 }).gate.playing, true, 'one already playing at start is known');
 });
 
-
-test('a turn that playback cuts is dropped, not delivered late', () => {
+test('T8: voice over a playing reply is a barge-in, once per turn, at 360 ms of voice; none when nothing plays', () => {
   const r = rig();
   r.calibrate();
-  r.feed(VOICE, 14); // 300 ms of voice, enough to count as a turn on its own
+  r.feed(VOICE, 30);
+  r.feed(QUIET, 12);
+  assert.equal(r.barges, 0, 'no reply playing: no barge');
   r.play(1);
-  r.feed(VOICE, 14);
-  r.play(0);
-  r.skip(400);
-  r.feed(QUIET, 20);
-  assert.equal(r.turns.length, 0);
+  r.feed(VOICE, 11); // 330 ms
+  assert.equal(r.barges, 0, 'a cough is not enough');
+  r.feed(VOICE, 1); // 360 ms
+  assert.equal(r.barges, 1);
+  r.feed(VOICE, 20);
+  assert.equal(r.barges, 1, 'once for the turn');
+  r.feed(QUIET, 12);
+  assert.equal(r.turns.at(-1).barged, true, 'the turn says it cut a reply off');
+  r.feed(VOICE, 20);
+  assert.equal(r.barges, 2, 'a new turn over the same reply cuts again');
 });
 
-test('a playback that restarts inside the tail goes on with the one mute, and muted is reported once', () => {
-  const r = rig();
-  r.calibrate();
-  r.play(1);
-  r.feed(QUIET, 1100); // 33 s of mute
-  assert.equal(r.muted, 1, 'reported once after 30 s');
-  r.play(0);
-  r.skip(100);
-  r.play(1); // inside the 300 ms tail: the same mute
-  r.feed(QUIET, 1100);
-  assert.equal(r.muted, 1, 'not again while the same mute goes on');
-});
-
-test('a turn is marked after reply only when a playback began after the last delivery and ended, tail included, before the turn', () => {
+test('a turn is marked after reply once any playback began after the last delivery, even a turn that began over the reply', () => {
   const r = rig();
   r.calibrate();
   r.feed(VOICE, 14);
@@ -157,7 +140,6 @@ test('a turn is marked after reply only when a playback began after the last del
   r.play(1);
   r.skip(900);
   r.play(0);
-  r.feed(QUIET, 12); // the tail passes
   r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[2].afterReply, true);
@@ -170,23 +152,20 @@ test('a turn is marked after reply only when a playback began after the last del
   r.feed(VOICE, 14);
   r.feed(QUIET, 12);
   assert.equal(r.turns[4].afterReply, false, 'a delivery clears the mark until the next playback');
+  r.play(1);
+  r.feed(VOICE, 14); // over the reply
+  r.feed(QUIET, 12);
+  assert.equal(r.turns[5].afterReply, true, 'a turn over a playing reply is a reply to it');
 });
 
-test('muted is returned once after 30 s of mute, and not again until the mute ended and a new one passed 30 s', () => {
+test('hearing is true while a turn is open', () => {
   const r = rig();
   r.calibrate();
-  r.play(1);
-  r.feed(QUIET, 1100); // 33 s
-  assert.equal(r.muted, 1);
-  r.feed(QUIET, 300);
-  assert.equal(r.muted, 1, 'still the same stretch');
-  r.play(0);
-  r.feed(QUIET, 40);
-  r.play(1);
-  r.feed(QUIET, 900); // 27 s: not yet
-  assert.equal(r.muted, 1);
-  r.feed(QUIET, 200);
-  assert.equal(r.muted, 2);
+  assert.equal(r.gate.hearing, false);
+  r.feed(VOICE, 3);
+  assert.equal(r.gate.hearing, true);
+  r.feed(QUIET, 12);
+  assert.equal(r.gate.hearing, false);
 });
 
 test('the queue keeps 20 turns, drops the oldest, and ages out a turn after 5 minutes', () => {
@@ -229,6 +208,48 @@ test('deliveries are held to 4 a minute, except the turns that are never held', 
 test('stop, that is all and wait, as a whole turn, are never held', () => {
   for (const yes of ['Stop.', 'stop', "That's all!", 'thats all', 'Wait', 'wait.']) assert.equal(isStopWord(yes), true, yes);
   for (const no of ['stop that now', 'wait for the build', 'please stop', '']) assert.equal(isStopWord(no), false, no);
+});
+
+test('T5: a turn whose whole text is a silence phrase or a filler is dropped, each one named; a word a person could mean is not', () => {
+  for (const junk of ['you', 'You.', 'Thank you.', 'thank you', 'Thanks for watching.', 'Thank you for watching!', 'Uh', 'Um...', 'hmm', '[BLANK_AUDIO]', '(silence)', '...', '', '  ']) assert.equal(isFragment(junk), true, JSON.stringify(junk));
+  for (const real of ['yes', 'No.', 'stop', 'wait', 'you should rename it', 'thank you, run the tests', 'okay', 'mute', 'Got it']) assert.equal(isFragment(real), false, real);
+});
+
+test('T11: mute and unmute, as a whole turn, are the person\'s mic words', () => {
+  for (const w of ['Mute.', 'mute', 'Mute the mic!', 'mute microphone']) assert.equal(isMuteWord(w), true, w);
+  for (const w of ['Unmute.', 'un-mute', 'Unmute the mic', 'unmute microphone']) assert.equal(isUnmuteWord(w), true, w);
+  for (const w of ['mute the build', 'please mute', 'unmute the volume on the video', 'mute mute', '']) assert.equal(isMuteWord(w) || isUnmuteWord(w), false, w);
+  assert.equal(isMuteWord('unmute'), false);
+  assert.equal(isUnmuteWord('mute'), false);
+});
+
+test('T10: a turn that stops mid-sentence is held and joined to the next; one that ends a sentence goes at once', () => {
+  assert.equal(isComplete('Run the tests.'), true);
+  assert.equal(isComplete('Is it done?'), true);
+  assert.equal(isComplete('and then rename the'), false);
+  const j = new Joiner();
+  const item = (text, extra = {}) => ({ text, at: 0, afterReply: false, exempt: false, ...extra });
+  assert.deepEqual(j.offer(item('Run the tests.'), 0).map(i => i.text), ['Run the tests.']);
+  assert.deepEqual(j.offer(item('and then rename the'), 0), []);
+  assert.equal(j.nextAt(), KNOBS.joinMs);
+  assert.deepEqual(j.due(KNOBS.joinMs - 1), []);
+  const joined = j.offer(item('parse helper, please.'), 1000);
+  assert.deepEqual(joined.map(i => i.text), ['and then rename the parse helper, please.']);
+  assert.equal(j.nextAt(), null);
+  // A held turn goes on its own when nothing joins it.
+  j.offer(item('so I was thinking'), 0);
+  assert.deepEqual(j.due(KNOBS.joinMs).map(i => i.text), ['so I was thinking']);
+  // A stop word and a reply to the session's speech are never held, and let a held turn go first.
+  j.offer(item('so I was thinking'), 0);
+  assert.deepEqual(j.offer(item('stop', { exempt: true }), 10).map(i => i.text), ['so I was thinking', 'stop']);
+  j.offer(item('so I was thinking'), 0);
+  assert.deepEqual(j.offer(item('yes', { afterReply: true }), 10).map(i => i.text), ['so I was thinking', 'yes']);
+  assert.deepEqual(j.offer(item('yes', { afterReply: true }), 20).map(i => i.text), ['yes'], 'a reply is not held for a sentence mark');
+  // At most four turns join.
+  let out = [];
+  for (let i = 0; i < 6 && !out.length; i++) out = j.offer(item(`part ${i}`), i);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].joins, KNOBS.maxJoins);
 });
 
 // Claim 21: what `wait` prints.

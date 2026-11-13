@@ -40,7 +40,7 @@ test('the values table marks every Voicebox value unverified, with its prototype
   assert.ok(Object.keys(VALUES).length >= 5);
   for (const [name, v] of Object.entries(VALUES)) {
     assert.equal(v.verified, false, name);
-    assert.match(v.check, /^F[1-9]$/, name);
+    assert.match(v.check, /^[FT][1-9]$/, name);
   }
   assert.deepEqual(makeEngine({ port: 17493 }).speakTools, ['mcp__voicebox__voicebox_speak']);
 });
@@ -115,12 +115,12 @@ const sse = events => (req, res) => {
   // the stream stays open until the test closes the server
 };
 
-test('playback turns speak-start and speak-end events into start and end, keeping no text or id', async t => {
+test('playback turns speak-start and speak-end events into start and end, keeping the generation id in memory and no text', async t => {
   const vb = await fakeVoicebox({
     'GET /events/speak': sse([
       ': keep-alive\n\n',
-      'event: speak-start\ndata: {"id":"gen-1","text":"a private line","profile":"p1"}\n\n',
-      'data: {"type":"speak-end","id":"gen-1","text":"a private line"}\n\n',
+      'event: speak-start\ndata: {"generation_id":"gen-1","text":"a private line","profile":"p1"}\n\n',
+      'data: {"type":"speak-end","generation_id":"gen-1","text":"a private line"}\n\n',
       'event: something-else\ndata: {}\n\n',
     ]),
   });
@@ -141,7 +141,8 @@ test('playback turns speak-start and speak-end events into start and end, keepin
   feed.close();
   assert.deepEqual(got.map(g => g[0]), ['start', 'end']);
   assert.equal(openedFirst, true, 'open comes once the feed answers, before any event');
-  for (const [, e] of got) assert.deepEqual(Object.keys(e), ['at']);
+  for (const [, e] of got) assert.deepEqual(Object.keys(e).sort(), ["at", "id"]);
+  assert.deepEqual(got.map(g => g[1].id), ["gen-1", "gen-1"]);
 });
 
 test('playback errors when the stream ends, answers other than 200, or sends a line over 64 KB', async t => {
