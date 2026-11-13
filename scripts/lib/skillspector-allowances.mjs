@@ -190,11 +190,17 @@ export function readAllowances(path, where = ALLOWANCES) {
   return parseAllowances(text, where);
 }
 
-// The skill a label names. The workflow labels each scan `skills/<name>`, and
-// only that shape says which skill's entries apply.
+// The skill a label names. The workflow labels each scan `skills/<name>`, or
+// `plugins/<plugin>/skills/<name>` for a second plugin's skill, and only those
+// shapes say which skill's entries apply. A plugin's skill is named
+// `<plugin>/<name>`: no allowance entry can carry a name with a slash (the
+// entry check refuses it), so a plugin skill that shares a name with one under
+// skills/ inherits none of that skill's accepted reads.
 export function skillFromLabel(label) {
   const m = /^skills\/([^/]+)$/.exec(label ?? '');
-  return m && isSkillName(m[1]) ? m[1] : null;
+  if (m) return isSkillName(m[1]) ? m[1] : null;
+  const p = /^plugins\/([^/]+)\/skills\/([^/]+)$/.exec(label ?? '');
+  return p && isSkillName(p[1]) && isSkillName(p[2]) ? `${p[1]}/${p[2]}` : null;
 }
 
 const sortedEqual = (a, b) => {

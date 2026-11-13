@@ -12,6 +12,7 @@ const { makeEngine, VALUES } = await import(ENGINE);
 
 // A fake Voicebox on 127.0.0.1. `routes` maps "METHOD /path" to a handler.
 async function fakeVoicebox(routes) {
+  const table = new Map(Object.entries(routes)); // a lookup by request text never reaches a prototype member
   const seen = [];
   const server = createServer((req, res) => {
     const chunks = [];
@@ -19,7 +20,7 @@ async function fakeVoicebox(routes) {
     req.on('end', () => {
       const body = Buffer.concat(chunks);
       seen.push({ method: req.method, url: req.url, headers: req.headers, body });
-      const handler = routes[`${req.method} ${req.url}`];
+      const handler = table.get(`${req.method} ${req.url}`);
       if (!handler) {
         res.statusCode = 404;
         return res.end('{}');
