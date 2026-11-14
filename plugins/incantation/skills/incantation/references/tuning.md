@@ -47,9 +47,10 @@ lands, or the person stops talking. It is never held past its deadline.
 
 ## After a long quiet
 
-- **Pause threshold:** 5 minutes with nothing heard and nothing said.
-- **Growth:** add 2 minutes for each 5 minutes the session has worked on one task
-  without the person speaking, to at most 15 minutes.
+- **Pause threshold:** 10 minutes since the last heard delivery. The listener counts
+  these whole stretches in the `quiet <n>` line, which comes with the next delivery;
+  it does not see what you said meanwhile, so an item you raised in that time still
+  counts as pending.
 - **Wait for an answer to "are you there?":** 20 seconds.
 - Check in only when something longer than a sentence is pending. With nothing
   pending, say nothing.

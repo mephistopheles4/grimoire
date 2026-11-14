@@ -216,8 +216,8 @@ Read that file at the start.
 - **How much.** One fact, in one sentence, rewritten fresh for speech. Detail goes
   to chat.
 - **After a long quiet.** A `quiet <n>` line comes only with the next delivery, never
-  on its own. When one says you have been quiet longer than
-  the pause threshold and you have a pending item longer than a sentence, ask
+  on its own. When one says you have been quiet for the pause threshold (10 minutes per `n`, see
+  `references/tuning.md`) and you have a pending item longer than a sentence, ask
   briefly whether the person is there, wait for a heard or typed answer, then raise
   only what is still pending. With no answer, leave the item in chat and say it when
   next addressed. Nothing pending, no check. Never ask this while a say-back waits:

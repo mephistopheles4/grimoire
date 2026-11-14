@@ -172,6 +172,7 @@ export function freeze({ home, now = new Date(), n, random = randomInt }) {
 export const INBOX = /^[0-9a-f]{8}$/;
 export function takeInbox(home, hex) {
   if (!INBOX.test(hex ?? '')) refuse();
+  checkedIfThere(home, folderOf(home));
   const path = join(folderOf(home), `inbox-${hex}.json`);
   let text = null;
   try {

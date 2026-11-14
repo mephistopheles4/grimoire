@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { add, freeze } from '../plugins/incantation/skills/incantation/scripts/observe.mjs';
+import { add, freeze, takeInbox } from '../plugins/incantation/skills/incantation/scripts/observe.mjs';
 
 const OBSERVE = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/observe.mjs', import.meta.url));
 const modes = process.platform === 'win32' ? 'POSIX file modes: skipped on win32, run in the athanor container and in CI' : false;
@@ -242,5 +242,6 @@ test('an observe folder that is a link is refused before anything in it is read 
   symlinkSync(behind, join(h, '.grimoire', 'incantation', 'observe'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.equal(run(h, ['add', 'aaaa0000']).stdout, REFUSED);
   assert.equal(run(h, ['freeze', '3']).stdout, REFUSED);
+  assert.throws(() => takeInbox(h, 'aaaa0000'), 'a direct call is refused too');
   assert.deepEqual(readdirSync(behind).sort(), ['2020-01-01.jsonl', 'inbox-aaaa0000.json'], 'nothing read away or deleted through the link');
 });
