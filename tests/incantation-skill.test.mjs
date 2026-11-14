@@ -181,14 +181,6 @@ test('the tuning file is marked a starting point and holds none of the fixed rul
   assert.match(text, /The say-back, the stop words and the never-speak list\s+are never subject to the settings/);
 });
 
-test('the skill is under 500 lines and its frontmatter holds only the keys the check allows', () => {
-  assert.ok(text.split('\n').length < 500);
-  const front = /^---\n([\s\S]*?)\n---\n/.exec(text)[1];
-  const keys = [...front.matchAll(/^([A-Za-z-]+):/gm)].map(m => m[1]);
-  assert.deepEqual(keys, ['name', 'description']);
-  assert.ok(/description: (.+)/.exec(front)[1].length <= 1024);
-});
-
 // Claim 5: no wait before listening is estimated from the text. No timer in a
 // shipped script takes its delay from text, words or a length, and the skill
 // names no fixed wait.

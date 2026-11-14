@@ -9,7 +9,7 @@ speaks unasked only when something needs you. You can talk over it, and it
 stops.
 
 [Voicebox](https://voicebox.sh) does the speaking and the transcribing, on your
-machine. Incantation adds a setup check (the guard), a setup script that
+machine, on its own port, 17493, which Incantation does not let you change. Incantation adds a setup check (the guard), a setup script that
 `/incantation install` runs for you, an always-on listener, and a skill with a
 speak policy. It declares no dependency: the guard checks the setup at each
 start and says what to do.

@@ -14,6 +14,8 @@
   <a href="skills/eagle-eye"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/eagle-eye/eagle-eye-sigil-dark.svg"><img src="docs/brand/eagle-eye/eagle-eye-sigil-light.svg" width="112" alt="eagle-eye"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="plugins/incantation"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/incantation/incantation-sigil-dark.svg"><img src="docs/brand/incantation/incantation-sigil-light.svg" width="112" alt="incantation"></picture></a>
 </p>
 
 ---
@@ -23,7 +25,8 @@ calls for it — a reference book it knows when to open. Grimoire holds four.
 contract helps you build a skill, an agent or a CLAUDE.md of your own.
 head-chef lets one Claude Desktop session start and lead others, and comes
 with a pane that shows them. eagle-eye and groundtrack do the same kind of work: they take something
-you can only hold in your head and put it on a page you can look at.
+you can only hold in your head and put it on a page you can look at. A plugin,
+incantation, lets you talk with your session by voice.
 
 **[See one before you install anything.][gallery]** The gallery holds every
 page eagle-eye and groundtrack have drawn. Start with [a live decision grid][eagle-demo]
@@ -411,6 +414,20 @@ the evidence it works is a repository that does it, plus
 `claude plugin validate .` passing here.
 
 </details>
+
+## <img src="docs/brand/incantation/incantation-mark-solid.svg" width="32" align="absmiddle" alt=""> [incantation](plugins/incantation)
+
+**A familiar at your shoulder. Think out loud together.**
+
+Reach for it when you would rather talk a problem through than type it: pair
+with your session while your hands are on something else, and let it speak up
+only when something needs you.
+
+You talk with your session. It says a change back before it makes one and acts
+on your yes. Voicebox, on your own machine, does the speaking and the
+transcribing.
+
+Setup and details: [`plugins/incantation/README.md`](plugins/incantation).
 
 ## Where it works, and what it runs
 

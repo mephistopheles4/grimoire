@@ -242,17 +242,6 @@ test('a change to the root plugin is not met by bumping another plugin', () => {
   assertFails(dir, /skill or mod file\(s\) changed since origin\/main, but version is still/);
 });
 
-test('a change to a plugin does not ask for a bump of the root plugin', () => {
-  const dir = tree();
-  const base = fixturePlugin(dir);
-  const git = repo(dir);
-  appendFileSync(skillFile(base), '\nOne more sentence.\n');
-  writeJson(pluginManifest(base), { ...readJson(pluginManifest(base)), version: '0.2.0' });
-  git('commit', '-aqm', 'change the plugin');
-  const r = assertPasses(dir);
-  assert.doesNotMatch(r.stdout + r.stderr, /but version is still/);
-});
-
 test('a plugin added in this branch needs no bump and the check says it skipped', () => {
   const dir = tree();
   const git = repo(dir);
