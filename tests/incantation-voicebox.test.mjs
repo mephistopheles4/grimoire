@@ -165,6 +165,19 @@ test('the warm has its own, longer limit than one transcription, for a cold mode
   await assert.rejects(makeEngine({ port: vb.port, warmMs: 50 }).warm());
 });
 
+test('a reply that keeps trickling in is cut at the limit, not kept as long as it is never idle', async t => {
+  const drip = (req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    const every = setInterval(() => res.write(' '), 30);
+    res.on('close', () => clearInterval(every));
+  };
+  const vb = await fakeVoicebox({ 'POST /transcribe': drip });
+  t.after(vb.close);
+  const began = Date.now();
+  assert.equal(await makeEngine({ port: vb.port, timeoutMs: 200 }).transcribe(Buffer.alloc(320)), null);
+  assert.ok(Date.now() - began < 1500, 'gave up near the limit');
+});
+
 test('warm transcribes one second of silence and loads no speech model', async t => {
   const vb = await fakeVoicebox({ 'POST /transcribe': json({ text: '', duration: 1 }), 'POST /models/load': json({}) });
   t.after(vb.close);

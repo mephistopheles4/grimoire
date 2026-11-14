@@ -31,6 +31,10 @@ let timer: Timer | undefined
 let eases: Timer[] = []
 let generation = 0
 let quiet = 0
+// The moment of the last read that gave a reading. Unchanged readings are not
+// redrawn, so the drawn frame's own stamp can be old while the listener is
+// plainly writing; a read that fails is judged against this instead.
+let seen = -Infinity
 
 const wordOf = (v: unknown): MicWord => ((WORDS as readonly unknown[]).includes(v) ? (v as MicWord) : 'listening')
 
@@ -52,7 +56,8 @@ async function tick($: EngineInterface, dir: string, live: () => boolean) {
   }
   if (!live()) return
   const was = (await read($, frameAtom)) as MicFrame | null
-  if (next === undefined) next = was !== null && Math.abs(now - was.stamp) <= 10_000 ? was : null
+  if (next) seen = now
+  if (next === undefined) next = was !== null && Math.abs(now - seen) <= 10_000 ? was : null
   quiet = next === null ? quiet + 1 : 0
   if (next === null && was === null) return
   if (next !== null && was !== null && next.word === was.word && next.digits === was.digits) return
@@ -95,8 +100,12 @@ async function begin($: EngineInterface) {
     const mine = ++generation
     const live = () => generation === mine
     quiet = 0
+    seen = -Infinity
     beat = now
     let skip = 0
+    // One read at a time: a slow one must not be overtaken by the next, or an
+    // older reading could be drawn over a newer one.
+    let busy = false
     timer = $.clock.every(TICK_MS, () => {
       if (!live()) return
       void Promise.resolve($.clock.now()).then(t => (beat = t), () => undefined)
@@ -105,7 +114,13 @@ async function begin($: EngineInterface) {
         skip = (skip + 1) % SLOW_EVERY
         if (skip !== 0) return
       }
-      void tick($, dir, live).catch(() => undefined)
+      if (busy) return
+      busy = true
+      void tick($, dir, live)
+        .catch(() => undefined)
+        .finally(() => {
+          busy = false
+        })
     })
   } finally {
     starting = false

@@ -152,8 +152,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "782554e1b06672a00bdda39f80f82a296c54d2c625ea8d1c84d422e9d4c617b6",
-      "reason": "The Voicebox engine, which talks to Voicebox on 127.0.0.1 over HTTP. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes no file."
+      "sha256": "c012f43db85857a8409e0aa3b85b77aee801a5580fb8c6647c1fd55d3440349b",
+      "reason": "The Voicebox engine, which talks to Voicebox on 127.0.0.1 over HTTP. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes no file. Re-read on 2026-11-13: each request now also has a wall-clock timer that destroys it, and still starts no program and deletes no file."
     },
     {
       "skill": "incantation/incantation",
@@ -172,8 +172,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "7a762e12065e7540ae32f39c0f8f9ad28084fe839c38a280b6abe9f1b8ee1b56",
-      "reason": "The listener's shared helpers for its state folder under ~/.grimoire/incantation. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program, moves an old ~/.incantation folder to the new place, and writes only files of its own in that folder, mode 0600, through a temporary name that it removes on a failure."
+      "sha256": "f54825edfc75dfe5cdc36d804bcdd82728268f709eb06e437ac9e0eeb1801e61",
+      "reason": "The listener's shared helpers for its state folder under ~/.grimoire/incantation. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program, moves an old ~/.incantation folder to the new place, and writes only files of its own in that folder, mode 0600, through a temporary name that it removes on a failure. Re-read on 2026-11-13: reading the settings now checks first, by lstat, that the state folder exists, and still starts no program and deletes only its own temporary file."
     },
     {
       "skill": "incantation/incantation",
@@ -223,8 +223,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "cf727aa9d9e3fdd975545312746a839df89a95946cc7ab14444b7e2a89ff38d5",
-      "reason": "The setup script, which the skill's install step runs to list microphones and voices and to save the person's choice. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts only ffmpeg for the device listing, with an argument list and shell false, and deletes no file."
+      "sha256": "a5b770af41105c6f951693cc1a3d05a8de98401278f81369f97508ac0b6465f1",
+      "reason": "The setup script, which the skill's install step runs to list microphones and voices and to save the person's choice. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts only ffmpeg for the device listing, with an argument list and shell false, and deletes no file. Re-read on 2026-11-13: a failure other than a refused state folder now prints its own fixed line, and the file still starts only ffmpeg for the listing and deletes no file."
     }
   ],
   "references": [

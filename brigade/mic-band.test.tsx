@@ -20,11 +20,12 @@ const COMMAND = commandFile(HOME)
 const WAVE = '000012345678765432100000'
 
 function world(on: On) {
-  const w = { files: new Map<string, string>(), writes: [] as [string, string][], reads: 0, clock: undefined as unknown as ReturnType<typeof mock.clock> }
+  const w = { files: new Map<string, string>(), writes: [] as [string, string][], reads: 0, busy: false, clock: undefined as unknown as ReturnType<typeof mock.clock> }
   w.clock = mock.clock(on)
   on('env.get', (_$, e: any) => ({ value: e.name === 'USERPROFILE' || e.name === 'HOME' ? HOME : undefined }))
   on('fs.read', (_$, e: any) => {
     if (e.path === LEVELS) w.reads++
+    if (w.busy) return { deny: 'EBUSY: resource busy or locked' }
     return w.files.has(e.path) ? { value: w.files.get(e.path) } : { deny: 'ENOENT: no such file or directory' }
   })
   on('fs.write', (_$, e: any) => {
@@ -258,6 +259,20 @@ describe('mic band', () => {
     expect(two.t).toBe(10_000 + ms)
     // A different number of digits starts over.
     expect(advanceLine(first, 20_000, a.slice(0, 20), ms).t).toBe(20_000)
+  })
+
+
+  test('a sustained level keeps the listener alive: one read that fails after ten unchanged seconds does not hide the band', async ($, on) => {
+    const w = world(on)
+    const ui = await mount($, 'desktop')
+    for (let i = 0; i < 14; i++) {
+      levels(w, 'listening', '0'.repeat(24))
+      await w.clock.advance(1000)
+    }
+    w.busy = true
+    await w.clock.advance(1000)
+    expect(await ui.find({ key: 'mic-toggle' })).toBeDefined()
+    await ui.unmount()
   })
 
 })

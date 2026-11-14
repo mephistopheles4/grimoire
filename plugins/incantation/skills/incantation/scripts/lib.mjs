@@ -217,6 +217,12 @@ export function parseSettings(text) {
 export function readSettings(home, options = {}) {
   let text;
   migrateOldState(home, options);
+  // Nothing there at all is a machine where setup has not run.
+  try {
+    lstatSync(stateDir(home));
+  } catch (e) {
+    if (e?.code === 'ENOENT') throw new Error('settings');
+  }
   secureFolder(home, stateDir(home), { ...options, create: false });
   if (!checkFile(settingsPath(home), options)) throw new Error('settings');
   try {

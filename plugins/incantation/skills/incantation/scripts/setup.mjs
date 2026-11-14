@@ -22,6 +22,7 @@ export const LINES = {
   voicebox: 'setup: Voicebox is not answering on this machine. Start it: README step 1.',
   profile: 'setup: Voicebox has no profile with that id. Run setup.mjs profiles.',
   state: 'setup: the ~/.grimoire/incantation folder is not private or not a plain folder. See README step 3.',
+  failed: 'setup: could not save the settings.',
   saved: 'setup: saved. Run /incantation in a session.',
 };
 
@@ -78,8 +79,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let result;
   try {
     result = await runSetup(process.argv.slice(2), { home: homedir(), pathValue: process.env.PATH ?? process.env.Path, startDir: process.cwd() });
-  } catch {
-    result = { lines: [LINES.state], code: 1 };
+  } catch (e) {
+    result = { lines: [e?.message === 'state' ? LINES.state : LINES.failed], code: 1 };
   }
   process.stdout.write(`${result.lines.join('\n')}\n`, () => process.exit(result.code));
 }

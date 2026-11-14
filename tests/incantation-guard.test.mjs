@@ -159,7 +159,9 @@ test('T2: an old ~/.incantation that is a link is never moved', async t => {
   renameSync(fresh, join(outside, 'incantation'));
   rmSync(join(f.home, '.grimoire'), { recursive: true, force: true });
   linkFolder(join(outside, 'incantation'), join(f.home, '.incantation'));
-  assert.equal(await guard(f), LINES.state);
+  // Nothing is moved into place, so the new folder is simply not there: settings
+  // missing, and the install that follows makes a fresh folder.
+  assert.equal(await guard(f), LINES.settings);
   assert.equal(existsSync(fresh), false);
 });
 
@@ -170,4 +172,11 @@ test('the command line exits 1 on a failed check, and prints only its fixed line
   const r = await new Promise(res => execFile(process.execPath, [GUARD], { cwd: home, env: { HOME: home, USERPROFILE: home, PATH: '' }, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res({ code: e ? e.code : 0, stdout })));
   assert.equal(r.code, 1);
   assert.ok(Object.values(LINES).includes(r.stdout.trimEnd()), r.stdout);
+});
+
+test('a machine where setup has not run is missing its settings, not an unsafe folder', async t => {
+  const f = fixture();
+  t.after(f.remove);
+  rmSync(join(f.home, '.grimoire'), { recursive: true, force: true });
+  assert.equal(await guard(f), LINES.settings);
 });

@@ -154,7 +154,9 @@ test('freeze n copies n lines into eval/, 0700 and 0600, and the sample is a sub
   const folder = join(h, '.grimoire', 'incantation', 'observe');
   mkdirSync(folder, { recursive: true });
   const all = [];
-  for (const [day, count] of [['2026-11-10', 6], ['2026-11-11', 6]]) {
+  // Days inside the 30-day keep, counted back from today: the CLI runs on the real clock.
+  const ago = n => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  for (const [day, count] of [[ago(2), 6], [ago(1), 6]]) {
     const lines = Array.from({ length: count }, (_, i) => JSON.stringify({ kind: 'result', urgency: 1, score: 0.1, words: `${day} ${i}`, spoken: false, length: 12, time: `${day}T00:00:0${i}Z`, reaction: '' }));
     writeFileSync(join(folder, `${day}.jsonl`), `${lines.join('\n')}\n`);
     all.push(...lines);

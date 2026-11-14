@@ -60,8 +60,13 @@ function call(port, { method, path, headers = {}, body, timeoutMs = 15_000, maxB
       res.on('error', () => resolve(null));
     });
     req.on('timeout', () => req.destroy());
+    // The request's own timeout counts idle time only; this bounds the whole call.
+    const wall = setTimeout(() => req.destroy(), timeoutMs);
     req.on('error', () => resolve(null));
-    req.on('close', () => agent.destroy());
+    req.on('close', () => {
+      clearTimeout(wall);
+      agent.destroy();
+    });
     req.end(body);
   });
 }

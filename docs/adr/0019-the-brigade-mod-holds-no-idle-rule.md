@@ -35,5 +35,6 @@ writer. SECURITY.md and `docs/security/brigade.md` no longer rest on it.
 - The usage writer still keeps numbers only, from one exact list of keys, and
   no step waits for it.
 - The threat model's classes and scope are not changed by this ADR. Programs
-  running as the owner on the same machine are out of scope under #627, a
-  separate change that needs the owner's own yes in chat.
+  running as the owner on the same machine are out of scope only if #627, a
+  separate change that needs the owner's own yes in chat, merges; until then
+  they are not.

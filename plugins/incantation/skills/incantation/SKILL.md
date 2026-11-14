@@ -215,7 +215,8 @@ Read that file at the start.
   deadline.
 - **How much.** One fact, in one sentence, rewritten fresh for speech. Detail goes
   to chat.
-- **After a long quiet.** When a `quiet <n>` line says you have been quiet longer than
+- **After a long quiet.** A `quiet <n>` line comes only with the next delivery, never
+  on its own. When one says you have been quiet longer than
   the pause threshold and you have a pending item longer than a sentence, ask
   briefly whether the person is there, wait for a heard or typed answer, then raise
   only what is still pending. With no answer, leave the item in chat and say it when

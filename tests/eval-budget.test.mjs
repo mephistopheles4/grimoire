@@ -56,7 +56,8 @@ function faults(found, budget) {
 }
 
 test('each skill\'s eval cases are within its budget', () => {
-  assert.deepEqual(faults({ ...counts(join(root, 'evals')), ...pluginCounts(join(root, 'plugins')) }, BUDGET), []);
+  // Counted apart: a plugin named like a root group must not overwrite its count.
+  assert.deepEqual([...faults(counts(join(root, 'evals')), BUDGET), ...faults(pluginCounts(join(root, 'plugins')), BUDGET)], []);
 });
 
 test('a plugin\'s cases are counted under its name, and one over its budget fails', () => {
