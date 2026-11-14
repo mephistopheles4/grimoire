@@ -77,7 +77,7 @@ const CARDS = [
   {
     name: 'incantation',
     title: 'Incantation',
-    tagline: ['Hands-free voice that speaks', 'only at the seams of the work.'],
+    tagline: ['A familiar at your shoulder.', 'Think out loud together.'],
     footer: 'grimoire · skills/incantation',
   },
 ];

@@ -63,12 +63,28 @@ jobs:
       # jq ships on the ubuntu-24.04 image. An empty list fails here by name
       # rather than as a matrix with nothing in it, because no skills is a tree
       # that lost them, not a tree with nothing to scan.
+      #
+      # A skill is a directory with a SKILL.md in it, under skills/ or under a
+      # plugin's own skills/ at plugins/<name>/skills/ (the second plugin the
+      # marketplace lists). Each row carries the name the job and its
+      # code-scanning category use, and the directory the scanner is pointed at.
+      # A root skill keeps its bare name, so its category does not move; a
+      # plugin's skill is named <plugin>/<skill>.
       - name: List the skills
         id: list
         run: |
-          skills=$(for d in skills/*/; do if [ -f "${d}SKILL.md" ]; then basename "$d"; fi; done | jq -R . | jq -cs .)
+          skills=$(
+            {
+              for d in skills/*/; do
+                if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$d")" "${d%/}"; fi
+              done
+              for d in plugins/*/skills/*/; do
+                if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$(dirname "$(dirname "$d")")")/$(basename "$d")" "${d%/}"; fi
+              done
+            } | jq -R 'split("\t") | {skill: .[0], dir: .[1]}' | jq -cs .
+          )
           if [ "$skills" = "[]" ]; then
-            echo "no directory under skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
+            echo "no directory under skills/ or plugins/*/skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
             exit 1
           fi
           echo "skills=${skills}" >> "$GITHUB_OUTPUT"
@@ -103,7 +119,7 @@ jobs:
   # root and not from inside the skill; the root scan could not see that, and
   # the first scan rooted at the skill did.
   skill:
-    name: scan skills/${{ matrix.skill }}
+    name: scan ${{ matrix.dir }}
     needs: skills
     runs-on: ubuntu-24.04
     permissions:
@@ -115,12 +131,12 @@ jobs:
       # Every skill reports, not only the first one to go red.
       fail-fast: false
       matrix:
-        skill: ${{ fromJSON(needs.skills.outputs.skills) }}
+        include: ${{ fromJSON(needs.skills.outputs.skills) }}
     env:
       # Through the environment rather than spliced into each script. A
       # directory name is text a pull request controls, and `${{ }}` inside a
       # `run:` block is template injection.
-      SKILL: ${{ matrix.skill }}
+      SKILL_DIR: ${{ matrix.dir }}
     steps:
       # persist-credentials: false because this job installs a third-party tool
       # and points it at the tree. The default writes the job's token into
@@ -189,11 +205,11 @@ jobs:
       - name: Scan the skill
         run: |
           baseline=()
-          if [ -f "skills/${SKILL}/.skillspector-baseline.yaml" ]; then
-            baseline=(--baseline "skills/${SKILL}/.skillspector-baseline.yaml")
+          if [ -f "${SKILL_DIR}/.skillspector-baseline.yaml" ]; then
+            baseline=(--baseline "${SKILL_DIR}/.skillspector-baseline.yaml")
           fi
           status=0
-          skillspector scan "skills/${SKILL}" --no-llm "${baseline[@]}" --format json --output "${RUNNER_TEMP}/skillspector-report.json" || status=$?
+          skillspector scan "${SKILL_DIR}" --no-llm "${baseline[@]}" --format json --output "${RUNNER_TEMP}/skillspector-report.json" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the scan errored rather than finding something"
             exit 1
@@ -211,11 +227,11 @@ jobs:
       - name: Write the SARIF report
         run: |
           baseline=()
-          if [ -f "skills/${SKILL}/.skillspector-baseline.yaml" ]; then
-            baseline=(--baseline "skills/${SKILL}/.skillspector-baseline.yaml")
+          if [ -f "${SKILL_DIR}/.skillspector-baseline.yaml" ]; then
+            baseline=(--baseline "${SKILL_DIR}/.skillspector-baseline.yaml")
           fi
           status=0
-          skillspector scan "skills/${SKILL}" --no-llm "${baseline[@]}" --format sarif --output "${RUNNER_TEMP}/skillspector.sarif" || status=$?
+          skillspector scan "${SKILL_DIR}" --no-llm "${baseline[@]}" --format sarif --output "${RUNNER_TEMP}/skillspector.sarif" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the SARIF pass errored"
             exit 1
@@ -262,9 +278,9 @@ jobs:
           node scripts/skillspector-strip-suppressed.mjs \
             "${RUNNER_TEMP}/skillspector.sarif" \
             "${RUNNER_TEMP}/skillspector-upload.sarif" \
-            --prefix "skills/${SKILL}/" \
+            --prefix "${SKILL_DIR}/" \
             --allowances .skillspector-allowances.json \
-            --label "skills/${SKILL}"
+            --label "${SKILL_DIR}"
 
       # On push only. A pull request from a fork carries a read-only token and
       # cannot write a code-scanning result, so uploading there fails on a
@@ -308,7 +324,7 @@ jobs:
       # held to the files it names, and their content, by scripts/check.mjs on
       # every pull request; docs/security/scanners.md has the argument.
       - name: Gate on unsuppressed findings
-        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "skills/${SKILL}" --allowances .skillspector-allowances.json
+        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "${SKILL_DIR}" --allowances .skillspector-allowances.json
 
       # The narrowing is only worth what the scanner does with it. The shipped
       # baselines name the file each entry covers, and a scanner that ignored

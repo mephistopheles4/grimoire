@@ -37,7 +37,8 @@ function tree() {
   }
   // The mod's folders, which plugin.json and hooks/hooks.json point into; the
   // check fails a pointer to a file that is not there.
-  for (const part of ['brigade', 'hooks']) {
+  // plugins/, which the marketplace lists a second plugin from, is read the same way.
+  for (const part of ['brigade', 'hooks', 'plugins']) {
     if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }
   for (const part of ['.gitignore', '.skillspector-baseline.yaml', '.skillspector-allowances.json']) {

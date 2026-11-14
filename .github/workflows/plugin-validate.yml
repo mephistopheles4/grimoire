@@ -115,7 +115,7 @@ jobs:
       - name: Validate the manifests and skills
         run: |
           failed=0
-          for target in . .claude-plugin/plugin.json skills; do
+          for target in . .claude-plugin/plugin.json skills plugins/incantation plugins/incantation/.claude-plugin/plugin.json plugins/incantation/skills; do
             status=0
             claude plugin validate --strict "$target" || status=$?
             if [ "$status" -eq 0 ]; then

@@ -94,9 +94,22 @@ if (fallbackReason) console.log(`note: host fallback named: ${fallbackReason.len
 // not this repository's: .gitignore excludes them, so the walk never sees them.
 const MOD_DIRS = ['brigade', 'hooks'];
 const underMod = src => MOD_DIRS.some(d => src.startsWith(`${d}/`));
+// A second plugin lives at plugins/<name>/, with its own manifest, skills and
+// version, and is listed in the marketplace beside the root plugin. Everything
+// in its folder ships to whoever installs it, so every rule that holds the root
+// plugin's skills holds its folder too (docs/spec/incantation.md, S5). It has
+// no mod: the engine's mod places are refused in it by rule 6c.
+const PLUGINS_DIR = 'plugins';
+const underPlugin = src => src.startsWith(`${PLUGINS_DIR}/`);
+const isSkillPath = src => src.startsWith('skills/') || /^plugins\/[^/]+\/skills\//.test(src);
+// The plugin folders on disk, by name. Read from the disk, as the root's load
+// places are, so a folder no marketplace entry lists is still held.
+const pluginNames = existsSync(join(root, PLUGINS_DIR))
+  ? readdirSync(join(root, PLUGINS_DIR), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name)
+  : [];
 // Every other place the engine loads from is refused by rule 6c, so none of
 // them is read here.
-const isShipped = src => src.startsWith('skills/') || underMod(src);
+const isShipped = src => src.startsWith('skills/') || underMod(src) || underPlugin(src);
 // Code: every suffix Node or the engine loads a module from. The rules that
 // read code read all of them, so a suffix is never a way round one. In any
 // case, too: an install that folds case loads x.TS as it loads x.ts.
@@ -384,7 +397,7 @@ const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart
 // 2 does, so a cut cannot drop the home path that tells the masker the name.
 const quoted = s => printable(excerpt(masked(s)));
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainerConfig(relRaw(f)) || isGuardFile(relRaw(f)))) {
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') || underPlugin(relRaw(f)) || isContainerConfig(relRaw(f)) || isGuardFile(relRaw(f)))) {
   const bytes = readFileSync(f);
   const signature = binaryKind(relRaw(f));
   if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
@@ -410,7 +423,7 @@ for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainer
   }
 }
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/') && basename(f).toLowerCase() === 'skill.md')) {
+for (const f of files.filter(f => isSkillPath(relRaw(f)) && basename(f).toLowerCase() === 'skill.md')) {
   const lines = readFileSync(f, 'utf8')
     .replace(/^\u{FEFF}/u, '')
     .split('\n')
@@ -518,16 +531,52 @@ const mkt = JSON.parse(readFileSync(join(root, '.claude-plugin', 'marketplace.js
 const pluginManifestPath = join(root, '.claude-plugin', 'plugin.json');
 const plugin = JSON.parse(readFileSync(pluginManifestPath, 'utf8'));
 
-for (const p of mkt.plugins) {
-  if (p.source !== './') {
-    fail(`marketplace.json "${shown(String(p.name))}": source is "${shown(String(p.source))}"; this repo is one plugin, so it must be "./"`);
-    continue;
+//
+// A second plugin sits at plugins/<name>/ with a manifest of its own, and the
+// entry that lists it names that folder exactly. The entry named like the root
+// plugin keeps source "./". Each plugin folder's manifest is read once, here,
+// from the disk: a folder with no marketplace entry is read too.
+const PLUGIN_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const manifestOf = name => `${PLUGINS_DIR}/${name}/.claude-plugin/plugin.json`;
+const pluginManifests = new Map();
+for (const name of pluginNames) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(readFileSync(join(root, ...manifestOf(name).split('/')), 'utf8'));
+  } catch {
+    // No parser text, as rule 6 keeps none: a window of the file may start after
+    // a home root.
   }
-  if (p.name !== plugin.name) {
-    fail(`marketplace.json calls the plugin "${shown(String(p.name))}", plugin.json calls it "${shown(String(plugin.name))}"`);
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    fail(`${shown(manifestOf(name))} is missing or is not JSON — a plugin folder needs the manifest that names it, and no rule here could read what it loads`);
+    parsed = null;
+  }
+  pluginManifests.set(name, parsed);
+}
+for (const p of mkt.plugins) {
+  const said = shown(String(p.name));
+  const rootEntry = p.source === './' || p.name === plugin.name;
+  if (rootEntry) {
+    if (p.source !== './') {
+      fail(`marketplace.json "${said}": source is "${shown(String(p.source))}"; the plugin at the root is one plugin, so its entry must be "./"`);
+      continue;
+    }
+    if (p.name !== plugin.name) {
+      fail(`marketplace.json calls the plugin "${said}", plugin.json calls it "${shown(String(plugin.name))}"`);
+    }
+  } else {
+    if (typeof p.name !== 'string' || !PLUGIN_NAME.test(p.name)) {
+      fail(`marketplace.json "${said}": a plugin's name holds lowercase letters, digits and hyphens only, since its folder is plugins/<name>`);
+    } else if (p.source !== `./${PLUGINS_DIR}/${p.name}`) {
+      fail(`marketplace.json "${said}": source is "${shown(String(p.source))}"; a plugin other than the root one must be at "./${PLUGINS_DIR}/${said}"`);
+    } else if (!pluginManifests.has(p.name)) {
+      fail(`${shown(manifestOf(p.name))} is missing or is not JSON — marketplace.json "${said}" points at a folder with no manifest`);
+    } else if (pluginManifests.get(p.name) && pluginManifests.get(p.name).name !== p.name) {
+      fail(`marketplace.json "${said}" points at ${PLUGINS_DIR}/${said}, whose manifest calls the plugin "${shown(String(pluginManifests.get(p.name).name))}"`);
+    }
   }
   if (p.version !== undefined) {
-    fail(`marketplace.json "${shown(String(p.name))}": drop "version" — plugin.json is where it lives, and two copies drift`);
+    fail(`marketplace.json "${said}": drop "version" — plugin.json is where it lives, and two copies drift`);
   }
 }
 if (mkt.name === plugin.name) {
@@ -538,14 +587,17 @@ if (mkt.name === plugin.name) {
 // one level deep. A nested layout (skills/<category>/<name>/) would need a
 // "skills" key in plugin.json, which rule 6c refuses until a rule reads where
 // it points, so each skill sits at skills/<name>/.
-for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
-  if (!e.isDirectory()) continue;
-  try {
-    statSync(join(root, 'skills', e.name, 'SKILL.md'));
-  } catch {
-    fail(
-      `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so put each skill at skills/<name>/SKILL.md. A "skills" key in plugin.json that lists deeper folders is refused by rule 6c.`,
-    );
+for (const base of ['skills', ...pluginNames.map(n => `${PLUGINS_DIR}/${n}/skills`)]) {
+  if (!existsSync(join(root, ...base.split('/')))) continue;
+  for (const e of readdirSync(join(root, ...base.split('/')), { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    try {
+      statSync(join(root, ...base.split('/'), e.name, 'SKILL.md'));
+    } catch {
+      fail(
+        `${shown(`${base}/${e.name}`)}/ has no SKILL.md — the default scan reads one level, so put each skill at ${base}/<name>/SKILL.md. A "skills" key in plugin.json that lists deeper folders is refused by rule 6c.`,
+      );
+    }
   }
 }
 
@@ -621,37 +673,57 @@ if (!mergeBase) {
   // The mod ships in the same plugin and reaches nobody without a bump either.
   // A pathspec naming a folder the base never had is not an error to git, so
   // the commit that first adds the mod is read like any other.
-  const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', 'skills', ...MOD_DIRS);
-  const before = git('show', `${mergeBase}:.claude-plugin/plugin.json`);
-  if (!touched) {
-    // nothing to release
-  } else if (!before) {
-    // The manifest did not exist at the base, so there is no version to move
-    // from. This is the layout move itself. Say it rather than pass in silence.
-    console.log('note: no plugin.json at the base commit — version bump check skipped');
-  } else {
-    const files = touched.split('\n').length;
-    const was = JSON.parse(before).version;
-    if (was === plugin.version) {
-      fail(
-        `${files} skill or mod file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
-      );
+  //
+  // Each plugin is held to its own manifest: the root plugin by skills/ and the
+  // mod's folders against .claude-plugin/plugin.json, and a plugin under
+  // plugins/<name>/ by its whole folder against its own manifest. A change in
+  // one asks for no bump of another.
+  const targets = [
+    { where: 'skill or mod file(s)', its: '', then: 'the ', manifest: '.claude-plugin/plugin.json', version: plugin.version, paths: ['skills', ...MOD_DIRS] },
+    ...pluginNames.map(name => ({
+      where: `file(s) in ${PLUGINS_DIR}/${name}/`,
+      its: 'its ',
+      then: 'its ',
+      manifest: manifestOf(name),
+      version: pluginManifests.get(name)?.version,
+      paths: [`${PLUGINS_DIR}/${name}`],
+    })),
+  ];
+  for (const t of targets) {
+    const label = t.its ? t.manifest : 'plugin.json';
+    const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', ...t.paths);
+    const before = git('show', `${mergeBase}:${t.manifest}`);
+    if (!touched) {
+      // nothing to release
+    } else if (!before) {
+      // The manifest did not exist at the base, so there is no version to move
+      // from. This is the layout move itself, or a plugin added in this
+      // branch. Say it rather than pass in silence.
+      console.log(t.its ? `note: no plugin.json at the base commit for ${shown(t.manifest.split('/').slice(0, 2).join('/'))} — version bump check skipped` : 'note: no plugin.json at the base commit — version bump check skipped');
     } else {
-      // Read here and not beside `before`, because a branch that never moved
-      // the version asks the first question only and should spawn nothing for
-      // the second. The names say which end of the base branch each one came
-      // from: `was` is the fork point, this is the tip.
-      const atBaseTip = git('show', `${baseRef}:.claude-plugin/plugin.json`);
-      if (!atBaseTip) {
-        // The merge base carries a manifest and the tip of the base branch
-        // does not, which is the layout move landing the other way round. The
-        // first comparison still ran, so this is one comparison skipped and
-        // not the rule, and it says which.
-        console.log(`note: no plugin.json at the tip of ${baseRef} — the released-version comparison was skipped`);
-      } else if (JSON.parse(atBaseTip).version === plugin.version) {
+      const files = touched.split('\n').length;
+      const was = JSON.parse(before).version;
+      if (was === t.version) {
         fail(
-          `${files} skill or mod file(s) changed since ${baseRef}, and the version moved to ${plugin.version}, but ${baseRef} is already at ${plugin.version} — something landed there after this branch forked, so plugin users receive no update. Rebase onto ${baseRef} and bump again.`,
+          `${files} ${t.where} changed since ${baseRef}, but ${t.its}version is still ${t.version} — plugin users receive no update`,
         );
+      } else {
+        // Read here and not beside `before`, because a branch that never moved
+        // the version asks the first question only and should spawn nothing for
+        // the second. The names say which end of the base branch each one came
+        // from: `was` is the fork point, this is the tip.
+        const atBaseTip = git('show', `${baseRef}:${t.manifest}`);
+        if (!atBaseTip) {
+          // The merge base carries a manifest and the tip of the base branch
+          // does not, which is the layout move landing the other way round. The
+          // first comparison still ran, so this is one comparison skipped and
+          // not the rule, and it says which.
+          console.log(`note: no ${label} at the tip of ${baseRef} — the released-version comparison was skipped`);
+        } else if (JSON.parse(atBaseTip).version === t.version) {
+          fail(
+            `${files} ${t.where} changed since ${baseRef}, and ${t.then}version moved to ${t.version}, but ${baseRef} is already at ${t.version} — something landed there after this branch forked, so plugin users receive no update. Rebase onto ${baseRef} and bump again.`,
+          );
+        }
       }
     }
   }
@@ -1002,7 +1074,7 @@ for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
 // counts, and an install on Windows or macOS folds it, so `Hooks/hooks.json`
 // would load there and be read by nothing here. skills/ for the same reason,
 // and .claude-plugin/, whose manifest rule 6b reads by its exact name.
-const ROOT_DIRS = ['skills', '.claude-plugin', ...MOD_DIRS];
+const ROOT_DIRS = ['skills', '.claude-plugin', PLUGINS_DIR, ...MOD_DIRS];
 for (const e of readdirSync(root, { withFileTypes: true })) {
   const twin = ROOT_DIRS.find(d => caseTwin(e.name, d));
   if (twin) fail(`${shown(e.name)}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
@@ -1069,6 +1141,32 @@ for (const p of mkt.plugins) for (const key of Object.keys(p)) if (!MARKET_ENTRY
 for (const e of readdirSync(root, { withFileTypes: true })) {
   const hit = LOAD_ROOTS.find(d => e.name === d || caseTwin(e.name, d));
   if (hit) fail(`${shown(e.name)}${e.isDirectory() ? '/' : ''} at the root is a place the engine loads (${hit}) — it would load what no rule here reads. Remove it, or take it off LOAD_ROOTS in rule 6c of scripts/check.mjs and hold it to the rules the mod's folders are held to (isShipped and rule 5).`);
+}
+// The same for each plugin under plugins/<name>/ (S5 of the Incantation spec):
+// the engine loads the same default places at its root, and its manifest keys
+// are held to the same list. A second plugin has no mod, so `hooks` and `types`
+// are off its key list, and its hooks/ folder is a place the engine loads, not
+// the mod's folder it is at the repository root. Its manifest must carry a
+// version, because rule 5 reads it, and the skills/ and .claude-plugin/ names
+// are read by exact spelling, as the root's are.
+const PLUGIN_ONLY_KEYS = new Set([...PLUGIN_KEYS].filter(k => k !== 'types' && k !== 'hooks'));
+const PLUGIN_LOAD_ROOTS = [...LOAD_ROOTS, 'hooks'];
+for (const name of pluginNames) {
+  const dir = `${PLUGINS_DIR}/${name}`;
+  const m = pluginManifests.get(name);
+  if (m) {
+    for (const key of Object.keys(m)) if (!PLUGIN_ONLY_KEYS.has(key)) keyFail(manifestOf(name), key, PLUGIN_ONLY_KEYS);
+    if (typeof m.version !== 'string' || !m.version) {
+      fail(`${shown(manifestOf(name))} has no version — rule 5 reads it, and plugin users receive an update only when it moves`);
+    }
+  }
+  for (const e of readdirSync(join(root, ...dir.split('/')), { withFileTypes: true })) {
+    const at = shown(`${dir}/${e.name}`) + (e.isDirectory() ? '/' : '');
+    const hit = PLUGIN_LOAD_ROOTS.find(d => e.name === d || caseTwin(e.name, d));
+    if (hit) fail(`${at} in the plugin is a place the engine loads (${hit}) — it would load what no rule here reads. Remove it, or take it off PLUGIN_LOAD_ROOTS in rule 6c of scripts/check.mjs and hold it to the rules the plugin's skills are held to.`);
+    const twin = ['skills', '.claude-plugin'].find(d => caseTwin(e.name, d));
+    if (twin) fail(`${at} in the plugin is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
+  }
 }
 
 // 6d. The settings file holds the guard's entry and nothing else.
@@ -1313,7 +1411,7 @@ function readBaseline(path, { skill = false } = {}) {
 }
 
 const rootBaseline = join(root, BASELINE);
-const skillBaselines = files.filter(f => rel(f).startsWith('skills/') && basename(f) === BASELINE);
+const skillBaselines = files.filter(f => isSkillPath(rel(f)) && basename(f) === BASELINE);
 let rootRules = null;
 try {
   const parsed = readBaseline(rootBaseline);
@@ -1326,7 +1424,7 @@ try {
   );
 }
 
-if (!skillBaselines.length) {
+if (!skillBaselines.some(f => rel(f).startsWith('skills/'))) {
   fail(
     `no ${BASELINE} under skills/ — a reader who scans the skill rather than the repository sees the findings and none of the reasons, and so does the SkillSpector workflow, which scans each skill with its own file.`,
   );
@@ -1378,7 +1476,7 @@ for (const path of skillBaselines) {
 // suppression. On a file system that folds case, one of the pair could also
 // overwrite the other at checkout. The walked tree is the tracked tree on a
 // runner, which is where this matters.
-for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(p => p.startsWith('skills/')))) {
+for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(isSkillPath))) {
   fail(`${shown(a)} and ${shown(b)} differ only in case — the scanner matches a baseline's file without regard to case, and a checkout that folds case keeps one of them. Rename one.`);
 }
 
@@ -1401,7 +1499,11 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(p => p.startsWith('s
   const read = readAllowances(at);
   for (const p of read.problems) fail(p);
   if (read.value) {
-    const skillDir = s => join(root, 'skills', ...s.split('/'));
+    // `<plugin>/<name>` is a skill under plugins/<plugin>/skills/.
+    const skillDir = s => {
+      const [p, n] = s.split('/');
+      return n === undefined ? join(root, 'skills', s) : join(root, 'plugins', p, 'skills', n);
+    };
     const problems = checkAgainstTree(read.value, {
       isSkill: s => existsSync(join(skillDir(s), 'SKILL.md')),
       readFile: (s, p) => {

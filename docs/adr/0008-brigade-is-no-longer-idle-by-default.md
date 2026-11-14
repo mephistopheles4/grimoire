@@ -1,5 +1,9 @@
 # The Brigade mod is no longer idle by default
 
+> Superseded by [ADR 0019](0019-the-brigade-mod-holds-no-idle-rule.md): the
+> owner removed the idle rule itself on issue 208, 2026-11-13. What follows is
+> the record of why the usage writer came first.
+
 Before 0.60.0 the Brigade mod did nothing at session start but register
 `/brigade`. It ran no timer, no process and no file read, and it wrote no file,
 until the owner opened its pane. `SECURITY.md` and row 15 of the

@@ -8223,7 +8223,9 @@ const bandTexts = async (b: any): Promise<string[]> => (await b.findAll({ type: 
 const bandOrder = async (b: any): Promise<string[]> =>
   (await b.find({ key: 'level-band' })).children
     .filter((c: any) => c !== null && typeof c === 'object')
-    .map((c: any) => (c.type === 'Box' && !c.children?.length ? 'engine' : 'line'))
+    // The engine's tree is its own empty box, or a reference to it once
+    // another hook of this plugin (the mic band's) has handed it on.
+    .map((c: any) => (c.type === 'engine' || (c.type === 'Box' && !c.children?.length) ? 'engine' : 'line'))
 const compactNow = ($: any, over: Record<string, unknown> = {}) => $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'Hello.', toolUses: [] }], ...over })
 const compactStart = ($: any) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT })
 const COMPACTED = "pane 1 Manual · The lead's context was compacted · level 1"

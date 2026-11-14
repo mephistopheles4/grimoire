@@ -3,7 +3,7 @@
 // uploaded, and, when asked, the AE1 results the allowance accepts, so the
 // Security tab carries only what the gate would fail on.
 //
-//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/] [--allowances <file> --label skills/<name>]
+//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/] [--allowances <file> --label skills/<name> | plugins/<plugin>/skills/<name>]
 //
 // **Why this exists, measured rather than assumed.** SkillSpector keeps a
 // baselined finding in its SARIF and marks it `suppressions: [{ kind:

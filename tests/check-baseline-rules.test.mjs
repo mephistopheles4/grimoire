@@ -305,7 +305,7 @@ test('the root baseline keeps its three narrowed entries', () => {
   const got = entriesOf(join(root, '.skillspector-baseline.yaml')).filter(e => e.file !== undefined || e.message !== undefined);
   assert.deepEqual(
     got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
-    [['AS3', 'skills/*/SKILL.md'], ['MP1', '*contract.changelog.md'], ['TR2', '*SKILL.md', TR2_MESSAGE]],
+    [['AS3', 'skills/*/SKILL.md'], ['MP1', '*contract.changelog.md'], ['TR2', '*SKILL.md']],
   );
 });
 
@@ -372,4 +372,19 @@ test('a skill entry may pin an exact message where the root has none, never a wi
   const differs = tree();
   edit(rootBaselineIn(differs), ROOT_AR2, `${ROOT_AR2}    file: "SKILL.md"\n    message: "root text"\n`);
   assertFails(differs, /matched to do not judge here and to root text in/);
+});
+
+// The incantation skill lives under plugins/, so the loop above never reads it.
+// The root TR2 entry is rule-wide for *SKILL.md, which means dropping this
+// skill's clause, or RA2's file, would pass every other check: pin them here.
+test('the incantation skill ships exactly its three entries, TR2 with its clause and RA2 with its file', () => {
+  const got = entriesOf(join(root, 'plugins', 'incantation', 'skills', 'incantation', '.skillspector-baseline.yaml'));
+  assert.deepEqual(
+    got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
+    [
+      ['LP3'],
+      ['TR2', '*SKILL.md', 'Use only when the person types /incantation, /incantation install, /incantation observe, /incantation mute or /incantation unmute, or asks in their own typed words in this chat to pair by voice'],
+      ['RA2', 'SKILL.md'],
+    ],
+  );
 });

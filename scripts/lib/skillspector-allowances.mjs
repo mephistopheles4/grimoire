@@ -86,6 +86,16 @@ export function isSkillPath(p) {
 // One directory name under skills/.
 export const isSkillName = s => typeof s === 'string' && isSkillPath(s) && !s.includes('/');
 
+// The skill an entry names: a directory name under skills/, or `<plugin>/<name>`
+// for a skill under plugins/<plugin>/skills/. Nothing deeper.
+export const isEntrySkill = s => isSkillName(s) || (typeof s === 'string' && s.split('/').length === 2 && s.split('/').every(isSkillName));
+
+// Where an entry's skill lives, for a message.
+export const skillHome = s => {
+  const [p, n] = String(s).split('/');
+  return n === undefined ? `skills/${s}` : `plugins/${p}/skills/${n}`;
+};
+
 export const exceptionKey = e => JSON.stringify([e.skill, e.path, e.reason_code]);
 export const referenceKey = r => JSON.stringify([r.skill, r.from, r.target]);
 
@@ -133,7 +143,7 @@ export function parseAllowances(text, where = ALLOWANCES) {
       problems.push(`${at} must have exactly the keys ${EXCEPTION_KEYS.join(', ')}`);
       return;
     }
-    if (!isSkillName(e.skill)) problems.push(`${at}: "skill" must be one directory name under skills/`);
+    if (!isEntrySkill(e.skill)) problems.push(`${at}: "skill" must be one directory name under skills/, or <plugin>/<name> for a skill under plugins/<plugin>/skills/`);
     if (!isSkillPath(e.path)) problems.push(`${at}: "path" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!REASON_CODES.has(e.reason_code)) {
       problems.push(`${at}: "reason_code" ${JSON.stringify(e.reason_code)} is not one of ${[...REASON_CODES.keys()].join(', ')}`);
@@ -161,7 +171,7 @@ export function parseAllowances(text, where = ALLOWANCES) {
       problems.push(`${at} must have exactly the keys ${REFERENCE_KEYS.join(', ')}`);
       return;
     }
-    if (!isSkillName(r.skill)) problems.push(`${at}: "skill" must be one directory name under skills/`);
+    if (!isEntrySkill(r.skill)) problems.push(`${at}: "skill" must be one directory name under skills/, or <plugin>/<name> for a skill under plugins/<plugin>/skills/`);
     if (!isSkillPath(r.from)) problems.push(`${at}: "from" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!isSkillPath(r.target)) problems.push(`${at}: "target" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!Number.isInteger(r.count) || r.count < 1) problems.push(`${at}: "count" must be a positive whole number`);
@@ -190,11 +200,17 @@ export function readAllowances(path, where = ALLOWANCES) {
   return parseAllowances(text, where);
 }
 
-// The skill a label names. The workflow labels each scan `skills/<name>`, and
-// only that shape says which skill's entries apply.
+// The skill a label names. The workflow labels each scan `skills/<name>`, or
+// `plugins/<plugin>/skills/<name>` for a second plugin's skill, and only those
+// shapes say which skill's entries apply. A plugin's skill is named
+// `<plugin>/<name>`, and an entry for it carries that same name, so a plugin
+// skill that shares a name with one under skills/ inherits none of that
+// skill's accepted reads.
 export function skillFromLabel(label) {
   const m = /^skills\/([^/]+)$/.exec(label ?? '');
-  return m && isSkillName(m[1]) ? m[1] : null;
+  if (m) return isSkillName(m[1]) ? m[1] : null;
+  const p = /^plugins\/([^/]+)\/skills\/([^/]+)$/.exec(label ?? '');
+  return p && isSkillName(p[1]) && isSkillName(p[2]) ? `${p[1]}/${p[2]}` : null;
 }
 
 const sortedEqual = (a, b) => {
@@ -298,15 +314,15 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   const problems = [];
   allowances.exceptions.forEach((e, i) => {
     const at = `${ALLOWANCES}: exceptions[${i}] (${e.skill}/${e.path}, ${e.reason_code})`;
-    if (!isSkill(e.skill)) return problems.push(`${at}: skills/${e.skill}/ has no SKILL.md`);
+    if (!isSkill(e.skill)) return problems.push(`${at}: ${skillHome(e.skill)}/ has no SKILL.md`);
     const bytes = readFile(e.skill, e.path);
-    if (bytes === null) return problems.push(`${at}: skills/${e.skill}/${e.path} does not exist`);
+    if (bytes === null) return problems.push(`${at}: ${skillHome(e.skill)}/${e.path} does not exist`);
     if (contentHash(bytes) !== e.sha256) {
       const code = REASON_CODES.get(e.reason_code);
       // No new hash, ever. A message that prints the value to paste turns a
       // review into a copy, and the pin exists to make someone look.
       problems.push(
-        `${at}: skills/${e.skill}/${e.path} changed since its allowance was written. ` +
+        `${at}: ${skillHome(e.skill)}/${e.path} changed since its allowance was written. ` +
           `SkillSpector does not read this file in full under ${code.pass}, so the change has had no scan there. ` +
           `Review the diff of that file by hand for ${code.lookFor}. ` +
           'If it is clean, recompute the sha256 of the file (LF line endings) yourself and update the entry in the same pull request.',
@@ -315,9 +331,9 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   });
   allowances.references.forEach((r, i) => {
     const at = `${ALLOWANCES}: references[${i}] (${r.skill}: ${r.from} -> ${r.target})`;
-    if (!isSkill(r.skill)) return problems.push(`${at}: skills/${r.skill}/ has no SKILL.md`);
-    if (readFile(r.skill, r.from) === null) problems.push(`${at}: skills/${r.skill}/${r.from} does not exist`);
-    if (readFile(r.skill, r.target) === null) problems.push(`${at}: skills/${r.skill}/${r.target} does not exist`);
+    if (!isSkill(r.skill)) return problems.push(`${at}: ${skillHome(r.skill)}/ has no SKILL.md`);
+    if (readFile(r.skill, r.from) === null) problems.push(`${at}: ${skillHome(r.skill)}/${r.from} does not exist`);
+    if (readFile(r.skill, r.target) === null) problems.push(`${at}: ${skillHome(r.skill)}/${r.target} does not exist`);
   });
   return problems;
 }

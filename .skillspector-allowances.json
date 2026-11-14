@@ -144,6 +144,87 @@
       ],
       "sha256": "40ba0b4f4d45b0db497141f27ef9f6bb8a477cf9da70cd3cb1cfbfc4419a60c6",
       "reason": "The hiring page's template: one HTML file whose inline script draws the page. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Read by hand on 2026-10-18 for the hiring page (issue 344): it holds no rm, del or erase command in any spelling, runs no program, and makes no network request, which its content security policy also refuses; its text is the page's own labels and notices, addressed to the person, and no instruction to an agent. Re-read on 2026-10-18 for the review of issue 344: Agree takes the drafted wording and a new Keep keeps a restored value, one entry at a time; labels, notices and comments are reworded and one CSS rule moved; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-18 for the page's visual pass with the owner (issue 313): the letter shows one paragraph at a time or everything at once, each schedule opens in the browser's own dialog, Reset with a ten-second Undo replaces Forget, the notices open from an info button, the top bar's buttons are icons with tips, rows slide when reordered, and the styles are reworked; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-18 for the lens-313 fixes (issue 344): the notices are open at every load; Reset's Undo runs ten seconds from the press and is offered only after the button now on the page is left and found again; an edit to a restored answer starts from the drafted fields, and a chip, skip or flag tap, or a field edit on a restored entry, leaves the restored mark for its own Keep; a chip is kept by its place in the question, not its text. It adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-18 for the review-313 fixes (issue 344): typing in a restored answer, the name or the why leaves it restored, its other fields, chip and flag with it, until its own Keep, which the why blank now has, and this replaces the field-edit wording above; a new pick or Agree carries no restored flag; Reset's Undo waits for a return after the leave, and nothing is saved after Reset until the next answer; the restore, redraft, tally and tip wording follow; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-19 for the ship-313 fixes (issue 344): a redraw's own refocus of Reset is no return, so Undo waits for a move of the person's; the first answer or edit after Reset withdraws Undo; a restored answer to a question has its own Keep; the name and the why warn on a key-shaped value or an email, as the fields do; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-11-08 for issue 522: the change sets spellcheck to false on the why blank and on the field textareas, two words in two lines; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-11-12 for issue 606: the change sizes the textareas in the schedule sheet when it opens and moves each entry's menu to the entry's top right with one CSS rule and one line; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network, and no text that tells a reader to strip characters to reveal an instruction."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/engines/voicebox.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "c012f43db85857a8409e0aa3b85b77aee801a5580fb8c6647c1fd55d3440349b",
+      "reason": "The Voicebox engine, which talks to Voicebox on 127.0.0.1 over HTTP. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes no file. Re-read on 2026-11-13: each request now also has a wall-clock timer that destroys it, and still starts no program and deletes no file."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/gate.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "d0efa5c74d4853fc29cbf0df6a3bca7c170f1952599bf0677412624ec358eb7b",
+      "reason": "The turn gate, which decides from the mic's loudness readings and the heard text when a turn opens, closes and counts as a yes. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program, touches no file and reaches no network."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/lib.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "f54825edfc75dfe5cdc36d804bcdd82728268f709eb06e437ac9e0eeb1801e61",
+      "reason": "The listener's shared helpers for its state folder under ~/.grimoire/incantation. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program, moves an old ~/.incantation folder to the new place, and writes only files of its own in that folder, mode 0600, through a temporary name that it removes on a failure. Re-read on 2026-11-13: reading the settings now checks first, by lstat, that the state folder exists, and still starts no program and deletes only its own temporary file."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/listen.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "890411849b0c0437e8ca4fd7732f18e7a47c07049e4852b715aad048e1194863",
+      "reason": "The listener, which opens the microphone through ffmpeg, asks Voicebox to transcribe and to speak, and plays the reply through a player. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts programs only with an argument list and shell false (ffmpeg, ffplay or a system player, and the setup listing), and deletes only its own files in its state folder: the say file it has read, the player temporary file and its run files."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/listen.mjs",
+      "reason_code": "obfuscated_instruction_text",
+      "analyzers": [
+        "static_patterns_agent_snooping",
+        "static_patterns_anti_refusal",
+        "static_patterns_deserialization",
+        "static_patterns_excessive_agency",
+        "static_patterns_harmful_content",
+        "static_patterns_memory_poisoning",
+        "static_patterns_privilege_escalation",
+        "static_patterns_prompt_injection",
+        "static_patterns_rogue_agent",
+        "static_patterns_ssrf",
+        "static_patterns_supply_chain",
+        "static_patterns_system_prompt_leakage"
+      ],
+      "sha256": "890411849b0c0437e8ca4fd7732f18e7a47c07049e4852b715aad048e1194863",
+      "reason": "The listener. The scanner could not fully evaluate text it took for obfuscated instructions, and reports that under this code for the twelve checks named. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it holds regular expressions, fixed message lines and code, no base64 or other encoded text, no escape sequence that hides a character, and no instruction addressed to a model."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/observe.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "087d20d98c5041fbb21d3bbf6b597b2102d38d83b294b1944e9a6ffd5e6a0703",
+      "reason": "The observe script, which keeps the practice record under ~/.grimoire/incantation/observe. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes only its own files in that folder: records older than the keep period, inbox files left unread for a day, and the inbox file it has just read. Re-read on 2026-11-13: the observe folder is now checked, when it exists, before any file in it is read or deleted, including by a direct call that takes the inbox file, and the file still starts no program and deletes only its own files there."
+    },
+    {
+      "skill": "incantation/incantation",
+      "path": "scripts/setup.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "a5b770af41105c6f951693cc1a3d05a8de98401278f81369f97508ac0b6465f1",
+      "reason": "The setup script, which the skill's install step runs to list microphones and voices and to save the person's choice. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts only ffmpeg for the device listing, with an argument list and shell false, and deletes no file. Re-read on 2026-11-13: a failure other than a refused state folder now prints its own fixed line, and the file still starts only ffmpeg for the listing and deletes no file."
     }
   ],
   "references": [
@@ -175,6 +256,12 @@
       "skill": "head-chef",
       "from": "SKILL.md",
       "target": "references/CONTRACT.md",
+      "count": 1
+    },
+    {
+      "skill": "incantation/incantation",
+      "from": "SKILL.md",
+      "target": "scripts/setup.mjs",
       "count": 1
     }
   ]

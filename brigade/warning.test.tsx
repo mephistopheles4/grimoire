@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
+import { levelsFile } from './mic-view.ts'
 import { WORDING, versionOf } from './warning-text.ts'
 
 // The permission warning, driven the way the head-chef skill and the owner
@@ -20,7 +21,7 @@ const TRANSCRIPT = /^file:\/\/\/[A-Za-z]:/.test(import.meta.url) ? 'C:\\work\\t.
 // mod's own start, with no pane open, and a store the test can seed, or one
 // that cannot be written.
 function session(on: On, entries?: Record<string, unknown> | 'unwritable') {
-  const w = { registered: [] as string[], verdict: { decision: 'allow' } as Record<string, unknown> }
+  const w = { registered: [] as string[], verdict: { decision: 'allow' } as Record<string, unknown>, clock: undefined as unknown as ReturnType<typeof mock.clock> }
   on('tool.check', () => w.verdict as any)
   on('classic.SessionStart', () => ({}))
   if (entries === 'unwritable') {
@@ -31,7 +32,7 @@ function session(on: On, entries?: Record<string, unknown> | 'unwritable') {
   } else {
     mock.store(on, entries)
   }
-  mock.clock(on)
+  w.clock = mock.clock(on)
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
   on('command.register', ($, e: any) => ({ value: { command: e.name } }))
   on('ui.panes', () => ({ value: [] }))
@@ -172,6 +173,29 @@ describe('permission warning', () => {
     expect(await ui.find({ type: 'Text', text: /wording changed since you chose Don't show again\.$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /evil/ })).toBeUndefined()
   })
+
+  for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
+    test(`the warning and the Incantation mic band draw together, and the band stays when the warning is hidden (${surface})`, async ($, on) => {
+      const w = session(on)
+      const home = /^file:\/\/\/[A-Za-z]:/.test(import.meta.url) ? 'C:\\Work\\owner' : '/work/owner'
+      const files = new Map<string, string>()
+      on('env.get', (_$, e: any) => ({ value: e.name === 'USERPROFILE' || e.name === 'HOME' ? home : undefined }))
+      on('fs.read', (_$, e: any) => (files.has(e.path) ? { value: files.get(e.path) } : { deny: 'ENOENT: no such file or directory' }))
+      on('fs.write', (_$, e: any) => ({ value: undefined }))
+      await $.session.start(START)
+      await call($)
+      files.set(levelsFile(home), `${w.clock.now()} hearing 000012345678765432100000\n`)
+      const ui = await mount($, surface)
+      await w.clock.advance(2250)
+      expect(await ui.find({ key: 'understand' })).toBeDefined()
+      expect(await ui.find({ key: 'mic-toggle' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /mic: hearing/ })).toBeDefined()
+      await ui.press({ key: 'understand' })
+      expect(await ui.find({ key: 'understand' })).toBeUndefined()
+      expect(await ui.find({ key: 'mic-toggle' })).toBeDefined()
+      await ui.unmount()
+    })
+  }
 
   test("a subagent's call is refused and shows nothing", async ($, on) => {
     session(on)

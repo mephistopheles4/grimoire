@@ -242,6 +242,7 @@ import {
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 import { compactSign, endTurn, figuresOf, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, newCycle, NOTE_PREFIX, SEND_TOOL, sendsMessage, setFigures, takeAfter, tally, turnEnd } from './reminder.ts'
+import { registerMic } from './mic-band.tsx'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
@@ -3376,6 +3377,8 @@ export const register: Register = on => {
   registerBand(on)
   // The head chef's permission warning, above the prompt in a lead session.
   registerWarning(on)
+  // The Incantation mic band, beneath the warning and nearest the prompt.
+  registerMic(on)
 
   on('session.start', async ($, e, next) => {
     // The usage summary writer's clock and session: the engine's epoch and
