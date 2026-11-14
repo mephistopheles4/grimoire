@@ -187,9 +187,9 @@ device id, which can name the hardware, to ffmpeg on its command line, so
 anything that reads or reports this machine's command lines sees it. Claude Code keeps every heard line
 in the session transcript, and in its background-task output; where that output
 is kept is not yet checked. The listener asks Voicebox for each reply through its stream
-route; one probe left no History entry, which is not checked on every version.
-Whether Voicebox keeps what it transcribes is not yet checked. Clear
-both from Voicebox's own History and Captures tabs.
+route, and Voicebox may keep each reply's text and audio in its History, in plain
+files in your profile folder. Voicebox's own dictation keeps its transcripts the
+same way. Clear both from Voicebox's History and Captures tabs.
 
 In observe-only mode (`/incantation observe`), the session's unspoken candidates,
 which can repeat what was said near the mic, go to `~/.grimoire/incantation/observe/`. Day
