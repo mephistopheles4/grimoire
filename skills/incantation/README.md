@@ -114,9 +114,8 @@ reads once and removes. Nothing else in the run folder is read or written by it.
 `levels` holds numbers only: a stamp, the state word and 24 digits, 0 to 8, one a
 quarter second, the loudest frame of each. It holds no audio and no text, but it
 does show when you were talking. The listener writes it at most four times a second
-(about 0.1 ms each) and removes it when it stops. Anything that can write to your
-`~/.grimoire/incantation/run/` folder can click for you, which it could already do by reading the
-listener's channel token in the same folder.
+(about 0.1 ms each) and removes it when it stops. Anything with access to the run folder can click for you, which it could
+already do by reading the listener's channel token in the same folder.
 
 ### The mic indicator, for a terminal status line
 
@@ -179,7 +178,7 @@ voice, and greets you. It prints `Stopped listening.` whenever it stops.
     followed by 8 hex digits, and a file write only to
     `~/.grimoire/incantation/observe/inbox-` followed by 8 hex digits and `.json`.
     Never allow wider writes under `~/.grimoire/incantation/`: a session could then
-    change your settings or the eval set without asking.
+    change your settings or the eval set with no prompt shown to you.
   Never add an allow rule for `listen.mjs start` or `stop`, or for `setup.mjs`.
 
 ## 6. Who hears
