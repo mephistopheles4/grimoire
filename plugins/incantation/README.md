@@ -1,4 +1,8 @@
-# Incantation
+<p align="center">
+  <img src="../../docs/brand/incantation-card.svg" width="100%" alt="incantation — a familiar at your shoulder; think out loud together">
+</p>
+
+# incantation
 
 **A familiar at your shoulder. Think out loud together.**
 
