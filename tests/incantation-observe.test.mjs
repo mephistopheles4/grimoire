@@ -230,3 +230,17 @@ test('an inbox file never passed to add is dropped after a day, a fresh one is k
   assert.equal(existsSync(join(folder, 'inbox-0000aaaa.json')), false);
   assert.equal(existsSync(join(folder, 'inbox-0000bbbb.json')), true);
 });
+
+test('an observe folder that is a link is refused before anything in it is read or deleted: add, its inbox and freeze touch nothing behind the link', t => {
+  const h = home(t);
+  const outside = home(t);
+  const behind = join(outside, 'observe');
+  mkdirSync(behind, { recursive: true });
+  writeFileSync(join(behind, '2020-01-01.jsonl'), '{}\n');
+  writeFileSync(join(behind, 'inbox-aaaa0000.json'), line());
+  mkdirSync(join(h, '.grimoire', 'incantation'), { recursive: true });
+  symlinkSync(behind, join(h, '.grimoire', 'incantation', 'observe'), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(run(h, ['add', 'aaaa0000']).stdout, REFUSED);
+  assert.equal(run(h, ['freeze', '3']).stdout, REFUSED);
+  assert.deepEqual(readdirSync(behind).sort(), ['2020-01-01.jsonl', 'inbox-aaaa0000.json'], 'nothing read away or deleted through the link');
+});

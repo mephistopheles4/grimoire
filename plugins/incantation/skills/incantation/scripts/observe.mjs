@@ -74,6 +74,16 @@ function secure(home, folder) {
     if (p === top) break;
   }
 }
+// The folder checked before anything is read or deleted in it: one that is not
+// there is left alone, one that is a link or a junction is refused.
+function checkedIfThere(home, folder) {
+  try {
+    lstatSync(folder);
+  } catch {
+    return;
+  }
+  secure(home, folder);
+}
 function plainOrAbsent(file) {
   let st;
   try {
@@ -119,6 +129,7 @@ function entryOf(input, now) {
 
 export function add({ home, now = new Date(), input }) {
   const folder = folderOf(home);
+  checkedIfThere(home, folder);
   dropOld(folder, now);
   const entry = entryOf(input, now);
   secure(home, folder);
@@ -131,6 +142,7 @@ export function add({ home, now = new Date(), input }) {
 // A random sample of n logged lines, copied to a new file in eval/. Returns how many.
 export function freeze({ home, now = new Date(), n, random = randomInt }) {
   const folder = folderOf(home);
+  checkedIfThere(home, folder);
   dropOld(folder, now);
   if (!Number.isInteger(n) || n < 1 || n > MAX_FREEZE || !existsSync(folder)) refuse();
   const lines = [];
@@ -179,6 +191,7 @@ function main(argv) {
   const [, , command, arg] = argv;
   try {
     if (command === 'add') {
+      checkedIfThere(home, folderOf(home));
       add({ home, input: takeInbox(home, arg) });
       return say('observe: ok'), 0;
     }

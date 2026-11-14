@@ -213,8 +213,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "bbe15eee45f9a4000c95e28631fb60373e75b4f252a5ee071cee5af46d36b907",
-      "reason": "The observe script, which keeps the practice record under ~/.grimoire/incantation/observe. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes only its own files in that folder: records older than the keep period, inbox files left unread for a day, and the inbox file it has just read."
+      "sha256": "b7ce0865a7e94f0bf6ed1b2d06505bc7d6c8cb9cceba68cb974ce76335b23b7f",
+      "reason": "The observe script, which keeps the practice record under ~/.grimoire/incantation/observe. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program and deletes only its own files in that folder: records older than the keep period, inbox files left unread for a day, and the inbox file it has just read. Re-read on 2026-11-13: the observe folder is now checked, when it exists, before any file in it is read or deleted, and the file still starts no program and deletes only its own files there."
     },
     {
       "skill": "incantation/incantation",
