@@ -1,6 +1,6 @@
 # Contract: incantation
 
-Version: 0.1.1
+Version: 0.1.2
 Kind: skill
 Level: Thorough
 
@@ -176,6 +176,12 @@ words go to chat.
 
 **Retire it when** (**Confirmed**): Claude Code gets its own voice mode that
 says back and hears a yes.
+
+**Fences** (*Decided*): the built `SKILL.md` carries no `<!-- contract:begin -->` or
+`<!-- contract:end -->` lines, as head-chef's carries none: the repository's scan reads an
+HTML comment in a skill as a hidden instruction and flags it. An amendment
+regenerates the parts it touches, found by their headings in `SKILL.md`, and
+keeps the rest word for word.
 
 **Procedure sections** (*Proposed*): the procedure sections of `SKILL.md` (Install,
 Start, Speaking, Hearing, Requests, Heard while working, When you speak

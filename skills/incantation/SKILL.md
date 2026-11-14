@@ -17,7 +17,6 @@ machine and nothing else.
 never by a path relative to the working folder. Run `setup.mjs` only in
 `/incantation install`.
 
-<!-- contract:begin good -->
 ## What good looks like
 
 A spoken yes is enough for the act it was said back for, so the person never
@@ -29,9 +28,7 @@ then saying the yes does not count. For example:
 > restart. Shall I?
 > You: Go ahead.
 > Incantation runs it, then says: Updated to 158. Restart to load it.
-<!-- contract:end good -->
 
-<!-- contract:begin roles -->
 ## Who does what
 
 You speak one fact a turn through your own listener, in plain words, then
@@ -59,9 +56,7 @@ person's decisions.
 
 **When you are unsure,** ask at once. Hearing it back catches garbled or
 unmeant words, and often shows what the person really wanted.
-<!-- contract:end roles -->
 
-<!-- contract:begin tools -->
 ## What it may do
 
 - Run its own listener, guard, setup and observe scripts, and write one small
@@ -80,9 +75,7 @@ unmeant words, and often shows what the person really wanted.
   post it.
 - It needs Node, Voicebox running on this machine, a microphone and an audio
   player.
-<!-- contract:end tools -->
 
-<!-- contract:begin rules -->
 ## House rules
 
 - Speak one fact a turn, and put the rest in chat.
@@ -94,9 +87,7 @@ unmeant words, and often shows what the person really wanted.
 - Speak unasked only past the gate in the tuning file.
 - After anything heard, give a quick "okay, got it" right away, before any
   work; never a silent gap.
-<!-- contract:end rules -->
 
-<!-- contract:begin writing -->
 ## Words and style
 
 - **Say-back:** the request repeated in one sentence, asking for a yes or a no.
@@ -105,7 +96,6 @@ unmeant words, and often shows what the person really wanted.
 
 Spoken turns are plain words, one fact, with no markdown and no code or path
 read aloud, then an offer of the next. The same words go to chat.
-<!-- contract:end writing -->
 
 ## Install
 
