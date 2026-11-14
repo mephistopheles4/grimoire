@@ -505,11 +505,8 @@ test('the paths are still rebased after the allowance is judged', () => {
   assert.equal(kept[0].locations[0].physicalLocation.artifactLocation.uri, 'skills/demo/README.md');
 });
 
-test('--allowances reads a plugin skill label, and drops no accepted result for it from a skill of the same name under skills/', () => {
-  const path = out();
-  const res = run(strip, [sarif(acceptedSarif()), path, '--allowances', allowanceFile(), '--label', 'plugins/voice/skills/demo']);
-  assert.equal(res.code, 0, res.stderr);
-  assert.equal(JSON.parse(readFileSync(path, 'utf8')).runs[0].results.length, JSON.parse(readFileSync(sarif(acceptedSarif()), 'utf8')).runs[0].results.length, 'the same results: demo\'s allowance is not this skill\'s');
+test('--allowances refuses a plugin skill label, which names no skill under skills/', () => {
+  assertFails([sarif(acceptedSarif()), out(), '--allowances', allowanceFile(), '--label', 'plugins/voice/skills/demo'], /--allowances needs --label skills\/<name>/);
 });
 
 test('--allowances without a skills/<name> label fails', () => {

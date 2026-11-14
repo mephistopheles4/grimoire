@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
-import { stampOf } from '../plugins/incantation/skills/incantation/scripts/capture/ffmpeg.mjs';
-import { parseSettings, settingsPath } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
-import { LINES, runSetup } from '../plugins/incantation/skills/incantation/scripts/setup.mjs';
+import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
+import { parseSettings, settingsPath } from '../skills/incantation/scripts/lib.mjs';
+import { LINES, runSetup } from '../skills/incantation/scripts/setup.mjs';
 
 const win = process.platform === 'win32';
 const BIN = win ? 'C:\\fake\\bin' : '/fake/bin';

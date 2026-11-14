@@ -1,4 +1,8 @@
-# Incantation
+<p align="center">
+  <img src="../../docs/brand/incantation-card.svg" width="100%" alt="incantation — a familiar at your shoulder; think out loud together">
+</p>
+
+# incantation
 
 **A familiar at your shoulder. Think out loud together.**
 
@@ -13,6 +17,12 @@ machine, on its own port, 17493, which Incantation does not let you change. Inca
 `/incantation install` runs for you, an always-on listener, and a skill with a
 speak policy. It declares no dependency: the guard checks the setup at each
 start and says what to do.
+
+incantation is a skill of the grimoire plugin, so `grimoire@mephistopheles4` is
+the one install that gives you `/incantation` and the mic band. If you installed
+the earlier `incantation@mephistopheles4` plugin, uninstall it: the skill now
+comes with grimoire. Only your own typed `/incantation` starts it; the skill
+never starts the mic on its own.
 
 ## Platforms
 
@@ -74,7 +84,9 @@ mic indicator for your status line.
 
 Your microphone's and voice's names appear in the chat while it does this, so
 they reach the model provider. The settings file, `~/.grimoire/incantation/settings.json`,
-is written by Incantation's own script, and the session never reads it. If your
+is written by Incantation's own script. A session may read it, for example to
+troubleshoot: it holds no secret, but it holds the full path to ffmpeg, which can
+include your account name. If your
 microphones change, run `/incantation install` again.
 
 Earlier drafts kept their files in `~/.incantation/`. The first run of the guard,
@@ -93,7 +105,7 @@ is one image: an orb with the wave flowing out of both sides and ripples while y
 talk, a breathing orb while Claude speaks, drawn four times a second and laid out
 100 ms ahead of the clock, since the apps start a picture a moment after they draw
 it. Both numbers are fixed; there is no setting for them. The band draws nothing when
-no listener runs. It lives in grimoire's own mod, beside Brigade, since a plugin
+no listener runs. It lives in grimoire's own mod, beside Brigade, since a skill
 cannot carry one here. It reads `~/.grimoire/incantation/run/levels` four times a
 second while a listener writes it, and about once every two seconds while none does.
 A click writes `mute` or `unmute` to `run/command`, which the listener
@@ -102,9 +114,8 @@ reads once and removes. Nothing else in the run folder is read or written by it.
 `levels` holds numbers only: a stamp, the state word and 24 digits, 0 to 8, one a
 quarter second, the loudest frame of each. It holds no audio and no text, but it
 does show when you were talking. The listener writes it at most four times a second
-(about 0.1 ms each) and removes it when it stops. Anything that can write to your
-`~/.grimoire/incantation/run/` folder can click for you, which it could already do by reading the
-listener's channel token in the same folder.
+(about 0.1 ms each) and removes it when it stops. Anything with access to the run folder can click for you, which it could
+already do by reading the listener's channel token in the same folder.
 
 ### The mic indicator, for a terminal status line
 
@@ -161,13 +172,12 @@ voice, and greets you. It prints `Stopped listening.` whenever it stops.
 - You may add allow rules so turns don't stop on a prompt. Add them yourself;
   Incantation adds none:
   - exactly `node <skill base>/scripts/listen.mjs wait`, `node <skill base>/scripts/listen.mjs idle`,
-    and `node <skill base>/scripts/listen.mjs say` followed by 8 hex digits, with a file
-    write only to `~/.grimoire/incantation/observe/say-` followed by 8 hex digits and `.txt`;
+    and `node <skill base>/scripts/listen.mjs say` followed by 8 hex digits, and the
+    rule `Write(~/.grimoire/incantation/observe/say-*.txt)`;
   - in observe-only mode, exactly `node <skill base>/scripts/observe.mjs add`
-    followed by 8 hex digits, and a file write only to
-    `~/.grimoire/incantation/observe/inbox-` followed by 8 hex digits and `.json`.
-    Never allow wider writes under `~/.grimoire/incantation/`: a session could then
-    change your settings or the eval set without asking.
+    followed by 8 hex digits, and the rule `Write(~/.grimoire/incantation/observe/inbox-*.json)`.
+    Never allow a wider path in that folder: a session could then
+    change your settings or the eval set with no prompt shown to you.
   Never add an allow rule for `listen.mjs start` or `stop`, or for `setup.mjs`.
 
 ## 6. Who hears

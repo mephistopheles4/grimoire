@@ -86,15 +86,11 @@ export function isSkillPath(p) {
 // One directory name under skills/.
 export const isSkillName = s => typeof s === 'string' && isSkillPath(s) && !s.includes('/');
 
-// The skill an entry names: a directory name under skills/, or `<plugin>/<name>`
-// for a skill under plugins/<plugin>/skills/. Nothing deeper.
-export const isEntrySkill = s => isSkillName(s) || (typeof s === 'string' && s.split('/').length === 2 && s.split('/').every(isSkillName));
+// The skill an entry names: one directory name under skills/.
+export const isEntrySkill = isSkillName;
 
 // Where an entry's skill lives, for a message.
-export const skillHome = s => {
-  const [p, n] = String(s).split('/');
-  return n === undefined ? `skills/${s}` : `plugins/${p}/skills/${n}`;
-};
+export const skillHome = s => `skills/${s}`;
 
 export const exceptionKey = e => JSON.stringify([e.skill, e.path, e.reason_code]);
 export const referenceKey = r => JSON.stringify([r.skill, r.from, r.target]);
@@ -143,7 +139,7 @@ export function parseAllowances(text, where = ALLOWANCES) {
       problems.push(`${at} must have exactly the keys ${EXCEPTION_KEYS.join(', ')}`);
       return;
     }
-    if (!isEntrySkill(e.skill)) problems.push(`${at}: "skill" must be one directory name under skills/, or <plugin>/<name> for a skill under plugins/<plugin>/skills/`);
+    if (!isEntrySkill(e.skill)) problems.push(`${at}: "skill" must be one directory name under skills/`);
     if (!isSkillPath(e.path)) problems.push(`${at}: "path" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!REASON_CODES.has(e.reason_code)) {
       problems.push(`${at}: "reason_code" ${JSON.stringify(e.reason_code)} is not one of ${[...REASON_CODES.keys()].join(', ')}`);
@@ -171,7 +167,7 @@ export function parseAllowances(text, where = ALLOWANCES) {
       problems.push(`${at} must have exactly the keys ${REFERENCE_KEYS.join(', ')}`);
       return;
     }
-    if (!isEntrySkill(r.skill)) problems.push(`${at}: "skill" must be one directory name under skills/, or <plugin>/<name> for a skill under plugins/<plugin>/skills/`);
+    if (!isEntrySkill(r.skill)) problems.push(`${at}: "skill" must be one directory name under skills/`);
     if (!isSkillPath(r.from)) problems.push(`${at}: "from" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!isSkillPath(r.target)) problems.push(`${at}: "target" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!Number.isInteger(r.count) || r.count < 1) problems.push(`${at}: "count" must be a positive whole number`);
@@ -200,17 +196,11 @@ export function readAllowances(path, where = ALLOWANCES) {
   return parseAllowances(text, where);
 }
 
-// The skill a label names. The workflow labels each scan `skills/<name>`, or
-// `plugins/<plugin>/skills/<name>` for a second plugin's skill, and only those
-// shapes say which skill's entries apply. A plugin's skill is named
-// `<plugin>/<name>`, and an entry for it carries that same name, so a plugin
-// skill that shares a name with one under skills/ inherits none of that
-// skill's accepted reads.
+// The skill a label names. The workflow labels each scan `skills/<name>`, and
+// only that shape says which skill's entries apply.
 export function skillFromLabel(label) {
   const m = /^skills\/([^/]+)$/.exec(label ?? '');
-  if (m) return isSkillName(m[1]) ? m[1] : null;
-  const p = /^plugins\/([^/]+)\/skills\/([^/]+)$/.exec(label ?? '');
-  return p && isSkillName(p[1]) && isSkillName(p[2]) ? `${p[1]}/${p[2]}` : null;
+  return m && isSkillName(m[1]) ? m[1] : null;
 }
 
 const sortedEqual = (a, b) => {

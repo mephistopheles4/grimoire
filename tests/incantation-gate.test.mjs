@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, isComplete, isFragment, isMuteWord, isStopWord, isUnmuteWord } from '../plugins/incantation/skills/incantation/scripts/gate.mjs';
+import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, isComplete, isFragment, isMuteWord, isStopWord, isUnmuteWord } from '../skills/incantation/scripts/gate.mjs';
 
 
 // Frames: 30 ms of a square wave, so its level is exactly the amplitude.

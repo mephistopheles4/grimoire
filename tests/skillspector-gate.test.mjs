@@ -684,16 +684,8 @@ test('a malformed allowance file is refused', () => {
   allowedFails(accepted(), /the allowance file cannot be used[\s\S]*"reason_code" "runtime_limit" is not one of/, a);
 });
 
-test('a plugin skill label, plugins/<plugin>/skills/<name>, is read, and it inherits no accepted read from a skill of the same name under skills/', () => {
-  const label = 'plugins/voice/skills/demo';
-  const clear = withAllowance(clean(), allowance(), label);
-  assert.equal(clear.code, 0, `a clean scan passes under a plugin label:\n${clear.stdout}${clear.stderr}`);
-  // The allowance above accepts demo's read at lib/long.mjs; plugins/voice's demo is another skill.
-  allowedFails(accepted(), /1 exception\(s\) the allowance does not accept/, allowance(), label);
-});
-
 test('a label that is not skills/<name> is refused', () => {
-  for (const label of ['demo', 'skills/demo/lib', 'skills/..', 'other/demo', 'plugins/skills/demo', 'plugins/voice/skills', 'plugins/voice/skills/demo/lib', 'plugins/../skills/demo', 'plugins/voice/other/demo']) {
+  for (const label of ['demo', 'skills/demo/lib', 'skills/..', 'other/demo', 'plugins/skills/demo', 'plugins/voice/skills', 'plugins/voice/skills/demo', 'plugins/voice/skills/demo/lib', 'plugins/../skills/demo', 'plugins/voice/other/demo']) {
     allowedFails(accepted(), /--allowances needs --label skills\/<name>/, allowance(), label);
   }
   const out = run(gate, [report(accepted()), '--allowances', allowanceFile(allowance())]);

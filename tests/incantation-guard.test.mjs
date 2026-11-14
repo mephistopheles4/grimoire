@@ -8,8 +8,8 @@ import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
-import { LINES, runGuard } from '../plugins/incantation/skills/incantation/scripts/guard.mjs';
-import { secureState, settingsPath, writePrivate } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
+import { LINES, runGuard } from '../skills/incantation/scripts/guard.mjs';
+import { secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
 
 const win = process.platform === 'win32';
 const BIN = win ? 'C:\\fake\\bin' : '/fake/bin';
@@ -168,7 +168,7 @@ test('T2: an old ~/.incantation that is a link is never moved', async t => {
 test('the command line exits 1 on a failed check, and prints only its fixed line', async t => {
   const home = mkdtempSync(join(tmpdir(), 'incantation-guard-cli-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const GUARD = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/guard.mjs', import.meta.url));
+  const GUARD = fileURLToPath(new URL('../skills/incantation/scripts/guard.mjs', import.meta.url));
   const r = await new Promise(res => execFile(process.execPath, [GUARD], { cwd: home, env: { HOME: home, USERPROFILE: home, PATH: '' }, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res({ code: e ? e.code : 0, stdout })));
   assert.equal(r.code, 1);
   assert.ok(Object.values(LINES).includes(r.stdout.trimEnd()), r.stdout);

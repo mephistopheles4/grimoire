@@ -1,7 +1,7 @@
 // The Incantation mic band: what its levels file says, and how the band draws
 // it. Pure text and numbers, so the plain tests can drive every line of it.
 //
-// The listener (plugins/incantation) writes ~/.grimoire/incantation/run/levels:
+// The listener (skills/incantation) writes ~/.grimoire/incantation/run/levels:
 // one line, `<epoch ms> <state word> <24 digits>`. The digits are the mic's
 // loudness, 0 to 8, one per quarter second: no audio and no text. The band
 // reads that line, and a click on its button writes `mute` or `unmute` to

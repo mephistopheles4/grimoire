@@ -1,17 +1,12 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Three of
+# what is in it, which is the right thing to do with a skill. Two of
 # SkillSpector's rules fire on the files here, and this file says why each is
 # accepted, so you can disagree with a reason rather than with silence.
 #
 # LP3 is accepted: the skill declares no permission list, because that is one
 # host's format and the skill's text runs in agents that read none.
-#
-# TR2 reads the description's clause "in this chat" beside the slash commands as
-# the skill taking over the built-in chat command. Its entry matches that one
-# clause exactly as the scanner quotes it, so the rule still fires on any other
-# clause.
 #
 # RA2 fires on the sentence in SKILL.md that tells the session to write the line
 # it wants spoken to a file in the skill's own state folder. It names that one
@@ -29,10 +24,6 @@ fingerprints: []
 rules:
   - rule_id: "LP3"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
-  - rule_id: "TR2"
-    file: "*SKILL.md"
-    message: "Use only when the person types /incantation, /incantation install, /incantation observe, /incantation mute or /incantation unmute, or asks in their own typed words in this chat to pair by voice"
-    reason: "False positive. The rule reads a skill description as taking over a built-in command when one clause holds a common command word and a slash command. The head-chef skill is for someone who asks for work to run in another session, or to start one, or who types /head-chef: run and start are verbs about sessions there, and the only slash command is the skill's own name. The incantation skill is for someone who types its own /incantation commands or asks in their own typed words in this chat to pair by voice: chat is a word in that sentence, not the built-in command. Neither skill takes over a built-in command."
   - rule_id: "RA2"
     file: "SKILL.md"
     reason: "Six findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder. Also accepted: the contract skill's bindings name the folders where a person's agents already live, such as .codex/agents/, so a built agent written there loads in later sessions. The skill asks the person before any write that would install, and writes no agent without the person's go. Also accepted: the contract skill's hiring page keeps a person's answers in the browser until they press Reset, unencrypted, the accepted risk of 2026-10-18. Also accepted: Incantation's skill tells the session to write the one line it wants spoken to a new file named say- followed by 8 hex digits, in the observe folder of the person's own ~/.grimoire/incantation folder; the listener reads that file once and deletes it, so the spoken words never pass through a command, and the session writes nothing else there. The scanner reports that one sentence twice."

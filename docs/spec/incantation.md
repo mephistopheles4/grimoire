@@ -1,5 +1,11 @@
 # Incantation on Voicebox: the spec
 
+> **Since issue #636, incantation is the fifth skill of the grimoire plugin.**
+> This spec was written when it was a second plugin, and its paths and its
+> "separate plugin" wording below are history: the skill is at `skills/incantation/`,
+> its eval cases at `evals/incantation/`, and it has no manifest or marketplace
+> entry of its own.
+
 Draft 2.2, for issue #208, Thorough tier on the sensitive route (heard speech
 becomes input to a session with tools, so the security pair reviews it). It
 replaces the VoiceMode spec (draft 1.7, PR #622) and the `live` spec (closed
@@ -315,8 +321,9 @@ session. Its rows:
 
 One file, `~/.incantation/settings.json`. It is written only by
 `setup.mjs`, which the person runs in their own terminal (README step 3),
-never a session. No session reads it: the listener passes the skill what it
-needs (S6, the `ready` line).
+never a session. A session may read it (the owner's decision, issue 208): it
+holds no secret, but the pinned recorder path can include the account name.
+The listener still passes the skill what it needs (S6, the `ready` line).
 
 | Key | Type and range | Default |
 |---|---|---|

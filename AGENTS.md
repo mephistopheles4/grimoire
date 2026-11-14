@@ -24,8 +24,8 @@ artifact — and the two scripts that draw each skill README's sheets, with the 
 share in `scripts/lib/drafting.mjs`. `skills/groundtrack/scripts/` holds that skill's renderer and the one
 module it inlines into the page. `skills/contract/scripts/` holds the contract
 skill's interview script, the one module it shares with the hiring page, and
-the kinds table both read. `plugins/incantation/skills/incantation/scripts/` holds
-that plugin's scripts. The path says which.
+the kinds table both read. `skills/incantation/scripts/` holds
+that skill's scripts. The path says which.
 
 ## Head-chef and the rules it runs under
 

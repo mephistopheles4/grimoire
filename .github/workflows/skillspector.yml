@@ -64,12 +64,10 @@ jobs:
       # rather than as a matrix with nothing in it, because no skills is a tree
       # that lost them, not a tree with nothing to scan.
       #
-      # A skill is a directory with a SKILL.md in it, under skills/ or under a
-      # plugin's own skills/ at plugins/<name>/skills/ (the second plugin the
-      # marketplace lists). Each row carries the name the job and its
-      # code-scanning category use, and the directory the scanner is pointed at.
-      # A root skill keeps its bare name, so its category does not move; a
-      # plugin's skill is named <plugin>/<skill>.
+      # A skill is a directory with a SKILL.md in it, under skills/. Each row
+      # carries the name the job and its code-scanning category use, and the
+      # directory the scanner is pointed at. A skill keeps its bare name, so
+      # its category does not move.
       - name: List the skills
         id: list
         run: |
@@ -78,13 +76,10 @@ jobs:
               for d in skills/*/; do
                 if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$d")" "${d%/}"; fi
               done
-              for d in plugins/*/skills/*/; do
-                if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$(dirname "$(dirname "$d")")")/$(basename "$d")" "${d%/}"; fi
-              done
             } | jq -R 'split("\t") | {skill: .[0], dir: .[1]}' | jq -cs .
           )
           if [ "$skills" = "[]" ]; then
-            echo "no directory under skills/ or plugins/*/skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
+            echo "no directory under skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
             exit 1
           fi
           echo "skills=${skills}" >> "$GITHUB_OUTPUT"

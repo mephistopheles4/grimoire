@@ -356,29 +356,30 @@ test('an unchanged allowance prints no change notice', () => {
   assert.doesNotMatch(r.stdout, /changed against/);
 });
 
-// A plugin's skill is named <plugin>/<name> in an entry, and held to the files
-// under plugins/<plugin>/skills/<name>/, as a skill under skills/ is held to its own.
-const incantation = 'incantation/incantation';
+// An entry names one directory under skills/, and is held to that skill's files.
+const incantation = 'incantation';
 const lastOf = (a, skill) => a.exceptions.findLast(e => e.skill === skill);
 
-test('an entry for a plugin skill is held to that skill\'s files: a script edited without its sha256 updated fails, by its plugin path', () => {
+test('an entry for the incantation skill is held to its files: a script edited without its sha256 updated fails', () => {
   const dir = tree();
-  appendFileSync(join(dir, 'plugins/incantation/skills/incantation/scripts/observe.mjs'), '\n// a change nobody re-hashed\n');
-  assertFails(dir, /plugins\/incantation\/skills\/incantation\/scripts\/observe\.mjs changed since its allowance was written/);
+  appendFileSync(join(dir, 'skills/incantation/scripts/observe.mjs'), '\n// a change nobody re-hashed\n');
+  assertFails(dir, /skills\/incantation\/scripts\/observe\.mjs changed since its allowance was written/);
 });
 
-test('an entry may name a plugin skill as <plugin>/<name> and nothing deeper', () => {
-  const dir = tree();
-  edit(dir, a => {
-    lastOf(a, incantation).skill = 'incantation/incantation/scripts';
-  });
-  assertFails(dir, /"skill" must be one directory name under skills\/, or <plugin>\/<name>/);
+test('an entry names one directory under skills/, so <plugin>/<name> and anything deeper fail', () => {
+  for (const name of ['incantation/incantation', 'incantation/scripts']) {
+    const dir = tree();
+    edit(dir, a => {
+      lastOf(a, incantation).skill = name;
+    });
+    assertFails(dir, /"skill" must be one directory name under skills\//);
+  }
 });
 
-test('an entry for a plugin skill with no SKILL.md fails, and says where it looked', () => {
+test('an entry for a skill with no SKILL.md fails, and says where it looked', () => {
   const dir = tree();
   edit(dir, a => {
-    for (const x of [...a.exceptions, ...a.references]) if (x.skill === incantation) x.skill = 'incantation/missing';
+    for (const x of [...a.exceptions, ...a.references]) if (x.skill === incantation) x.skill = 'missing';
   });
-  assertFails(dir, /plugins\/incantation\/skills\/missing\/ has no SKILL\.md/);
+  assertFails(dir, /skills\/missing\/ has no SKILL\.md/);
 });

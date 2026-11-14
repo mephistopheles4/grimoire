@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { METER, Meter, digit, levelsLine } from '../plugins/incantation/skills/incantation/scripts/meter.mjs';
+import { METER, Meter, digit, levelsLine } from '../skills/incantation/scripts/meter.mjs';
 
 test('a level is a digit from 0 to 8 on the scale from -60 to -15 dBFS, and silence is 0', () => {
   assert.equal(digit(-100), 0);

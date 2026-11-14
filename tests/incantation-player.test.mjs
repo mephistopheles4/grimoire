@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { findPlayer, makePlayer } from '../plugins/incantation/skills/incantation/scripts/player.mjs';
+import { findPlayer, makePlayer } from '../skills/incantation/scripts/player.mjs';
 
 const WIN_REC = 'C:\\tools\\ffmpeg\\bin\\ffmpeg.exe';
 const NIX_REC = '/opt/ffmpeg/bin/ffmpeg';

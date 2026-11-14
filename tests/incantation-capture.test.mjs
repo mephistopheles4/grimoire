@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { captureArgs, listDevices, listingLines, resolveRecorder, rowsFor, stampOf } from '../plugins/incantation/skills/incantation/scripts/capture/ffmpeg.mjs';
+import { captureArgs, listDevices, listingLines, resolveRecorder, rowsFor, stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
 
 // What each row's listing command prints, on the stream it prints it to.
 const LISTINGS = {
