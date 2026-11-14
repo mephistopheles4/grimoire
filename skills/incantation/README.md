@@ -172,12 +172,12 @@ voice, and greets you. It prints `Stopped listening.` whenever it stops.
 - You may add allow rules so turns don't stop on a prompt. Add them yourself;
   Incantation adds none:
   - exactly `node <skill base>/scripts/listen.mjs wait`, `node <skill base>/scripts/listen.mjs idle`,
-    and `node <skill base>/scripts/listen.mjs say` followed by 8 hex digits, with a file
-    write only to `~/.grimoire/incantation/observe/say-` followed by 8 hex digits and `.txt`;
+    and `node <skill base>/scripts/listen.mjs say` followed by 8 hex digits, with the Write
+    tool on only `~/.grimoire/incantation/observe/say-` followed by 8 hex digits and `.txt`;
   - in observe-only mode, exactly `node <skill base>/scripts/observe.mjs add`
-    followed by 8 hex digits, and a file write only to
+    followed by 8 hex digits, and the Write tool on only
     `~/.grimoire/incantation/observe/inbox-` followed by 8 hex digits and `.json`.
-    Never allow wider writes under `~/.grimoire/incantation/`: a session could then
+    Never allow the Write tool on a wider path under `~/.grimoire/incantation/`: a session could then
     change your settings or the eval set with no prompt shown to you.
   Never add an allow rule for `listen.mjs start` or `stop`, or for `setup.mjs`.
 
