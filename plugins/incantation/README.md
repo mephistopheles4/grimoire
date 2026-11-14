@@ -1,5 +1,7 @@
 # Incantation
 
+**A familiar at your shoulder. Think out loud together.**
+
 A voice pair-programming partner for Claude Code. `/incantation` turns a session
 into one you talk with: it greets you, speaks short plain turns, one fact at a
 time, listens at all times, says a request back before it changes anything, and
@@ -80,17 +82,21 @@ setup or the listener moves that folder to `~/.grimoire/incantation/`, beside
 eagle-eye's. A link in its place is never moved, and neither is a folder when the
 new one already exists.
 
-### The mic band (Claude Desktop and the terminal)
+### The mic band (Claude Desktop, VS Code, the mobile app and the terminal)
 
 With the grimoire plugin installed, a row above the prompt shows the listener's
 state, `mic: listening`, `hearing`, `thinking`, `speaking` or `muted`, in a colour
-that eases from one state's to the next, with a wave of what the mic hears (two
-rows of blocks as wide as the terminal; on the desktop, in VS Code and in the mobile app an orb with the wave
-flowing out of it and ripples while you talk, drawn as an image four times a
-second), and a Mute or Unmute button. It draws nothing when no listener runs. It lives in
-grimoire's own mod, beside Brigade, since a plugin cannot carry one here. It reads
-`~/.grimoire/incantation/run/levels` four times a second while a listener writes
-it, and a click writes `mute` or `unmute` to `run/command`, which the listener
+that eases from one state's to the next, with a wave of what the mic hears, and a
+Mute or Unmute button. In the terminal the wave is two rows of blocks, as wide as
+the terminal up to 2000 columns. On the desktop, in VS Code and in the mobile app it
+is one image: an orb with the wave flowing out of both sides and ripples while you
+talk, a breathing orb while Claude speaks, drawn four times a second and laid out
+100 ms ahead of the clock, since the apps start a picture a moment after they draw
+it. Both numbers are fixed; there is no setting for them. The band draws nothing when
+no listener runs. It lives in grimoire's own mod, beside Brigade, since a plugin
+cannot carry one here. It reads `~/.grimoire/incantation/run/levels` four times a
+second while a listener writes it, and about once every two seconds while none does.
+A click writes `mute` or `unmute` to `run/command`, which the listener
 reads once and removes. Nothing else in the run folder is read or written by it.
 
 `levels` holds numbers only: a stamp, the state word and 24 digits, 0 to 8, one a
