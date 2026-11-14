@@ -9,16 +9,9 @@
     {
       "name": "grimoire",
       "source": "./",
-      "description": "A spellbook of agent skills for AI. Cast wisely. head-chef leads a brigade of sessions from one Claude Desktop chat, contract turns agreed terms into a skill or agent, eagle-eye lays out coupled decisions, and groundtrack draws a plan as a call graph.",
+      "description": "A spellbook of agent skills for AI. Cast wisely. incantation lets you talk with your session by voice, head-chef leads a brigade of sessions from one Claude Desktop chat, contract turns agreed terms into a skill or agent, eagle-eye lays out coupled decisions, and groundtrack draws a plan as a call graph.",
       "category": "productivity",
-      "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming", "call-graph", "code-review", "skill-authoring", "contract"]
-    },
-    {
-      "name": "incantation",
-      "source": "./plugins/incantation",
-      "description": "A voice pair-programming partner for Claude Code, through Voicebox. /incantation listens at all times, says each request back before it acts, and speaks only when something needs you. Needs Voicebox and ffmpeg on the same machine.",
-      "category": "productivity",
-      "keywords": ["voice", "voicebox", "pair-programming", "speech"]
+      "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming", "call-graph", "code-review", "skill-authoring", "contract", "voice", "voicebox"]
     }
   ]
 }

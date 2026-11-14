@@ -11,13 +11,13 @@ import { connect } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { stampOf } from '../plugins/incantation/skills/incantation/scripts/capture/ffmpeg.mjs';
+import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ask, readChannel, runListing, say, startListener, waitLines } from '../plugins/incantation/skills/incantation/scripts/listen.mjs';
+import { ask, readChannel, runListing, say, startListener, waitLines } from '../skills/incantation/scripts/listen.mjs';
 
-const LISTEN = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/listen.mjs', import.meta.url));
-import { observeDir, runDir, secureState, settingsPath, writePrivate } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
+const LISTEN = fileURLToPath(new URL('../skills/incantation/scripts/listen.mjs', import.meta.url));
+import { observeDir, runDir, secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
 
 const RECORDER = process.platform === 'win32' ? 'C:\\fake\\bin\\ffmpeg.exe' : '/fake/bin/ffmpeg';
 // A made-up listing in the Windows format; the Linux and macOS rows read their own.

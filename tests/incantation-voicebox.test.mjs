@@ -7,7 +7,7 @@ import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 
-const ENGINE = new URL('../plugins/incantation/skills/incantation/scripts/engines/voicebox.mjs', import.meta.url);
+const ENGINE = new URL('../skills/incantation/scripts/engines/voicebox.mjs', import.meta.url);
 const { makeEngine, VALUES } = await import(ENGINE);
 
 // A fake Voicebox on 127.0.0.1. `routes` maps "METHOD /path" to a handler.

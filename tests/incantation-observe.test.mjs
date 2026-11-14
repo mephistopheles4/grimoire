@@ -10,9 +10,9 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { add, freeze, takeInbox } from '../plugins/incantation/skills/incantation/scripts/observe.mjs';
+import { add, freeze, takeInbox } from '../skills/incantation/scripts/observe.mjs';
 
-const OBSERVE = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/observe.mjs', import.meta.url));
+const OBSERVE = fileURLToPath(new URL('../skills/incantation/scripts/observe.mjs', import.meta.url));
 const modes = process.platform === 'win32' ? 'POSIX file modes: skipped on win32, run in the athanor container and in CI' : false;
 const NOW = new Date('2026-11-12T10:20:30Z');
 const REFUSED = 'observe error: refused\n';

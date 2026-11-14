@@ -9,10 +9,10 @@ import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WORDS, segment } from '../plugins/incantation/skills/incantation/scripts/statusline.mjs';
-import { secureState, statusPath } from '../plugins/incantation/skills/incantation/scripts/lib.mjs';
+import { WORDS, segment } from '../skills/incantation/scripts/statusline.mjs';
+import { secureState, statusPath } from '../skills/incantation/scripts/lib.mjs';
 
-const SCRIPT = fileURLToPath(new URL('../plugins/incantation/skills/incantation/scripts/statusline.mjs', import.meta.url));
+const SCRIPT = fileURLToPath(new URL('../skills/incantation/scripts/statusline.mjs', import.meta.url));
 
 function home(t) {
   const h = mkdtempSync(join(tmpdir(), 'incantation-status-'));

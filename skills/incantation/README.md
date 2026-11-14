@@ -18,6 +18,12 @@ machine, on its own port, 17493, which Incantation does not let you change. Inca
 speak policy. It declares no dependency: the guard checks the setup at each
 start and says what to do.
 
+incantation is a skill of the grimoire plugin, so `grimoire@mephistopheles4` is
+the one install that gives you `/incantation` and the mic band. If you installed
+the earlier `incantation@mephistopheles4` plugin, uninstall it: the skill now
+comes with grimoire. Only your own typed `/incantation` starts it; the skill
+never starts the mic on its own.
+
 ## Platforms
 
 | Platform | Voicebox | Status |
@@ -97,7 +103,7 @@ is one image: an orb with the wave flowing out of both sides and ripples while y
 talk, a breathing orb while Claude speaks, drawn four times a second and laid out
 100 ms ahead of the clock, since the apps start a picture a moment after they draw
 it. Both numbers are fixed; there is no setting for them. The band draws nothing when
-no listener runs. It lives in grimoire's own mod, beside Brigade, since a plugin
+no listener runs. It lives in grimoire's own mod, beside Brigade, since a skill
 cannot carry one here. It reads `~/.grimoire/incantation/run/levels` four times a
 second while a listener writes it, and about once every two seconds while none does.
 A click writes `mute` or `unmute` to `run/command`, which the listener

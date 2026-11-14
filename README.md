@@ -7,7 +7,7 @@
 <p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
 
 <p align="center">
-  <a href="plugins/incantation"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/incantation/incantation-sigil-dark.svg"><img src="docs/brand/incantation/incantation-sigil-light.svg" width="112" alt="incantation"></picture></a>
+  <a href="skills/incantation"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/incantation/incantation-sigil-dark.svg"><img src="docs/brand/incantation/incantation-sigil-light.svg" width="112" alt="incantation"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/head-chef"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/head-chef/head-chef-sigil-dark.svg"><img src="docs/brand/head-chef/head-chef-sigil-light.svg" width="112" alt="head-chef"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
@@ -21,9 +21,8 @@
 ---
 
 A **skill** is a folder of instructions your coding agent reads when the moment
-calls for it — a reference book it knows when to open. Grimoire holds four,
-and a plugin. The plugin, incantation, lets you talk with your session by
-voice. head-chef lets one Claude Desktop session start and lead others, and
+calls for it — a reference book it knows when to open. Grimoire holds five.
+incantation lets you talk with your session by voice. head-chef lets one Claude Desktop session start and lead others, and
 comes with a pane that shows them. contract helps you build a skill, an agent
 or a CLAUDE.md of your own. eagle-eye and groundtrack do the same kind of work:
 they take something you can only hold in your head and put it on a page you can
@@ -36,7 +35,7 @@ watch it recolour. eagle-eye wrote it, about itself.
 
 ## Install
 
-Four skills today, more later. Works with any agent:
+Five skills today, more later. Works with any agent:
 
 ```bash
 npx skills@latest add mephistopheles4/grimoire
@@ -48,8 +47,8 @@ and around seventy more. It copies the whole skill directory, renderer
 included.
 
 **The Brigade pane needs grimoire installed as a Claude Code plugin.** The
-command above copies skill folders only, so it gives you `head-chef` but not
-`/brigade`. To get both, run:
+command above copies skill folders only, so it gives you `head-chef` but neither the mic band nor
+`/brigade`. To get them, run:
 
 ```text
 claude plugin marketplace add mephistopheles4/grimoire
@@ -68,14 +67,15 @@ updates:
 ```
 
 Plugin skills are namespaced, so that route invokes them as
-`/grimoire:head-chef`, `/grimoire:contract`, `/grimoire:eagle-eye` and
-`/grimoire:groundtrack`. The installer route keeps the plain `/head-chef`,
-`/contract`, `/eagle-eye` and `/groundtrack`.
+`/grimoire:incantation`, `/grimoire:head-chef`, `/grimoire:contract`,
+`/grimoire:eagle-eye` and `/grimoire:groundtrack`. The installer route keeps the
+plain `/incantation`, `/head-chef`, `/contract`, `/eagle-eye` and `/groundtrack`.
 
 **By hand**, if you want neither installer:
 
 ```bash
 git clone https://github.com/mephistopheles4/grimoire.git
+cp -r grimoire/skills/incantation ~/.claude/skills/
 cp -r grimoire/skills/head-chef ~/.claude/skills/
 cp -r grimoire/skills/contract ~/.claude/skills/
 cp -r grimoire/skills/eagle-eye ~/.claude/skills/
@@ -95,7 +95,7 @@ skills folder, the plugin install, and a copy made by `skills`.
 
 </details>
 
-Every route gives you all four skill directories, each with its `SKILL.md`
+Every route gives you all five skill directories, each with its `SKILL.md`
 and the scripts that go with it. Only the plugin route also gives you the
 Brigade pane. Each skill carries a README of its own, which is where it is
 documented; head-chef, contract and eagle-eye also carry the `CONTRACT.md` their
@@ -104,7 +104,7 @@ one you want.
 
 ---
 
-## <img src="docs/brand/incantation/incantation-mark-solid.svg" width="32" align="absmiddle" alt=""> [incantation](plugins/incantation)
+## <img src="docs/brand/incantation/incantation-mark-solid.svg" width="32" align="absmiddle" alt=""> [incantation](skills/incantation)
 
 **A familiar at your shoulder. Think out loud together.**
 
@@ -116,7 +116,9 @@ You talk with your session. It says a change back before it makes one and acts
 on your yes. Voicebox, on your own machine, does the speaking and the
 transcribing.
 
-Setup and details: [`plugins/incantation/README.md`](plugins/incantation).
+Setup and details: [`skills/incantation/README.md`](skills/incantation). It
+comes with grimoire; if you installed the earlier `incantation@mephistopheles4`
+plugin, uninstall it.
 
 ## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
 
@@ -232,7 +234,7 @@ the evidence it works is a repository that does it, plus
 
 ## Where it works, and what it runs
 
-On claude.ai chat and in Cowork, only the four skills load. Brigade is a mod,
+On claude.ai chat and in Cowork, only the five skills load. Brigade is a mod,
 so it runs only in Claude Code: the terminal, the Desktop app's Code tab and
 the VS Code extension. head-chef needs Claude Code in the Desktop app, git and
 a signed-in `gh`.
@@ -240,6 +242,10 @@ a signed-in `gh`.
 Everything the plugin runs, sends or writes beyond reading and writing the
 files you ask for:
 
+- **incantation**, only after you type `/incantation`, opens your microphone
+  through ffmpeg and sends what it hears to Voicebox, which runs on your own
+  machine (127.0.0.1, port 17493). It keeps its settings and state under
+  `~/.grimoire/incantation`. Nothing it hears goes anywhere else.
 - **eagle-eye's optional audit** (`audit.mjs`) sends the box's text to
   TypeSafe, or to OpenRouter, which passes it on to TypeSafe. It runs only
   when you set `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`, and the skill does

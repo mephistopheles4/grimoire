@@ -1,4 +1,4 @@
-// Tests of the Incantation plugin's text (docs/spec/incantation.md, claims 1
+// Tests of the incantation skill's text (docs/spec/incantation.md, claims 1
 // and 15, and the trial amendments). What a model does with the text is the
 // eval cases' job; this file holds the lines that must be there, and the ones
 // that must not.
@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const PLUGIN = join(ROOT, 'plugins', 'incantation');
-const SKILL = join(PLUGIN, 'skills', 'incantation');
+const SKILL = join(ROOT, 'skills', 'incantation');
+const EVALS = join(ROOT, 'evals', 'incantation');
 const text = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 
 const filesUnder = dir => readdirSync(dir, { recursive: true, withFileTypes: true }).filter(e => e.isFile()).map(e => join(e.parentPath ?? e.path, e.name));
@@ -24,13 +24,14 @@ const section = (from, to) => text.slice(text.indexOf(from), to ? text.indexOf(t
 const BANNED = /voice-?mode|\bconverse\b|\bWSL\b|\bparec\b|\bpactl\b|\bproxy\.mjs\b|\blaunch\.mjs\b/i;
 export const claim1 = (name, body) => (BANNED.test(body) ? [`${name} names ${BANNED.exec(body)[0]}`] : []);
 
-test('claim 1: no file under plugins/incantation/, nor its marketplace entry, names VoiceMode, converse, WSL, parec, pactl or the old proxy', () => {
-  for (const f of filesUnder(PLUGIN)) assert.deepEqual(claim1(f.slice(PLUGIN.length + 1), readFileSync(f, 'utf8')), []);
+test('claim 1: no file under skills/incantation/ or evals/incantation/, and no manifest, names VoiceMode, converse, WSL, parec, pactl or the old proxy', () => {
+  for (const dir of [SKILL, EVALS]) for (const f of filesUnder(dir)) assert.deepEqual(claim1(f.slice(ROOT.length), readFileSync(f, 'utf8')), []);
+  const manifest = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
   const market = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'marketplace.json'), 'utf8'));
-  const entry = market.plugins.find(p => p.name === 'incantation');
-  assert.ok(entry, 'the marketplace lists incantation');
+  assert.equal(market.plugins.find(p => p.name === 'incantation'), undefined, 'incantation is a skill of grimoire, not a second plugin');
+  const entry = market.plugins.find(p => p.name === 'grimoire');
   assert.deepEqual(claim1('marketplace entry', JSON.stringify(entry)), []);
-  const manifest = JSON.parse(readFileSync(join(PLUGIN, '.claude-plugin', 'plugin.json'), 'utf8'));
+  assert.deepEqual(claim1('plugin manifest', JSON.stringify(manifest)), []);
   for (const holder of [entry, manifest]) for (const key of ['dependencies', 'requires', 'peerDependencies']) assert.equal(holder[key], undefined, key);
 });
 

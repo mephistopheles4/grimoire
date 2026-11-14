@@ -1499,11 +1499,7 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(isSkillPath))) {
   const read = readAllowances(at);
   for (const p of read.problems) fail(p);
   if (read.value) {
-    // `<plugin>/<name>` is a skill under plugins/<plugin>/skills/.
-    const skillDir = s => {
-      const [p, n] = s.split('/');
-      return n === undefined ? join(root, 'skills', s) : join(root, 'plugins', p, 'skills', n);
-    };
+    const skillDir = s => join(root, 'skills', s);
     const problems = checkAgainstTree(read.value, {
       isSkill: s => existsSync(join(skillDir(s), 'SKILL.md')),
       readFile: (s, p) => {
