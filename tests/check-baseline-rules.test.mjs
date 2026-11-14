@@ -374,16 +374,14 @@ test('a skill entry may pin an exact message where the root has none, never a wi
   assertFails(differs, /matched to do not judge here and to root text in/);
 });
 
-// The root TR2 entry is rule-wide for *SKILL.md, which means dropping the
-// incantation skill's clause, or RA2's file, would pass every other check: pin
-// them here.
-test('the incantation skill ships exactly its three entries, TR2 with its clause and RA2 with its file', () => {
+// The skill's RA2 entry names its file, and dropping it, or widening it, would
+// pass every other check: pin the entries here.
+test('the incantation skill ships exactly its two entries, LP3 and RA2 with its file', () => {
   const got = entriesOf(join(root, 'skills', 'incantation', '.skillspector-baseline.yaml'));
   assert.deepEqual(
     got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
     [
       ['LP3'],
-      ['TR2', '*SKILL.md', 'Use only when the person types /incantation, /incantation install, /incantation observe, /incantation mute or /incantation unmute, or asks in their own typed words in this chat to pair by voice'],
       ['RA2', 'SKILL.md'],
     ],
   );
