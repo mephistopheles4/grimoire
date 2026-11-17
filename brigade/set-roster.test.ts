@@ -9497,9 +9497,9 @@ test("601 C1, C3, C4: log_decision's description keeps both waiting sentences fr
   expect(log).toBe(LOG_DESCRIPTION)
   const rule = w.descriptions.get('read_autonomy') ?? ''
   expect(rule).toContain(
-    "At levels 2 and 3 follow the owner's user-level instructions file: what it keeps for the owner waits, as a waiting entry and a to-do, except that at level 3, inside the goal, ",
+    "At levels 2 and 3 follow the owner's user-level instructions file and the autonomy levels it names. At level 2, what it keeps for the owner waits, as a waiting entry and a to-do. At level 3, inside the goal, ",
   )
-  expect(rule).toContain('A file that names no such set, or keeps calls only here and there through it, changes nothing')
+  expect(rule).toContain('A call outside the goal follows level 2')
 })
 
 test('C14: a level command that fails inside answers one fixed line, holding nothing typed', async ($, on) => {
