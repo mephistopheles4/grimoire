@@ -54,7 +54,7 @@ refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Give the notice in `SKILL.md`'s "The way in" first, then go on.
+Give the notice in `SKILL.md`'s "The way in" first, then go on unless the person has objected.
 Make one new folder for each interview:
 
 ```text

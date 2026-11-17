@@ -229,11 +229,13 @@ export function mapInput(v: unknown): Record<string, unknown> {
     return t === undefined || t === '' ? NOT_GIVEN : t
   }
   const options: string[] = []
-  // Only the first 100 are read: past six distinct ones the check refuses anyway, and the merge stays cheap.
-  const list = Array.isArray(raw.options) ? raw.options.slice(0, 100) : typeof raw.options === 'string' ? [raw.options] : []
+  const list = Array.isArray(raw.options) ? raw.options : typeof raw.options === 'string' ? [raw.options] : []
+  const seen = new Set<string>()
   for (const o of list) {
     const t = plain(o)
-    if (t !== undefined && t !== '' && !options.some(x => folded(x) === folded(t))) options.push(t)
+    if (t === undefined || t === '' || seen.has(folded(t))) continue
+    seen.add(folded(t))
+    options.push(t)
   }
   let pick = plain(raw.pick) ?? ''
   if (waiting) {

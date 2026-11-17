@@ -1329,3 +1329,9 @@ test('630 C6: a wait sent as "true", "yes" or 1 is a wait, and a long options li
   assert.match(r.error, /^options is not a list of 1 to 6 items/);
   assert.ok(Date.now() - t < 2000);
 });
+
+test('630 C6b: no option is dropped unread: 100 copies of one option then six more are seven distinct options, refused; plain duplicates still merge', () => {
+  const opts = [...Array.from({ length: 100 }, () => 'A'), 'B', 'C', 'D', 'E', 'F', 'G'];
+  assert.match(mapped({ options: opts, pick: 'A' }).error, /^options is not a list of 1 to 6 items/);
+  assert.deepEqual(mapped({ options: [...Array.from({ length: 100 }, () => 'A'), 'B'], pick: 'A' }).value.options, ['A', 'B']);
+});
