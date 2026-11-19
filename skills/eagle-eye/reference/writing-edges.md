@@ -5,16 +5,14 @@ grid, so a wrong edge is worse than no edge.
 
 ## Contents
 
-- Tiers (questions 4, 16)
-- What an edge can say (questions 3, 16)
-- Writing rules (question 15)
-- The eight weakness patterns (questions 16, 18)
-- Chains (questions 16, 18)
-- Cogency test (questions 16, 18)
-- The suspected list (questions 4, 16)
-- Strawmen (questions 10, 16)
+- Tiers
+- What an edge can say
+- The eight weakness patterns
+- Chains
+- The suspected list
+- Strawmen
 
-## Tiers (questions 4, 16)
+## Tiers
 
 | Tier | Means | `src` |
 |---|---|---|
@@ -25,57 +23,21 @@ grid, so a wrong edge is worse than no edge.
 A tier is a claim about evidence, not about confidence. An argued edge you are
 sure of is still argued.
 
-## What an edge can say (questions 3, 16)
+## What an edge can say
 
 - `conf`: if both options are selected, the set does not hold.
 - `req`: if this option is selected and the target is not, the set is
   incomplete.
-- Several `req` edges from one option are **all required** (AND). There is no
-  "requires one of". To say *"needs A or B"*, draw `conf` edges to every option
-  in that row that is **not** A or B. The grid then rules those out, and A and
-  B stay open.
-- An edge is one-directional. A `conf` drawn once is enough; the page
-  de-duplicates the reverse if you draw both.
-- Target in the same row: not allowed. Choosing one option in a row already
-  excludes its siblings.
+- Several `req` edges from one option are **all required** (AND). To say
+  *"needs A or B"*, draw `conf` edges to every option in that row that is not
+  A or B.
+- An edge is one-directional. The page removes the reverse when you draw both.
+- A target in the same row is not allowed.
 
-## Writing rules (question 15)
+## The eight weakness patterns
 
-**The rule: follow ASD-STE100, and keep sentences short.** ASD-STE100 is a
-controlled English standard. Use its writing rules only, not its dictionary.
-
-**One hard rule, by name: no idiom, no metaphor, no analogy.** *"pull one
-thread"*, *"rests on"*, *"fights"* are out. This rule is kept by name because
-an idiom in a `why` makes the reader guess what the edge claims.
-
-The points below are the standard's detail. Use them as guidance for what
-"follow ASD-STE100" means in practice. They are not a checklist to tick.
-
-- Active voice. *"The hook reads coverage"*, not *"coverage is read by the
-  hook"*.
-- Present tense for facts. Imperative for instructions.
-- One topic per sentence. One instruction per sentence.
-- Twenty words or fewer. Twenty-five for a descriptive sentence at
-  most.
-- No `-ing` verb forms as nouns or adjectives. *"Measure it"*, not
-  *"measuring is needed"*.
-- Noun clusters of three words at most. *"per-function coverage figure"* is
-  the limit.
-- Re-anchor a coined term every time it returns: *"the substrate (the shared
-  walking layer)"*.
-- Use the same word for the same thing. Do not vary for style.
-- Write the qualifier, then the point. Never a slogan alone.
-
-Test (ISO 24495-1): can the reader find it, understand it, and use it? A why
-that needs a second reading fails.
-
-## The eight weakness patterns (questions 16, 18)
-
-Check every argued edge against these patterns. Reason: wrong edges are
-failure 1 in question 16, the top priority.
-
-From the TDE method. Name the pattern when you reject an edge; it teaches the
-next author.
+Check every argued edge against these patterns. Name the pattern when you
+reject an edge.
 
 | Pattern | The edge… | Fix |
 |---|---|---|
@@ -91,75 +53,39 @@ next author.
 An edge that fails and cannot be fixed goes to `suspected`: a plain string
 that the page lists but that colours nothing.
 
-## Chains (questions 16, 18)
+## Chains
 
-An edge is one reason. A chain is two reasons in a row. The TDE method calls a
-set of reasons **cohesive** when each reason extends the one before it. The
-audit above reads one edge at a time. The *chain* finding reads the join.
-
-**Only a `req` first edge composes.**
+A chain is two reasons in a row. **Only a `req` first edge composes.**
 
 | First | Second | Composes | What the pair derives |
 |---|---|---|---|
 | `req` | `req` | yes | The source **requires** the far option. |
 | `req` | `conf` | yes | The source **rules out** the far option. |
-| `conf` | anything | no | The source removes the target from the set. The target's own edges never fire. |
+| `conf` | anything | no | The source leaves the set. The target's own edges never fire. |
 
-That last row is the one that misleads. Count every pair where one edge's
-target is the next edge's source, and the example box — 27 edges — reports 15
-chains. Apply the rule, and it reports none.
+The renderer walks the chains. You answer two questions:
 
-A chain can hold more than two edges. Each `req` edge carries the run forward,
-and one `conf` edge closes it. A run of `req` edges derives *requires*. A run
-closed by a `conf` edge derives *rules out*.
+- **Is the derived relation true?** If not, one edge on the path is wrong.
+- **Does the box say it?** A relation nobody wrote is a hidden constraint. Add
+  the edge, or say in `notes` why the path is enough.
 
-**The renderer walks the chains. You answer the two questions.** The *chain*
-finding names the longest run, the relation it derives, and whether the box
-states that relation. Then ask:
+**A cycle is its own finding.** Option A requires B, and B requires A. Either
+the rows in the loop are one decision, or one direction is redundant. Say
+which, in `notes`.
 
-- **Is the derived relation true?** If it is not, one edge on the path is
-  wrong. This is the `weakly connected` pattern across a path.
-- **Does the box say it?** A derived relation that nobody wrote is a hidden
-  constraint. Add the edge, or say in `notes` why the path is enough.
+## The suspected list
 
-**A cycle is its own finding.** Option A requires B, and B requires A. The pair
-is one mutual dependency drawn twice, and the finding reports it once. A longer
-loop, through three options or more, reports the same way. Either the rows in
-the loop are one decision, or one direction is redundant. Say which, in
-`notes`.
-
-## Cogency test (questions 16, 18)
-
-After the audit, ask the user once: *"If every edge in this box is true, can
-the chosen set still be wrong?"* The answer is the list of edges that are
-missing.
-
-Cohesion and cogency are the pair. Cohesion asks whether the reasons join.
-Cogency asks whether the joined reasons reach the verdict.
-
-The page reports this test under a plain name: **evidence for the verdict**. It
-counts the argued edges and names the rows whose active edges are all argued.
-*Cogency* is the name in the method, and this document is where the method is
-explained. The page uses the plain name.
-
-## The suspected list (questions 4, 16)
-
-An edge that fails the audit goes to `suspected`. **Name the pattern first, so
-the debrief can count it:**
+**Name the pattern first, so the debrief can count it.** Then the edge, then
+the reason, then `Why:` and the rejected `why` word for word, in quotes:
 
 ```text
 weakly connected: coh-step req deb-chat — a manual check does not force a manual record. Why: "The check is manual, so the record is manual too."
 ```
 
-The pattern name, then the edge, then the reason. Then `Why:` and the rejected
-`why`, word for word, in quotes. The box file keeps this after the session
-ends, so it is the only record of what the audit rejected.
+The box file keeps this after the session ends. A later test of the audit
+needs the original sentence.
 
-**Keep the rejected `why`.** A reason says what was wrong. It does not say
-what the edge said. A later test of the audit compares its scores against real
-rejected edges, and only the original sentence gives it one.
-
-## Strawmen (questions 10, 16)
+## Strawmen
 
 For every row, before edges, ask four questions:
 

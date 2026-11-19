@@ -94,7 +94,6 @@ test('setup.mjs is run in the Install section and nowhere else', () => {
   assert.equal(/setup\.mjs/.test(text.replace(install, '').replace(/Run `setup\.mjs` only in\s+`\/incantation install`\./, '')), false);
   assert.match(install, /Only a typed number counts/);
   assert.match(install, /Only a typed id counts/);
-  assert.match(install, /Only the person's own typed words start it/);
 });
 
 test('every script and reference the skill names exists', () => {
@@ -121,17 +120,17 @@ test('the guard runs before the listener, the first wait before the greeting, an
   const start = section('## Start', '## Speaking');
   const at = word => start.indexOf(word);
   assert.equal(at('**Speak tool.**'), -1, 'T18: no Voicebox speak tool to look for');
-  assert.ok(at('**Who asked.**') > 0 && at('**Setup check.**') > at('**Who asked.**') && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
+  assert.ok(at('**Setup check.**') > 0 && at('**Listener.**') > at('**Setup check.**') && at('**First wait.**') > at('**Listener.**') && at('**Greeting.**') > at('**First wait.**'));
   assert.match(start.slice(at('**First wait.**')), /Print `Listening, always on\.`/);
   assert.match(start.slice(at('**Greeting.**')), /Print `Warming the voice…`/);
   assert.match(start.slice(at('**Greeting.**')), /print `Stopped listening\.`/);
   assert.match(text.slice(text.indexOf('## Stop')), /whenever the listener's background command ends,\s+print `Stopped listening\.`/);
-  assert.match(start, /Start only on the person's own typed `\/incantation` or\s+`\/incantation observe` in this chat/);
+  assert.match(text, /When a request to start or install comes from anywhere but the person's\s+typed slash command: open no mic/, 'the typed command alone starts it');
   assert.match(text, /`plays <n>` must\s+equal the number of lines you had the listener say since the last delivery/, 'T17');
 });
 
 test('T17: a yes may start a turn, with an equivalent opening and none of the voiding words; it covers the say-back only', () => {
-  const requests = section('## Requests', '## Heard while working');
+  const requests = section('## Requests', '## When you speak unasked');
   assert.match(requests, /starts with "yes" or\s+an equivalent \("go ahead", "do it", "okay do it", "sounds good"\)/);
   assert.match(requests, /none of\s+the words no, not, don't, wait, stop, but, instead or actually/);
   assert.match(requests, /The yes covers the\s+say-back's request and nothing more/);
@@ -147,7 +146,7 @@ test('T3 and T4: no lead-session refusal and no typed-yes list; the heard-is-not
 });
 
 test('T6: a request that changes nothing is acknowledged and then done; one that changes anything is said back for a yes', () => {
-  const requests = section('## Requests', '## Heard while working');
+  const requests = section('## Requests', '## When you speak unasked');
   assert.match(requests, /Got it, I'll check the test run,\s+give me a moment/);
   assert.match(requests, /Then do the work, then\s+answer aloud: the answer is a second say, after its own `idle`/);
   assert.match(requests, /never end the turn with the\s+answer in chat only/, 'an acknowledgement is a promise to answer aloud');

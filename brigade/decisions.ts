@@ -164,40 +164,24 @@ export function checkInput(v: unknown): Checked<EntryInput> {
   if (!isRecord(v)) return { error: 'the entry is not an object' }
   for (const k of STAMPED) if (Object.hasOwn(v, k)) return { error: `${k} is stamped by the mod, not sent by the tool` }
   if (!Object.hasOwn(v, 'source') || !TOOL_SOURCES.includes(String(v.source))) return { error: 'source is not lead or relayed' }
-  const extra = Object.keys(v).filter(k => !INPUT_KEYS.includes(k) && !TOOL_ONLY_KEYS.includes(k))
+  const extra = Object.keys(v).filter(k => !INPUT_KEYS.includes(k))
   if (extra.length > 0) return { error: `the entry has a field the decision log does not use: ${oneLine(extra[0] ?? '', 40)}` }
   return fieldsOf(v, TOOL_SOURCES, false)
 }
-
-// --- the ask type and stop (618, S3) -------------------------------------------
-//
-// `ask` and `stop` are tool-only keys: checkInput lets them through and never
-// judges them, the returned entry holds neither, and no log stores them (a log
-// that holds one fails checkLog, as it holds no key but INPUT_KEYS). checkAsk
-// alone judges them.
-
-export const ASK_TYPES = ['question', 'review', 'notify'] as const
-/** The waits the head-chef skill keeps at level 3, one kind each (S4). */
-export const STOP_KINDS = [
-  'owner-file-keeps', 'owner-words', 'carried', 'blocked', 'owner-hands', 'install', 'private-post',
-  'leaves-machine', 'sensitive-route', 'merge', 'threat-model', 'never-lifted', 'outside-goal',
-] as const
-export const TOOL_ONLY_KEYS: readonly string[] = ['ask', 'stop']
 
 // --- the call as a record (630) -------------------------------------------------
 //
 // The log is a record of what the lead decided, not a gate on how it asks. A call
 // is mapped before `checkInput` judges it, so the entry written is always valid:
 // only a field over its limit, or more than six options, is left for the check to
-// refuse. `ask` and `stop` pass through for `checkAsk`, which stays the gate on
-// waits.
+// refuse. A field the log does not use, `ask` and `stop` included, is dropped.
 
 /** The words a refusal for a field over its limit ends with: no "act at level 1", the step stays held. */
 export const SHAPE_TAIL =
   "The decision log is unchanged; shorten it and log it again. The step stays held until it is logged; if you can't log it, say so in chat."
 
 const NOT_GIVEN = 'not given'
-const KNOWN_KEYS: readonly string[] = [...INPUT_KEYS, ...TOOL_ONLY_KEYS]
+const KNOWN_KEYS: readonly string[] = INPUT_KEYS
 const CONTROL_ALL = new RegExp(CONTROL.source, 'gu')
 const HIDDEN_ALL = new RegExp(HIDDEN.source, 'gu')
 
@@ -263,67 +247,7 @@ export function mapInput(v: unknown): Record<string, unknown> {
   if (source === 'relayed' && ENTRY_ID.test(answers)) out.answers = answers
   const flag = plain(raw.flag)?.replace(/\n+/g, ' ')
   if (flag !== undefined && flag !== '' && source === 'lead' && !waiting) out.flag = flag
-  for (const k of TOOL_ONLY_KEYS) if (k in raw) out[k] = raw[k]
   return out
-}
-
-/** The two fixed answers: neither echoes input, and neither takes the refusal's "act at level 1". */
-export const ASK_FORM =
-  "Fix the entry's ask, stop or question and log it again: ask is question, review or notify, notify never waits, stop is one of the head-chef skill's kinds and only on a wait, and at level 3 a wait needs both and a one-line question. The step stays held until it is logged; if you can't log it, say so in chat."
-export const ASK_NO_STOP =
-  "At level 3 a wait needs one stop from the head-chef skill's list. At level 3 only blocked, owner-hands, owner-words, never-lifted and outside-goal fit a wait. A call that fits none of them is yours: log it with source lead and your pick, flag it, act, and tell the owner what you took."
-
-// --- the to-do gate (618, S5) ---------------------------------------------------
-
-/** What set_roster refuses with when a level-3 to-do starts from no open waiting entry. */
-export const TODO_WAIT_RULE = 'At level 3 a new or changed to-do needs the id w<n> of an open waiting entry; log the wait first'
-type TodoShape = { id: string; text: string; session?: string; link?: string }
-const WAIT_TODO_ID = /^w([1-9][0-9]{0,15})$/
-
-/** The to-dos of `next` that are new (an id not in the stored roster) or changed
- *  (a stored id with its text, session or link different). */
-export function changedTodos(previous: readonly TodoShape[] | undefined, next: readonly TodoShape[]): TodoShape[] {
-  const stored = new Map((previous ?? []).map(t => [t.id, t]))
-  return next.filter(t => {
-    const was = stored.get(t.id)
-    return was === undefined || was.text !== t.text || was.session !== t.session || was.link !== t.link
-  })
-}
-
-/** The ids of the waiting entries in a log that no entry answers; none for no log. */
-export function openWaitIds(log: DecisionLog | undefined): ReadonlySet<string> {
-  const open = new Set<string>()
-  for (const e of log?.entries ?? []) if (e.waiting) open.add(e.id)
-  for (const e of log?.entries ?? []) if (e.answers !== '') open.delete(e.answers)
-  return open
-}
-
-/** Whether every changed to-do has the id `w<n>` of an open waiting entry. */
-export const todosHaveOpenWaits = (changed: readonly TodoShape[], open: ReadonlySet<string>): boolean =>
-  changed.every(t => {
-    const m = WAIT_TODO_ID.exec(t.id)
-    return m !== null && open.has(m[1] ?? '')
-  })
-
-/** A log_decision call's `ask` and `stop` at the level in force: the fixed answer
- *  that refuses it, or undefined when it is accepted. The first row that fits
- *  gives the answer. The stop is the lead's own claim; nothing here verifies it. */
-export function checkAsk(v: unknown, level: Level): string | undefined {
-  if (!isRecord(v)) return ASK_FORM
-  const has = (k: string) => Object.hasOwn(v, k)
-  const ask = v.ask
-  const stop = v.stop
-  if (has('ask') && !(typeof ask === 'string' && (ASK_TYPES as readonly string[]).includes(ask))) return ASK_FORM
-  if (has('stop') && !(typeof stop === 'string' && (STOP_KINDS as readonly string[]).includes(stop))) return ASK_FORM
-  const waiting = v.waiting === true
-  if (ask === 'notify' && waiting) return ASK_FORM
-  if (has('stop') && !waiting) return ASK_FORM
-  if ((ask === 'question' || ask === 'review') && !waiting) return ASK_FORM
-  if (level !== 3 || !waiting) return undefined
-  if (typeof v.question === 'string' && v.question.includes('\n')) return ASK_FORM
-  if (!has('ask')) return ASK_FORM
-  if (!has('stop')) return ASK_NO_STOP
-  return undefined
 }
 
 // The pane's own fixed entries (ticket 4) take the same rules with any source.

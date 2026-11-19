@@ -54,17 +54,14 @@ refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Give the notice in `SKILL.md`'s "The way in" first, then go on unless the person has objected.
-Make one new folder for each interview:
+Give the notice in `SKILL.md`'s "The way in" first, then go on unless the
+person has objected. Make one new folder for each interview:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --new-folder
 ```
 
-The script prints the folder's path. On Windows and macOS the folder is in
-the per-user temporary folder. On Linux it is under
-`$XDG_CACHE_HOME/contract-interview/`, else `~/.cache/contract-interview/`.
-On macOS and Linux the folder is owner-only.
+The script prints the folder's path.
 
 The person may name a parent folder instead:
 
@@ -72,18 +69,15 @@ The person may name a parent folder instead:
 node '<skill base directory>/scripts/render.mjs' --new-folder '<parent>'
 ```
 
-The script refuses a parent inside a git work tree. Never offer a synced
-folder, such as Desktop or Documents. When the person names a parent, tell
-them what `SKILL.md` says for `--new-folder`. Add that the files leave the
-machine if the folder syncs.
+The script refuses a parent inside a git work tree. The notice in `SKILL.md`
+covers a parent the person names.
 
 The folder holds three files, with fixed names: `draft.interview.json`,
 `interview.html` and `answers.json`.
 
 ## The draft
 
-Write the draft as `draft.interview.json` in the scratch folder, as
-`SKILL.md` says for the draft. Before you draft, read
+Write the draft as `draft.interview.json` in the scratch folder. Before you draft, read
 `<skill base directory>/scripts/kinds.json`: it names each kind of clause,
 its part, its fields and its stakes.
 
@@ -153,8 +147,7 @@ refuses it. It refuses a target that does not end in `.html`, and a file
 that is there and is not a page it wrote. The page loads nothing from the
 network. Its top bar shows the scratch folder's name.
 
-The person opens the file in their own browser. When you hand the page
-over, tell them what `SKILL.md` says for `--out`.
+The person opens the file in their own browser.
 
 Render a shared draft, as `SKILL.md` defines it, with `--shared`, and read
 its block back with `--shared`. A shared page offers no "Agree to the rest
@@ -163,29 +156,10 @@ as drafted".
 ## The answer block
 
 The person copies one fenced JSON block from the page and pastes it in
-chat. Write it as `answers.json` in the scratch folder, as `SKILL.md` says
-for the pasted block. Then check it.
+chat. Write it as `answers.json` in the scratch folder, then check it.
 
-The block's keys are exactly these:
-
-- `format`: `1`.
-- `draft`: the SHA-256 of the draft's bytes.
-- `kinds`: the SHA-256 of `<skill base directory>/scripts/kinds.json`
-  that the page was made with.
-- `answers`: one entry for each clause the person touched. An entry holds
-  `id`, then `option` or `fields`, then `mark`. It may hold `chip`, `flag`
-  and `restored`. `chip` is the place of the reason the person tapped in
-  the question's `chips`, counting from 0, never its text.
-- `edits`: the person's folder edits, in order. Each has an `op`: `add`,
-  `rename`, `move`, `remove`, `rekind` or `none`. A rename names a
-  schedule, by part and kind, never one entry. An add or a none goes only
-  in a part the level asks. An answer or an edit may hold `restored`: the
-  page brought it back from the browser, and the person has not pressed
-  its Keep since. Typing in it, or tapping its chip or flag, leaves it
-  restored.
-
-The hashes bind the block to its draft and its kinds table. They prove
-nothing about who made the block.
+The script checks the block's keys and entries. Its hashes bind it to its
+draft and its kinds table. They prove nothing about who made it.
 
 ## Reading the block back
 
@@ -210,18 +184,15 @@ says for any file.
 ## Push-back
 
 The page lets the person add, move and remove a schedule's entries, not a
-term in the letter. The word has two senses, and they meet here. On the page,
-a schedule is a sheet attached to the letter that lists the entries of one
-kind. The `schedules` part's entries form one such sheet, and each entry is a
-schedule of procedure. The page cannot add one, because an entry added there
-names no clause it carries out: add it to the draft, and render again. A term they want removed or moved, they say in chat:
-take it as an answer in their own words.
+term in the letter. It cannot add a schedule of procedure, because an entry
+added there names no clause it carries out: add it to the draft, and render
+again. A term they want removed or moved, they say in chat: take it as an
+answer in their own words.
 
 Ask one question at a time, on each clause the push-back list names. Also
 raise any low-stakes clause whose text acts beyond its own notes, sends
 data, installs, grants access, loosens a stop, or widens when it steps in.
-Ask whether each warned value belongs in the contract. Mark each reply as
-`SKILL.md` says for the person's own words. A line such as
+Ask whether each warned value belongs in the contract. A line such as
 `purpose/(stays-out)` names a schedule: ask about the whole schedule. A
 restored answer or edit stays *Proposed* until the person presses its Keep
 on the page, or picks again or agrees there, and copies the block again.
@@ -233,14 +204,13 @@ hand-back. Reset clears this draft's name and type only. When the page
 said that Reset here does not clear earlier answers, render that earlier
 draft too, and press Reset there.
 
-Then delete the page and the answers file, as `SKILL.md` says for
-`--clean`:
+Then delete the page and the answers file:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>'
 ```
 
-Offer to delete the draft too, as it says for `--clean --draft`:
+Delete the draft too once the answers are cleared:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>' --draft
@@ -249,8 +219,7 @@ node '<skill base directory>/scripts/render.mjs' --clean '<folder>' --draft
 The script deletes only its own files, and only in a scratch folder. It
 prints what it deleted and how many other entries are left. The empty
 folder stays: name it in the hand-back. At a stop, a refused build or an
-interview the person drops, ask for Reset. Then name the files that are
-left, and offer to delete them the same way.
+interview the person drops, ask for Reset, then delete the same way.
 
 ## A half-done interview
 

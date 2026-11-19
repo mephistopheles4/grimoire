@@ -405,7 +405,7 @@ test('C16: a clock that goes back or a non-number never opens more than the cap'
 test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 amended it, on one line', () => {
   assert.equal(
     S.DESCRIPTION,
-    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
+    'The only way to start a background member: never type `claude --bg`. Needs name, repository and issue (or, for a Quick-tier piece of work with no issue, a brief in place of both), model, effort, lead (your own name) and folder (a main checkout; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
   );
   assert.ok(!/\n/.test(S.DESCRIPTION));
 });
@@ -417,7 +417,7 @@ const PLAIN = 'Your work is issue 543 on mephistopheles4/grimoire. Send your que
 const R = {
   type: 'note: not text',
   empty: 'note: empty; leave it out',
-  keys: 'input: exactly name, repository, issue, model, effort, lead and folder, and optionally note',
+  keys: 'input: name, model, effort, lead and folder, then repository and issue (and optionally note) or a brief',
   length: 'note: 1 to 200 characters on one line',
   chars: "note: one sentence of letters, digits, spaces and , ; ( ) - ', ending in a full stop",
   ids: 'note: no id, other than one commit after the word commit',
@@ -526,4 +526,38 @@ test('578 C7 rule 5: a note naming a live session or a card title is refused, a 
   ok(pass('.', ['', '--', '...']));
   assert.equal(refused(pass('Work with grimoire 601 here.', ['grimoire-601'], ['grimoire_601', 'Head chef'])), R.names, 'a live name is exempt only when it is an own name exactly');
   assert.equal(refused(pass('Work with delta here.', ['delta'], [])), R.names);
+});
+
+// --- a Quick-tier start with a brief and no issue ---------------------------------------
+
+const { repository: _r, issue: _i, ...BASE } = GOOD;
+const BRIEFED = brief => ({ ...BASE, brief });
+
+test('a brief stands in for the repository and the issue, and its prompt names the lead and the brief under the note label', () => {
+  const v = ok(check(BRIEFED('Rename the helper in the utils module.')));
+  assert.deepEqual(v, BRIEFED('Rename the helper in the utils module.'));
+  assert.equal(S.startPrompt(v), 'Your work is the brief that follows. Send your questions and reports to Head chef handoff. Head chef handoff, not the owner, adds: Rename the helper in the utils module.');
+  assert.ok(!/[\r\n]/.test(S.startPrompt(v)));
+  assert.ok(S.startArgv(v, 'claude').includes(S.startPrompt(v)));
+});
+
+test('a start that names neither an issue nor a brief is refused, as is one that names both, half of the pair, or a brief with a note', () => {
+  refused(check({ ...BASE }));
+  refused(check({ ...BASE, repository: GOOD.repository }));
+  refused(check({ ...BASE, issue: GOOD.issue }));
+  refused(check({ ...BRIEFED('Rename the helper.'), repository: GOOD.repository, issue: GOOD.issue }));
+  refused(check({ ...BRIEFED('Rename the helper.'), repository: GOOD.repository }));
+  refused(check({ ...BRIEFED('Rename the helper.'), note: 'Build from commit abcdef1.' }));
+  assert.equal(refused(check({ ...BASE })), R.keys);
+  assert.equal(refused(check({ ...BRIEFED('Rename the helper.'), note: 'Start here.' })), R.keys);
+});
+
+test('a brief takes the note bounds, with its refusals naming the brief, and the folder and lead rules still hold', () => {
+  assert.equal(refused(check(BRIEFED(5))), 'brief: not text');
+  assert.equal(refused(check(BRIEFED(''))), 'brief: empty; leave it out');
+  assert.equal(refused(check(BRIEFED('x'.repeat(201) + '.'))), 'brief: 1 to 200 characters on one line');
+  assert.equal(refused(check(BRIEFED('Send it to the lead.'))), 'brief: words about where to send questions or reports, posting, or accepting a risk');
+  assert.equal(refused(check(BRIEFED('See https://example.com for it.'))), R.chars.replace('note:', 'brief:'));
+  refused(check({ ...BRIEFED('Rename the helper.'), folder: '' }));
+  refused(check({ ...BRIEFED('Rename the helper.'), lead: 'Someone else' }, 'Head chef handoff'));
 });

@@ -1,11 +1,5 @@
 # Binding: Claude Code
 
-This file maps a contract's plain words to a Claude Code file: an agent
-file, or the main agent file, `CLAUDE.md`. Read it when `tools` says the
-agent or CLAUDE.md is built for Claude Code. Everything the file needs is in the
-contract, the template, the skill's steps, or here. A fact missing from all
-of them is a gap: stop and ask.
-
 ## Contents
 
 - Last checked
@@ -14,14 +8,12 @@ of them is a gap: stop and ask.
 - The main agent file
 - Capabilities
 - Settings that let it act without asking
-- Validate
 - Example
 
 ## Last checked
 
 Claude Code 2.1.296, on the command line, headless, on Linux, on
-2026-10-10. Name this version in the hand-back, and say that a newer Claude
-Code may load the file differently. Load tests that ran:
+2026-10-10. Load tests that ran:
 
 1. An agent with `tools: [Read, ToolSearch, mcp__<server>__*]` loaded from a
    project's `.claude/agents/`, was listed, and called one of that server's
@@ -38,12 +30,9 @@ Code may load the file differently. Load tests that ran:
 
 ## Where files go
 
-Write where the person's skills and agents already live: `.claude/agents/`
-in a project, or the `agents` folder in the person's own Claude Code
-settings folder; a `CLAUDE.md` in the project folder or in the settings
-folder. Ask only before a write that would install. The contract and the
-change log go beside the file, as the template says. They have no
-frontmatter, so Claude Code does not load them as agents.
+`.claude/agents/` in a project, or the `agents` folder in the person's own
+Claude Code settings folder; a `CLAUDE.md` in the project folder or in the
+settings folder.
 
 ## The file
 
@@ -51,8 +40,7 @@ The file is YAML frontmatter, between two `---` lines, then the body: the
 agent's instructions.
 
 - **Keys it writes:** `name`, `description`, `tools`, and `model` or
-  `effort` when the person names one. Any other key: ask what it does and
-  record it **Decided** with its value.
+  `effort` when the person names one.
 - **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`.
   With no `tools:` key, the agent gets every tool the session has. With
   `tools: []`, it gets none.
@@ -66,10 +54,6 @@ agent's instructions.
 
 ## The main agent file
 
-`CLAUDE.md` holds the instructions that govern the main session. Claude Code
-loads it at the start of every session in its scope. Nothing picks it up by
-situation, and nothing sends it off.
-
 - **Frontmatter.** Write none. Claude Code strips a block at the very top
   before the model sees it (observed in load tests 3 and 4, not documented:
   the docs describe the stripping only for `.claude/rules/`).
@@ -81,7 +65,7 @@ situation, and nothing sends it off.
 - **Imports.** An `@` import works anywhere in the file, and pulls in a file
   the contract does not cover. Name each one in the hand-back.
 
-**Limits this file cannot hold.** Say each in the hand-back, as not gated:
+**Limits this file cannot hold:**
 
 - The file cannot limit the session's tools. They come from the person's
   settings and connected servers.
@@ -104,7 +88,7 @@ situation, and nothing sends it off.
 
 The main agent file names none of these.
 
-**Limits this file cannot hold.** Say each in the hand-back, as not gated:
+**Limits this file cannot hold:**
 
 - A `tools` list cannot limit where the agent writes.
 - Granting `Bash` or `PowerShell` also makes "no network" a plain request.
@@ -116,20 +100,8 @@ The main agent file names none of these.
 ## Settings that let it act without asking
 
 `permissionMode`, `allowed-tools`, `omitClaudeMd`, `initialPrompt` and a
-`tools` item written `mcp__<server>__*` let an agent act without the
-person's approval: say so when the person picks one. Record each value under
-`tools`, marked **Decided**. The person's session mode can override
-`permissionMode`; say so in the hand-back.
-
-## Validate
-
-After building an agent, run `claude plugin validate --strict` on the folder
-that holds the agent's file, when the command is available. A clean pass
-names no file: unless the output names the built file, say it passed and
-named no file. Show the errors as printed, fix what is the skill's own, and
-do not call the build done on a failure. When the command is not available,
-say the file was not validated. The validator does not read a CLAUDE.md, so
-a CLAUDE.md is not validated: say so.
+`tools` item written `mcp__<server>__*`. The person's session mode can
+override `permissionMode`.
 
 ## Example
 
@@ -147,13 +119,4 @@ tools: [Read, Glob, Grep]
 Read the staged commit messages. Report each one that breaks a rule, with
 the rule and the message. Change no file. When a rule is unclear, list it as
 unsettled.
-```
-
-A short `CLAUDE.md`:
-
-```markdown
-# Project rules
-
-Run the tests before every commit. Ask before you push.
-When a rule here is unclear, say which one, and wait.
 ```

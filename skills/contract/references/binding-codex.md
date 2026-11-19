@@ -1,10 +1,5 @@
 # Binding: Codex
 
-This file maps a contract's plain words to a Codex agent file. Read it when
-`tools` says the agent is built for Codex. Everything the file needs is in
-the contract, the template, the skill's steps, or here. A fact missing from
-all of them is a gap: stop and ask.
-
 ## Contents
 
 - Last checked
@@ -12,20 +7,15 @@ all of them is a gap: stop and ask.
 - The file
 - Capabilities
 - Settings that let it act without asking
-- Validate
 - Example
 
 ## Last checked
 
-Codex 0.159.0, on 2026-09-29. Codex changes often. Name this version in the
-hand-back, and say that a newer Codex may read the file differently.
+Codex 0.159.0, on 2026-09-29. Codex changes often.
 
 ## Where files go
 
-Write where the person's agents already live: `.codex/agents/` in a
-project, or `~/.codex/agents/` for the person. Ask only before a write that
-would install. The contract and the change log go beside the file, as the
-template says.
+`.codex/agents/` in a project, or `~/.codex/agents/` for the person.
 
 ## The file
 
@@ -33,8 +23,7 @@ The file is TOML: lines of `key = value`, named `<name>.toml`.
 
 - **Keys:** `name`, `description` and `developer_instructions` are required.
   `developer_instructions` holds the agent's instructions, the body a `.md`
-  agent would have. `sandbox_mode` is known. Any other key: ask what it does
-  and record it **Decided** with its value.
+  agent would have. `sandbox_mode` is known.
 - **Lines:** top-level `key = value` lines, blank lines and whole-line `#`
   comments only. Codex drops an agent file with a `[metadata]` table, or a
   `metadata` key, so write no table header and no dotted or quoted key.
@@ -62,7 +51,7 @@ sandbox: read-only, workspace-write, or none, which leaves it to the
 session. Write `sandbox_mode` only when they name one. Without it, the agent
 runs in the session's sandbox, whatever that is. Say so in the hand-back.
 
-**Limits this file cannot hold.** Say each in the hand-back, as not gated:
+**Limits this file cannot hold:**
 
 - The session's own choices, such as a change of permissions during the
   session, override the file's `sandbox_mode` (docs).
@@ -74,9 +63,7 @@ runs in the session's sandbox, whatever that is. Say so in the hand-back.
 
 ## Settings that let it act without asking
 
-These settings let an agent act without the person's approval: say so when
-the person picks one. Record the exact value of each under `tools`, marked
-**Decided**.
+These settings let an agent act without the person's approval:
 
 - `sandbox_mode`, `default_permissions`, `approval_policy`,
   `approvals_reviewer` and `web_search` change what the agent may do.
@@ -85,12 +72,6 @@ the person picks one. Record the exact value of each under `tools`, marked
   contract does not cover.
 - `model_catalog_json` loads a file the contract does not cover.
 - `openai_base_url` sends the agent's work to a server the file names.
-
-## Validate
-
-`claude plugin validate --strict` is Claude Code's validator, and it does not
-read Codex's TOML. Do not run it on a Codex agent. Say plainly that the file
-was not validated.
 
 ## Example
 

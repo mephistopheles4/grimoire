@@ -36,28 +36,15 @@ when the person wants any change to it.
    are the fenced parts, between their `<!-- contract:begin NAME -->` and
    `<!-- contract:end NAME -->` lines. Keep every other line word for word.
    An agent file or a `CLAUDE.md` has no fences: regenerate the sections the
-   touched parts write, and keep the rest word for word. The same holds for
-   a contract with schedules: its built `SKILL.md` has no fences, because
-   each home is matched by its heading. Change the schedule first, then copy
-   it word for word to its home, and keep every other line. Before you write
-   a home, check it against the template's `schedules` part. Refuse a home
-   that names the contract or its change log in any letter case. Resolve the
-   target first, and refuse a path that leaves the built skill's folder, such
-   as a `references` link or junction that points elsewhere. No script checks
-   this on the amend path, so the check is yours. A contract without schedules
-   keeps its fences. A part that writes
-   nothing into the body (`purpose`, `why`, `open`) changes the description,
-   or nothing; say which. Regenerate the frontmatter keys a part writes:
-   `description` from `purpose`, and `compatibility` from `tools`.
-   Regenerate the Additional resources index when a reference file is added,
-   removed or renamed.
-8. **Validate,** as the binding says: run `claude plugin validate --strict`
-   when the command is available. For a skill, the path is the `skills/`
-   folder that holds the skill's folder. For an agent, it is the folder that
-   holds the agent's file. A clean pass names no file: unless the output
-   names the built file, say it passed and named no file. When the command
-   is not available, or the file is a CLAUDE.md or a Codex agent, which it
-   does not read, say the file was not validated.
+   touched parts write, and keep the rest word for word. A contract with
+   schedules has no fences either, because each home is matched by its
+   heading: change the schedule first, then copy it word for word to its
+   home, and keep every other line. A part that writes nothing into the body
+   (`purpose`, `why`, `open`) changes the description, or nothing; say which.
+   Regenerate the frontmatter keys a part writes: `description` from
+   `purpose`, and `compatibility` from `tools`. Regenerate the Additional
+   resources index when a reference file is added, removed or renamed.
+8. **Validate,** as `SKILL.md` says.
 
 ## Converting an older contract
 

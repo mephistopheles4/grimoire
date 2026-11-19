@@ -15,8 +15,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Doc -> its budget in words. See the header before changing a number.
 const BUDGET = {
-  'AGENTS.md': 700,
-  'CONTEXT.md': 300,
+  'AGENTS.md': 510,
+  'CONTEXT.md': 240,
   'CONTRIBUTING.md': 6300,
   'docs/agents/issue-tracker.md': 1300,
   'docs/security/brigade.md': 35500,
@@ -25,10 +25,10 @@ const BUDGET = {
   'docs/security/rendering.md': 2400,
   'docs/security/hiring-interview.md': 900,
   'docs/practice-tests/eagle-eye.md': 2850,
-  'skills/eagle-eye/CONTRACT.md': 3600,
+  'skills/eagle-eye/CONTRACT.md': 1600,
   'skills/head-chef/references/CONTRACT.md': 30000,
-  'skills/contract/references/binding-claude.md': 1100,
-  'skills/contract/references/binding-codex.md': 780,
+  'skills/contract/references/binding-claude.md': 800,
+  'skills/contract/references/binding-codex.md': 610,
 };
 
 // A contract with schedules is capped twice: the whole file above, and its body,

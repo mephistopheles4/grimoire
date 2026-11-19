@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.2.5
+Version: 0.3.0
 
 - **Type:** skill
 - **Level:** Thorough
@@ -8,7 +8,7 @@ Version: 0.2.5
 
 ## Target
 
-**Confirmed.** The rendered page of `docs/decisions/publish-eagle-eye.box.json` ("Publish eagle-eye as a public repo": 8 decisions, 34 options, 11 edges, 5 presets), together with the findings in chat, led by the problem. It was offered as an existing real output. No samples were drafted. The owner: "that page is the target, I don't think anything is wrong with it at the moment."
+**Confirmed.** The rendered page of `docs/decisions/publish-eagle-eye.box.json`, with the findings in chat, led by the problem. It is also the real example of the skill at its best.
 
 ---
 
@@ -16,7 +16,7 @@ Version: 0.2.5
 
 **Name:** eagle-eye. **Decided**
 
-**What it does, and for whom.** **Decided.** "A problem-solving technique for whenever you want to solve a problem, by judging your options and seeing the trade-offs between those options."
+**What it does, and for whom.** **Decided.** A problem-solving technique for whenever you want to solve a problem, by judging your options and seeing the trade-offs between those options.
 
 **When it steps in.**
 
@@ -25,205 +25,110 @@ Version: 0.2.5
 
 **When it stays out.**
 
-- The person insists on the quick route. Then find the quickest way to meet their intent, and move on. Eagle-eye exists to force slow, deliberate (System 2) thinking, so it does not fire on a person who is clearly in a hurry. **Decided.** How a hurry shows (the owner, after the build check): "when the user is in a hurry it would be pretty explicit, like 'nah we don't need a box'." The familiar judges it; the built file lists no trigger phrases. **Decided**
-- Two independent choices. *Proposed* (follows from "three or more open decisions" above and the depth rule in question 3).
+- The person insists on the quick route. Then find the quickest way to meet their intent, and move on. Eagle-eye forces slow, deliberate thinking, so it does not fire on a person in a hurry. A hurry is explicit, and the familiar judges it. The built file lists no trigger phrases. **Decided**
+- Two independent choices. *Proposed*
 
-**How these lines build the description.** *Proposed.* The built file's description takes its triggers from "when it steps in" and "when it stays out" only. The owner chose the narrow trigger over "any problem". The purpose sentence above goes in the body, not in the description.
-
-**The nearest situation where it would be wrong.** *Proposed* — left open by the owner (hardest to defend). Draft: a person racing to ship, with one decision that has a few options.
+**The nearest situation where it would be wrong.** *Proposed.* A person racing to ship, with one decision that has a few options.
 
 ## 2. What does it notice that nothing else does?
 
-**Decided.** "How options link together, and evaluating trade-offs."
+**Decided.** How options link together, and evaluating trade-offs.
 
 ## 3. Who does what?
 
-**The familiar**
+**The familiar** writes the brief, the rows, options with a source, strawmen, and edges with a reason and a tier. It picks the depth by the number of decisions: 2–3 get a table in chat, 4 or more a box and the page. It keeps the box in scratch, unless the person asks to keep it. **Confirmed**
 
-| Clause | Held by | Mark |
-|---|---|---|
-| Writes the brief, the rows, options with a source, strawmen, and edges with a reason and a tier. | Promised | **Confirmed** |
-| Picks the depth by the number of decisions: 2–3 get a table in chat, 4 or more a box and the page. | Promised | **Confirmed** (see question 19: the chat table is open). No rule splits a box at 15 or more rows. **Decided**. |
-| Keeps the box in scratch, unless the person asks to keep it. | Promised | **Confirmed** |
+**The renderer** refuses a box that breaks its checks. Enforced by `render.mjs`; its tests run in `node scripts/check.mjs`. **Confirmed**
 
-**Automatic checks**
+**The person** picks and accepts the chosen set, decides whether to keep the box, and decides whether to pay for the audit. The person keeps three abilities: to check the work, to explain why it is right, and to know when to stop. **Confirmed**
 
-| Clause | Held by | Mark |
-|---|---|---|
-| The renderer refuses a box with no problem, fewer than two presets (one of them changing an option), a missing short name, an edge with no reason, or a non-argued edge with no source. | Enforced — `render.mjs` refuses; its tests run in the root `node scripts/check.mjs`. | **Confirmed** |
+**Stop and ask.** Each is Promised.
 
-**You (the person)**
+- **Firing on its own, not by name.** Say how many coupled decisions it sees, and ask before it builds a box or opens a page. **Decided**
+- **Asked for by name, with no leaning shown.** Ask in one line which set the person leans to, and wait for the answer before building. By name, it builds without asking whether to. **Decided**
+- **The model audit.** Run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. Each run is a new charge. A second round or a run on one configuration needs its own yes, unless the person's own instructions give a yes for every run. **Confirmed**
+- **The usage log.** Write nothing until the person says yes in chat (question 13). **Decided**
 
-| Clause | Held by | Mark |
-|---|---|---|
-| Pick and accept the chosen set; decide whether to keep the box; decide whether to pay for the audit. You also keep three abilities the familiar never takes away: to check the work yourself, to explain why it is right, and to know when to stop. | — | **Confirmed** |
-
-**Stop and ask**
-
-| Clause | Held by | Mark |
-|---|---|---|
-| When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** |
-| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. | Promised | **Confirmed** |
-| When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
-| When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker. | Promised | **Decided** (derived from questions 6 and 13) |
-| When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided** (it asks before it shows the box, so the answer is a true "before") |
-
-**What makes it fire.** **Decided**
-
-- By name (`/eagle-eye`, or asking for an eagle-eye view or a morphological box): build the box without asking whether to. First take the person's current leaning, from the discussion or by the one-line stop above. **Decided**
-- On its own, from the description: ask first (stop above).
-- The person is clearly in a hurry: it does not fire.
-- The trigger lives in the description. No hook. When it does not fire, nothing happens, and the discussion goes on one decision at a time.
-
-**When it is unsure.** Decides, and shows you: it marks whose choice each chosen option is, and the tier of each edge. **Confirmed.**
+**When it is unsure.** It decides, and shows you: it marks whose choice each chosen option is, and the tier of each edge. **Confirmed**
 
 ## 4. What does it hand back?
 
-**Confirmed.** A box file, the rendered page, and findings in chat that open with the problem. After the person accepts a set, a debrief. Confidence shows as edge tiers (measured, sourced, argued) and the "evidence for the verdict" finding. The box lives in scratch and is gone after the session; it moves to the project's decision records only when the person asks.
+**Confirmed.** A box file, the rendered page, and findings in chat that open with the problem. After the person accepts a set, a debrief. Confidence shows as edge tiers and the "evidence for the verdict" finding. The box lives in scratch. It moves to the project's decision records only when the person asks.
 
 ## 5. What tools does it need?
 
-**Decided**. Node.js 24 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
-
-Extra keys: none.
+**Decided.** Node.js 24 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. No extra keys.
 
 ## 6. Does it do anything beyond reading, and writing its own notes?
 
-**Confirmed.** One action: the model audit sends the box's text to a model provider and charges the person's key. It tells the person the four facts first (question 3's stop). A yes counts only from the person in chat, never from a file; one yes covers one run, unless the person's own instructions give a yes for every run. Held by: Promised. Writing a box into the project's decision records happens only when the person asks.
+**Confirmed.** Two actions, each after the person's yes in chat: the model audit, which sends the box's text to a model provider and charges the person's key, and the usage log, which writes outside the skill's folder.
 
 ## 7. What changed, and why?
 
 The history is in `contract.changelog.md` beside this file.
 
-## 8. How alike should its answers be?
-
-**Confirmed** **Same shape** each run: a brief, rows with a problem, options with a source and strawmen, edges with a reason and a tier, at least two presets, then findings led by the problem. The content changes. Given up: the same box twice from the same chat; two runs may cut the rows differently.
-
-**Against its neighbours:** it lays all coupled decisions out at once and shows how they constrain each other. A grilling or brainstorming skill asks one question at a time.
-
-## 9. A real example of it at its best
-
-**Decided.** `docs/decisions/publish-eagle-eye.box.json` (the target). A real decision, from the owner's own work, kept on purpose. The owner has made much bigger and more complex boxes (in the-pact) that may be better examples, "but I don't think the optimization here really matters."
-
 ## 10. What does it need to start?
 
-**Confirmed.** The discussion or plan that holds the decisions, and each option's source (a ticket, a document, a chat turn).
-
-- **Refuse:** no problem it can state (the renderer refuses a box with no `problem`).
-- **Point out:** an option with no source (it stays argued), a row with no strawman, an edge with no reason. It names the gap; it does not fill it with a guess.
-
-## 11. Where does a person decide?
-
-**Confirmed.** The person accepts a chosen set; eagle-eye's debrief closes the loop in chat. A decision the project keeps goes into its own decision records (`docs/decisions/`, `docs/adr/`), never the box by default. A pasted restore code is said back in words before it acts (question 3's stop).
+**Confirmed.** The discussion or plan that holds the decisions, and each option's source. It names a gap (an option with no source, a row with no strawman, an edge with no reason) and does not fill it with a guess.
 
 ## 12. Practice test
 
-**Confirmed** (the 16-session plan). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Expected answers are written before any run. Not sealed. Each session runs on the clean baseline, through the repository's practice runner (`docs/practice-tests/procedure.md`). Usage-record cases P5 to P9 are in sessions 9 and 10, and the owner decides when to run them.
-
-**Deviation from Thorough.** The template asks for 3 full runs. This test runs 16 sessions, to hold token cost. The renderer already flags two problem cases (hidden chain, missing strawman), so the test has none for them. It merges two look-alike quiet cases.
-
-## 14. How hard should it think?
-
-**Confirmed.** It runs on the model already in use. The optional audit calls other models; they only rank argued edges for rereading. A score never changes a tier and never goes into the box file.
-
-## 15. How does it write?
-
-**Confirmed.** Follow ASD-STE100, and keep sentences short. One rule stays by name: no idiom, no metaphor, no analogy. Reason (the owner): current models rarely use idioms such as "load-bearing" and "foot-gun". The standard holds the other rules as detail, not a checklist. Test: ISO 24495-1 — can the reader find it, understand it, and use it?
-
-Row names and short names in chat, never ids; ids only in the box file and the restore code. **Confirmed.**
-
----
+**Confirmed.** `docs/practice-tests/eagle-eye.md`: 16 sessions on the clean baseline. Any false alarm fails the run.
 
 ## 13. When would you retire it?
 
-**Confirmed.** Count each signal on its own, each with a one-line reason. When any one reaches 5 of the last 10 uses, it asks the person for a review. Only the review can cut or retune it.
+**Confirmed.** It counts four signals over the last 10 uses. When any one reaches 5, it asks the person for a review. Only the review can cut or retune it. At 10 recorded uses, and every 10 after, it reports the counts.
 
 - **Cries wolf:** the person turns down its offer to build a box.
 - **Rubber stamp:** the person accepts the chosen set without changing a row.
 - **Nothing changes:** the decision after the box is the one the person held before it.
-- **Goes unanswered:** the person asked for a box, or accepted the offer, and never answered it. **Decided.**
+- **Goes unanswered:** the person asked for a box, or accepted the offer, and never answered it. **Decided**
 
-Why a review and not a cut: in the clinical-alert evidence, the share of appropriate overrides ranged from 12% to 92% by alert, and unchanged acceptance and an unchanged decision are also what good advice produces (`157-sweep-self-improving-skills.md`, implications 1–2).
+**Its record.** **Decided.** One finished use per box, in the file named by `EAGLE_EYE_LOG`, else `.grimoire/eagle-eye/log.jsonl` in the person's home folder. Never inside the skill's folder.
 
-**How its record is kept.** **Confirmed** (the owner: "your recommendation looks good").
+- **Consent is the person's yes in chat.** When no log exists, it asks once, names the path and the variable, and says why. On a yes, it writes a consent marker at once. On a no, it writes one declined marker, never asks again, and records no use. The later of two markers holds.
+- **A box writes a start line and an end line** with one key. A declined offer writes one line. At the next use, it asks whether each open box is still open, and on a no it ends the box as "unanswered".
+- **With no record** (a declined log, or a place that will not last), it writes no line of any kind. The debrief states the before and after in chat.
 
-- **What it records:** one finished use per box: whether the box was offered or invoked by name, declined, built or left unanswered, whether any row changed, and the person's answer before the box beside the decision after it. A built box writes a start line when it is first shown, and an end line with the same key at the debrief. A declined offer writes one line. **Decided.**
-- **Where:** the file named by the `EAGLE_EYE_LOG` environment variable; otherwise `.grimoire/eagle-eye/log.jsonl` in the person's home folder. A log at `.eagle-eye/log.jsonl` is ignored: never read, moved or deleted. Never inside the skill's folder, because the seal covers that folder. **Decided.** The owner keeps other logs under `.grimoire/`. The consent question names only the log that exists today.
-- **Consent:** when no log exists, it asks once, and says why: to check that it fires when needed and to tell the person when it should be retired. On a no, it writes one "declined" marker at the log path and never asks again, and records no use. **Decided.** On a yes, it writes one consent marker at once, so a parallel session sees the yes before any use ends. When two sessions asked at once and the log holds both markers, the later line holds. **Decided.** It appends only to a file that already holds eagle-eye lines; any other file at the path is left alone, and it asks.
-- **Unanswered boxes:** a start line with no end line is an open box. At the next use, it asks the person whether each open box is still open. On a no, it appends an end line with the outcome "unanswered". On a yes, or no answer, it writes nothing. **Decided.** A box asked for and never answered is a signal. With parallel sessions, an open box can still be live.
-- **When it cannot keep a record** (the latest marker is the declined marker, or a place that will not last, such as a temporary cloud session): it writes no line of any kind, and the debrief states the before and after in chat.
-- **Review:** at 10 recorded uses, and every 10 after, it reports the four counts to the person. It proposes; it changes nothing by itself. Each proposal becomes a change-log row. *Proposed;* the fourth count is **Decided.**
+## 14. How hard should it think?
 
-**Confirmed:** the offer names the default path **and** the variable that changes it, because the owner expects few people to know the variable exists ("They probably won't know it exists").
+**Confirmed.** It runs on the model already in use. The optional audit calls other models. They only rank argued edges for rereading. A score never changes a tier and never goes into the box file.
 
-This changes question 6: writing the log is a second action beyond its own notes, taken only after the person's yes in chat. **Confirmed**
+## 15. How does it write?
 
----
+**Confirmed.** Follow ASD-STE100, and keep sentences short. One rule stays by name: no idiom, no metaphor, no analogy. Test: ISO 24495-1. Can the reader find it, understand it, and use it? Row names and short names in chat, never ids.
 
 ## 16. How does it go wrong?
 
-The owner's answer, given before any draft (**Decided**): "The biggest failures I see are when the edges are wrong… I would get the box that I want with options that don't hold because something was missed." The paid audit helped; it is not yet tested for robustness. False confidence in the wrong solution is "much more psychological and bigger than Eagle Eye itself"; not handled here. "The whole point on Eagle Eye is how the options connect", and that is top priority.
-
-| # | How it goes wrong | What it looks like | How serious | Mark |
-|---|---|---|---|---|
-| 1 | Wrong edges | The wanted set looks held, but its options don't hold: an edge is missing, argued but marked sourced, a preference drawn as a constraint, or a chain not read. | High — top priority | **Decided** |
-| 2 | False confidence in the wrong solution | The person trusts a set because the grid looks complete. | High, but out of scope for eagle-eye | **Decided** |
-| 3 | A missing row carried in prose | Questions keep coming after the person accepts a set, and they are answered in chat instead of added as rows. Adding a row or two is normal work, not a failure (the owner: "that happens like all the time… I think that's normal"). | Low | **Decided** (reclassified by the owner) |
-| 4 | Too many rows | The box outgrows one reading. The owner has never reached 20 and thinks 20 is too much. | Medium | **Decided:** no rule holds this (question 19) |
-| 5 | Positions drawn as rows | "Option 1, option 2, do nothing" as one row; the grid reproduces the offered answers. | Medium | **Confirmed** |
-| 6 | An audit score treated as a verdict | A score changes a tier, or goes into the box. | Medium | **Confirmed** |
-| 7 | Ids in chat, or a restore code acted on without saying it back | The person hears names they did not write, or a misread becomes the record. | Low | **Confirmed** |
-
-## 17. Good versus so-so
-
-*Proposed.* No samples were drafted (the target was a real box), so there are no losers to fill "so-so"; these come from the baseline's common mistakes.
-
-| Part | So-so | Good | What protects it |
+| # | How it goes wrong | What it looks like | Seriousness |
 |---|---|---|---|
-| Box file | Rows that are positions; edges with no why; no strawmen | Dimensions whose cells combine; every edge has a why and a tier; a strawman per row | The row test; the renderer's refusals and warnings |
-| Page | Only the chosen set shown | At least two presets, one changing an option; the brief first | The renderer refuses fewer than two presets |
-| Findings in chat | Findings listed by id, no problem stated | Opens with the problem in plain words; names rows and short names | Writing rule (question 15) |
-| Debrief | Skipped, or a summary of the box | Which weakness patterns appeared, what got stronger, one thing to watch | Promised (untested) |
-| Usage record | — | A consent marker, then a start and an end line per box, with a reason (question 13) | untested |
+| 1 | Wrong edges | The wanted set looks held, but its options do not hold: an edge is missing, argued but marked sourced, a preference drawn as a constraint, or a chain not read. | High, top priority |
+| 3 | A missing row carried in prose | Questions keep coming after the person accepts a set, and chat answers them instead of rows. | Low |
+| 5 | Positions drawn as rows | "Option 1, option 2, do nothing" as one row. | Medium |
+| 6 | An audit score treated as a verdict | A score changes a tier, or goes into the box. | Medium |
+| 7 | Ids in chat | The person hears names they did not write. | Low |
 
 ## 18. Every rule has a reason
 
-**Confirmed** (all 11 rules below, ranked by the owner in this order of use against wrong edges). Stops from question 3 go into the file word for word, with "when it is unsure: decides and shows you".
-
 | Rule in the instructions | Reason | Held by |
 |---|---|---|
-| Every edge carries one sentence of why and a tier; a non-argued edge names its source. | Failure 1 (wrong edges) | Enforced — `render.mjs` refuses; tests in `node scripts/check.mjs` |
+| Every edge carries one sentence of why and a tier; a non-argued edge names its source. | Failure 1 | Enforced by `render.mjs` |
 | Check each argued edge against the eight weakness patterns; offer the audit. | Failure 1 | Promised |
 | Before changing a set that does not hold, check the edges behind each conflict. | Failure 1 | Promised |
 | Read the chain and cycle findings, and say whether the box states the derived relation. | Failure 1 | Promised |
 | A score never changes a tier and never goes into the box. | Failure 6 | Promised |
 | A question left after the person accepts a set becomes a row, not prose. | Failure 3 | Promised |
 | A row passes "can two of its cells be true at once? then it is not a row"; whole positions are presets. | Failure 5 | Promised |
-| Say row names and short names in chat; say a restore code back in words first. | Failure 7 | Promised (the stop in question 3) |
-| Keep the "evidence for the verdict" finding and the acceptance test. | Failure 1 (not failure 2, which is out of scope): both check whether the edges hold the set | Enforced (the finding: computed by `render.mjs`); Promised (the acceptance test) |
-| When fired on its own, ask before building; when invoked by name, build. | The owner's firing rule (question 3) | Promised |
-| Export format: change the page, this file and the reader together. | A format it must keep | Promised |
+| Say row names and short names in chat. | Failure 7 | Promised |
+| Keep the "evidence for the verdict" finding and the acceptance test. | Failure 1 | Enforced (the finding); Promised (the test) |
 
 ## 19. Open questions
 
 *Proposed.*
 
-| # | Question | Why it is still open | Settled when |
-|---|---|---|---|
-| 1 | The nearest situation where eagle-eye would be wrong. | Ranked hardest to defend. | A real misfire is seen. |
-| 2 | What "clearly in a hurry" looks like to the familiar. | The owner: it is explicit ("nah we don't need a box"); the familiar judges it, with no listed phrases. | The quiet case passes on wording that is not in the skill. |
-| 3 | Whether the 2–3 decision chat table invites acceptance. | The owner's worry. | Three chat tables are used and their outcomes logged. |
-| 4 | Where the log lives in places that do not last (cloud, Codespaces, CI). | A stored yes or no is lost there too. | The first cloud use. |
-| 5 | Whether the audit is robust. | Improvements seen, not tested. | A measured run on boxes with known wrong edges. |
-| 7 | Whether a box needs a row limit. | The owner cut the 15-row split but thinks 20 rows is too much. | A real box passes 15 rows. |
-| 6 | Tool files outside the skill folder. | None: `render.mjs`, `audit.mjs` and `lib/` sit inside, so the seal covers them. | — |
-
-## 20. Where do the ideas come from?
-
-*Proposed.*
-
-- Zwicky's morphological box (general morphological analysis).
-- ASD-STE100 and ISO 24495-1 (question 15).
-- The owner's own use of eagle-eye on real decisions (e.g. `docs/decisions/`).
-- The audit's controls method, run through the audit's model provider, the owner's own design.
-- The research sweeps for this contract: `s2-sweep-library.md`, `s2-sweep-web.md`, `157-sweep-self-improving-skills.md` (agentic-sdlc, private).
+| # | Question | Settled when |
+|---|---|---|
+| 3 | Whether the 2–3 decision chat table invites acceptance. | Three chat tables are used and their outcomes logged. |
+| 4 | Where the log lives in places that do not last. | The first cloud use. |
+| 5 | Whether the audit is robust. | A measured run on boxes with known wrong edges. |
+| 7 | Whether a box needs a row limit. | A real box passes 15 rows. |
