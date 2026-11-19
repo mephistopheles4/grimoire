@@ -838,7 +838,7 @@ Every file is new to main. The ones that start from #622 (`6d7dec86`):
 
 | From #622 | State |
 |---|---|
-| the check widening: `scripts/check.mjs`, the two workflows, `athanor.json`, AGENTS.md's `scripts/` paragraph, `tests/check-plugins.test.mjs`, `tests/check-fixture.mjs`, `tests/check-manifests.test.mjs`, `tests/eval-budget.test.mjs`, `tests/registry.test.mjs` | kept |
+| the check widening: `scripts/check.mjs`, the two workflows, `athanor.json`, AGENTS.md's `scripts/` paragraph, `tests/check-plugins.test.mjs`, `tests/check-fixture.mjs`, `tests/check-manifests.test.mjs`, `tests/registry.test.mjs` | kept |
 | CONTRIBUTING.md's suite line | rewritten: the new test files, not #622's launch and proxy tests |
 | `observe.mjs`, `tests/incantation-observe.test.mjs` | rewritten for the inbox file (S7.4) |
 | `lib.mjs` | rewritten: the state folder, settings and text cleaning; the VoiceMode settings reader goes |
