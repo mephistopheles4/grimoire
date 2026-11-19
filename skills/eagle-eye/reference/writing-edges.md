@@ -7,6 +7,7 @@ grid, so a wrong edge is worse than no edge.
 
 - Tiers
 - What an edge can say
+- Writing rules
 - The eight weakness patterns
 - Chains
 - The suspected list
@@ -33,6 +34,36 @@ sure of is still argued.
   A or B.
 - An edge is one-directional. The page removes the reverse when you draw both.
 - A target in the same row is not allowed.
+
+## Writing rules
+
+**The rule: follow ASD-STE100, and keep sentences short.** ASD-STE100 is a
+controlled English standard. Use its writing rules only, not its dictionary.
+
+**One hard rule, by name: no idiom, no metaphor, no analogy.** *"pull one
+thread"*, *"rests on"*, *"fights"* are out. This rule is kept by name because
+an idiom in a `why` makes the reader guess what the edge claims.
+
+The points below are the standard's detail. Use them as guidance for what
+"follow ASD-STE100" means in practice. They are not a checklist to tick.
+
+- Active voice. *"The hook reads coverage"*, not *"coverage is read by the
+  hook"*.
+- Present tense for facts. Imperative for instructions.
+- One topic per sentence. One instruction per sentence.
+- Twenty words or fewer. Twenty-five for a descriptive sentence at
+  most.
+- No `-ing` verb forms as nouns or adjectives. *"Measure it"*, not
+  *"measuring is needed"*.
+- Noun clusters of three words at most. *"per-function coverage figure"* is
+  the limit.
+- Re-anchor a coined term every time it returns: *"the substrate (the shared
+  walking layer)"*.
+- Use the same word for the same thing. Do not vary for style.
+- Write the qualifier, then the point. Never a slogan alone.
+
+Test (ISO 24495-1): can the reader find it, understand it, and use it? A why
+that needs a second reading fails.
 
 ## The eight weakness patterns
 

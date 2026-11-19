@@ -7,6 +7,7 @@ what no refusal can tell you.
 ## Contents
 
 - Follow the code, not the diagram
+- A failure is one move
 - A handler the program has not got
 - Provenance
 - What a good trace shows
@@ -19,6 +20,29 @@ branch. The drift stays silent until a `next` lands somewhere the step cannot
 reach, often four moves later.
 
 Write the graph, validate, and only then write the first trace.
+
+## A failure is one move
+
+An effect that failed carries `raised` and no `next`. No second move
+follows to throw it. If you catch yourself writing two moves for one failure,
+the shape has already told you it only wants one.
+
+Then decide which kind of failure it is:
+
+- **The effect throws.** The effect move carries `raised`. A `propagate`
+  follows for each frame the error leaves. Then comes either an `uncaught`, or
+  a `catch` in a frame whose call step declares that tag. Before an
+  `uncaught`, the `propagate` moves are optional. The `uncaught` pops every
+  frame still open, and the error path records each one.
+- **The effect returns a failure value the code inspects.** The effect move
+  carries `next` to the `if` that inspects it, and the `if` routes to the
+  `throw` step.
+
+Both are ordinary. Pick the one the real code does.
+
+**Give the error its cause.** Write `fail` for an error the node's `error`
+list names. Write `die` for a defect the list does not name. Every `throw` move
+and the `uncaught` move repeat the cause the error carries.
 
 ## A handler the program has not got
 

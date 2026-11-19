@@ -42,12 +42,22 @@ Version: 0.3.0
 
 **The person** picks and accepts the chosen set, decides whether to keep the box, and decides whether to pay for the audit. The person keeps three abilities: to check the work, to explain why it is right, and to know when to stop. **Confirmed**
 
-**Stop and ask.** Each is Promised.
+**Stop and ask**
 
-- **Firing on its own, not by name.** Say how many coupled decisions it sees, and ask before it builds a box or opens a page. **Decided**
-- **Asked for by name, with no leaning shown.** Ask in one line which set the person leans to, and wait for the answer before building. By name, it builds without asking whether to. **Decided**
-- **The model audit.** Run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. Each run is a new charge. A second round or a run on one configuration needs its own yes, unless the person's own instructions give a yes for every run. **Confirmed**
-- **The usage log.** Write nothing until the person says yes in chat (question 13). **Decided**
+| Clause | Held by | Mark |
+|---|---|---|
+| When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** |
+| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. Each run is a new charge. A second round or a run on one configuration needs its own yes, unless the person's own instructions give a yes for every run. | Promised | **Confirmed** |
+| When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
+| When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker. | Promised | **Decided** (derived from questions 6 and 13) |
+| When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided** (it asks before it shows the box, so the answer is a true "before") |
+
+**What makes it fire.** **Decided**
+
+- By name (`/eagle-eye`, or asking for an eagle-eye view or a morphological box): build the box without asking whether to. First take the person's current leaning, from the discussion or by the one-line stop above. **Decided**
+- On its own, from the description: ask first (stop above).
+- The person is clearly in a hurry: it does not fire.
+- The trigger lives in the description. No hook. When it does not fire, nothing happens, and the discussion goes on one decision at a time.
 
 **When it is unsure.** It decides, and shows you: it marks whose choice each chosen option is, and the tier of each edge. **Confirmed**
 
@@ -106,7 +116,7 @@ The history is in `contract.changelog.md` beside this file.
 | 3 | A missing row carried in prose | Questions keep coming after the person accepts a set, and chat answers them instead of rows. | Low |
 | 5 | Positions drawn as rows | "Option 1, option 2, do nothing" as one row. | Medium |
 | 6 | An audit score treated as a verdict | A score changes a tier, or goes into the box. | Medium |
-| 7 | Ids in chat | The person hears names they did not write. | Low |
+| 7 | Ids in chat, or a restore code acted on without saying it back | The person hears names they did not write, or a misread becomes the record. | Low |
 
 ## 18. Every rule has a reason
 
@@ -119,7 +129,7 @@ The history is in `contract.changelog.md` beside this file.
 | A score never changes a tier and never goes into the box. | Failure 6 | Promised |
 | A question left after the person accepts a set becomes a row, not prose. | Failure 3 | Promised |
 | A row passes "can two of its cells be true at once? then it is not a row"; whole positions are presets. | Failure 5 | Promised |
-| Say row names and short names in chat. | Failure 7 | Promised |
+| Say row names and short names in chat; say a restore code back in words first. | Failure 7 | Promised (the stop in question 3) |
 | Keep the "evidence for the verdict" finding and the acceptance test. | Failure 1 | Enforced (the finding); Promised (the test) |
 
 ## 19. Open questions

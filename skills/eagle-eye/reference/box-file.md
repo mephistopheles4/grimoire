@@ -9,6 +9,7 @@ This file holds the detail behind the brief, the rows and the presets.
 - Challenge the premise with a row
 - The problem statement
 - Presets in detail
+- What the renderer checks
 
 ## An example brief
 
@@ -72,3 +73,32 @@ the reader meets a configuration that is not the chosen set.
 
 **A strawman can be the chosen option.** Keep the flag set, and say in `notes`
 why it survived. The flag records coverage, never quality.
+
+## What the renderer checks
+
+The renderer validates: a box-level `problem`, unique ids, exactly one
+`chosen` per row, a `short` on every option, edge targets that exist and sit
+in another row, a tier in {measured, sourced, argued}, a `src` on every
+non-argued edge, a why on every edge, and two or more presets of which one
+changes an option. `who`, `when` and a preset's `reframe` are optional, and a
+present one must not be blank. A `tour` is optional too. Each stop names a
+region the page has and a `now`, and its state must show its region.
+
+It warns on a row with no `problem`, on a row with no strawman, and on a
+strawman that is the chosen option.
+
+**The box's `problem` and a row's `problem` are two fields.** The renderer
+refuses a box that has no `problem`. It warns about a row that has none. The
+two messages name different places: `problem:` for the box, `dims[i]` for a
+row.
+
+**A strawman can be the chosen option.** The *strawman not rejected* finding
+says: give the reason to reject it, or pick it. Picking it is the second
+answer, and it is the interesting one: the weak option survived the whole
+grid. Keep the flag set and say in `notes` why it survived. The flag records
+coverage, never quality.
+
+No validator can tell a dimension from a menu of positions, and none can tell
+you a row is missing. One mechanical check would help and does not exist yet:
+warn when a single option rules out options across most of the other rows,
+because that cell is usually a position.

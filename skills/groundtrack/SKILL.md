@@ -47,12 +47,18 @@ advance where a failure is part of the contract.
 3. **List every graph you found before you draw, and let the reader pick.** Rank
    nothing and suggest nothing. A run that is not told which graph to draw asks.
    State the scope rule you applied, and each graph you did not draw, in `sheet`.
-4. **Write one file for the change**, and validate as you go. Write the nodes
-   and the graphs first, then the traces one at a time. The shape is in
-   [`references/flightpath-file.md`](references/flightpath-file.md). A complete
-   legal file is
-   [`examples/greet.flightpath.json`](examples/greet.flightpath.json). The loop
-   and the two mistakes you will make are in
+4. **Write one file for the change.** One file states the change: its title,
+   its blurb, its changed files, its sheet rule, one node map, and a list of
+   graphs. A graph is an entry point and the runs from it, so a second graph is
+   an entry named rather than a second file. A symbol two graphs reach is
+   defined once.
+
+   Read [`references/flightpath-file.md`](references/flightpath-file.md) for
+   the shape, and
+   [`examples/greet.flightpath.json`](examples/greet.flightpath.json)
+   for a complete legal file. Write the nodes and the graphs first. Validate.
+   Then write the traces, one at a time.
+   The loop and the two mistakes you will make are in
    [`references/writing-traces.md`](references/writing-traces.md).
 5. **Answer every finding.** `--check` exits zero and still prints findings,
    because a finding never refuses. Fix the file, or write one line saying why
@@ -71,6 +77,22 @@ advance where a failure is part of the contract.
 **Write the file and the page to a scratch directory,** never beside the input.
 Copy either into the repository only when the reader asks.
 
+## Cutting a large change
+
+Three things reach the page so a reader can audit the cut.
+
+- **The scope rule the run applied**, so the reader can disagree with it.
+- **Files in the change that no node accounts for**, by name. A
+  documentation-only part of a change is not silently dropped. It reads every
+  node of the change, so a file one graph covers is not reported because
+  another does not.
+- **Graphs found and not drawn**, each named with why it is worth a draw. Found
+  and in no sheet of this file: a graph the file carries is drawn, so it is
+  never listed here.
+
+Those last two stay two separate statements. They are different failures, and
+merging them loses which is which.
+
 ## The command line
 
 `<skill>` is the base directory the harness gives you. Never write a fixed path.
@@ -87,11 +109,21 @@ for `--text`; without it the renderer lists the graphs and stops.
 
 ## Layers
 
-A layer redraws the same graph under a different set of dependencies, such as
-the test layer. **A layer renames a token, never a node.** A real double goes in
-at the call site, through a parameter with a real default. Flip the toggle: a
-node that still reaches the real network under the test layer is a design
-defect you can see.
+A layer redraws the same graph under a different set of dependencies. The test
+layer is the obvious one.
+
+**A layer renames a token, never a node.** The geometry is untouched, so the
+redraw computes nothing. A real double goes in at the call site, through a
+parameter with a real default, so the requirement is renamed and the node
+stays.
+
+Flip the toggle. A node that still reaches the real network under the test
+layer is a design defect you can see, rather than a sentence you have to trust.
+
+A layer may state its own entry. Everything the call edges cannot reach from it
+draws as unreached.
+
+A file that declares no layer map disables the toggle and says why.
 
 ## The text output
 

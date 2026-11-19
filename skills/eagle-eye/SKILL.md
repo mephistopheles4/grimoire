@@ -35,6 +35,28 @@ A request by name removes only the question "may I build a box?". When you are
 unsure, decide and show it: mark whose choice each chosen option is, and the
 tier of each edge.
 
+## When to stop and ask
+
+Stop and wait for the person at each of these five moments:
+
+- When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes.
+- When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat.
+- When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm.
+- When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker.
+- When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building.
+
+For the first stop, say it in one line: *"I see N decisions, and M of them are
+coupled. Shall I lay them out as a box?"* A chat table for two or three
+decisions counts as building too. Ask before it.
+
+The second stop is in step 4 (detail in `reference/audit.md`), the third in
+step 7, the fourth in [Usage record](#usage-record), the fifth
+before step 1 of the procedure.
+
+**When it is unsure: it decides, and shows you.** Mark whose choice each
+chosen option is, and the tier of each edge. Do not stop to ask about a
+choice the box can show. The five stops above still hold.
+
 ## Depth
 
 | Decisions | Output |
@@ -105,6 +127,21 @@ with a guess.
 
 **Keep the "evidence for the verdict" finding in what you report.** It asks:
 if every edge is true, can the set still be wrong?
+
+## The seven findings
+
+The page and `--check` compute these. Six read the configuration in front of
+you. The seventh, *chain*, reads the whole box, so clicks do not change it.
+
+| Finding | What it points at |
+|---|---|
+| row not opened | A row with edges to the rows you changed on the page, that you did not open. It reads your clicks, so an edit to `chosen` in the box file is not a change it can see. |
+| weakest edge | The lowest-tier edge the verdict depends on. Measure this one first. |
+| most connected | The selected option with the most edges. Change it and the most moves. |
+| row with no edges | Independent, or an edge is missing. |
+| strawman not rejected | A strawman nothing rules out. Give the reason, or pick it. |
+| chain | Two or more edges that compose. Names the relation they derive, and says whether the box states it. Options that require each other report as a *cycle*. |
+| evidence for the verdict | *If every edge is true, can the set still be wrong?* Counts the argued edges among the active ones. Names each row whose active edges are all argued. Past three rows it gives a count instead. |
 
 ## When the box is finished
 
