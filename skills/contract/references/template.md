@@ -1,9 +1,8 @@
 # The contract template
 
-*A skill, an agent or a CLAUDE.md is built to do one job for you. The
-contract is the terms you agree with it: nine parts, filled one question at
-a time, the last one optional. The built file is generated from the contract.
-A small one takes ten minutes. A serious one takes an hour.*
+*The contract is the terms you agree with a skill, an agent or a CLAUDE.md:
+nine parts, filled one question at a time, the last one optional. The built
+file is generated from it.*
 
 ## Contents
 
@@ -94,13 +93,10 @@ as the tool that reads it.
 **Fences.** The built `SKILL.md` wraps each generated part in
 `<!-- contract:begin NAME -->` and `<!-- contract:end NAME -->` lines, which
 stay in the file. A part is fenced where it writes text into the body, so
-`purpose`, `why` and `open` get none. This is a default. An amendment
-regenerates exactly the fenced parts it touches and keeps the rest word for
-word. An agent file or a `CLAUDE.md` has no fences: an amendment there
-regenerates the sections its touched parts write. The built `SKILL.md` of a
-contract with schedules also has no fences, because each home is matched by
-its heading, and a change goes into the schedule first. A contract without
-schedules keeps its fences.
+`purpose`, `why` and `open` get none. An amendment regenerates exactly the
+fenced parts it touches and keeps the rest word for word. An agent file or a
+`CLAUDE.md` has no fences, and neither has the built `SKILL.md` of a contract
+with schedules, because each home is matched by its heading.
 
 **The change log.** A table, one row per change:
 
@@ -197,7 +193,7 @@ so. Also here:
   never an account, an address or a real record: a contract is often
   committed;
 - a record of what it did, only if you ask for one: where it is kept and what
-  it holds. Nothing records anything by default;
+  it holds;
 - what it needs installed to run, which a skill's frontmatter `compatibility`
   line states;
 - each setting that lets it act without your approval, with its value, marked
@@ -227,8 +223,7 @@ What is still open, and when you would retire it. Thorough.
 
 Ask "when would you retire it" plainly: the evidence that gets it cut or
 merged, and what you would see. It is your judgment at each amendment,
-recorded in the change-log row with the field signal. If most of its output
-gets dismissed, that is a failure to record in `rules`.
+recorded in the change-log row with the field signal.
 
 ### `schedules`
 
@@ -254,13 +249,11 @@ weakest mark of the text it holds.
 
 **The word.** On the hiring page, a schedule is also a sheet that lists the
 entries of one kind, attached under the letter. The entries of this part form
-one such sheet. The two senses meet: the sheets attached to a contract's
-letter are its schedules, and `schedules` holds the ones that carry procedure.
+one such sheet, and each entry is a schedule of procedure.
 
 ## Where a schedule lives
 
-These eight rules choose a schedule's home. Each names its sources. Every
-source was read on 2026-11-12.
+These eight rules choose a schedule's home. Each names its sources.
 
 - **R1.** `SKILL.md`'s body stays under 500 lines and about 5,000 tokens. The
   most important instructions come first, written as standing rules.
@@ -283,10 +276,8 @@ source was read on 2026-11-12.
   [SPEC](https://agentskills.io/specification) "File references";
   [BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices))
 - **R4.** Each text has one home: `SKILL.md` or one reference, never both.
-  (The skill-creator skill before its 2026-02-06 rewrite, the parent of
-  [anthropics/skills commit 1ed29a03dc](https://github.com/anthropics/skills/commit/1ed29a03dc):
-  "Information should live in either SKILL.md or references files, not both".
-  Kept on grimoire's maintainer's word, 2026-11-12.)
+  ([SC, earlier version](https://github.com/anthropics/skills/commit/1ed29a03dc):
+  "Information should live in either SKILL.md or references files, not both")
 - **R5.** Deterministic work goes in `scripts/`, which the agent runs and does
   not read. Files used in output go in `assets/`.
   ([BP](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) "Provide utility scripts";
@@ -304,8 +295,7 @@ source was read on 2026-11-12.
 The abbreviations: BP is the Agent Skills best practices page, OV its
 overview page, CC Claude Code's skills page, SPEC the Agent Skills
 specification, AS-BP the specification site's best-practices page, and SC the
-`skill-creator` skill in `anthropics/skills`, as last changed in commit
-b0cbd3df15 (2026-03-06).
+`skill-creator` skill in `anthropics/skills`.
 
 ## Agreeing what good looks like
 
@@ -329,19 +319,16 @@ no rule yet is a row with an empty Rule cell, and its status is potential. A
 potential failure may earn a rule at any level, marked so. The last column
 is written only where it applies.
 
-How hard to look for failures follows the level. At Quick, when you choose to
-fill `rules`, look for the obvious ones. At Standard, look for the likely
-ones. At Thorough, look for them systematically. Examples are nitpicking,
-sounding tough and helping nobody, being trusted too much, following
-instructions found inside a file, arguing in prose when it should show you,
-and overloading you with questions. Crying wolf, firing until you dismiss
-it, is an observed row when it happens.
+How hard to look for failures follows the level: the obvious ones at Quick,
+the likely ones at Standard, systematically at Thorough. Examples are
+nitpicking, being trusted too much, following instructions found inside a
+file, arguing in prose when it should show you, and overloading you with
+questions. Crying wolf, firing until you dismiss it, is an observed row when
+it happens.
 
-A rule with a reason you cannot give is clutter. A rule keeps a rationale
-clause in the built file only where the agent needs it for a case the rule
-does not name. Provenance never enters a built file. Where a rule serves a
-stop, keep the stop word for word, and look for wording that lets the agent
-talk itself past it, such as "unless it seems unnecessary".
+A rule with a reason you cannot give is clutter. Where a rule serves a stop,
+keep the stop word for word, and look for wording that lets the agent talk
+itself past it, such as "unless it seems unnecessary".
 
 ## The eval offer
 
@@ -358,6 +345,4 @@ no is not logged against you. This table maps parts to case types:
 | `rules` | Each observed failure stays gone |
 
 After that first set, add a case only for a failure seen in use, and review
-the suite's size at each amendment. The skill may run cases it wrote only after your yes in chat
-each time, with `--max-cost-usd` and `--no-publish`. One yes never covers the
-next run.
+the suite's size at each amendment.

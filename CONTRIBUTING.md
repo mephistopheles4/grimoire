@@ -271,8 +271,7 @@ stop's wiring and for what the mod must not hold: a window, a cleaner, a
 removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
 imports it to check that a send after the last `set_roster` owes an update and
-which sends carry a message, and the two compaction lines, the
-shared exception string, the 0.9 margin and the once-per-cycle state, and the level-3 note's three strings; it also reads `brigade/register.tsx`'s text for the note's wiring, and `SKILL.md`, the contract and the security page for what they say of it. The background start tool's rules
+which sends carry a message, and the tally the roster note clears. The background start tool's rules
 module, `brigade/start.ts`, is the seventh: `tests/brigade-start.test.mjs`
 imports it to check the start tool's input rules and fixed words. A card's
 quick action module, `brigade/quick.ts`, is the eighth:
@@ -359,7 +358,7 @@ other reason to keep the count down.
 
 The agent-facing docs are counted. `tests/doc-budget.test.mjs` holds a budget in
 words for each, and fails when a doc grows past its budget or a listed doc is
-gone. A doc says what holds now: the history of a rule (the issue or decision
+gone. A skill's own files are not counted. A doc says what holds now: the history of a rule (the issue or decision
 that raised it, the version that changed it, the date it was settled) belongs in
 an ADR, a change log or a dated log (`docs/logs/`), never in the doc. To add to a doc past its
 budget, cut something in the same change. **Raising a budget is a spec change:**
@@ -480,7 +479,7 @@ until the list names it, and a text file renamed `.woff2` is still read.
 **Write to the skill's own rules.** eagle-eye's prose follows ASD-STE100 tested
 against ISO 24495-1: active voice, present tense, one instruction per sentence,
 twenty words or fewer, no idiom. See
-[`skills/eagle-eye/reference/writing-edges.md`](skills/eagle-eye/reference/writing-edges.md).
+[`skills/eagle-eye/SKILL.md`](skills/eagle-eye/SKILL.md).
 A patch that breaks the rule the skill teaches is the worst kind of patch here.
 groundtrack's prose follows the same controlled English.
 

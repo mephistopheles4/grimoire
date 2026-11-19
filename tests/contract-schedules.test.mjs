@@ -6,9 +6,7 @@
 // grammar, when a section has no schedule or two, when a schedule hides a
 // heading, a comment or a link-reference line, when a schedule names a clause
 // the body does not hold, when the frontmatter's description or compatibility
-// differs from the body's clause, or when a schedule that carried text
-// Proposed or pending at its last confirmed version is marked Confirmed.
-// The same file proves the counter: a fixture passes, and one fault of each
+// differs from the body's clause. The same file proves the counter: a fixture passes, and one fault of each
 // kind fails with its message.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -264,49 +262,9 @@ function faultsOf(contractPath, skillDir, pending) {
   return out;
 }
 
-// Check 7's list for head-chef, from the clause map's 1.36.1 mark column (the
-// weakest mark over each schedule's text, "pending" where the threat model's
-// open issues or docs/security/brigade.md list the clause as pending the
-// owner's word). A schedule here is Proposed until the owner confirms it
-// alone. A later amendment that confirms one on the owner's own answer removes
-// it from this list in the same commit, and the commit message quotes that
-// answer.
-const HEAD_CHEF_PENDING = [
-  'SKILL.md: head-chef',
-  'SKILL.md: How you write to the owner',
-  'SKILL.md: What a good report looks like',
-  'SKILL.md: Starting a session',
-  'SKILL.md: Sending and idle notices',
-  'SKILL.md: Between the owner and the sessions',
-  'SKILL.md: Autonomy levels',
-  'SKILL.md: The decision log and the hand-off',
-  'SKILL.md: Asking the owner',
-  'SKILL.md: Cleanup',
-  'SKILL.md: Who decides',
-  'SKILL.md: Stop and ask',
-  'SKILL.md: Tools',
-  'SKILL.md: The start prompt',
-  "SKILL.md: Actions that need the owner's yes",
-  'SKILL.md: The Brigade pane',
-  'SKILL.md: Rules',
-  'SKILL.md: Additional resources',
-  'references/starting.md: Starting a session',
-  'references/starting.md: When the model changes',
-  'references/starting.md: When a start is refused',
-  'references/cleanup.md: Cleanup',
-  'references/cleanup.md: Which sessions',
-  'references/cleanup.md: The steps',
-  'references/cleanup.md: Undoing a wrong card',
-  'references/cleanup.md: Removing a stopped session for good',
-  'references/cleanup.md: What never happens',
-  'references/handoff.md: The hand-off',
-  'references/desktop.md: Starting a Desktop session',
-  'references/roster.md: The roster',
-  'references/roster.md: The call',
-  'references/roster.md: If the pane is rolled back',
-  'references/roster.md: When to call it',
-  'references/roster.md: The answers',
-];
+// Check 7's list: schedules whose text was Proposed or pending at a last confirmed version.
+// The head-chef contract carries no such trail since 2.3.0, so its list is empty.
+const HEAD_CHEF_PENDING = [];
 
 // ---------------------------------------------------------------------------
 // The contracts in the tree.
@@ -322,21 +280,14 @@ const contractsIn = () => {
   return out;
 };
 
-test('head-chef has a schedules part: 37 schedules, one for each section of SKILL.md and its five references', () => {
+test('head-chef has a schedules part: one schedule for each section of SKILL.md and its references', () => {
   const chef = contractsIn().find(c => c.name === 'head-chef');
   assert.ok(chef, 'the head-chef contract holds a schedules part');
   const found = schedulesOf(lf(readFileSync(chef.file, 'utf8')));
-  assert.equal(found.schedules.length, 37);
+  assert.equal(found.schedules.length, 28);
   assert.match(readFileSync(chef.file, 'utf8'), /^Version: 2\.\d+\.\d+$/m, 'the contract is 2.x');
-  // Every schedule listed as Proposed or pending at 1.36.1 is one of them and is Proposed; every
-  // other schedule is Confirmed. The count is exact, so a shortened list fails here.
-  for (const title of HEAD_CHEF_PENDING) assert.ok(found.schedules.some(s => s.title === title), title);
-  assert.equal(HEAD_CHEF_PENDING.length, 34, 'the pending list holds 34 titles');
-  assert.equal(new Set(HEAD_CHEF_PENDING).size, 34, 'no title is listed twice');
-  for (const s of found.schedules) {
-    assert.equal(s.mark, HEAD_CHEF_PENDING.includes(s.title) ? 'Proposed' : 'Confirmed', `${s.title}: its mark follows the list`);
-  }
-  assert.equal(found.schedules.filter(s => s.mark === 'Confirmed').length, 3, 'three schedules are Confirmed');
+  assert.deepEqual(HEAD_CHEF_PENDING, [], 'no schedule is pending');
+  for (const s of found.schedules) assert.equal(s.mark, null, `${s.title}: carries no mark`);
 });
 
 test('every contract with a schedules part matches its homes (checks 1 to 7)', () => {

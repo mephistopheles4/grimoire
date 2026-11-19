@@ -146,9 +146,7 @@ continues, until it is met or you say otherwise. A press counts at once; the
 lead asks for a goal in its chat when there is none, and acts at Auto until it has one. At levels 2 and 3 the
 lead follows your user-level instructions file: at level 2 what that file keeps for you
 waits for you, as a to-do; at level 3, inside the goal, nothing waits, and the lead
-decides it, flagged "Owner's call:", stopped only by Claude's own guardrails and the harness. Cleanup's yes is yours in chat at levels 1 and 2, and at level 3 your user-level
-instructions file decides it; a hand-off request or a fresh session a context
-figure prompts waits for you at every level.
+decides it, flagged "Owner-kept call:", stopped only by Claude's own guardrails and the harness. Cleanup's yes is yours in chat at levels 1 and 2; at level 3 the lead decides it, flagged, and the cleaner's own checks still hold.
 Only your press or your own `/brigade level 1`, `/brigade level
 2` or `/brigade level 3 <goal>` moves the level, and
 the level in force is drawn on every view (on Desktop, at the pane's foot), 3 in the warning colour; a lowering or a 2 you type also gives the lead one turn, so it reads the new level at once (a 3 does not: tell the lead yourself); a 3 the

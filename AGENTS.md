@@ -7,25 +7,7 @@ Read [Run the check in a container](CONTRIBUTING.md#run-the-check-in-a-container
 first, for how to install athanor and when it is safe to run, then run the
 check with `athanor run check` by default.
 
-A hook in `.claude/settings.json` enforces that order: while `athanor` works, it
-refuses `node scripts/check.mjs` from you. When athanor is missing (a shim that
-dangles counts as missing), run the host check as it is. When an athanor run
-exits 124, 125 or 137, add `--host-fallback=<reason>` to the host check, in your
-own words with no path, token or pasted error text, and say in your report that
-you used the fallback. A sha512 mismatch in the image build also exits 125; it
-is not a Docker fault, so stop and tell the owner. Read
-[The agent guard](CONTRIBUTING.md#the-agent-guard) for the rest.
-
-## Four directories are called `scripts/`
-
-`scripts/` at the repository root holds this repository's own checks — the one
-command, the site build, and the table that says which renderer owns which
-artifact — and the two scripts that draw each skill README's sheets, with the kit they
-share in `scripts/lib/drafting.mjs`. `skills/groundtrack/scripts/` holds that skill's renderer and the one
-module it inlines into the page. `skills/contract/scripts/` holds the contract
-skill's interview script, the one module it shares with the hiring page, and
-the kinds table both read. `skills/incantation/scripts/` holds
-that skill's scripts. The path says which.
+A hook in `.claude/settings.json` refuses the host check while athanor works. [The agent guard](CONTRIBUTING.md#the-agent-guard) says when `--host-fallback=<reason>` is allowed; a sha512 mismatch in the image build is not a Docker fault, so stop and tell the owner.
 
 ## Head-chef and the rules it runs under
 
@@ -45,7 +27,7 @@ anything from another session's log needs the owner's own words.
 
 ## Threat model
 
-This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md), boundaries first, capped at 3,000 words; `SECURITY.md` also links it. Hand it to any security review. A change to its scope, its accepted classes or this line is the owner's decision, and so is one that loosens the cleaner's checks, the deny and ask rules or the head chef's gates.
+This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md); hand it to any security review. A change to its scope, its accepted classes or this line is the owner's decision, and so is one that loosens the cleaner's checks, the deny and ask rules or the head chef's gates.
 
 ## Agent skills
 
@@ -62,5 +44,3 @@ The five canonical roles are `needs-triage` (the maintainer must evaluate it), `
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. `CONTEXT.md` is the glossary; use its terms and not the ones it says to avoid. Read the ADRs that touch the code you are about to change: 0003 before changing groundtrack's `fold`, 0004 before adding or changing a size limit in its renderer. When your output contradicts an ADR, say so; do not override it silently. When a concept you need is not in `CONTEXT.md`, you are either inventing language the project does not use (reconsider) or you found a gap (note it for `/domain-modeling`). `/domain-modeling` adds a term or an ADR when one is settled.
-
-`docs/decisions/` holds kept eagle-eye box files. A box is a working surface, so most stay in scratch and never land here.

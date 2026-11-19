@@ -1,73 +1,25 @@
 # Writing a trace
 
-A trace is a list of moves you write by hand. Read
-[`flightpath-file.md`](flightpath-file.md) for the field shape. This page is
-about getting a trace right, and about the two mistakes that measurement says
-you will actually make.
+A trace is a list of moves you write by hand. [`flightpath-file.md`](flightpath-file.md)
+holds the shape. The validator's refusals say what is wrong. This page holds
+what no refusal can tell you.
 
 ## Contents
 
-- The loop
 - Follow the code, not the diagram
-- The cursor is a fact, not an inference
 - A failure is one move
-- The two things measurement says you will get wrong
-  - One: a spurious pop
-  - Two: a handler the program has not got
-- Provenance is not decoration
+- A handler the program has not got
+- Provenance
 - What a good trace shows
-
-## The loop
-
-Write the file. Run the validator. Read the refusal. Fix it. Run it again.
-
-```bash
-node <skill>/scripts/render.mjs <topic>.flightpath.json --check
-```
-
-Refusals go to standard error and the exit code is 1. Findings go to standard
-output and the exit code stays 0. A refusal names the file and a reason,
-always. When the fault is in a trace it names the run and the move as well.
-
-Exit code 2 means the renderer could not finish, and it prints one line. The
-file is not JSON, the page cannot be written, or the renderer stopped.
-Read that line, and fix what it names. See
-[What a refusal says](flightpath-file.md#what-a-refusal-says).
-
-**The loop ends on a clean checker, and a clean checker still prints findings.**
-The loop never fixes them, because a finding never refuses. Read every finding
-when the loop ends, and answer each one before you call the file done.
-
-**Do not write the whole file and then validate once.** Write the graph, run
-the validator, and only then write the first trace. A trace written against a
-graph that does not hold is a trace you will rewrite.
-
-Measured on a weak agent over nine runs: with the validator in hand, eight in
-nine reach a clean checker, in a median of two passes and a worst case of
-three. Without it, four in nine were legal on the first attempt and nobody
-found out which four.
 
 ## Follow the code, not the diagram
 
 Open the material and follow one route through it, move by move. Write the move
-as you pass it. Do not write the shape you expect and then look for it.
+as you pass it. A trace written from a remembered shape drifts at the first
+branch. The drift stays silent until a `next` lands somewhere the step cannot
+reach, often four moves later.
 
-A trace written from a remembered shape drifts at the first branch, and the
-drift is silent until a `next` lands somewhere the step cannot reach — often
-four moves later, where the refusal is harder to read.
-
-## The cursor is a fact, not an inference
-
-- Every move that runs a step carries `at`, and `at` is where the cursor
-  already sits.
-- Every move that leaves a live cursor carries `next`, and `next` is where the
-  cursor goes.
-- Nothing advances on its own.
-
-The one place this trips people is the call. **A call sets its own `next`
-before the callee is pushed**, so while the callee runs, the caller's cursor is
-already past the call step. Write the caller's continuation on the call move,
-then push.
+Write the graph, validate, and only then write the first trace.
 
 ## A failure is one move
 
@@ -92,55 +44,29 @@ Both are ordinary. Pick the one the real code does.
 list names. Write `die` for a defect the list does not name. Every `throw` move
 and the `uncaught` move repeat the cause the error carries.
 
-## The two things measurement says you will get wrong
+## A handler the program has not got
 
-### One: a spurious pop
+The validator cannot see this one. A declared but unused `onError` is a legal
+path, so a file can be green and describe a program that does not exist. Before
+you call the file done:
 
-A `return` or a `propagate` you did not mean empties the frame stack, and every
-move after it is refused. One measured run went 34 errors, then 36, then 36,
-then 36, and finished blaming the checker — when the whole fault was one
-`propagate` a single move earlier than the refusal pointed.
+- Read every `onError` you wrote, and find the line in the material that
+  catches that tag. If there is none, delete the handler.
+- Read every `error` list, and find what throws each tag.
+- Read every `role`, and check the node does what the word says. Mark a node
+  that writes an argument in place `mutates`, not `pure`.
 
-The validator now names **the move that emptied the stack**, not the first move
-to notice. When you see that refusal, look at the move it names and nowhere
-else.
-
-### Two: a handler the program has not got
-
-This is the one the validator cannot see, and it is the residual the
-measurement ends on. A declared-but-unused `onError` is a perfectly legal path.
-No refusal will ever mention it. So a file can be green and describe a program
-that does not exist.
-
-One check does fire on the strongest form of it: **a tag claimed uncaught is
-refused when a frame in its way declares a handler for that tag.** That moves
-the error into the half the loop demonstrably fixes.
-
-The rest is on you. Before you call the file done:
-
-- Read every `onError` you wrote and find the line in the material that catches
-  that tag. If there is no such line, delete the handler.
-- Read every `error` list and find what throws each tag.
-- Read every `role` and check the node does what the word says. `--check`
-  reports a node marked `pure` that runs an effect. No check reads any other
-  role word. A node that writes an argument in place is not `pure`, and no
-  check catches it. Mark it `mutates`; see
-  [role](flightpath-file.md#role).
-
-## Provenance is not decoration
+## Provenance
 
 `authored` means a person or an agent wrote this trace from reading the
 material. `captured` means a real run produced it. **Write `authored` unless a
-run produced it.** The page stamps the two differently on purpose, because an
-authored trace is a longer claim and not a check.
-
-No recorder ships, so today every trace you write is `authored`.
+run produced it.** The page stamps the two differently, because an authored
+trace is a longer claim and not a check. No recorder ships, so every trace you
+write is `authored`.
 
 ## What a good trace shows
 
 One route, chosen because it shows something. A file with five runs that all
-take the happy path is a file whose run picker changes nothing.
-
-Give each run a `blurb` of one sentence saying what it shows. A reader chooses
-between runs on that sentence alone, and the text output lists every run you
-did not print by name and blurb.
+take the happy path is a file whose run picker changes nothing. Give each run a
+`blurb` of one sentence saying what it shows. A reader chooses between runs on
+that sentence alone.

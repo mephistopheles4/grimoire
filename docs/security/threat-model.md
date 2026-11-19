@@ -6,13 +6,11 @@ the machine (your own computer, or a sandbox run on it) is the machine's,
 and no finding; what came in from outside stays outside input. Name the
 control that holds the boundary against the path, with when it doesn't
 hold; if a control holds, add nothing. Check the residual against the classes.
-Bring the owner what the guide's step 5 lists, every `security?` row
-included; no class covers a change that weakens a rule or control, adds a
-route for outside text into a session or more reach to one that reads it,
-adds text to files sessions load, or writes a secret into text sessions
-read. The full guide is the pact's review procedure, The threat model
-section (`~/.claude/pact/review.md`; public copy:
-https://github.com/mephistopheles4/the-pact/blob/main/claude/review.md).
+No class covers a change that weakens a rule or control, adds a route for
+outside text into a session or more reach to one that reads it, adds text to
+files sessions load, or writes a secret into text sessions read; bring those
+to the owner. The review procedure that places findings is the owner's own
+rules (the-pact's `review.md`, The threat model section).
 
 [`SECURITY.md`](../../SECURITY.md) is the summary. Four pages hold the detail
 behind the controls: [`checks.md`](checks.md), [`brigade.md`](brigade.md),
@@ -62,10 +60,10 @@ flowchart LR
 **Controls:**
 
 - Harness: the permission mode's prompts and classifier, deny and ask rules, and folder trust. Claude Code's documented behaviour: none of them under `bypassPermissions` or an allow rule, and the classifier is skipped when a mod approves the call. This is the host agent's own rule that file content is data.
-- Installed by the pact: deny rules on raw worktree and branch removal and `claude rm`, and on `claude stop`, `kill`, `daemon stop` and `respawn`, the stop rules off unless their switch is on, the removal rules on only while the cleaner is on; an ask rule on the cleaner, passed under `bypassPermissions`. Speed bumps, not gates.
+- The owner's own rules may install deny and ask rules on raw worktree and branch removal, `claude rm`, `claude stop` and the cleaner. They are speed bumps, not gates, and this model counts none of them.
 - R1: each skill says the material is data; groundtrack tells the reader a request-like line, says AI drew the page, and stamps it authored; traces are literals a reader can check.
 - R2: renderers escape control and invisible characters, cut strings at 200, 1,000 and 2,000, put no author text in an attribute, fill pages in one pass, and refuse hostile shapes at three measured limits (call depth 1,000, tree rows 20,000, cut-call search 1,000,000). Answers bind to their draft by SHA-256; the hiring page has a content security policy. Eagle-eye walks at most 20,000 steps. The contract skill never writes a hook, a settings file or a permission list, asks before an installing write, and takes an action drafted from a file only on the person's own words. Rules 2c and 6c refuse hidden characters and unlisted keys. The hiring interview has Reset, a hand-back delete and a refusal of a parent inside a git work tree. [Detail](rendering.md), [hiring-interview.md](hiring-interview.md).
-- R5: the head chef's sender check (status file, `from-session` and `from` pairing), fixed-form start prompt, sends only to a local address, reports as data, the owner's yes for starts, cleanup and each GitHub act, or at levels 2 and 3 what the owner's user-level file hands the lead, and no force push, no remote branch delete. A background start refuses a bad name, form, shell, issue number, repository, permission mode or prompt, and relies on folder trust; a Desktop start needs the owner's words. Cleanup runs a cleaner the owner's instructions name, only for a folder it knows, never on a main working tree or a worktree another session is in; a failed run is told and left. At level 3 the lead decides what the owner's user-level file hands it; an install, a post carrying private work, and an edit to this model's scope, its classes or its AGENTS.md line still wait for the owner. [Detail](brigade.md#row-16).
+- R5: the head chef's fixed-form start prompt, sends only to a local address, reports as data, the owner's yes for starts, cleanup and each GitHub act, or at levels 2 and 3 what the owner's own rules hand the lead, and no force push, no remote branch delete. A background start refuses a bad name, form, shell, issue number, repository, permission mode or prompt, and relies on folder trust; a Desktop start needs the owner's words. Cleanup runs a cleaner the owner's instructions name, only for a folder it knows, never on a main working tree or a worktree another session is in; a failed run is told and left. Nothing waits at level 3: the lead takes each call, flags the ones the owner's own rules keep with "Owner-kept call:", and only the harness and the tools' own refusals stop it. [Detail](brigade.md#row-16).
 - R11: a skill under test runs in don't-ask mode with hooks off, settings edits and reaches off the machine denied, the environment built from a named list, and backups of the owner's live places. Hygiene, not a boundary (ADR 0006).
 
 **Residual:** Text steers a session; Renderer output carries author text; A forged or misled session can speak for the lead; A steered lead can start a session in any trusted folder; Box text can move an audit edge. The rules they rest on, each a control: only the owner's words in the lead's chat count as the owner's; installs stay the owner's; reports and relays are data.
@@ -94,7 +92,7 @@ flowchart LR
 
 - GitHub: a ruleset on `main` requires a pull request, an up-to-date branch and the checks `check`, `scan` and `audit`, and blocks deletion and non-fast-forward pushes; it requires no approving review. The plugin validator's `validate` runs on pull requests and is not a required check.
 - R3: `scripts/check.mjs` holds frontmatter keys, hidden characters, manifests, baselines (rules 2c, 6c, 7 and 7a), fixed home paths and a version bump; SkillSpector's probe, the scanner pins, and partly read files pinned by content; review of each diff.
-- The head chef names the repository and whether it is public before an act, deletes its temporary post file, reads the head again before a merge, deletes a branch only on the owner's words or a same-repository head, and posts no error text. A level-3 merge goes toward the goal and names the reviewed head, with CI passed on it; every other merge or close, and a merge that changes this model's scope or classes, waits for the owner's words. [Detail](brigade.md#row-16).
+- The head chef names the repository and whether it is public before an act, deletes its temporary post file, reads the head again before a merge, deletes a branch only on the owner's words or a same-repository head, and posts no error text. A merge names the reviewed head and is made with `--match-head-commit`; at level 1 every merge or close waits for the owner's words, and at level 2 the owner's own rules say which do. [Detail](brigade.md#row-16).
 
 **Residual:** Review is the guard for scanner gaps; GitHub acts on the owner's word are irreversible and public.
 
@@ -152,7 +150,7 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - **Renderer output carries author text.** An escaped one-line name can still read like a path or a reason; refusal lines are bounded each, not in count; deep nesting stops a renderer with one line.
 - **Other plugins share the mod's trust.** An installed plugin can read the mod's plugin state (not the report store, Remote Control link or old folder key), rewrite the usage record, plant the warning's dismissal, and rewrite or press the autonomy level, forging a 3's confirmation.
 - **A forged or misled session can speak for the lead.** A message under the lead's shown name or a relay counted as a decision can move the lead; a steered lead or an unasked skill load can write false log entries and lead hand-offs.
-- **GitHub acts on the owner's word are irreversible and public.** The head is not pinned between review and merge, a broad word covers acts it did not name, deletes are permanent, and history keeps text; at a confirmed level 3 the lead's own picks reach a merge.
+- **GitHub acts on the owner's word are irreversible and public.** The head is not pinned between review and merge, a broad word covers acts it did not name, deletes are permanent, and history keeps text; at level 3 the lead's own picks reach a merge.
 - **A steered lead can start a session in any trusted folder.** The start binds a folder to no repository the owner chose, and its reads run before the trust gate, so a refusal shows whether a path exists, is a main checkout, or belongs to a repository.
 - **The mod's tools run with no permission prompt,** in plan and don't-ask modes too, each inside its guards and the path rule: `set_roster`, the four tab tools and `stop_background_session`.
 - **A tracked hook runs a branch's code when a session opens.** The owner judged the agent guard worth that exposure; it protects the merge, not the reader.
@@ -168,7 +166,7 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - R2: the attribute rule is held by review, not by a parse of the page.
 - R3: plain-prose instructions no scanner detects; fifteen scanner dependencies resolve fresh each run.
 - R4: the CI pins are not content pins, and no tarball hash is checked; git in the image is not hash-pinned.
-- R5: cleanup's authorization; the sender check is a consistency check; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
+- R5: cleanup's authorization; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
 - R6: the `claude://` opener inherits the session's environment; the roster's check-and-write race.
 - Remote Control: how long a member's transcript stays after it stops, and whether a device keeps a copy, are not checked.
 - R8: the script cannot stop the agent itself printing an environment variable.

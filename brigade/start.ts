@@ -34,7 +34,7 @@ export const START_TIMEOUT_MS = 60000
 
 /** What the lead still reads after a compaction (issue 543 S2.0, amended by issue 578 S3.4). */
 export const DESCRIPTION =
-  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
+  'The only way to start a background member: never type `claude --bg`. Needs name, repository and issue (or, for a Quick-tier piece of work with no issue, a brief in place of both), model, effort, lead (your own name) and folder (a main checkout; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
 
 export const NAME_REASONS = {
   card: 'name: a roster card already has this name',
@@ -47,8 +47,10 @@ export const NAME_REASONS = {
 
 // --- the seven inputs (S2.1) and the note (issue 578) ----------------------------------
 
-export type Inputs = { name: string; repository: string; issue: string; model: string; effort: string; lead: string; folder: string; note?: string }
-const KEYS = ['name', 'repository', 'issue', 'model', 'effort', 'lead', 'folder']
+export type Inputs = { name: string; repository?: string; issue?: string; model: string; effort: string; lead: string; folder: string; note?: string; brief?: string }
+// The fields every start holds; then repository and issue (and an optional note), or a brief instead of those.
+const KEYS = ['name', 'model', 'effort', 'lead', 'folder']
+const WORK_KEYS = ['repository', 'issue']
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MAX_FOLDER = 1000
 const MAX_NOTE = 200
@@ -57,7 +59,7 @@ const MAX_NOTE = 200
 export const NOTE_REASONS = {
   type: 'note: not text',
   empty: 'note: empty; leave it out',
-  keys: 'input: exactly name, repository, issue, model, effort, lead and folder, and optionally note',
+  keys: 'input: name, model, effort, lead and folder, then repository and issue (and optionally note) or a brief',
   length: 'note: 1 to 200 characters on one line',
   chars: "note: one sentence of letters, digits, spaces and , ; ( ) - ', ending in a full stop",
   ids: 'note: no id, other than one commit after the word commit',
@@ -139,24 +141,34 @@ function shape(raw: unknown): Checked<Inputs> {
   if (!isRecord(raw)) return { why: 'input: not an object' }
   const keys = Object.keys(raw)
   const hasNote = keys.includes('note')
-  // Issue 578 S3.1: the note's own two checks come first, then the key set.
-  if (hasNote && typeof raw.note !== 'string') return { why: NOTE_REASONS.type }
-  if (hasNote && raw.note === '') return { why: NOTE_REASONS.empty }
-  if (keys.length !== KEYS.length + (hasNote ? 1 : 0) || !KEYS.every(k => keys.includes(k))) return { why: NOTE_REASONS.keys }
-  for (const k of KEYS) if (typeof raw[k] !== 'string') return { why: `${k}: not text` }
+  const hasBrief = keys.includes('brief')
+  // A brief stands in for the repository and the issue, so it goes with neither, and with no note.
+  if (hasNote && hasBrief) return { why: NOTE_REASONS.keys }
+  // Issue 578 S3.1: the note's (or the brief's) own two checks come first, then the key set.
+  const free = hasBrief ? 'brief' : hasNote ? 'note' : undefined
+  if (free !== undefined && typeof raw[free] !== 'string') return { why: `${free}: not text` }
+  if (free !== undefined && raw[free] === '') return { why: `${free}: empty; leave it out` }
+  const wanted = hasBrief ? [...KEYS, 'brief'] : [...KEYS, ...WORK_KEYS, ...(hasNote ? ['note'] : [])]
+  if (keys.length !== wanted.length || !wanted.every(k => keys.includes(k))) return { why: NOTE_REASONS.keys }
+  for (const k of wanted) if (typeof raw[k] !== 'string') return { why: `${k}: not text` }
   const i = raw as Inputs
   if (!goodName(i.name)) return { why: 'name: 1 to 64 letters, digits, . _ -, starting with a letter or digit, no .., not ending in . or .lock' }
-  if (!REPO.test(i.repository)) return { why: 'repository: not a plain owner/name' }
-  if (!ISSUE.test(i.issue)) return { why: 'issue: 1 to 7 digits, not starting with 0' }
+  if (!hasBrief && !REPO.test(i.repository as string)) return { why: 'repository: not a plain owner/name' }
+  if (!hasBrief && !ISSUE.test(i.issue as string)) return { why: 'issue: 1 to 7 digits, not starting with 0' }
   if (!MODEL.test(i.model)) return { why: 'model: starts with a letter; 1 to 64 letters, digits, . _ -' }
   if (!EFFORTS.includes(i.effort)) return { why: `effort: one of ${EFFORTS.join(', ')}` }
   if (!LEAD.test(i.lead) || i.lead.endsWith(' ') || i.lead.includes('  ')) return { why: 'lead: 1 to 80 letters, digits, single spaces, _ -, no full stop' }
   if (i.folder.length < 1 || i.folder.length > MAX_FOLDER) return { why: 'folder: 1 to 1000 characters' }
-  const value: Inputs = { name: i.name, repository: i.repository, issue: i.issue, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder }
-  if (hasNote) {
-    const why = noteRules(i.note as string)
-    if (why !== undefined) return { why }
-    value.note = i.note
+  const value: Inputs = { name: i.name, model: i.model, effort: i.effort, lead: i.lead, folder: i.folder }
+  if (!hasBrief) {
+    value.repository = i.repository
+    value.issue = i.issue
+  }
+  if (free !== undefined) {
+    // The brief takes the note's bounds, and its refusals say brief where the note's say note.
+    const why = noteRules(i[free] as string)
+    if (why !== undefined) return { why: hasBrief ? why.replace(/^note:/, 'brief:') : why }
+    value[free] = i[free]
   }
   return { value }
 }
@@ -186,7 +198,10 @@ function passed(i: unknown): Inputs {
  *  tool's label then the note, so the member can tell the lead's words from the owner's (issue 578). */
 export function startPrompt(input: Inputs): string {
   const i = passed(input)
-  let prompt = `Your work is issue ${i.issue} on ${i.repository}. Send your questions and reports to ${i.lead}.`
+  let prompt =
+    i.brief !== undefined
+      ? `Your work is the brief that follows. Send your questions and reports to ${i.lead}. ${i.lead}, not the owner, adds: ${i.brief}`
+      : `Your work is issue ${i.issue} on ${i.repository}. Send your questions and reports to ${i.lead}.`
   if (i.note !== undefined) prompt += ` ${i.lead}, not the owner, adds: ${i.note}`
   if (/[\r\n]/.test(prompt) || prompt.length > 640) throw new Error('start: the prompt is not one short line')
   return prompt
