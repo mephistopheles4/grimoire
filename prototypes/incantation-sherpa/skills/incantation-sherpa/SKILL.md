@@ -273,7 +273,10 @@ The flow for a request is: read-back, thinking, plan, working, report.
   agreement included, say a short acknowledgement first, before any thinking or
   work, so there is never a silent gap. Its job is a quick sign that the turn was
   heard. Vary the wording and never open two turns in a row the same way. A
-  say-back below counts as that first line.
+  say-back below counts as that first line. Trial (646): play a prerecorded line
+  that fits the turn with `node <skill base>/scripts/listen.mjs cue <name>` (its
+  usage line lists the names), after its own `idle`; it counts as one play, like a
+  said line. On `cue-not-ready` or `cue-unknown`, say the acknowledgement instead.
 - **Thinking.** The status word is `thinking` by itself after a heard turn.
 - **A request that changes nothing**: a question, a look at a file, a command that
   only reads. The acknowledgement is all it needs before the work; no say-back, no

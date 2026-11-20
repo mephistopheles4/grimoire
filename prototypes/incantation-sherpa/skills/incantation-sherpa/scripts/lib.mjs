@@ -14,9 +14,9 @@ export const observeDir = home => join(stateDir(home), 'observe');
 export const settingsPath = home => join(stateDir(home), 'settings.json');
 export const statusPath = home => join(runDir(home), 'status');
 export const voicePath = home => join(runDir(home), 'voice');
-// Trial: the grimoire mic band reads the original incantation's run folder.
-export const levelsPath = home => join(grimoireDir(home), 'incantation', 'run', 'levels');
-export const commandPath = home => join(grimoireDir(home), 'incantation', 'run', 'command');
+// The prototype's own mic band (hooks/mic-band.tsx) reads these, in its own run folder.
+export const levelsPath = home => join(runDir(home), 'levels');
+export const commandPath = home => join(runDir(home), 'command');
 
 const posix = platform => platform !== 'win32';
 

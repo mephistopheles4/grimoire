@@ -1,1 +1,1 @@
-{ "name": "incantation-sherpa", "version": "0.1.0", "description": "Trial copy of grimoire's incantation on a local sherpa-onnx engine (Parakeet + Kokoro), for grimoire 646." }
+{ "name": "incantation-sherpa", "version": "0.1.0", "description": "Trial copy of grimoire's incantation on a local sherpa-onnx engine (Parakeet + Phonon), for grimoire 646, with its own mic band.", "types": "./types/index.d.ts" }

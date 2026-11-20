@@ -10,6 +10,8 @@ import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const RT = join(homedir(), '.grimoire', 'incantation-sherpa-runtime');
 const RATE = 16_000;
@@ -20,6 +22,46 @@ const CUDA_DIRS = [
 ];
 // Kokoro 1.0 speaker ids for the voices offered here.
 const VOICES = Object.freeze({ bella: 2 });
+// Phonon voices, spoken by phonon-worker.py, kept loaded in its own process.
+const PHONON = Object.freeze({ everly: 'Everly' });
+const PHONON_PY = join(RT, 'phonon-venv', 'Scripts', 'python.exe');
+const PHONON_WORKER = fileURLToPath(new URL('./phonon-worker.py', import.meta.url));
+
+// One long-running Phonon process; replies come back in order, one per line.
+function phononWorker(voice) {
+  const child = spawn(PHONON_PY, ['-I', PHONON_WORKER, voice], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  const waiting = [];
+  let ready;
+  const readyP = new Promise((res, rej) => { ready = { res, rej }; });
+  readyP.catch(() => {});
+  let buf = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', d => {
+    buf += d;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i);
+      buf = buf.slice(i + 1);
+      let msg = null;
+      try { msg = JSON.parse(line); } catch {}
+      if (msg?.ready) { ready.res(); continue; }
+      waiting.shift()?.(msg?.ok ? msg : null);
+    }
+  });
+  const fail = () => { ready.rej(new Error('phonon')); while (waiting.length) waiting.shift()(null); };
+  child.on('exit', fail);
+  child.on('error', fail);
+  return {
+    ready: readyP,
+    say(text) {
+      return new Promise(res => {
+        if (child.exitCode !== null) return res(null);
+        waiting.push(res);
+        child.stdin.write(JSON.stringify({ text }) + '\n');
+      });
+    },
+  };
+}
 
 export const VALUES = Object.freeze({ tailMs: { value: 150, verified: false } });
 
@@ -48,13 +90,16 @@ export function makeEngine({ port, profile, provider = 'cuda' }) {
   let tts = null;
   let asr = null;
   const sid = VOICES[profile] ?? VOICES.bella;
+  const phononVoice = PHONON[profile];
+  let phonon = null;
 
   const load = () => {
     if (sherpa) return;
     if (provider === 'cuda') process.env.PATH = [...CUDA_DIRS, process.env.PATH].join(';');
     sherpa = createRequire(import.meta.url)(join(RT, 'node_modules', 'sherpa-onnx-node'));
+    if (phononVoice) phonon = phononWorker(phononVoice);
     const k = join(RT, 'kokoro');
-    tts = new sherpa.OfflineTts({
+    if (!phonon) tts = new sherpa.OfflineTts({
       model: {
         kokoro: {
           model: join(k, 'model.onnx'),
@@ -110,17 +155,22 @@ export function makeEngine({ port, profile, provider = 'cuda' }) {
     tailMs: VALUES.tailMs.value,
     // Cheap: the files are there. Loading is warm()'s job, off the guard's clock.
     async health() {
-      return ['kokoro/model.onnx', 'parakeet/encoder.int8.onnx', 'node_modules/sherpa-onnx-node'].every(f => existsSync(join(RT, f)));
+      const speak = phononVoice ? 'phonon-venv/Scripts/python.exe' : 'kokoro/model.onnx';
+      return [speak, 'parakeet/encoder.int8.onnx', 'node_modules/sherpa-onnx-node'].every(f => existsSync(join(RT, f)));
     },
     transcribe,
     async profiles() {
-      return Object.keys(VOICES).map(id => ({ id, name: id, engine: 'kokoro' }));
+      return [
+        ...Object.keys(VOICES).map(id => ({ id, name: id, engine: 'kokoro' })),
+        ...Object.keys(PHONON).map(id => ({ id, name: id, engine: 'phonon' })),
+      ];
     },
     // Loads both models and runs each once, so the first real line is warm.
     async warm() {
       const began = performance.now();
       load();
-      tts.generate({ text: 'Okay.', sid, speed: 1.0 });
+      if (phonon) await phonon.ready;
+      else tts.generate({ text: 'Okay.', sid, speed: 1.0 });
       if ((await transcribe(Buffer.alloc(RATE * 2))) === null) throw new Error('warm');
       return Math.round(performance.now() - began);
     },
@@ -128,6 +178,14 @@ export function makeEngine({ port, profile, provider = 'cuda' }) {
       if (typeof text !== 'string' || !text) return null;
       try {
         load();
+        if (phonon) {
+          const r = await phonon.say(text);
+          if (!r) return null;
+          const pcm = Buffer.from(r.pcm, 'base64');
+          const samples = new Float32Array(pcm.length / 2);
+          for (let i = 0; i < samples.length; i++) samples[i] = pcm.readInt16LE(i * 2) / 32768;
+          return wav16(samples, r.rate);
+        }
         const audio = tts.generate({ text, sid, speed: 1.0 });
         return wav16(audio.samples, audio.sampleRate);
       } catch {
