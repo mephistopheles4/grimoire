@@ -17,6 +17,8 @@ export const KNOBS = {
   maxTurnMs: 30_000, // a longer turn is cut, and the rest goes on as the next
   tailMs: 300, // a reply counts as ended this long after its last playback ends (F2 may raise it, at most 1500)
   bargeMs: 360, // this much voice while a reply plays cuts the reply off
+  bargeExtraDb: 8, // ...counting only frames this much louder than voice, so the reply's own echo does not cut it (646 trial)
+  echoHoldMs: 1500, // a turn that starts this soon after a reply ends may be its echo (646 trial)
   joinMs: 2000, // a turn that stops mid-sentence waits this long for the next to join it
   maxJoins: 4, // at most this many turns join into one
   heartbeatMs: 2000, // the status file is touched this often
@@ -139,7 +141,8 @@ export class Gate {
       }
       // A turn is a reply to the session once any playback began after the last delivery.
       const afterReply = this.playStart !== null && this.playStart > this.deliveredAt;
-      this.turn = { frames: [...this.roll, buf], voice: 1, silent: 0, afterReply, playId: this.playId, barged: false };
+      const overlap = this.count > 0 || (this.playEnd !== null && t - this.playEnd < k.echoHoldMs);
+      this.turn = { frames: [...this.roll, buf], voice: 1, loud: 0, silent: 0, afterReply, overlap, playId: this.playId, barged: false };
       this.roll = [];
     } else {
       this.turn.frames.push(buf);
@@ -152,7 +155,8 @@ export class Gate {
       }
     }
     const turn = this.turn;
-    if (this.count > 0 && !turn.barged && turn.voice * k.frameMs >= k.bargeMs) {
+    if (this.count > 0 && level >= this.floor + k.voiceDb + k.bargeExtraDb) turn.loud++;
+    if (this.count > 0 && !turn.barged && turn.loud * k.frameMs >= k.bargeMs) {
       turn.barged = true;
       events.push({ type: 'barge' });
     }
@@ -166,7 +170,7 @@ export class Gate {
           first = true;
           this.exemptPlay = turn.playId;
         }
-        events.push({ type: 'turn', pcm: Buffer.concat(turn.frames.slice(0, keep)), afterReply: turn.afterReply, firstAfterReply: first, barged: turn.barged, silenceMs: this.silenceMs });
+        events.push({ type: 'turn', pcm: Buffer.concat(turn.frames.slice(0, keep)), afterReply: turn.afterReply, overlap: turn.overlap, firstAfterReply: first, barged: turn.barged, silenceMs: this.silenceMs });
       }
     }
     return events;

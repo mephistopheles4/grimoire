@@ -1,0 +1,166 @@
+// The echo guard for the sherpa trial (grimoire 646). On a laptop speaker the
+// mic hears the listener's own voice. Two layers:
+//
+//   isEcho(text, spoken)  a heard turn that only repeats a line just spoken
+//   RefFeed, makeAec      acoustic echo cancellation: what the player plays is
+//                         fed, at 16 kHz, as the reference to WebRTC's AEC3
+//                         (the livekit package) in aec-worker.py, which takes
+//                         it out of each mic frame before the gate hears it
+//
+// The canceller is optional: with no runtime, or a worker that fails, frames
+// pass through as they came. Not reviewed; trial only.
+
+import { spawn as nodeSpawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const words = text =>
+  String(text)
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+/** Is the heard text mostly words of a line just spoken? At least 70% of its
+ *  words, and never on nothing. */
+export function isEcho(text, spoken, share = 0.7) {
+  const heard = words(text);
+  if (!heard.length || !spoken?.length) return false;
+  const said = new Set(spoken.flatMap(words));
+  return heard.filter(w => said.has(w)).length / heard.length >= share;
+}
+
+/** A 16-bit mono PCM WAV as 16 kHz samples (linear resampling); empty for
+ *  anything else. */
+export function wavTo16k(wav) {
+  if (!Buffer.isBuffer(wav) || wav.length < 44 || wav.toString('latin1', 0, 4) !== 'RIFF' || wav.toString('latin1', 8, 12) !== 'WAVE') return new Int16Array(0);
+  if (wav.readUInt16LE(20) !== 1 || wav.readUInt16LE(22) !== 1 || wav.readUInt16LE(34) !== 16) return new Int16Array(0);
+  const rate = wav.readUInt32LE(24);
+  const n = Math.floor((wav.length - 44) / 2);
+  if (!rate || !n) return new Int16Array(0);
+  const src = i => wav.readInt16LE(44 + Math.min(n - 1, i) * 2);
+  const m = Math.floor((n * 16000) / rate);
+  const out = new Int16Array(m);
+  for (let j = 0; j < m; j++) {
+    const x = (j * rate) / 16000;
+    const i = Math.floor(x);
+    out[j] = Math.round(src(i) + (src(i + 1) - src(i)) * (x - i));
+  }
+  return out;
+}
+
+/** What is playing now, as 16 kHz samples, handed out one mic frame at a time.
+ *  A new line mixes in from the current point; a barge-in clears it. */
+export class RefFeed {
+  constructor() {
+    this.buf = new Int16Array(0);
+  }
+
+  add(samples) {
+    if (samples.length > this.buf.length) {
+      const grown = new Int16Array(samples.length);
+      grown.set(this.buf);
+      this.buf = grown;
+    }
+    for (let i = 0; i < samples.length; i++) this.buf[i] = Math.max(-32768, Math.min(32767, this.buf[i] + samples[i]));
+  }
+
+  take(n) {
+    const out = Buffer.alloc(n * 2);
+    const k = Math.min(n, this.buf.length);
+    for (let i = 0; i < k; i++) out.writeInt16LE(this.buf[i], i * 2);
+    this.buf = this.buf.subarray(k);
+    return out;
+  }
+
+  get empty() {
+    return this.buf.length === 0;
+  }
+
+  clear() {
+    this.buf = new Int16Array(0);
+  }
+}
+
+const RT = join(homedir(), '.grimoire', 'incantation-sherpa-runtime');
+export const AEC_PY = join(RT, 'aec-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+export const AEC_WORKER = fileURLToPath(new URL('./engines/aec-worker.py', import.meta.url));
+const MAGIC = 'AEC1';
+const FRAME = 960; // 30 ms at 16 kHz, 16-bit
+const MAX_PENDING = 30; // about a second behind: give up and pass frames through
+
+/** The echo canceller. `process(mic, ref)` resolves the cleaned frame, or the
+ *  mic frame itself when the canceller is not running. */
+export function makeAec({ python = AEC_PY, worker = AEC_WORKER, spawn = nodeSpawn, exists = existsSync } = {}) {
+  const off = { active: false, ready: Promise.resolve(false), process: mic => Promise.resolve(mic), close() {} };
+  if (!exists(python) || !exists(worker)) return off;
+  let child;
+  try {
+    child = spawn(python, ['-I', worker], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  } catch {
+    return off;
+  }
+  let up = false;
+  let dead = false;
+  let buf = Buffer.alloc(0);
+  const pending = [];
+  let markReady;
+  const ready = new Promise(r => (markReady = r));
+  const fail = () => {
+    dead = true;
+    up = false;
+    markReady(false);
+    while (pending.length) {
+      const p = pending.shift();
+      p.resolve(p.mic);
+    }
+  };
+  child.on('error', fail);
+  child.on('exit', fail);
+  child.stdin.on('error', fail);
+  child.stdout.on('data', d => {
+    buf = buf.length ? Buffer.concat([buf, d]) : d;
+    if (!up && !dead) {
+      if (buf.length < MAGIC.length) return;
+      if (buf.toString('latin1', 0, MAGIC.length) !== MAGIC) return fail();
+      buf = buf.subarray(MAGIC.length);
+      up = true;
+      markReady(true);
+    }
+    while (buf.length >= FRAME && pending.length) {
+      pending.shift().resolve(Buffer.from(buf.subarray(0, FRAME)));
+      buf = buf.subarray(FRAME);
+    }
+  });
+  return {
+    get active() {
+      return up && !dead;
+    },
+    ready,
+    process(mic, ref) {
+      if (!up || dead || mic.length !== FRAME || ref.length !== FRAME) return Promise.resolve(mic);
+      if (pending.length >= MAX_PENDING) {
+        try {
+          child.kill();
+        } catch {}
+        fail();
+        return Promise.resolve(mic);
+      }
+      return new Promise(resolve => {
+        pending.push({ mic, resolve });
+        child.stdin.write(Buffer.concat([mic, ref]));
+      });
+    },
+    close() {
+      if (dead) return;
+      try {
+        child.stdin.end();
+        child.kill();
+      } catch {}
+      fail();
+    },
+  };
+}

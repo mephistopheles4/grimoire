@@ -33,6 +33,7 @@ import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, i
 import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
 import { METER, Meter, levelsLine } from './meter.mjs';
 import { makePlayer } from './player.mjs';
+import { RefFeed, isEcho, makeAec, wavTo16k } from './echo.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -271,7 +272,34 @@ export async function startListener(options = {}) {
     // The replies this listener plays itself (T18): the one playing, the says
     // accepted and not yet finished, and a count that a barge-in or a stop moves on,
     // so a say that was waiting behind a cut reply is dropped with it.
-    const player = options.player ?? makePlayer({ platform, recorder: settings.recorder, tempDir: run });
+    const rawPlayer = options.player ?? makePlayer({ platform, recorder: settings.recorder, tempDir: run });
+    // The echo guard (646 trial): every line played is also the canceller's
+    // reference, and the last lines spoken are what a heard echo is matched against.
+    const refFeed = new RefFeed();
+    const aec = options.aec ?? makeAec();
+    const spoken = [];
+    const noteSpoken = text => {
+      if (!text) return;
+      spoken.push({ text, at: Date.now() });
+      while (spoken.length > 3) spoken.shift();
+    };
+    const recentSpoken = () => spoken.filter(s => Date.now() - s.at < 30_000).map(s => s.text);
+    const player = {
+      available: rawPlayer.available,
+      name: rawPlayer.name,
+      play(wav) {
+        const handle = rawPlayer.play(wav);
+        if (!handle) return handle;
+        refFeed.add(wavTo16k(wav));
+        return {
+          done: handle.done,
+          stop() {
+            refFeed.clear();
+            handle.stop();
+          },
+        };
+      },
+    };
     let current = null;
     // Instant acknowledgement: a few short clips made once at warm-up, played by the
     // listener itself the moment a turn is heard, so the person never waits in silence.
@@ -404,6 +432,7 @@ export async function startListener(options = {}) {
       current?.stop();
       current = null;
       feed?.close?.();
+      aec.close();
       if (child && childExited) {
         child.kill();
         await Promise.race([childExited, new Promise(r => setTimeout(r, 2000).unref())]);
@@ -519,6 +548,7 @@ export async function startListener(options = {}) {
           return;
         }
         if (isMuteWord(text)) return setMuted(true);
+        if (turn.overlap && !isStopWord(text) && isEcho(text, recentSpoken())) return;
         if (isFragment(text)) return;
         if (!isStopWord(text)) playAck(text.trim().endsWith("?"));
         armIdle();
@@ -564,6 +594,7 @@ export async function startListener(options = {}) {
       const handle = player.play(wav);
       if (!handle) return reply('say-failed');
       current = handle;
+      noteSpoken(text);
       playing = 1;
       plays++;
       thinkingUntil = 0;
@@ -633,7 +664,7 @@ export async function startListener(options = {}) {
       inSay++;
       const epoch = speechEpoch;
       speechTail = speechTail
-        .then(() => speakOne(null, epoch, answer, wav))
+        .then(() => speakOne(CUES[name], epoch, answer, wav))
         .catch(() => answer('say-failed'))
         .finally(() => inSay--);
     };
@@ -809,6 +840,17 @@ export async function startListener(options = {}) {
     let framesSeen = 0;
     let anySound = false;
     let carry = Buffer.alloc(0);
+    // Frames reach the gate in order, through the echo canceller while it runs.
+    let aecChain = Promise.resolve();
+    const onFrame = clean => {
+      if (finished) return;
+      for (const e of gate.frame(clean, clock())) {
+        if (e.type === 'turn') heard(e);
+        else if (e.type === 'barge') bargeIn();
+      }
+      meter.add(gate.level, clock(), userMuted);
+      writeStatus();
+    };
     child.stdout.on('data', d => {
       carry = carry.length ? Buffer.concat([carry, d]) : d;
       while (carry.length >= size && !finished) {
@@ -819,12 +861,8 @@ export async function startListener(options = {}) {
           if (frame.some(b => b !== 0)) anySound = true;
           else if (framesSeen >= silentFrames) return void finish('mic');
         }
-        for (const e of gate.frame(frame, clock())) {
-          if (e.type === 'turn') heard(e);
-          else if (e.type === 'barge') bargeIn();
-        }
-        meter.add(gate.level, clock(), userMuted);
-        writeStatus();
+        const ref = refFeed.take(frame.length / 2);
+        aecChain = aecChain.then(() => aec.process(frame, ref)).then(onFrame, () => onFrame(frame));
       }
     });
 
