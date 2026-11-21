@@ -17,7 +17,9 @@ export const KNOBS = {
   maxTurnMs: 30_000, // a longer turn is cut, and the rest goes on as the next
   tailMs: 300, // a reply counts as ended this long after its last playback ends (F2 may raise it, at most 1500)
   bargeMs: 360, // this much voice while a reply plays cuts the reply off
-  bargeExtraDb: 8, // ...counting only frames this much louder than voice, so the reply's own echo does not cut it (646 trial)
+  bargeExtraDb: 10, // ...counting only frames this much louder than voice, so the reply's own echo does not cut it (646 trial)
+  bargeGraceMs: 1500, // no barge-in counts this soon after a reply starts, while the echo canceller settles (646 trial)
+  bargeRemovedDb: 9, // ...and only frames the echo canceller took less than this much out of: echo is mostly removed, a person talking over the reply is not (646 trial)
   echoHoldMs: 1500, // a turn that starts this soon after a reply ends may be its echo (646 trial)
   joinMs: 2000, // a turn that stops mid-sentence waits this long for the next to join it
   maxJoins: 4, // at most this many turns join into one
@@ -121,10 +123,12 @@ export class Gate {
   }
 
   // One frame; returns the events it caused: { type: 'turn', ... } or { type: 'barge' }.
-  frame(buf, t) {
+  // `raw`, when an echo canceller ran, is the frame as the mic gave it.
+  frame(buf, t, raw = null) {
     const k = this.k;
     const events = [];
     const level = levelDb(buf);
+    const removed = raw ? levelDb(raw) - level : 0;
     this.level = level; // the last frame's loudness, for the meter (T16)
     if (this.floor === null) {
       this.calib.push(level);
@@ -155,7 +159,7 @@ export class Gate {
       }
     }
     const turn = this.turn;
-    if (this.count > 0 && level >= this.floor + k.voiceDb + k.bargeExtraDb) turn.loud++;
+    if (this.count > 0 && t - this.playStart >= k.bargeGraceMs && removed < k.bargeRemovedDb && level >= this.floor + k.voiceDb + k.bargeExtraDb) turn.loud++;
     if (this.count > 0 && !turn.barged && turn.loud * k.frameMs >= k.bargeMs) {
       turn.barged = true;
       events.push({ type: 'barge' });

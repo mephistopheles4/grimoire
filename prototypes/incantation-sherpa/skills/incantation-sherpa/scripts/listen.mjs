@@ -842,9 +842,9 @@ export async function startListener(options = {}) {
     let carry = Buffer.alloc(0);
     // Frames reach the gate in order, through the echo canceller while it runs.
     let aecChain = Promise.resolve();
-    const onFrame = clean => {
+    const onFrame = (clean, raw) => {
       if (finished) return;
-      for (const e of gate.frame(clean, clock())) {
+      for (const e of gate.frame(clean, clock(), raw)) {
         if (e.type === 'turn') heard(e);
         else if (e.type === 'barge') bargeIn();
       }
@@ -862,7 +862,7 @@ export async function startListener(options = {}) {
           else if (framesSeen >= silentFrames) return void finish('mic');
         }
         const ref = refFeed.take(frame.length / 2);
-        aecChain = aecChain.then(() => aec.process(frame, ref)).then(onFrame, () => onFrame(frame));
+        aecChain = aecChain.then(() => aec.process(frame, ref)).then(clean => onFrame(clean, frame), () => onFrame(frame, frame));
       }
     });
 

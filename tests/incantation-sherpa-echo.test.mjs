@@ -19,7 +19,8 @@ const frame = amp => {
 };
 const QUIET = 1000;
 const VOICE = 3163; // 10 dB over QUIET
-const LOUD = 6310; // 16 dB over QUIET
+const LOUD = 10000; // 20 dB over QUIET
+const GRACE = Math.ceil(KNOBS.bargeGraceMs / 30); // frames of a reply before a barge-in counts
 
 function rig() {
   const gate = new Gate({ silenceMs: 300 });
@@ -78,6 +79,7 @@ test('a turn well after playback ends does not overlap it', () => {
 test('voice that only just clears the floor does not barge in on a reply', () => {
   const r = rig();
   r.gate.playback(1, r.t);
+  r.feed(QUIET, GRACE);
   r.feed(VOICE, 30);
   assert.equal(r.barges, 0);
 });
@@ -85,7 +87,39 @@ test('voice that only just clears the floor does not barge in on a reply', () =>
 test('louder voice still barges in on a reply', () => {
   const r = rig();
   r.gate.playback(1, r.t);
+  r.feed(QUIET, GRACE);
   r.feed(LOUD, 30);
+  assert.equal(r.barges, 1);
+});
+
+test('no barge-in counts in the first moments of a reply, while the canceller settles', () => {
+  const r = rig();
+  r.gate.playback(1, r.t);
+  r.feed(LOUD, GRACE - 1);
+  assert.equal(r.barges, 0);
+});
+
+test('a frame the canceller mostly removed does not count toward a barge-in', () => {
+  const r = rig();
+  r.gate.playback(1, r.t);
+  r.feed(QUIET, GRACE);
+  const before = Math.round(LOUD * 10 ** (KNOBS.bargeRemovedDb / 20)) + 10; // just over the limit taken out
+  for (let i = 0; i < 30; i++) {
+    for (const e of r.gate.frame(frame(LOUD), r.t, frame(before))) if (e.type === 'barge') r.barges++;
+    r.t += 30;
+  }
+  assert.equal(r.barges, 0);
+});
+
+test('a frame the canceller left mostly alone still counts toward a barge-in', () => {
+  const r = rig();
+  r.gate.playback(1, r.t);
+  r.feed(QUIET, GRACE);
+  const before = LOUD * 2; // 6 dB taken out: a person over the reply
+  for (let i = 0; i < 30; i++) {
+    for (const e of r.gate.frame(frame(LOUD), r.t, frame(before))) if (e.type === 'barge') r.barges++;
+    r.t += 30;
+  }
   assert.equal(r.barges, 1);
 });
 
