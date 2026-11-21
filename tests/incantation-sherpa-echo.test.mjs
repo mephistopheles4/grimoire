@@ -284,3 +284,53 @@ test('pumped by the mic, the player advances by exactly one frame each time', ()
   assert.equal(refs.reduce((a, b) => a + b, 0), 960); // 60 ms due to play, at 16 kHz
   p.close();
 });
+
+// The loopback reference: everything the speaker plays, notification sounds
+// included, so a system bleep is cancelled like the listener's own voice.
+import { makeLoopback } from '../prototypes/incantation-sherpa/skills/incantation-sherpa/scripts/echo.mjs';
+
+function fakeLoopback() {
+  const child = new EventEmitter();
+  child.stdout = new PassThrough();
+  child.kill = () => child.emit('exit', 1);
+  return child;
+}
+
+test('the loopback goes live on its magic and hands on whole samples', () => {
+  const child = fakeLoopback();
+  const got = [];
+  const lb = makeLoopback({ platform: 'win32', exists: () => true, spawn: () => child, onSamples: s => got.push(...s) });
+  assert.equal(lb.active, false);
+  child.stdout.emit('data', Buffer.from('LBK'));
+  assert.equal(lb.active, false);
+  const pcm = Buffer.alloc(5);
+  pcm.writeInt16LE(1200, 0);
+  pcm.writeInt16LE(-7, 2);
+  child.stdout.emit('data', Buffer.concat([Buffer.from('1'), pcm]));
+  assert.equal(lb.active, true);
+  assert.deepEqual(got, [1200, -7]); // the odd byte waits for its pair
+  child.stdout.emit('data', Buffer.from([0x01]));
+  assert.deepEqual(got, [1200, -7, 256]);
+});
+
+test('a loopback that exits or never starts leaves the player as the reference', () => {
+  const child = fakeLoopback();
+  const lb = makeLoopback({ platform: 'win32', exists: () => true, spawn: () => child, onSamples: () => {} });
+  child.stdout.emit('data', Buffer.from('LBK1'));
+  assert.equal(lb.active, true);
+  child.emit('exit', 1);
+  assert.equal(lb.active, false);
+  const bad = fakeLoopback();
+  const lb2 = makeLoopback({ platform: 'win32', exists: () => true, spawn: () => bad, onSamples: () => {} });
+  bad.stdout.emit('data', Buffer.from('nope'));
+  assert.equal(lb2.active, false);
+  assert.equal(makeLoopback({ platform: 'darwin', exists: () => true, spawn: () => fakeLoopback(), onSamples: () => {} }).active, false);
+});
+
+test('a reference queue trimmed to its newest samples stays shallow', () => {
+  const g = new RefFeed();
+  g.append(Int16Array.from([1, 2, 3, 4, 5]));
+  g.trim(2);
+  const out = g.take(3);
+  assert.deepEqual([out.readInt16LE(0), out.readInt16LE(2), out.readInt16LE(4)], [4, 5, 0]);
+});

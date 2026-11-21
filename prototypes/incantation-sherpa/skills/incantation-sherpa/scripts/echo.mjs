@@ -2,6 +2,10 @@
 // mic hears the listener's own voice. Two layers:
 //
 //   isEcho(text, spoken)  a heard turn that only repeats a line just spoken
+//   makeLoopback          on Windows, everything the speaker plays (system
+//                         sounds such as a notification bleep included) as
+//                         the reference, so not only the listener's own voice
+//                         is taken out; without it, what the player wrote
 //   RefFeed, makeAec      acoustic echo cancellation: what the player plays is
 //                         fed, at 16 kHz, as the reference to WebRTC's AEC3
 //                         (the livekit package) in aec-worker.py, which takes
@@ -83,6 +87,12 @@ export class RefFeed {
     for (let i = 0; i < k; i++) out.writeInt16LE(this.buf[i], i * 2);
     this.buf = this.buf.subarray(k);
     return out;
+  }
+
+  /** Keep only the newest `max` samples: a reference captured live must stay
+   *  close to now, or drift between two clocks would push it behind the echo. */
+  trim(max) {
+    if (this.buf.length > max) this.buf = this.buf.subarray(this.buf.length - max);
   }
 
   get empty() {
@@ -170,6 +180,65 @@ export function makeAec({ python = AEC_PY, worker = AEC_WORKER, spawn = nodeSpaw
         child.kill();
       } catch {}
       fail();
+    },
+  };
+}
+
+export const LOOPBACK_SCRIPT = fileURLToPath(new URL('./engines/loopback.ps1', import.meta.url));
+const LB_MAGIC = 'LBK1';
+
+/** The speaker's own output, through engines/loopback.ps1, as 16 kHz samples
+ *  handed to `onSamples`. Windows only; `active` once the capture runs and
+ *  until it ends, so the caller can fall back to the player's samples. */
+export function makeLoopback({ onSamples, platform = process.platform, script = LOOPBACK_SCRIPT, spawn = nodeSpawn, exists = existsSync } = {}) {
+  const off = { active: false, close() {} };
+  if (platform !== 'win32' || !exists(script)) return off;
+  let child;
+  try {
+    child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+  } catch {
+    return off;
+  }
+  let up = false;
+  let dead = false;
+  let buf = Buffer.alloc(0);
+  const end = () => {
+    dead = true;
+    up = false;
+  };
+  child.on('error', end);
+  child.on('exit', end);
+  child.stdout.on('data', d => {
+    if (dead) return;
+    buf = buf.length ? Buffer.concat([buf, d]) : d;
+    if (!up) {
+      if (buf.length < LB_MAGIC.length) return;
+      if (buf.toString('latin1', 0, LB_MAGIC.length) !== LB_MAGIC) {
+        try {
+          child.kill();
+        } catch {}
+        return end();
+      }
+      buf = buf.subarray(LB_MAGIC.length);
+      up = true;
+    }
+    const n = buf.length >> 1;
+    if (!n) return;
+    const s = new Int16Array(n);
+    for (let i = 0; i < n; i++) s[i] = buf.readInt16LE(i * 2);
+    buf = buf.subarray(n * 2);
+    onSamples(s);
+  });
+  return {
+    get active() {
+      return up && !dead;
+    },
+    close() {
+      if (dead) return;
+      try {
+        child.kill();
+      } catch {}
+      end();
     },
   };
 }

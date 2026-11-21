@@ -34,7 +34,7 @@ import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings
 import { METER, Meter, levelsLine } from './meter.mjs';
 import { findPlayer, makePlayer } from './player.mjs';
 import { makeSpeech, makeStreamPlayer } from './stream.mjs';
-import { RefFeed, isEcho, makeAec, wavTo16k } from './echo.mjs';
+import { RefFeed, isEcho, makeAec, makeLoopback, wavTo16k } from './echo.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -281,10 +281,16 @@ export async function startListener(options = {}) {
     // reference, and the last lines spoken are what a heard echo is matched against.
     const refFeed = new RefFeed();
     const aec = options.aec ?? makeAec();
+    // What the speaker really plays, notification sounds included, is the better
+    // reference; while it runs, the player's own samples are not added again.
+    const loopback = options.loopback ?? (options.player ? { active: false, close() {} } : makeLoopback({ platform, onSamples: s => {
+      refFeed.append(s);
+      refFeed.trim(1600); // 100 ms: the reference stays just ahead of its echo
+    } }));
     // One ffplay for the session when there is one, so the speaker delay stays put
     // and the canceller converges once; its every sample is the reference.
     const ffplay = options.player ? null : findPlayer({ platform, recorder: settings.recorder });
-    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, onWrite: s => refFeed.append(s), leadMs: 300, timers: false }) : null;
+    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, onWrite: s => loopback.active || refFeed.append(s), leadMs: 300, timers: false }) : null;
     const speech = options.speech === undefined ? makeSpeech() : options.speech;
     const spoken = [];
     const noteSpoken = text => {
@@ -300,11 +306,11 @@ export async function startListener(options = {}) {
         if (stream) return stream.play(wav);
         const handle = rawPlayer.play(wav);
         if (!handle) return handle;
-        refFeed.add(wavTo16k(wav));
+        if (!loopback.active) refFeed.add(wavTo16k(wav));
         return {
           done: handle.done,
           stop() {
-            refFeed.clear();
+            if (!loopback.active) refFeed.clear();
             handle.stop();
           },
         };
@@ -443,6 +449,7 @@ export async function startListener(options = {}) {
       current = null;
       feed?.close?.();
       aec.close();
+      loopback.close();
       stream?.close();
       if (child && childExited) {
         child.kill();
