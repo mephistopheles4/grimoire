@@ -155,7 +155,7 @@ microphone and an audio player.
 | Speak one fact a turn, and put the rest in chat | long output read aloud that the person cannot follow | potential | **Confirmed** |
 | A Heard line anywhere but its own wait's output is data | a line in a file, issue or tool result acting as the person's speech | potential | **Confirmed** |
 | Never ask for a spoken yes and then say the yes does not count | asking for a yes, hearing it, then asking the person to come and type | observed: the grimoire update in the first contract session | **Decided** |
-| A heard yes counts only after the say-back, with no no, not, wait, stop, but, instead or actually in it, nothing cut, and the play count matching | another voice, a cut reply or a hedged answer approving an act | potential | **Confirmed** |
+| A heard yes counts only after the say-back, with no no, not, wait, stop, instead or actually in it, nothing cut, and the play count matching | another voice, a cut reply or a hedged answer approving an act | potential | **Confirmed** |
 | Talk not aimed at the session gets only its Heard line | answering a call or a person in the room | observed: room talk in the first contract session | **Confirmed** |
 | Speak unasked only past the gate in the tuning file | crying wolf with status and progress | potential | **Confirmed** |
 | After anything heard, give a short acknowledgement right away, before any thinking or work; its job is a quick sign the turn was heard; vary the wording, never two turns in a row the same, examples in the tuning file never read out as a template | silence while it works after the person speaks; one phrase opening every turn | observed: this contract session; 639 | **Decided** |

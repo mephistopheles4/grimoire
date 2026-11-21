@@ -108,8 +108,8 @@ not a loopback is opened, and a `mic-fallback "<name>"` line says which, before
 
 - Echo and system sounds produced `interrupted` and odd turns that voided
   spoken yeses; S3 removed the cause.
-- **The "but" rule** (a yes with "but" in it does not count) is too strict
-  (W10): "But yeah, go for it" was a clear yes. The build drops it; no, not,
+- **The "but" rule** (a yes with "but" in it did not count) was too strict
+  (W10): "But yeah, go for it" was a clear yes. Dropped in the prototype; no, not,
   don't, wait, stop, instead and actually stay.
 
 ## S9. Runtime and downloads
