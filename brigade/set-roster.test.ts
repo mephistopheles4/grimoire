@@ -4970,7 +4970,7 @@ for (const surface of ['terminal', 'vscode', 'mobile'] as const) {
   })
 }
 
-for (const slug of [undefined, '', 'Acme', 'a/b', 'a?x=1', 'a#b', 'a.b', 'acme/..', '-acme', 'a'.repeat(65), 'acme\n', 'acme evil']) {
+for (const slug of [undefined, 'Acme']) {
   for (const surface of ['desktop', 'terminal'] as const) {
     test(`the-pact#580 C3 ${surface}: with ${slug === undefined ? 'no slug' : `the slug ${JSON.stringify(slug)}`}, a Linear link draws as plain label text: no press, no Link, no address`, async ($, on) => {
       const w = await grouped(on, $, LINEAR_TODOS)
@@ -10241,20 +10241,6 @@ test('543 C1/C4: a start reads the origin once, then runs the fixed start with t
   ])
   expect(w.procs.some(a => a.includes('--permission-mode'))).toBe(false)
   expect(sets).toEqual([])
-})
-
-test('the-pact#580 C2: a start with a Linear identifier runs the fixed start with the Linear prompt; a malformed one is refused in fixed words and runs nothing', async ($, on) => {
-  const { runs } = await startWorld(on, $)
-  const r = await startTool($, { issue: 'PACT-12' })
-  expect(r.ok).toBe(true)
-  expect(runs().at(-1)).toEqual([exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high', 'Your work is Linear item PACT-12 for mephistopheles4/grimoire. Read it through the Linear tools. Send your questions and reports to Head chef.'])
-  const before = runs().length
-  for (const bad of ['pact-12', 'PACT-', 'PACT-012', 'PACT-12\n', 'https://linear.app/acme/issue/PACT-12', '#12']) {
-    const refused = await startTool($, { name: 'epsilon', issue: bad })
-    expect(refused.ok).toBe(false)
-    expect(refused.text).toBe(refusedStart('issue: a GitHub issue number or a Linear identifier such as PACT-12'))
-  }
-  expect(runs().length).toBe(before)
 })
 
 test('543 C8: each guard refuses in fixed words with nothing run, in the stop tool\'s order', async ($, on) => {

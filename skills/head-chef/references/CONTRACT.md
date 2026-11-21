@@ -984,8 +984,7 @@ Your work is issue <number> on <owner/repository>. Send your questions and repor
 
 When the work is a Linear item, the `issue` field holds its identifier, such as
 `PACT-12`, and the first sentence is `Your work is Linear item <identifier>
-for <owner/repository>. Read it through the Linear tools.`; the rest is the
-same.
+for <owner/repository>.`; the rest is the same.
 
 A background start may also carry one `note`. The tool writes it after that
 line, under a label it writes itself, and the member gets one line:

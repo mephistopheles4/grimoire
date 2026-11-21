@@ -54,8 +54,6 @@ const MAX_FOLDER = 1000
 const MAX_NOTE = 200
 /** The member's first prompt is one line of at most this many characters. */
 const MAX_PROMPT = 640
-/** The refusal when the prompt would pass the cap, in fixed words that never quote an input. */
-export const PROMPT_LONG = 'prompt: the fixed line, the fields and the note come to more than 640 characters; shorten the note'
 
 /** The note's refusals, in fixed words that never quote it (issue 578, S3.1 and S3.2). */
 export const NOTE_REASONS = {
@@ -165,9 +163,6 @@ function shape(raw: unknown): Checked<Inputs> {
     if (why !== undefined) return { why }
     value.note = i.note
   }
-  // A Linear start's fixed words are longer than a GitHub start's, so all the fields at their
-  // largest can pass the line cap (the-pact#580): refuse it here, in fixed words, and not at the builder.
-  if (promptOf(value).length > MAX_PROMPT) return { why: PROMPT_LONG }
   return { value }
 }
 
@@ -193,12 +188,11 @@ function passed(i: unknown): Inputs {
 // --- the prompt and the argv (S2.3) -------------------------------------------------
 
 /** The prompt's text for inputs that passed their own rules: the fixed first sentence (a Linear
- *  identifier names the Linear item and says to read it through the Linear tools, the-pact#580; a
- *  GitHub number names the issue as before), the fixed question line, and with a note the tool's
+ *  identifier names the Linear item, the-pact#580; a GitHub number names the issue as before), the fixed question line, and with a note the tool's
  *  label then the note, so the member can tell the lead's words from the owner's (issue 578). */
 function promptOf(i: Inputs): string {
   const first = LINEAR_ID.test(i.issue)
-    ? `Your work is Linear item ${i.issue} for ${i.repository}. Read it through the Linear tools.`
+    ? `Your work is Linear item ${i.issue} for ${i.repository}.`
     : `Your work is issue ${i.issue} on ${i.repository}.`
   let prompt = `${first} Send your questions and reports to ${i.lead}.`
   if (i.note !== undefined) prompt += ` ${i.lead}, not the owner, adds: ${i.note}`
