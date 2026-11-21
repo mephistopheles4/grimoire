@@ -133,7 +133,7 @@ export function noteNames(note: string, names: readonly string[], own: readonly 
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const MODEL = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/
-// The work: a GitHub issue number, or a Linear identifier (the-pact#580), whole and nothing else.
+// A GitHub issue number, whole and nothing else; a Linear identifier is checked by LINEAR_ID (the-pact#580).
 const ISSUE = /^[1-9][0-9]{0,6}$/
 /** The issue input's refusal, in fixed words that never quote it. */
 export const ISSUE_REASON = 'issue: a GitHub issue number or a Linear identifier such as PACT-12'

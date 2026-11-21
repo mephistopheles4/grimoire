@@ -5035,7 +5035,7 @@ test('the-pact#580 C4 desktop: on Linux the press runs /usr/bin/xdg-open', async
   expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
 })
 
-test('the-pact#580 C4 desktop: a host the pane cannot prove, a refused start and a read that fails each run nothing more and show the one fixed toast', async ($, on) => {
+test('the-pact#580 C4 desktop: a host the pane cannot prove and a refused start each run nothing more and show the one fixed toast', async ($, on) => {
   const w = await grouped(on, $, LINEAR_TODOS)
   withSlug(w, 'acme')
   const m = await mountOn($, 'desktop')
@@ -10243,7 +10243,7 @@ test('543 C1/C4: a start reads the origin once, then runs the fixed start with t
   expect(sets).toEqual([])
 })
 
-test('the-pact#580 C1: a start with a Linear identifier runs the fixed start with the Linear prompt; a malformed one is refused in fixed words and runs nothing', async ($, on) => {
+test('the-pact#580 C2: a start with a Linear identifier runs the fixed start with the Linear prompt; a malformed one is refused in fixed words and runs nothing', async ($, on) => {
   const { runs } = await startWorld(on, $)
   const r = await startTool($, { issue: 'PACT-12' })
   expect(r.ok).toBe(true)
