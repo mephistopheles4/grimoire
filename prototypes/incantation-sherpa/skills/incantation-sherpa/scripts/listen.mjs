@@ -27,7 +27,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
-import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
+import { captureArgs, listDevices, pickDevice, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
 import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
@@ -107,6 +107,7 @@ const WAIT_LINE = new RegExp(
     '|timing: wait \\d{1,5} stt \\d{1,6}',
     '|plays \\d{1,4}',
     '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
+    '|mic-fallback "[^"\\\\\\n]{1,64}"',
     '|dropped \\d{1,4}',
     '|stt-dropped|say-failed|mic-muted|mic-unmuted|interrupted|quiet \\d{1,4}|stopped',
     `|listener error (?:${REASONS.join('|')})`,
@@ -208,11 +209,13 @@ export async function startListener(options = {}) {
     };
     if (!recorder.path || recorder.path !== settings.recorder) stop('recorder');
 
-    // The device: the list again, and its stamp must be the one setup kept.
+    // The device: the saved mic, wherever it sits in the list now, or another
+    // one when it is gone, named in the first delivery so the session says so.
     const listing = await listDevices({ recorder: recorder.path, platform, run: recorder.list });
-    if (listing.row < 0 || stampOf(listing.devices) !== settings.device.stamp) stop('device');
-    const device = listing.devices[settings.device.index];
+    if (listing.row < 0) stop('device');
+    const { device, how } = pickDevice(listing.devices, settings.device);
     if (!device) stop('device');
+    const micNotice = how === 'fallback' ? `mic-fallback "${cleanText(device.name, 64).replace(/["\\\n]/g, '')}"` : null;
 
     // One listener at a time.
     const live = readChannel(home, fsOptions);
@@ -483,7 +486,10 @@ export async function startListener(options = {}) {
         if (quiet > 0) lines.push(`quiet ${Math.min(quiet, 9999)}`);
         lastDeliveryAt = now;
       }
-      if (notices.has('ready')) lines.push(notices.get('ready'));
+      if (notices.has('ready')) {
+        if (micNotice) lines.push(micNotice);
+        lines.push(notices.get('ready'));
+      }
       if (dropped) lines.push(`dropped ${dropped}`);
       for (const n of ['stt-dropped', 'say-failed', 'mic-muted', 'mic-unmuted', 'interrupted']) if (notices.has(n)) lines.push(n);
       notices.clear();

@@ -186,7 +186,14 @@ export const SETTINGS_KEYS = {
   engine: v => typeof v === 'string' && /^[a-z]{1,32}$/.test(v),
   port: v => Number.isInteger(v) && v >= 1024 && v <= 65535,
   profile: v => typeof v === 'string' && PROFILE.test(v),
-  device: v => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && Number.isInteger(v.index) && v.index >= 0 && v.index <= 999 && typeof v.stamp === 'string' && /^[0-9a-f]{16}$/.test(v.stamp),
+  device: v =>
+    v !== null &&
+    typeof v === 'object' &&
+    !Array.isArray(v) &&
+    Object.keys(v).every(k => ['index', 'stamp', 'id', 'name'].includes(k)) &&
+    Number.isInteger(v.index) && v.index >= 0 && v.index <= 999 &&
+    typeof v.stamp === 'string' && /^[0-9a-f]{16}$/.test(v.stamp) &&
+    ['id', 'name'].every(k => !(k in v) || (typeof v[k] === 'string' && v[k].length > 0 && v[k].length <= 512 && !/[\x00-\x1f]/.test(v[k]))),
   recorder: v => typeof v === 'string' && v.length <= 1024 && isAbsolute(v) && !v.includes('\0'),
   endOfSpeechMs: v => Number.isInteger(v) && v >= 300 && v <= 3000,
 };

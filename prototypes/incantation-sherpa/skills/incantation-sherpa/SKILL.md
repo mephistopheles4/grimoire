@@ -41,7 +41,9 @@ turn came after the reply, was cut, and how many lines played. Claude Code's
 permission mode checks each tool call, and a spoken yes never bypasses it.
 
 Muting and unmuting the mic or the voice, and which microphone and voice it
-uses, stay the person's decisions. The person can make each one by voice.
+uses, stay the person's decisions. The person can make each one by voice. When
+the chosen mic is not plugged in, the listener opens another one and the
+greeting says which, so the person can keep it, switch or mute.
 
 **Stops.** Each is fixed.
 
@@ -176,6 +178,11 @@ chat and speaks nothing.
    `Stopped listening.` and stop. Any other answer but `speaking`: show it, run
    `node <skill base>/scripts/listen.mjs stop`, print `Stopped listening.` and
    stop. There is no retry loop.
+   When the same delivery has a `mic-fallback "<name>"` line, the mic chosen at
+   install is not plugged in and the listener opened that one instead. Say so in
+   the greeting, in plain words ("your usual mic isn't here, so I'm using the
+   webcam's"), and show the name in chat. To switch, the person runs install's
+   microphone steps, by voice after the say-back, then you restart the listener.
 
 `/incantation-sherpa observe` runs the same start and the same loop, with the change
 under "Observe-only mode".
@@ -237,6 +244,7 @@ open until a real turn is heard, so a quiet room costs you no turns.
   - `quiet <n>`: `n` stretches of 10 minutes passed with nothing heard before this
     turn.
   - `stt-dropped`: a turn was not understood; say so in chat only.
+  - `mic-fallback "<name>"`: with the first `ready` only; see Start step 5.
   - `say-failed`: the player failed after a line had started; say so in chat only.
   - `dropped <n>`: turns were lost; note it in chat.
   - `timing:` is for the practice record, not for speech. `plays <n>` counts the

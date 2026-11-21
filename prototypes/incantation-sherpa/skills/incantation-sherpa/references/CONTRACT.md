@@ -94,7 +94,10 @@ something for you, then why am I using voice in the first place?"
   yes never bypasses.
 
 **Decisions that stay the person's** (**Confirmed**): muting and unmuting the
-mic, and which microphone and voice it uses.
+mic, and which microphone and voice it uses. When the chosen mic is not
+plugged in, the listener opens another one rather than refusing to start, and
+the greeting says which, so the person can keep it, switch or mute
+(**Decided**: the owner, 646 trial).
 
 **Stops.** Each is fixed.
 

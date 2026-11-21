@@ -69,7 +69,7 @@ export async function runSetup(argv, o) {
   const profiles = await engine.profiles();
   if (!profiles) return { lines: [LINES.voicebox], code: 1 };
   if (!profiles.some(p => p.id === args[2])) return { lines: [LINES.profile], code: 1 };
-  const settings = { ...SETTINGS_DEFAULTS, profile: args[2], device: { index, stamp: args[1] }, recorder };
+  const settings = { ...SETTINGS_DEFAULTS, profile: args[2], device: { index, stamp: args[1], id: devices[index].id, name: devices[index].name }, recorder };
   for (const [k, v] of Object.entries(settings)) if (!SETTINGS_KEYS[k](v)) return { lines: [LINES.usage], code: 2 };
   writePrivate(settingsPath(o.home), `${JSON.stringify(settings, null, 2)}\n`, { platform });
   return { lines: [LINES.saved], code: 0 };

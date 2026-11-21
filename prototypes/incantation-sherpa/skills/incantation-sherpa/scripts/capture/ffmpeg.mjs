@@ -76,6 +76,21 @@ export const recorderName = platform => (platform === 'win32' ? 'ffmpeg.exe' : '
 // The list's stamp: a hash of every device's name and id, in order (590's rule).
 export const stampOf = devices => createHash('sha256').update(JSON.stringify(devices.map(d => [d.name, d.id]))).digest('hex').slice(0, 16);
 
+// A device that records what plays, not a mic: never a fallback.
+const LOOPBACK = /stereo mix|what u hear|wave out mix|loopback|monitor of|cable output|voicemeeter out/i;
+
+// The mic to open (646 trial): the saved one, found by its id, then by its
+// name, wherever it now sits in the list; settings from before that are found
+// by their stamp and index. When it is gone, the first mic that is not a
+// loopback, as how 'fallback', so the listener can say which it opened.
+export function pickDevice(devices, saved) {
+  const exact = (saved.id && devices.find(d => d.id === saved.id)) || (saved.name && devices.find(d => d.name === saved.name));
+  if (exact) return { device: exact, how: 'saved' };
+  if (!saved.id && !saved.name && stampOf(devices) === saved.stamp && devices[saved.index]) return { device: devices[saved.index], how: 'saved' };
+  const other = devices.find(d => !LOOPBACK.test(d.name));
+  return other ? { device: other, how: 'fallback' } : { device: null, how: null };
+}
+
 // What setup prints: the stamp, then one line per device, cleaned and cut at
 // 64 characters, never an id or a path.
 export const listingLines = devices => [`stamp ${stampOf(devices)}`, ...devices.map((d, i) => `${i} ${cleanText(d.name, 64)}`)];
