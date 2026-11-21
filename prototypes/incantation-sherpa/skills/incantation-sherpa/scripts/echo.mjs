@@ -68,6 +68,15 @@ export class RefFeed {
     for (let i = 0; i < samples.length; i++) this.buf[i] = Math.max(-32768, Math.min(32767, this.buf[i] + samples[i]));
   }
 
+  /** The continuous stream case: what the player wrote, in order. Kept to
+   *  two seconds, so clock drift cannot grow it. */
+  append(samples) {
+    const joined = new Int16Array(this.buf.length + samples.length);
+    joined.set(this.buf);
+    joined.set(samples, this.buf.length);
+    this.buf = joined.length > 32_000 ? joined.subarray(joined.length - 32_000) : joined;
+  }
+
   take(n) {
     const out = Buffer.alloc(n * 2);
     const k = Math.min(n, this.buf.length);

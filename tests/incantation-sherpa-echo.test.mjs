@@ -20,7 +20,7 @@ const frame = amp => {
 const QUIET = 1000;
 const VOICE = 3163; // 10 dB over QUIET
 const LOUD = 10000; // 20 dB over QUIET
-const GRACE = Math.ceil(KNOBS.bargeGraceMs / 30); // frames of a reply before a barge-in counts
+const GRACE = Math.ceil(Math.max(KNOBS.bargeGraceMs, KNOBS.bargeWarmMs) / 30); // frames of a first reply before a barge-in counts
 
 function rig() {
   const gate = new Gate({ silenceMs: 300 });
@@ -200,4 +200,87 @@ test('before the worker is ready, frames pass through unchanged', async () => {
   const f = frame(3000);
   assert.equal(await aec.process(f, frame(1000)), f);
   aec.close();
+});
+
+// The steady player and the speech gate (646 trial).
+import { makeStreamPlayer, resample } from '../prototypes/incantation-sherpa/skills/incantation-sherpa/scripts/stream.mjs';
+
+function fakeFfplay() {
+  const child = new EventEmitter();
+  child.stdin = new PassThrough();
+  child.kill = () => child.emit('exit', 0);
+  child.written = 0;
+  child.stdin.on('data', d => (child.written += d.length));
+  return child;
+}
+
+test('the steady player writes ahead, and hands each sample to the reference only when due to play', () => {
+  let t = 0;
+  const child = fakeFfplay();
+  const refs = [];
+  const p = makeStreamPlayer({ ffplay: 'ffplay', exists: () => true, spawn: () => child, now: () => t, timers: false, onWrite: s => refs.push(s.length) });
+  t = 1000;
+  p.tick();
+  assert.equal(child.written, 2 * 26400); // a second, plus the 0.1 s lead, at 24 kHz
+  assert.equal(refs[0], 16000); // only the second that is due, at 16 kHz: not the lead
+  p.close();
+});
+
+test('a line ends once written and heard, and a stop cuts it at once', async () => {
+  let t = 0;
+  const p = makeStreamPlayer({ ffplay: 'ffplay', exists: () => true, spawn: fakeFfplay, now: () => t, timers: false, latencyMs: 400, leadMs: 0 });
+  const line = p.play(wav(24000, Array.from({ length: 2400 }, () => 500))); // 0.1 s
+  let outcome = null;
+  line.done.then(o => (outcome = o));
+  t = 200;
+  p.tick();
+  await null;
+  assert.equal(outcome, null); // written, not yet heard out
+  t = 600;
+  p.tick();
+  await null;
+  assert.equal(outcome, 'ended');
+  const cut = p.play(wav(24000, Array.from({ length: 24000 }, () => 500)));
+  cut.stop();
+  assert.equal(await cut.done, 'killed');
+  p.close();
+});
+
+test('resample keeps a level and changes the length by the rate', () => {
+  const out = resample(Int16Array.from({ length: 2400 }, () => 700), 24000, 16000);
+  assert.equal(out.length, 1600);
+  assert.ok(out.every(s => s === 700));
+});
+
+test('a loud frame that is not speech opens no turn', () => {
+  const r = rig();
+  for (let i = 0; i < 20; i++) {
+    for (const e of r.gate.frame(frame(LOUD), r.t, null, false)) r.turns.push(e);
+    r.t += 30;
+  }
+  r.feed(QUIET, 12);
+  assert.equal(r.turns.length, 0);
+});
+
+test('no barge-in before the session has played enough for the canceller to converge', () => {
+  const r = rig();
+  r.gate.playback(1, r.t);
+  r.feed(QUIET, Math.ceil(KNOBS.bargeWarmMs / 30) - 20);
+  r.feed(LOUD, 15);
+  assert.equal(r.barges, 0);
+  r.feed(LOUD, 20);
+  assert.equal(r.barges, 1);
+});
+
+test('pumped by the mic, the player advances by exactly one frame each time', () => {
+  const child = fakeFfplay();
+  const refs = [];
+  const p = makeStreamPlayer({ ffplay: 'ffplay', exists: () => true, spawn: () => child, now: () => 0, timers: false, leadMs: 300, onWrite: s => refs.push(s.length) });
+  p.pump(30);
+  const first = child.written;
+  p.pump(30);
+  assert.equal(child.written - first, 2 * 720); // 30 ms at 24 kHz
+  for (let i = 0; i < 10; i++) p.pump(30); // 360 ms pumped: the first 300 were the lead
+  assert.equal(refs.reduce((a, b) => a + b, 0), 960); // 60 ms due to play, at 16 kHz
+  p.close();
 });

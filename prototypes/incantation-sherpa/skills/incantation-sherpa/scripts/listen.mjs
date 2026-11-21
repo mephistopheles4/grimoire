@@ -32,7 +32,8 @@ import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
 import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
 import { METER, Meter, levelsLine } from './meter.mjs';
-import { makePlayer } from './player.mjs';
+import { findPlayer, makePlayer } from './player.mjs';
+import { makeSpeech, makeStreamPlayer } from './stream.mjs';
 import { RefFeed, isEcho, makeAec, wavTo16k } from './echo.mjs';
 
 class Stop extends Error {
@@ -280,6 +281,11 @@ export async function startListener(options = {}) {
     // reference, and the last lines spoken are what a heard echo is matched against.
     const refFeed = new RefFeed();
     const aec = options.aec ?? makeAec();
+    // One ffplay for the session when there is one, so the speaker delay stays put
+    // and the canceller converges once; its every sample is the reference.
+    const ffplay = options.player ? null : findPlayer({ platform, recorder: settings.recorder });
+    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, onWrite: s => refFeed.append(s), leadMs: 300, timers: false }) : null;
+    const speech = options.speech === undefined ? makeSpeech() : options.speech;
     const spoken = [];
     const noteSpoken = text => {
       if (!text) return;
@@ -291,6 +297,7 @@ export async function startListener(options = {}) {
       available: rawPlayer.available,
       name: rawPlayer.name,
       play(wav) {
+        if (stream) return stream.play(wav);
         const handle = rawPlayer.play(wav);
         if (!handle) return handle;
         refFeed.add(wavTo16k(wav));
@@ -436,6 +443,7 @@ export async function startListener(options = {}) {
       current = null;
       feed?.close?.();
       aec.close();
+      stream?.close();
       if (child && childExited) {
         child.kill();
         await Promise.race([childExited, new Promise(r => setTimeout(r, 2000).unref())]);
@@ -850,7 +858,7 @@ export async function startListener(options = {}) {
     let aecChain = Promise.resolve();
     const onFrame = (clean, raw) => {
       if (finished) return;
-      for (const e of gate.frame(clean, clock(), raw)) {
+      for (const e of gate.frame(clean, clock(), raw, speech ? speech(clean) : true)) {
         if (e.type === 'turn') heard(e);
         else if (e.type === 'barge') bargeIn();
       }
@@ -867,6 +875,7 @@ export async function startListener(options = {}) {
           if (frame.some(b => b !== 0)) anySound = true;
           else if (framesSeen >= silentFrames) return void finish('mic');
         }
+        stream?.pump(knobs.frameMs); // the mic's clock paces the player and the reference
         const ref = refFeed.take(frame.length / 2);
         aecChain = aecChain.then(() => aec.process(frame, ref)).then(clean => onFrame(clean, frame), () => onFrame(frame, frame));
       }
