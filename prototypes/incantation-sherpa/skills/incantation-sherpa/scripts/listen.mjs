@@ -35,6 +35,7 @@ import { METER, Meter, levelsLine } from './meter.mjs';
 import { findPlayer, makePlayer } from './player.mjs';
 import { makeSpeech, makeStreamPlayer } from './stream.mjs';
 import { RefFeed, isEcho, makeAec, makeLoopback, wavTo16k } from './echo.mjs';
+import { TurnHold, makeTurnJudge } from './turn.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -147,6 +148,17 @@ export const CUES = Object.freeze({
   sorry: 'Oh, sorry about that.',
   mmhmm: 'Mm-hmm.',
 });
+// The instant acknowledgement (owner's pick, after the chime and the cue lines):
+// one of these, in the person's voice, the moment a turn is heard, a different one
+// each time. Recorded once at warm-up.
+export const SPINNERS = Object.freeze(['Combobulating.', 'One sec.', 'Looking into it.', 'Percolating.', 'Noodling on it.', 'Pondering.', 'Clauding.', 'Julienning.', 'Let me see.', 'On it.']);
+/** An index into `n` spinner words, never `last` again while there is another. */
+export function pickSpinner(n, last, rand = Math.random) {
+  if (n <= 1) return 0;
+  const skip = last >= 0 && last < n;
+  const i = Math.min(Math.floor(rand() * (skip ? n - 1 : n)), (skip ? n - 2 : n - 1));
+  return skip && i >= last ? i + 1 : i;
+}
 export const CUE_REPLIES = [...SAY_REPLIES, 'cue-unknown', 'cue-not-ready'];
 function sendSay(channel, text, timeoutMs = 0) {
   return new Promise(resolve => {
@@ -281,6 +293,7 @@ export async function startListener(options = {}) {
     // reference, and the last lines spoken are what a heard echo is matched against.
     const refFeed = new RefFeed();
     const aec = options.aec ?? makeAec();
+    let turnJudge = null; // set where turns are handled; finish() may run first
     // What the speaker really plays, notification sounds included, is the better
     // reference; while it runs, the player's own samples are not added again.
     const loopback = options.loopback ?? (options.player ? { active: false, close() {} } : makeLoopback({ platform, onSamples: s => {
@@ -355,11 +368,20 @@ export async function startListener(options = {}) {
     // cue stays silent.
     const cueClips = new Map();
     let ackNext = 0;
+    // The spinner words, once recorded; until then the chime stands in.
+    const spinnerClips = [];
+    let lastSpinner = -1;
     const playAck = question => {
-      if (cueClips.size) return;
-      const clips = question && askClips.length ? askClips : ackClips;
-      if (voiceMuted || !player.available || !clips.length || current || playing > 0) return;
-      const wav = clips[ackNext++ % clips.length];
+      if (voiceMuted || !player.available || current || playing > 0) return;
+      let wav;
+      if (spinnerClips.length) {
+        lastSpinner = pickSpinner(spinnerClips.length, lastSpinner);
+        wav = spinnerClips[lastSpinner];
+      } else {
+        const clips = question && askClips.length ? askClips : ackClips;
+        if (!clips.length) return;
+        wav = clips[ackNext++ % clips.length];
+      }
       try { player.play(wav); } catch {}
     };
     let inSay = 0;
@@ -450,6 +472,7 @@ export async function startListener(options = {}) {
       feed?.close?.();
       aec.close();
       loopback.close();
+      turnJudge?.close();
       stream?.close();
       if (child && childExited) {
         child.kill();
@@ -582,6 +605,10 @@ export async function startListener(options = {}) {
         serve();
       });
     };
+
+    // A turn that sounds unfinished waits for what follows (646 trial, turn.mjs).
+    turnJudge = options.turnJudge ?? (options.player ? { active: false, done: () => Promise.resolve(null), close() {} } : makeTurnJudge());
+    const turnHold = new TurnHold({ judge: turnJudge, release: heard });
 
     // A person who talks over a reply cuts it off (T8). The mic was never shut,
     // so the turn goes on as any other; the session is told its reply was cut.
@@ -821,9 +848,6 @@ export async function startListener(options = {}) {
     // After warm-up, the voice records the picked lines once (cue <name>). Until they
     // exist, and for a voice that makes none, the chime plays as before.
     const voiceCues = async () => {
-      // Kokoro spells "mm-hmm" out letter by letter, so only Phonon voices make cues.
-      const prof = (await engine.profiles?.())?.find(p => p.id === settings.profile);
-      if (prof?.engine !== 'phonon') return;
       // The player loses the first moment of audio while it opens the device, and
       // "mm-hmm" starts loud at its first sample, so each cue gets a short silence first.
       const lead = wav => {
@@ -835,6 +859,15 @@ export async function startListener(options = {}) {
         h.writeUInt32LE(data.length, 40);
         return Buffer.concat([h, data]);
       };
+      // The spinner words first: they are what a heard turn plays.
+      for (const line of SPINNERS) {
+        if (finished) return;
+        const wav = await engine.synthesize(line).catch(() => null);
+        if (wav) spinnerClips.push(lead(wav));
+      }
+      // Kokoro spells "mm-hmm" out letter by letter, so only Phonon voices make cues.
+      const prof = (await engine.profiles?.())?.find(p => p.id === settings.profile);
+      if (prof?.engine !== 'phonon') return;
       const made = new Map();
       for (const [name, line] of Object.entries(CUES)) {
         if (finished) return;
@@ -866,9 +899,10 @@ export async function startListener(options = {}) {
     const onFrame = (clean, raw) => {
       if (finished) return;
       for (const e of gate.frame(clean, clock(), raw, speech ? speech(clean) : true)) {
-        if (e.type === 'turn') heard(e);
+        if (e.type === 'turn') turnHold.offer(e, clock());
         else if (e.type === 'barge') bargeIn();
       }
+      turnHold.tick(clock(), gate.hearing);
       meter.add(gate.level, clock(), userMuted);
       writeStatus();
     };

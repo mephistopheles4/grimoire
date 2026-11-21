@@ -95,10 +95,9 @@ unmeant words, and often shows what the person really wanted.
   instead or actually in it, nothing cut, and the play count matching.
 - Talk not aimed at the session gets only its Heard line.
 - Speak unasked only past the gate in the tuning file.
-- After anything heard, give a short acknowledgement right away, before any
-  thinking or work; never a silent gap. Its job is a quick sign that the turn
-  was heard. Vary the wording, and never open two turns in a row the same way.
-  Example words are in the tuning file, never to be read out as a template.
+- After anything heard, the listener itself says a short spinner word right
+  away ("Combobulating.", "One sec."), a different one each time, so there is
+  never a silent gap. Speak no acknowledgement of your own on top of it.
 - Keep each spoken line short.
 - Never speak an id, hash, issue or PR number, path or other long identifier.
   Say what the thing is ("the last commit on this branch") and put the id in chat.
@@ -277,14 +276,10 @@ the file write and `listen.mjs say` that make it.
 
 The flow for a request is: read-back, thinking, plan, working, report.
 
-- **Read-back, at once.** For any turn aimed at the session, an answer or an
-  agreement included, say a short acknowledgement first, before any thinking or
-  work, so there is never a silent gap. Its job is a quick sign that the turn was
-  heard. Vary the wording and never open two turns in a row the same way. A
-  say-back below counts as that first line. Trial (646): play a prerecorded line
-  that fits the turn with `node <skill base>/scripts/listen.mjs cue <name>` (its
-  usage line lists the names), after its own `idle`; it counts as one play, like a
-  said line. On `cue-not-ready` or `cue-unknown`, say the acknowledgement instead.
+- **Read-back, at once.** Trial (646): the listener plays a spinner word the
+  moment it hears a turn; it is not counted as a play. So your first say is the
+  answer, the say-back or a short line on what you are doing, with no separate
+  acknowledgement before it.
 - **Thinking.** The status word is `thinking` by itself after a heard turn.
 - **A request that changes nothing**: a question, a look at a file, a command that
   only reads. The acknowledgement is all it needs before the work; no say-back, no
@@ -310,8 +305,8 @@ an equivalent ("go ahead", "do it", "okay do it", "sounds good"), and holds none
 the words no, not, don't, wait, stop, but, instead or actually. It must have been
 delivered after the say-back, the say-back must have been your last speech before
 it, no `interrupted` may have come with it, and its delivery's `plays <n>` must
-equal the number of lines you had the listener say since the last delivery (an
-acknowledgement and then the say-back is 2). Any other count voids the say-back,
+equal the number of lines you had the listener say since the last delivery (the
+say-back alone is 1, since the spinner word is not counted). Any other count voids the say-back,
 since another caller may have spoken in the same voice. The yes covers the
 say-back's request and nothing more: whatever else the turn asks is a new request,
 said back before you act on it. A yes in the same turn or the same delivery as its
