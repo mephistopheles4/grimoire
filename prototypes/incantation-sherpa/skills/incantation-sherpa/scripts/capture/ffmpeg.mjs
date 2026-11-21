@@ -62,7 +62,9 @@ function parseSources(text) {
 // stderr, -sources to stdout). `input` turns a device id into the -f and -i
 // arguments. Capture itself discards stderr.
 export const ROWS = {
-  win32: [{ input: id => ['-f', 'dshow', '-i', `audio=${id}`], list: ['-hide_banner', '-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], parse: t => parseBracketed(t, { section: 'audio' }) }],
+  // dshow buffers half a second by default, and the delay it adds swings from
+  // line to line, which the echo canceller cannot follow: 50 ms keeps it short and steady (646 trial).
+  win32: [{ input: id => ['-audio_buffer_size', '50', '-f', 'dshow', '-i', `audio=${id}`], list: ['-hide_banner', '-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], parse: t => parseBracketed(t, { section: 'audio' }) }],
   darwin: [{ input: id => ['-f', 'avfoundation', '-i', id], list: ['-hide_banner', '-list_devices', 'true', '-f', 'avfoundation', '-i', ''], parse: t => parseBracketed(t, { section: 'audio' }) }],
   linux: [
     { input: id => ['-f', 'pulse', '-i', id], list: ['-hide_banner', '-sources', 'pulse'], parse: parseSources },
