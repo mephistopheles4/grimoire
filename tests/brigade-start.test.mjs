@@ -405,7 +405,7 @@ test('C16: a clock that goes back or a non-number never opens more than the cap'
 test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 amended it, on one line', () => {
   assert.equal(
     S.DESCRIPTION,
-    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue, model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
+    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
   );
   assert.ok(!/\n/.test(S.DESCRIPTION));
 });
@@ -526,4 +526,75 @@ test('578 C7 rule 5: a note naming a live session or a card title is refused, a 
   ok(pass('.', ['', '--', '...']));
   assert.equal(refused(pass('Work with grimoire 601 here.', ['grimoire-601'], ['grimoire_601', 'Head chef'])), R.names, 'a live name is exempt only when it is an own name exactly');
   assert.equal(refused(pass('Work with delta here.', ['delta'], [])), R.names);
+});
+
+// --- the-pact#580: a Linear identifier as the work -------------------------------------------
+
+const LINEAR = id => ({ ...GOOD, issue: id });
+const LINEAR_PLAIN = 'Your work is Linear item PACT-12 for mephistopheles4/grimoire. Read it through the Linear tools. Send your questions and reports to Head chef handoff.';
+const ISSUE_WHY = 'issue: a GitHub issue number or a Linear identifier such as PACT-12';
+
+test('the-pact#580: a Linear identifier is a good issue, and comes back unchanged', () => {
+  for (const id of ['PACT-12', 'GRIM-1', 'STACKS-100', 'ATH-9', 'MEPH-123456789', 'AB-1', 'A1-1', 'ABCDEFGHIJ-1', 'A1B2C3D4E5-987654321']) {
+    assert.equal(ok(check(LINEAR(id))).issue, id, id);
+  }
+});
+
+test('the-pact#580: a Linear start prompt names the Linear item, with the same fixed sentence and one line', () => {
+  assert.equal(S.startPrompt(ok(check(LINEAR('PACT-12')))), LINEAR_PLAIN);
+  assert.ok(!/[\r\n]/.test(S.startPrompt(LINEAR('PACT-12'))));
+});
+
+test('the-pact#580: the start argv for a Linear identifier is the fixed one with that prompt', () => {
+  const argv = S.startArgv(LINEAR('PACT-12'), 'C:\\tools\\claude.exe');
+  assert.deepEqual(argv, ['C:\\tools\\claude.exe', '--bg', '--remote-control', 'build-543', '-n', 'build-543', '-w', 'build-543', '--model', 'sonnet', '--effort', 'high', LINEAR_PLAIN]);
+});
+
+test('the-pact#580: a Linear start takes the note as any start does', () => {
+  const noted = { ...LINEAR('PACT-12'), note: 'Build from the spec.' };
+  assert.equal(S.startPrompt(ok(check(noted))), `${LINEAR_PLAIN} Head chef handoff, not the owner, adds: Build from the spec.`);
+});
+
+test('the-pact#580: a Linear prompt holds the 640-character line cap: at the cap it passes, one over is refused in fixed words, and nothing throws', () => {
+  const big = note => ({ ...GOOD, repository: `${'o'.repeat(39)}/${'r'.repeat(100)}`, issue: 'A1B2C3D4E5-987654321', lead: 'a'.repeat(80), note });
+  const at = `${'z'.repeat(96)} ${'y'.repeat(96)}.`;
+  assert.equal(at.length, 194);
+  assert.equal(S.startPrompt(ok(check(big(at)))).length, 640);
+  const over = `${'z'.repeat(97)} ${'y'.repeat(96)}.`;
+  assert.equal(refused(check(big(over))), S.PROMPT_LONG);
+  const full = `${'z'.repeat(99)} ${'y'.repeat(99)}.`;
+  assert.equal(full.length, 200);
+  assert.equal(refused(check(big(full))), S.PROMPT_LONG);
+  assert.throws(() => S.startPrompt(big(full)));
+  // The same fields with no note stay inside it, and the GitHub number at its maximum with a full note is still 592.
+  const { note: _none, ...noNote } = big(at);
+  assert.equal(S.startPrompt(ok(check(noNote))).length, 342);
+});
+
+test('the-pact#580: the GitHub-number start still works, and its prompt is the old one', () => {
+  assert.equal(S.startPrompt(ok(check(GOOD))), PLAIN);
+  assert.equal(S.startPrompt(ok(check({ ...GOOD, issue: '1234567' }))), 'Your work is issue 1234567 on mephistopheles4/grimoire. Send your questions and reports to Head chef handoff.');
+});
+
+test('the-pact#580: a malformed identifier is refused in fixed words that never echo it', () => {
+  const bad = [
+    'pact-12', 'Pact-12', 'PACT-', 'PACT', '-12', 'PACT-012', 'PACT-0', 'PACT--12', 'PACT-12 ', ' PACT-12', 'PACT-12\n', 'PACT-12\r\n', 'PACT\n-12',
+    'P-12', 'ABCDEFGHIJK-1', 'PACT-1234567890', '1ACT-12', 'PA_CT-12', 'PA CT-12', 'PACT-1a', 'PACT-12-3', 'PACT-\u0661\u0662',
+    'https://linear.app/acme/issue/PACT-12', 'https://linear.app/acme/issue/PACT-12/title', 'linear.app/acme/issue/PACT-12', '#12', '#PACT-12', 'PACT-12;ls', 'PACT-12\0',
+  ];
+  for (const id of bad) assert.equal(refused(check(LINEAR(id))), ISSUE_WHY, JSON.stringify(id));
+});
+
+test('the-pact#580: the GitHub-number refusals hold, and use the same fixed words', () => {
+  for (const bad of ['0', '01', '12345678', '1a', '-1', '', '1 ', '1\n']) assert.equal(refused(check({ ...GOOD, issue: bad })), ISSUE_WHY, JSON.stringify(bad));
+});
+
+test('the-pact#580: the builders check a Linear identifier again, so no refused one rides in', () => {
+  assert.throws(() => S.startPrompt(LINEAR('pact-12')));
+  assert.throws(() => S.startArgv(LINEAR('PACT-12\n'), 'claude'));
+});
+
+test('the-pact#580: the description names both forms of the issue input, on one line', () => {
+  assert.match(S.DESCRIPTION, /issue \(a GitHub issue number or a Linear identifier such as PACT-12\)/);
+  assert.ok(!/\n/.test(S.DESCRIPTION));
 });
