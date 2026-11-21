@@ -47,8 +47,9 @@ test('C8b a spec file with no line, a spec file with two lines, a missing sectio
   assert.deepEqual(indexProblems(['0001-a.md', '0002-b.md', '0003-c.md'], README), ['0003-c.md: no line under "## All specs"']);
   const twice = README.replace('- [0001-a](0001-a.md) — first', '- [0001-a](0001-a.md) — first\n- [0001-a](0001-a.md) — again');
   assert.deepEqual(indexProblems(['0001-a.md', '0002-b.md'], twice), ['0001-a.md: 2 lines under "## All specs", want one']);
-  assert.deepEqual(indexProblems([], README.replace(READ_FIRST, '## Start here')), ['docs/spec/README.md: missing section "## Read these first"']);
-  assert.deepEqual(indexProblems([], README.replace(ALL, '## Everything')), ['docs/spec/README.md: missing section "## All specs"']);
+  assert.deepEqual(indexProblems([], README.replace(READ_FIRST, `${READ_FIRST} (old)`)), ['docs/spec/README.md: missing section "## Read these first"']);
+  assert.deepEqual(indexProblems([], README.replace(ALL, `${ALL} (old)`)), ['docs/spec/README.md: missing section "## All specs"']);
+  assert.deepEqual(indexProblems(['0001-a.md'], README.replace('(0001-a.md)', '(old/0001-a.md)')), ['0001-a.md: no line under "## All specs"']);
   assert.deepEqual(indexProblems([], null), ['docs/spec/README.md: missing']);
 });
 
