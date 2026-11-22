@@ -580,10 +580,11 @@ export async function startListener(options = {}) {
     // Is a turn being heard now: one open in the gate, one waiting for its text, or a held part waiting for its rest?
     const hearingTurn = () => gate.hearing || unheard > 0 || !!joiner.hold || turnHold.holding;
 
-    // The spinner word (S5.2): one of the ten, the moment a turn is kept. None on
-    // a muted voice or while a line plays or waits, and it never counts in `plays`.
-    const playSpinner = () => {
-      if (voiceMuted || !player.available || spinner || current || playing > 0 || inSay > 0 || !spinnerClips.length) return;
+    // The spinner word (S5.2): one of the ten, the moment a turn ends. None on
+    // a muted voice, and it never counts in `plays`. `early` (the end of speech) plays it over a line.
+    const playSpinner = (early = false) => {
+      if (voiceMuted || !player.available || spinner || !spinnerClips.length) return;
+      if (!early && (current || playing > 0 || inSay > 0)) return;
       lastSpinner = pickSpinner(spinnerClips.length, lastSpinner);
       let handle = null;
       try {
@@ -608,14 +609,14 @@ export async function startListener(options = {}) {
     // The cue plays at the gate's end of speech, before the turn is transcribed, so the
     // person hears it at once and not seconds later where it would sound like a reply (S5.2).
     // That is before the text says whether the turn counts, so a stray cue is possible:
-    // `settle` stops it where it stands for a mute word, a stop word, a fragment or a
-    // failed transcript. None for a mic that is muted, for the part of a turn the gate cut
-    // (the person is still talking), for a turn begun over a line or one waiting, or for a
-    // turn that began over our own sound or soon after it, which may be its echo and
-    // would otherwise start a loop of cues.
-    const earlyCue = turn => {
-      if (userMuted || turn.cut || turn.overlap || turn.barged || current || inSay > 0) return;
-      playSpinner();
+    // `settle` stops it where it stands for a mute word, a stop word, a fragment, a
+    // failed transcript, or our own sound heard back. It always plays when a turn ends,
+    // whatever began the turn (a quick answer inside the echo window, talk over a line,
+    // a turn the gate cut), by the owner's word; only a muted mic skips it (and a muted
+    // voice, which plays nothing).
+    const earlyCue = () => {
+      if (userMuted) return;
+      playSpinner(true);
     };
 
     const heard = turn => {
@@ -951,7 +952,7 @@ export async function startListener(options = {}) {
       if (finished) return;
       for (const e of gate.frame(clean, clock(), aec.active ? raw : null, speech ? speech(clean) : true)) {
         if (e.type === 'turn') {
-          earlyCue(e);
+          earlyCue();
           turnHold.offer(e, clock());
         }
         else if (e.type === 'barge') bargeIn();

@@ -342,9 +342,15 @@ A listener older than a command closes the connection; the client then prints
 - Synthesized once by the engine after `ready`, in the background, each with
   150 ms of silence before it. Until they exist, nothing plays: the chime does
   not ship.
-- One plays the moment a turn is heard and kept, chosen by `pickSpinner`, never
-  the one before while there is another. Not on a stop word, a mute word, a
-  dropped fragment, while the voice is muted, or while a line plays or waits.
+- One plays when the gate hears a turn end, before the turn is transcribed, so
+  it is not heard seconds late where it would sound like a reply; chosen by
+  `pickSpinner`, never the one before while there is another. It always plays
+  when a turn ends: for a quick answer inside the echo window, for talk over a
+  line playing or waiting, and for a turn the gate cut (the owner never asked
+  for a rule that skips it: "I never asked for that"). It is skipped only while
+  the mic is muted (and the voice, which plays nothing). When the text says the
+  turn was a stop word, a mute word, a fragment, or our own sound heard back, or
+  the transcript failed, the cue is stopped where it stands.
 - Not counted in `plays`, so a say-back alone is `plays 1`.
 
 ### S5.3 Progress beat

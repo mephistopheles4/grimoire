@@ -238,7 +238,9 @@ whenever it stops.
   first one.
 - **The sound of it.** A heard turn gets a short spinner word at once ("One sec",
   "Looking into it" and eight more), never the same one twice running; it plays
-  nothing on a stop word, a fragment, a muted voice, or while a line plays. While
+  nothing while the mic or the voice is muted, and it is cut short when the words
+  prove to be a stop word, a mute word or a fragment. It plays when you finish
+  speaking, even over a line or right after one. While
   the session works it says one short line on what it is doing about every 90 s,
   and the mod says a fixed "Still working on it." when one long call carries no
   line. When Claude Code stops on a permission prompt, the mod says "I need your OK

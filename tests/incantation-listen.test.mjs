@@ -1041,7 +1041,7 @@ test('follow-up 1: the spinner word plays when the gate hears the end of speech,
   assert.match(await pending, /^Heard: "Run the tests\."$/m);
 });
 
-test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a fragment is cut short; none for a muted mic, a muted voice, a cut part, a turn over a line, or a turn that may be an echo', async t => {
+test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a fragment is cut short; none for a muted mic or a muted voice, and one for a turn over a line', async t => {
   const words = ['stop', 'Mute.', 'Unmute.', 'you', 'Run the tests.'];
   const r = await live(t, { engineOptions: { text: texts(...words) } });
   await tick(120);
@@ -1064,28 +1064,31 @@ test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a 
   await tick(70);
   assert.equal(r.player.spinners.length, 3);
   assert.equal(r.player.spinners[2].stopped, true, 'a fragment: stopped');
-  // A person who talks over a line gets no cue.
+  // A person who talks over a line still gets the cue: it always plays when a turn ends.
   assert.equal(await spoken(r, 'First line.'), 'speaking\n');
   turn();
   await tick(70);
-  assert.equal(r.player.spinners.length, 3, 'none over a line');
+  assert.equal(r.player.spinners.length, 4, 'a cue over a line');
   // A muted voice plays nothing.
   assert.equal(await cli(r.home, 'mute-voice'), 'voice-muted\n');
   turn();
   await tick(70);
-  assert.equal(r.player.spinners.length, 3, 'none while the voice is muted');
+  assert.equal(r.player.spinners.length, 4, 'none while the voice is muted');
 });
 
-test('follow-up 1: a turn that begins soon after a reply, or over a spinner word, plays no cue, so our own sound heard back cannot start a loop', async t => {
-  const r = await live(t, { engineOptions: { text: 'Run the tests.' } });
+test('follow-up 1: a quick turn inside the echo window still gets a cue, and our own sound heard back is stopped and not delivered', async t => {
+  const r = await live(t, { engineOptions: { text: texts('Run the tests.', 'One sec.') } });
   await tick(120);
   r.turn();
   await tick(70);
   assert.equal(r.player.spinners.length, 1);
   r.push(3163, 12); // the mic hears the spinner word's own tail, within echoHoldMs of its end
   r.push(1000, 15);
-  await tick(70);
-  assert.equal(r.player.spinners.length, 1, 'no cue for a turn that may be our own echo');
+  await tick(150);
+  assert.ok(r.player.spinners.length >= 1, 'the first cue played');
+  const out = await wait(r.home);
+  assert.match(out, /^Heard: "Run the tests."$/m);
+  assert.doesNotMatch(out, /One sec/, 'our own word is not a turn');
 });
 
 test('follow-up 2: a say queued behind a playing line holds while a new turn is being heard, and plays when it is dropped or fails when a turn lands', async t => {
