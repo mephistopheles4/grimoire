@@ -950,7 +950,10 @@ export async function startListener(options = {}) {
     const onFrame = (clean, raw) => {
       if (finished) return;
       for (const e of gate.frame(clean, clock(), aec.active ? raw : null, speech ? speech(clean) : true)) {
-        if (e.type === 'turn') turnHold.offer(e, clock());
+        if (e.type === 'turn') {
+          earlyCue(e);
+          turnHold.offer(e, clock());
+        }
         else if (e.type === 'barge') bargeIn();
         else if (e.type === 'cut-over') endChain(e.chain);
       }
