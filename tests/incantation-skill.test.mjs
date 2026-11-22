@@ -1,7 +1,7 @@
 // Tests of the incantation skill's text (docs/spec/incantation.md, claims 1
-// and 15, and the trial amendments). What a model does with the text is the
-// eval cases' job; this file holds the lines that must be there, and the ones
-// that must not.
+// and 15, and the amendments from the prototype's trial). This file holds the
+// lines that must be there, and the ones that must not. The two "0001" tests
+// are the first two claims of the change that brought the prototype in.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +25,7 @@ const BANNED = /voice-?mode|\bconverse\b|\bWSL\b|\bparec\b|\bpactl\b|\bproxy\.mj
 export const claim1 = (name, body) => (BANNED.test(body) ? [`${name} names ${BANNED.exec(body)[0]}`] : []);
 
 test('claim 1: no file under skills/incantation/ or evals/incantation/, and no manifest, names VoiceMode, converse, WSL, parec, pactl or the old proxy', () => {
-  for (const dir of [SKILL, EVALS]) for (const f of filesUnder(dir)) assert.deepEqual(claim1(f.slice(ROOT.length), readFileSync(f, 'utf8')), []);
+  for (const dir of [SKILL, EVALS].filter(existsSync)) for (const f of filesUnder(dir)) assert.deepEqual(claim1(f.slice(ROOT.length), readFileSync(f, 'utf8')), []);
   const manifest = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
   const market = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'marketplace.json'), 'utf8'));
   assert.equal(market.plugins.find(p => p.name === 'incantation'), undefined, 'incantation is a skill of grimoire, not a second plugin');
@@ -44,7 +44,7 @@ test('claim 1: the check fails on each name it forbids', () => {
 // the install's alone (T1), and takes only the person's typed pick.
 const ALLOWED = [
   /^guard\.mjs$/,
-  /^listen\.mjs (start|wait|stop|idle|mute|unmute)$/,
+  /^listen\.mjs (start|stop|idle|working|mute|unmute|mute-voice|unmute-voice)$/,
   /^listen\.mjs say <8 hex>$/,
   /^observe\.mjs add <8 hex>$/,
   /^observe\.mjs freeze <n>$/,

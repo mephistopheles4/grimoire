@@ -1,7 +1,8 @@
 # Cleanup
 
 Read this when the owner says "done" with a session, or asks you to clean
-up. Cleanup is the owner's yes in this chat, from the desktop or the phone.
+up. Cleanup is the owner's yes in this chat, from the desktop or the phone,
+or a clear yes heard after a say-back that names the sessions.
 You archive or stop the sessions the yes names. A worktree or branch goes
 only through a cleaner the owner's instructions name, run by you under the
 permission mode in force. Whether a removal can be undone is that cleaner's
