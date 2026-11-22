@@ -44,7 +44,7 @@ const stop = reason => {
   throw new Stop(reason);
 };
 
-export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended', 'waiting'];
+export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended', 'waiting', 'relay'];
 
 const listenFile = home => join(runDir(home), 'listen.json');
 
@@ -263,6 +263,9 @@ export async function startListener(options = {}) {
     let rateTimer = null;
     let idleTimer = null;
     let noWaiterTimer = null;
+    // No wait connects within relayWaitMs of ready: the mod that relays heard turns is not running (S4.7).
+    let relayTimer = null;
+    let everWaited = false;
     let parentTimer = null;
     let sttMs = 0;
     let sttFails = 0;
@@ -358,7 +361,7 @@ export async function startListener(options = {}) {
     finish = async reason => {
       if (finished) return;
       finished = true;
-      for (const t of [rateTimer, idleTimer, noWaiterTimer, joinTimer]) clearTimeout(t);
+      for (const t of [rateTimer, idleTimer, noWaiterTimer, joinTimer, relayTimer]) clearTimeout(t);
       clearInterval(parentTimer);
       clearInterval(heartbeat);
       clearInterval(idlePoll);
@@ -789,6 +792,8 @@ export async function startListener(options = {}) {
         if (waiter) return void socket.end('listener error waiting\n');
         waiter = socket;
         clearTimeout(noWaiterTimer);
+        everWaited = true;
+        clearTimeout(relayTimer);
         socket.on('close', () => {
           if (waiter === socket) {
             waiter = null;
@@ -840,6 +845,7 @@ export async function startListener(options = {}) {
     withTimeout(engine.warm(), knobs.warmMs).then(
       ms => {
         notices.set('ready', `ready ${ms} voice ${settings.profile}`);
+        if (!everWaited && !finished) relayTimer = setTimeout(() => finish('relay'), knobs.relayWaitMs);
         serve();
         makeSpinners().catch(() => {});
       },

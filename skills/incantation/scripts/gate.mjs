@@ -40,6 +40,7 @@ export const KNOBS = {
   idleMs: 30 * 60_000, // no heard turn this long ends the listener
   quietMs: 10 * 60_000, // a wait with nothing this long prints quiet
   noWaiterMs: 5 * 60_000, // no wait connected this long ends the listener
+  relayWaitMs: 60_000, // no wait connected this long after ready: the relay is not running, and the listener ends
   maxText: 500,
   sttFailures: 3,
   sttTimeoutMs: 15_000,

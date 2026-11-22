@@ -478,6 +478,20 @@ test('it ends with no waiter for the no-waiter time, and after the idle time wit
   }
 });
 
+test('with no wait connected within the relay time of ready it ends with the fixed reason relay; a wait that connects in time keeps it up', async t => {
+  const r = rig({ knobs: { relayWaitMs: 150 } });
+  const l = await r.start();
+  assert.equal(await l.done, 'relay');
+  r.cleanup();
+  const kept = rig({ knobs: { relayWaitMs: 150 } });
+  const k = await kept.start();
+  assert.match(await wait(kept.home), /^ready /m);
+  const state = await Promise.race([k.done, tick(500).then(() => 'still up')]);
+  assert.equal(state, 'still up');
+  await k.stop('stopped');
+  kept.cleanup();
+});
+
 test('it refuses to start, with a fixed reason, on a changed recorder, no usable mic, an unlisted engine or unparsable settings', async t => {
   const cases = [
     [{ recorder: fakeRecorder({ path: process.platform === 'win32' ? 'C:\\other\\ffmpeg.exe' : '/other/ffmpeg' }) }, 'recorder'],
