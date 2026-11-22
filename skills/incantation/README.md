@@ -146,7 +146,8 @@ conversion the sherpa-onnx project publishes. It is not changed beyond that.
 **Where it comes from.** From `huggingface.co` and its CDN, `registry.npmjs.org`,
 `github.com` and its release hosts (`release-assets.githubusercontent.com`,
 `objects.githubusercontent.com`), and, for the Python layer, `pypi.org` and
-`files.pythonhosted.org`; `uv` also fetches its own CPython, and checks it. The
+`files.pythonhosted.org`; `uv` also fetches its own CPython, from Astral's mirror (`releases.astral.sh`)
+or GitHub, and checks it. The
 sources and redirect hosts are fixed in code and no proxy variable is read. Every
 file has a size and a sha256 in `scripts/runtime/pins.mjs` and is checked before
 it is kept, loaded or run; an archive is checked whole before it is opened and

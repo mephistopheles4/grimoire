@@ -707,8 +707,9 @@ at `/incantation install`. It sends requests, with no cookie, token, credential
 or proxy and a generic `incantation-installer` user agent, to the hosts in
 `scripts/runtime/pins.mjs`: `huggingface.co` and its CDN, `registry.npmjs.org`,
 `github.com` and its release hosts, `pypi.org` and `files.pythonhosted.org`;
-the person's own `uv` also contacts those it needs and fetches its own CPython,
-with its own client details. Those hosts see the machine's address and the
+the person's own `uv` also contacts those it needs and fetches its own CPython
+(from Astral's mirror, `releases.astral.sh`, or GitHub), with its own client
+details. Those hosts see the machine's address and the
 files asked for. Every file is pinned by size and sha256 before it is kept or
 run. The plan prints the hosts and the size before anything downloads. Outside
 the installer, the ONNX runtime in the sherpa-onnx addon sends Windows

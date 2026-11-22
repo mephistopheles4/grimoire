@@ -585,7 +585,7 @@ say-back alone played in between; any other count voids it); the typed-yes list 
 reverse, files sessions load or that run code later, the brigade lead role,
 unread commands, decisions the person's instructions keep, and now
 Incantation's settings and state folder); heard text never stands for typed
-words and never answers a permission prompt; "stop" or "that's all" ends the
+words (superseded: see T4's note: a clear yes now does) and never answers a permission prompt; "stop" or "that's all" ends the
 loop, "wait" halts.
 
 ## S8. Acceptance claims
@@ -942,6 +942,11 @@ for a newer turn before acting) is deferred by the owner as a later polish.
   what the session may do. This loosens S7.3's list and S10's rows that rest
   on it; the owner signs that, and the threat model's classes are not edited
   here.
+
+  > Superseded by [0001-incantation-from-the-prototype](0001-incantation-from-the-prototype.md):
+  > a clear yes heard after a say-back now stands in for typing at a checkpoint,
+  > including the head chef's gates and a runtime install, and it still never
+  > answers a permission prompt on screen.
 - **T5. Noise filter.** A frame is voice only at 10 dB over the floor and at
   least -45 dBFS (a gated headset reads a floor near zero, so the relative
   test alone passes breaths); a turn holds 400 ms of voice; a turn whose whole
