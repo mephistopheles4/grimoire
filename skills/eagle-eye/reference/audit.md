@@ -22,6 +22,8 @@ argued edge with controls that it builds from the `sourced` and `measured`
 edges in the box. It flags an edge that scores among those controls. A box
 with too few such edges gets a ranking with no flags, and the tool says so.
 
+The audit needs a box file, so it does not run on a chat table.
+
 The audit is the one action of this skill that leaves the machine. It sends
 the box's text to a model provider, and the provider charges each request to
 the person's own key.

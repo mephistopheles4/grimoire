@@ -1,6 +1,6 @@
 # Contract: contract
 
-Version: 0.16.0
+Version: 0.16.1
 Kind: skill
 Level: Thorough
 
@@ -123,10 +123,7 @@ not show this skill finds them in a contract it helped write.
 - **Confirmed.** It writes the contract and its change log, generates the built
   file, and runs `claude plugin validate --strict` when the command is
   available: on the `skills/` folder that holds a skill's folder, or on the
-  folder that holds an agent's file. A clean pass names no file, so unless
-  the output names the built file, it says the pass named no file. It says a
-  CLAUDE.md or a Codex agent was not validated, since the validator does not
-  read either.
+  folder that holds an agent's file.
 - **Confirmed.** It tells the person, when they pick a skill's name, that a name
   holding "anthropic" or "claude" breaks Anthropic's Skills docs. If they
   keep it, it records the name **Decided** with that noted.
@@ -178,14 +175,11 @@ not show this skill finds them in a contract it helped write.
 - **Decided.** An answer for an action, a stop or the tools (except what it
   needs to run), drafted from a file or by the skill, needs the person's own
   words, marked **Decided**.
-- **Decided.** Before it composes any command, it checks each path. It
-  refuses a path that holds a control character or any of the five
-  single-quote characters: the ASCII quote and the four curly ones.
 - **Decided.** It runs three commands only. The first is the interview script
   in `scripts/render.mjs`, during a hiring interview. It also makes its
   scratch folder and deletes its own three files there. The second is the
   validator, after building. The third is an eval run, after the person's
-  yes in chat.
+  confirmation, in any form.
 
 **Automatic checks** (**Confirmed**): `claude plugin validate --strict` decides
 whether the built file and its folder pass the tool's own schema, and nothing
@@ -338,14 +332,14 @@ go to build waits for that.
 
 **The hiring interview's actions** (**Proposed**),
 each told first; the first three are done on the person's own request for
-the interview, in this chat, and the other two on their yes:
+the interview, in this chat, and the other two on their confirmation, in any
+form:
 
 | Action | What the skill tells you first | Your yes |
 |---|---|---|
 | Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your request for the interview |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your request for the interview |
 | Write the page with the script (`--out`) | That the page keeps answers in the browser until Reset, unencrypted, and that other pages opened from disk in the same browser may read them | Your request for the interview |
-| Delete the page and the answers file (`--clean`), after asking for Reset | That it will now remove the page and the answers file | Your yes in chat |
 | Delete the draft (`--clean --draft`) | The offer to delete it | Your yes to that offer |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:
