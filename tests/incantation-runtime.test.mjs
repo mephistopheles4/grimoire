@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { ARCHIVES, FILES, LOCKS, SOURCES } from '../skills/incantation/scripts/runtime/pins.mjs';
+import { ARCHIVES, FILES, HOSTS, LOCKS, SOURCES } from '../skills/incantation/scripts/runtime/pins.mjs';
 import { checkRuntime, download, findUv, installRuntime, makeTransport, namedEnv, partState, partialDir, planRuntime, pythonExe, readTgz, runtimeDir, uvArgs, verifyRuntime } from '../skills/incantation/scripts/runtime/install.mjs';
 import { secureState } from '../skills/incantation/scripts/lib.mjs';
 
@@ -126,6 +126,39 @@ test('claim 14: every part is fetched, checked and renamed into place; verify th
     assert.deepEqual(verifyRuntime({ home: f.home, platform, arch, pins: PINS }).lines.every(l => l.endsWith(' ok')), true);
     assert.equal(checkRuntime(f.home, KEY, PINS).core, true);
   } finally {
+    f.remove();
+  }
+});
+
+test('claim 14: a rerun skips what is current, and fetches again a file changed to the same size and a python layer whose lock changed', async () => {
+  const f = fixture();
+  const locks = mkdtempSync(join(tmpdir(), 'incantation-locks-'));
+  try {
+    writeFileSync(join(locks, 'lock-test.txt'), 'wheel-a --hash=sha256:aa\n');
+    const calls = [];
+    const log = [];
+    const again = () => install(f, { lockDir: locks, runUv: fakeUv(calls), transport: fakeTransport(served(), log) });
+    await again();
+    calls.length = 0;
+    log.length = 0;
+    const rerun = await again();
+    assert.deepEqual([calls.length, log.length], [0, 0], 'nothing current is fetched or rebuilt');
+    assert.ok(rerun.lines.includes('python ok') && rerun.lines.includes('hearing ok'));
+
+    // The same size, other bytes: the size check passes, the hash does not.
+    writeFileSync(join(runtimeDir(f.home), 'parakeet', 'enc.bin'), 'ENCODER BYTES');
+    assert.equal(partState(f.home, 'hearing', KEY, PINS), 'ok', 'the start check reads sizes only');
+    await again();
+    assert.ok(log.some(l => l.path.endsWith('/enc.bin')), 'the changed file was fetched again');
+    assert.equal(readFileSync(join(runtimeDir(f.home), 'parakeet', 'enc.bin'), 'utf8'), 'encoder bytes');
+
+    // A later release changes the lock: the layer is built again.
+    calls.length = 0;
+    writeFileSync(join(locks, 'lock-test.txt'), 'wheel-a --hash=sha256:bb\n');
+    await again();
+    assert.ok(calls.some(c => c.args[0] === 'venv') && calls.some(c => c.args[0] === 'pip'), 'uv ran again for the new lock');
+  } finally {
+    rmSync(locks, { recursive: true, force: true });
     f.remove();
   }
 });
@@ -279,6 +312,11 @@ test('claim 14: uvArgs holds the isolation flags on every call that reads an ind
   assert.ok(uvArgs.venv('v').includes('--managed-python') && !uvArgs.venv('v').includes('--python-preference'));
   assert.ok(uvArgs.install('p', 'l').includes('only-managed'));
   assert.ok(uvArgs.venv('v').includes('3.12.12'));
+});
+
+test('claim 14: the hosts the plan shows include every origin and every redirect host a download may touch', () => {
+  const shown = new Set(HOSTS);
+  for (const s of Object.values(SOURCES)) for (const h of [new URL(s.origin).hostname, ...(s.redirects ?? [])]) assert.ok(shown.has(h), h);
 });
 
 test('claim 14: the real table holds no .bz2, only https sources, full commits and 64-hex hashes', () => {

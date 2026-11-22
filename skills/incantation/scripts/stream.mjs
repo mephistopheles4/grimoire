@@ -53,11 +53,12 @@ const FFPLAY_STREAM = ['-hide_banner', '-nodisp', '-loglevel', 'quiet', '-f', 's
  *  has been written and `latencyMs` more have passed, 'killed' on stop, or
  *  'failed' if ffplay is gone. Time comes from `now`, and `tick` is driven by
  *  the caller's timer (or a test). */
-export function makeStreamPlayer({ ffplay, spawn = nodeSpawn, exists = existsSync, now = () => Date.now(), onWrite = () => {}, latencyMs = 400, leadMs = 100, tickMs = 20, timers = true } = {}) {
+export function makeStreamPlayer({ ffplay, cwd, spawn = nodeSpawn, exists = existsSync, now = () => Date.now(), onWrite = () => {}, latencyMs = 400, leadMs = 100, tickMs = 20, timers = true } = {}) {
   if (!ffplay || !exists(ffplay)) return null;
   let child;
   try {
-    child = spawn(ffplay, FFPLAY_STREAM, { shell: false, windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
+    // `cwd` is the state folder (never the session's folder, where a planted DLL could be found by name).
+    child = spawn(ffplay, FFPLAY_STREAM, { shell: false, windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'], ...(cwd ? { cwd } : {}) });
   } catch {
     return null;
   }
