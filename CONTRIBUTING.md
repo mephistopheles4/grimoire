@@ -158,7 +158,7 @@ such a package without asking when no one is at a terminal.
 
 `.claude/settings.json` registers one Claude Code hook, `scripts/agent-check-guard.mjs`,
 which runs before every Bash and PowerShell call an agent makes in this
-repository. When the call is `node scripts/check.mjs` in any of its forms (the
+repository. When the call is `node scripts/check.mjs` or `node --test` in any of its forms (the
 plain, `./` and backslash paths, quoted or not, behind `cd`, `;`, `&&`, `&`,
 `FOO=1` or `timeout`) and `athanor` works on the machine, the hook refuses it
 and tells the agent to run `athanor run check`. The host check stays the
