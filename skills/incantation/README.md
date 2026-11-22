@@ -118,26 +118,25 @@ it now sits in the device list. If your microphones change, run
 
 `setup.mjs runtime plan` lists each part, whether it is there and its download
 size, whether `uv` was found, the total, the peak disk use (download plus
-unpacked) and the time at 10 MB/s, and every host it will contact. It refuses
-when the free space on your home drive is short. `setup.mjs runtime install`
-then fetches what is missing, as a background command printing one line per file
-and one result per part (`ok`, `skipped <why>`, `failed <file>`). `setup.mjs
-runtime verify` re-hashes every installed file; at each start the guard checks
-only that each file is there at its pinned size. When a release changes the
-pins, the guard's line names `/incantation install`, which fetches only the
-parts that changed and deletes files no longer in the table. The runtime lives
-under `~/.grimoire/incantation/runtime/` and nowhere else.
+unpacked) and the time at 10 MB/s, and every host it will contact. `setup.mjs
+runtime install` then fetches what is missing, as a background command printing
+one line per file and one result per part (`ok`, `skipped <why>`, `failed
+<file>`); it refuses to start when the free space on your home drive is short.
+`setup.mjs runtime verify` re-hashes every installed file; at each start the guard
+checks only that each file is there at its pinned size, and its line names
+`/incantation install`, which fetches only the parts whose pins changed. The
+runtime lives under `~/.grimoire/incantation/runtime/` and nowhere else.
 
 | Part | About | Licence |
 |---|---|---|
 | The addon: `sherpa-onnx-node` 1.13.8 and its platform package, CPU build | 30 MB order | Apache-2.0 |
 | Hearing: Parakeet TDT 0.6b v2, int8 | 660 MB | CC-BY-4.0, see below |
-| Speaking: Kokoro 1.0 multi-lang, fp32, with its lexicon | 385 MB | Apache-2.0 |
+| Speaking: Kokoro 1.0 multi-lang, fp32, with its lexicon | 393 MB | Apache-2.0 |
 | Speaking: `espeak-ng-data/`, and the espeak-ng code the addon carries | with Kokoro | GPL-3.0-or-later |
 | The speech detector: Silero VAD | 0.6 MB | MIT |
 | The Python layer, one venv from `uv` (CPython 3.12): `livekit`, `onnxruntime`, `numpy`, `ptts` and their dependencies | 190 MB | Apache-2.0, MIT, BSD |
-| End of turn: Smart Turn v3.2 (CPU) | 8.3 MB | BSD-2-Clause |
-| The Phonon voice, Everly, loaded by `ptts` | 60 MB order | Apache-2.0 |
+| End of turn: Smart Turn v3.2 (CPU) | 9 MB | BSD-2-Clause |
+| The Phonon voice, Everly, loaded by `ptts` | 104 MB | Apache-2.0 |
 
 **Attribution.** The hearing model is NVIDIA's Parakeet TDT 0.6b v2, licensed
 [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/), here as the int8 ONNX

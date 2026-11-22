@@ -458,11 +458,11 @@ POSIX):
 |---|---|---|---|
 | Core: the addon | `sherpa-onnx-node` 1.13.8 and its platform package (`sherpa-onnx-win-x64` 1.13.8 on Windows), CPU build | 30 MB order | Apache-2.0 |
 | Core: hearing | Parakeet TDT 0.6b v2, int8: encoder, decoder, joiner, tokens | 660 MB | CC-BY-4.0 (README attributes it) |
-| Core: speaking | Kokoro 1.0 multi-lang, full fp32: model, voices, tokens, `lexicon-us-en.txt`, `espeak-ng-data/`, `dict/` | 385 MB | Apache-2.0; `espeak-ng-data/` and the espeak-ng code the addon carries are GPL-3.0-or-later |
+| Core: speaking | Kokoro 1.0 multi-lang, full fp32: model, voices, tokens, `lexicon-us-en.txt`, `espeak-ng-data/`, `dict/` | 393 MB | Apache-2.0; `espeak-ng-data/` and the espeak-ng code the addon carries are GPL-3.0-or-later |
 | Core: speech detector | `silero_vad.onnx` | 0.6 MB | MIT |
 | Python layer | one venv `py/` from `uv`, CPython 3.12: `livekit` 1.3.0, `onnxruntime` 1.32.0, `numpy` 2.5.5, `ptts` 0.7.1 and their dependencies | 190 MB | Apache-2.0, MIT, BSD |
-| Python layer: end of turn | `smart-turn-v3.2-cpu.onnx`, from `pipecat-ai/smart-turn-v3` at commit `f766f81d` (the build records the full hash) | 8.3 MB | BSD-2-Clause |
-| Python layer: Phonon | the Everly voice and model `ptts` loads, kept under `runtime/hf/` | 60 MB order | as its model card says |
+| Python layer: end of turn | `smart-turn-v3.2-cpu.onnx`, from `pipecat-ai/smart-turn-v3` at commit `f766f81d` (the build records the full hash) | 9 MB | BSD-2-Clause |
+| Python layer: Phonon | the Everly voice and model `ptts` loads, kept under `runtime/hf/` | 104 MB | as its model card says |
 
 The README states each licence, including the GPL part. Phonon's model licence
 is read from its model card at build time and recorded; one that forbids this
@@ -498,7 +498,7 @@ lists each pin it could not cross-check against a published hash.
 
 - **Sources are fixed:** `huggingface.co/<repo>/resolve/<full commit>/<path>`
   for each model file, one file at a time (Kokoro multi-lang 1.0 and Parakeet
-  TDT 0.6b v2 int8 from the sherpa-onnx model repos, Silero VAD, `pipecat-ai/
+  TDT 0.6b v2 int8 from the sherpa-onnx model repos, and `pipecat-ai/
   smart-turn-v3`); `registry.npmjs.org` tarballs; and
   `github.com/k2-fsa/sherpa-onnx/releases` only where no per-file source
   exists. Models are never fetched as release `.tar.bz2`: no pin ends in
@@ -517,7 +517,7 @@ lists each pin it could not cross-check against a published hash.
   place; a failure deletes the partial part and says which file failed, never
   the URL's query or a path.
 - **Python packages** install with `uv pip install --require-hashes
-  --only-binary :all: --no-deps -r <lock>`, with `--python <runtime>/py`, from
+  --only-binary :all: --no-deps -r <lock>`, into the venv at `runtime/py`, from
   a lock file per platform in `scripts/runtime/`, made with `uv pip compile
   --generate-hashes --python-version 3.12 --python-platform <p>`. A package
   with no wheel for a platform means that platform runs without the Python
@@ -527,8 +527,10 @@ lists each pin it could not cross-check against a published hash.
   uv. The interpreter venv is made by `uv venv --managed-python` into
   `runtime/py`, so no `.python-version` or `pyproject.toml` in the session's
   folder changes anything.
-- **uv isolation.** Every uv call runs with `--no-config`, `--index-url
-  https://pypi.org/simple` and `--python-preference only-managed`, its working
+- **uv isolation.** Every uv call runs with `--no-config`; the venv and install calls add `--index-url
+  https://pypi.org/simple` and a managed-interpreter flag (`--managed-python`
+  on the venv, `--python-preference only-managed` on the install, since uv
+  refuses both together), its working
   folder set to `runtime/`, and an environment built from the named list
   above plus `UV_CACHE_DIR`, which the installer sets. No other `UV_*`,
   `PIP_*` or proxy variable passes. `setup.mjs runtime plan` names every host
@@ -543,8 +545,8 @@ microphone: **Runtime.** `setup.mjs runtime plan` prints, per part, whether it
 is there and its download size, the peak disk use (download plus unpacked),
 the expected time at 10 MB/s, every host it will contact, and whether `uv` was
 found (no `uv`: the Python layer is skipped and the line says what is lost:
-echo cancelling, the end-of-turn hold, Phonon). It refuses when free space on
-the home drive is short. The session says the plan back with its size, and on
+echo cancelling, the end-of-turn hold, Phonon). The install refuses to start when
+free space on the home drive is short. The session says the plan back with its size, and on
 a clear yes runs `setup.mjs runtime install` as a background command (core,
 then the Python layer when `uv` is there), which prints a progress line per
 file and then one line per part (`ok`, `skipped <why>`, `failed <file>`). A
@@ -660,7 +662,7 @@ is stopped.
   ending `(heard while you worked)`. What is left at the turn's end goes as a
   prompt.
 - **No log:** no heard text is written anywhere. A count of turns relayed,
-  submits refused and batches dropped is kept in memory for the session and
+  submits refused and deliveries dropped is kept in memory for the session and
   never written.
 - Only the listener's grammar passes (`wait` already filters it); the relay
   adds the tag and joins, nothing else.
@@ -743,14 +745,15 @@ a claim says otherwise.
     or spawned; a passing part is renamed into place; `uv` from a relative PATH
     entry or the working folder is never run; the `uv pip install` command
     line holds `--require-hashes`, `--only-binary :all:` and `--no-deps`, and
-    each uv call holds the isolation flags and `--python <runtime>/py`; the
+    each uv call holds `--no-config`; the install call also holds the index
+    flag, `--python-preference only-managed` and `--python <runtime>/py`; the
     venv is made with `--managed-python`; a `uv.toml` and a `UV_INDEX_URL`
     planted in the working folder and the environment change no request, and
     neither does a `.python-version` or `pyproject.toml` in the session's
     folder.
 11. `setup.mjs runtime plan` prints each part's state and size, peak disk use,
     every host, and whether `uv` was found, and with no `uv` names what is
-    lost; it refuses when disk is short; `verify` re-hashes; the guard fails
+    lost; `install` refuses when disk is short; `verify` re-hashes; the guard fails
     with a fixed line naming `/incantation install` when an installed part's
     file is missing or the wrong size.
 12. `engines/sherpa.mjs` with a fake addon and worker: `warm()` loads and runs
@@ -917,7 +920,7 @@ The security pair runs on the diff at Test.
   the turn's text is in, so a stop word gets none: from the end of speech that
   is the end-of-speech wait (1.5 s, longer under the end-of-turn hold) plus
   transcription (0.1 to 0.6 s on Parakeet in the trial). Budget: the spinner
-  starts within 150 ms of the transcript (claim 4); the end-to-spinner time is
+  starts within 100 ms of the transcript (claim 4); the end-to-spinner time is
   recorded in the practice run, not claimed.
 - **The mod as a requirement against two delivery routes.** One route, which
   prompt hooks see, against the skill not working without grimoire's mod
@@ -991,18 +994,25 @@ they differ.
   its Python stamp differs, not when a size differs. The stamp is the SHA-256
   of the pinned Python version and the platform's lock file, recorded in the
   Python layer's manifest.
-- **uv.** The interpreter venv is made with `--managed-python` alone, with no
-  `--python 3.12.n` flag.
+- **uv.** The interpreter venv is made with `--managed-python` and
+  not `--python-preference only-managed`, which uv refuses beside it; the exact
+  interpreter, 3.12.12, is named with `--python`.
 - **Redirect hosts.** The list includes `objects.githubusercontent.com`
   alongside `release-assets.githubusercontent.com`.
 - **The listener.**
-  - `stt-dropped` ends a `wait`.
+  - `stt-dropped` ends a `wait` when it belongs to a cut-turn chain; otherwise
+    it rides on the next delivery.
   - A turn cut by the end-of-speech wait is held and joined to the next one (a
     cut-turn chain), with a soft turn ceiling `softTurnMs` of 25 s.
   - Heard text over 500 characters is split.
   - The settings keep HMAC-SHA-256 digests of the mic id and name (the key is
     in `~/.grimoire/incantation/key`), not the text.
   - No spinner word plays on a turn flagged `overlap`.
+- **Silero VAD** is fetched from the sherpa-onnx GitHub release `asr-models`, not
+  Hugging Face, and is a trust-on-first-use pin.
+- **Telemetry.** The ONNX runtime inside the sherpa-onnx addon sends Windows
+  TraceLogging usage events that nothing turns off; the threat model names it as
+  a data flow. The Python workers turn theirs off.
 - **macOS has no Python lock file,** because ONNX Runtime has no wheel for the
   macOS target uv uses. On macOS the Python layer is skipped (the core still
   installs). The lock files are for Windows x64 and Linux x64.
