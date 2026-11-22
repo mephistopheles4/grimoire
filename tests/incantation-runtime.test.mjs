@@ -252,7 +252,7 @@ test('claim 14: nothing in runtime.partial is run; uv runs from the runtime fold
     assert.equal(pip.args[pip.args.indexOf('--python') + 1], pythonExe(f.home, platform));
     assert.ok(calls.find(c => c.args[0] === 'venv').args.includes('--managed-python'));
     assert.equal(pip.opts.cwd, runtimeDir(f.home));
-    assert.deepEqual(Object.keys(pip.opts.env).sort(), ['PATH', 'SYSTEMROOT', 'TEMP', 'USERPROFILE', 'UV_CACHE_DIR'].sort());
+    assert.deepEqual(Object.keys(pip.opts.env).sort(), ['PATH', ...(win ? ['SYSTEMROOT'] : []), 'TEMP', 'USERPROFILE', 'UV_CACHE_DIR'].sort());
     for (const c of calls) assert.ok(!c.args.some(a => String(a).includes('runtime.partial')), 'uv never touches runtime.partial');
   } finally {
     f.remove();
@@ -274,9 +274,10 @@ test('claim 14: namedEnv passes the named list and nothing else', () => {
 
 test('claim 14: uvArgs holds the isolation flags on every call that reads an index', () => {
   for (const args of [uvArgs.venv('v'), uvArgs.install('p', 'l'), uvArgs.cacheDir()]) assert.ok(args.includes('--no-config'));
-  for (const args of [uvArgs.venv('v'), uvArgs.install('p', 'l')]) {
-    assert.ok(args.includes('--index-url') && args.includes('only-managed'));
-  }
+  for (const args of [uvArgs.venv('v'), uvArgs.install('p', 'l')]) assert.ok(args.includes('--index-url'));
+  // uv refuses --managed-python with --python-preference, so each call holds one of the two, never neither.
+  assert.ok(uvArgs.venv('v').includes('--managed-python') && !uvArgs.venv('v').includes('--python-preference'));
+  assert.ok(uvArgs.install('p', 'l').includes('only-managed'));
   assert.ok(uvArgs.venv('v').includes('3.12.12'));
 });
 

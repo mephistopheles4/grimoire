@@ -32,7 +32,10 @@ import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, frameBytes, heardLines, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
 import { checkFile, cleanText, commandPath, deviceDigest, levelsPath, observeDir, readKey, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
 import { METER, Meter, levelsLine } from './meter.mjs';
-import { makePlayer } from './player.mjs';
+import { findPlayer, makePlayer } from './player.mjs';
+import { RefFeed, isEcho, makeAec, makeLoopback, wavTo16k } from './echo.mjs';
+import { makeSpeech, makeStreamPlayer } from './stream.mjs';
+import { TurnHold, makeTurnJudge } from './turn.mjs';
 
 class Stop extends Error {
   constructor(reason) {
@@ -290,7 +293,60 @@ export async function startListener(options = {}) {
     // The replies this listener plays itself (T18): the one playing, the says
     // accepted and not yet finished, and a count that a barge-in or a stop moves on,
     // so a say that was waiting behind a cut reply is dropped with it.
-    const player = options.player ?? makePlayer({ platform, recorder: settings.recorder, tempDir: run });
+    const rawPlayer = options.player ?? makePlayer({ platform, recorder: settings.recorder, tempDir: run });
+    // The echo stack (S5.8), each layer optional: a missing part or a failed worker
+    // leaves frames and turns as they were. A test that gives its own player gets no
+    // layer unless it gives one too.
+    const own = !!options.player;
+    const off = { active: false, close() {} };
+    // Every line played is also the canceller's reference, and the last lines spoken
+    // are what a heard echo is matched against (text kept in memory only).
+    const refFeed = new RefFeed();
+    const aec = options.aec ?? (own ? { ...off, process: async frame => frame } : makeAec({ home, platform }));
+    // What the speaker really plays, notification sounds included, is the better
+    // reference; while it runs, the player's own samples are not added again.
+    const loopback =
+      options.loopback ??
+      (own
+        ? off
+        : makeLoopback({
+            home,
+            platform,
+            onSamples: s => {
+              refFeed.append(s);
+              refFeed.trim(1600); // 100 ms: the reference stays just ahead of its echo
+            },
+          }));
+    // One ffplay for the session when there is one, so the speaker delay stays put
+    // and the canceller converges once; every sample it is given is the reference.
+    const ffplay = own ? null : findPlayer({ platform, recorder: settings.recorder });
+    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, onWrite: s => loopback.active || refFeed.append(s), leadMs: 300, timers: false }) : null;
+    const speech = options.speech === undefined ? (own ? null : makeSpeech({ home })) : options.speech;
+    const turnJudge = options.turnJudge ?? (own ? { ...off, done: () => Promise.resolve(null) } : makeTurnJudge({ home, platform }));
+    const spoken = [];
+    const noteSpoken = text => {
+      if (!text) return;
+      spoken.push({ text, at: Date.now() });
+      while (spoken.length > 3) spoken.shift();
+    };
+    const recentSpoken = () => spoken.filter(s => Date.now() - s.at < 30_000).map(s => s.text);
+    const player = {
+      available: rawPlayer.available,
+      name: rawPlayer.name,
+      play(wav) {
+        if (stream) return stream.play(wav);
+        const handle = rawPlayer.play(wav);
+        if (!handle) return handle;
+        if (!loopback.active) refFeed.add(wavTo16k(wav));
+        return {
+          done: handle.done,
+          stop() {
+            if (!loopback.active) refFeed.clear();
+            handle.stop();
+          },
+        };
+      },
+    };
     let current = null;
     let inSay = 0;
     let speechTail = Promise.resolve();
@@ -379,6 +435,10 @@ export async function startListener(options = {}) {
       current?.stop();
       current = null;
       feed?.close?.();
+      aec.close?.();
+      loopback.close?.();
+      turnJudge.close?.();
+      stream?.close();
       if (child && childExited) {
         child.kill();
         await Promise.race([childExited, new Promise(r => setTimeout(r, 2000).unref())]);
@@ -518,7 +578,7 @@ export async function startListener(options = {}) {
     };
 
     // Is a turn being heard now: one open in the gate, one waiting for its text, or a held part waiting for its rest?
-    const hearingTurn = () => gate.hearing || unheard > 0 || !!joiner.hold;
+    const hearingTurn = () => gate.hearing || unheard > 0 || !!joiner.hold || turnHold.holding;
 
     // The spinner word (S5.2): one of the ten, the moment a turn is kept. None on
     // a muted voice or while a line plays or waits, and it never counts in `plays`.
@@ -540,6 +600,10 @@ export async function startListener(options = {}) {
         gate.sound(false, clock());
       });
     };
+
+    // A turn that sounds unfinished waits for what follows (S5.8, turn.mjs); with no
+    // judge running, turns pass straight to `heard`. It only waits, never ends sooner.
+    const turnHold = new TurnHold({ judge: turnJudge, release: turn => heard(turn) });
 
     const heard = turn => {
       unheard++;
@@ -573,8 +637,8 @@ export async function startListener(options = {}) {
         return;
       }
       if (isMuteWord(text)) return setMuted(true);
-      // Our own spinner word, picked up again by the mic: not a turn.
-      if (isFragment(text) || (turn.overlap && !isStopWord(text) && isSpinnerEcho(text))) {
+      // Our own spinner word, or a line we just spoke, picked up again by the mic: not a turn.
+      if (isFragment(text) || (turn.overlap && !isStopWord(text) && (isSpinnerEcho(text) || isEcho(text, recentSpoken())))) {
         if (turn.continued) releaseHeld(turn.chain);
         return serve();
       }
@@ -653,6 +717,7 @@ export async function startListener(options = {}) {
       const handle = player.play(wav);
       if (!handle) return reply('say-failed');
       current = handle;
+      noteSpoken(text);
       playing = 1;
       plays++;
       thinkingUntil = 0;
@@ -861,6 +926,22 @@ export async function startListener(options = {}) {
     let framesSeen = 0;
     let anySound = false;
     let carry = Buffer.alloc(0);
+    // Frames reach the gate in order, through the echo canceller while it runs
+    // (`clean` is the cleaned frame, `raw` the one the mic gave).
+    let aecChain = Promise.resolve();
+    let aecPending = 0;
+    const onFrame = (clean, raw) => {
+      if (finished) return;
+      for (const e of gate.frame(clean, clock(), aec.active ? raw : null, speech ? speech(clean) : true)) {
+        if (e.type === 'turn') turnHold.offer(e, clock());
+        else if (e.type === 'barge') bargeIn();
+        else if (e.type === 'cut-over') endChain(e.chain);
+      }
+      turnHold.tick(clock(), gate.hearing);
+      checkProgress();
+      meter.add(gate.level, clock(), userMuted);
+      writeStatus();
+    };
     child.stdout.on('data', d => {
       carry = carry.length ? Buffer.concat([carry, d]) : d;
       while (carry.length >= size && !finished) {
@@ -871,14 +952,18 @@ export async function startListener(options = {}) {
           if (frame.some(b => b !== 0)) anySound = true;
           else if (framesSeen >= silentFrames) return void finish('mic');
         }
-        for (const e of gate.frame(frame, clock())) {
-          if (e.type === 'turn') heard(e);
-          else if (e.type === 'barge') bargeIn();
-          else if (e.type === 'cut-over') endChain(e.chain);
+        stream?.pump(knobs.frameMs); // the mic's clock paces the player and the reference
+        const ref = refFeed.take(frame.length / 2);
+        // Without a canceller the frame goes straight on, in the same turn of the loop, as before.
+        if (!aec.active && aecPending === 0) {
+          onFrame(frame, frame);
+          continue;
         }
-        checkProgress();
-        meter.add(gate.level, clock(), userMuted);
-        writeStatus();
+        aecPending++;
+        aecChain = aecChain
+          .then(() => aec.process(frame, ref))
+          .then(clean => onFrame(clean, frame), () => onFrame(frame, frame))
+          .finally(() => aecPending--);
       }
     });
 

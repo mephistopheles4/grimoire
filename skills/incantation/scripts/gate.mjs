@@ -24,6 +24,11 @@ export const KNOBS = {
   holdPollMs: 50, // and looks this often whether they have
   tailMs: 300, // a reply counts as ended this long after its last playback ends (F2 may raise it, at most 1500)
   bargeMs: 360, // this much voice while a reply plays cuts the reply off
+  // The next four apply only while the echo canceller runs (frame gets `raw`); without it the rule above is the whole rule (S5.8).
+  bargeExtraDb: 10, // ...counting only frames this much louder than voice, so the reply's own echo does not cut it (646 trial)
+  bargeGraceMs: 1500, // no barge-in counts this soon after a reply starts, while the canceller settles (646 trial)
+  bargeRemovedDb: 9, // ...and only frames the canceller took less than this much out of: echo is mostly removed, a person talking over the reply is not (646 trial)
+  bargeWarmMs: 3000, // no barge-in at all until this much has played this session: the canceller converges once (646 trial)
   joinMs: 2000, // a turn that stops mid-sentence waits this long for the next to join it
   maxJoins: 4, // at most this many turns join into one
   heartbeatMs: 2000, // the status file is touched this often
@@ -110,6 +115,7 @@ export class Gate {
     this.count = playing;
     this.playStart = playing > 0 ? t : null;
     this.playEnd = null;
+    this.playedMs = 0; // playback heard so far this session
     this.playId = playing > 0 ? 1 : 0;
     this.exemptPlay = 0;
     this.deliveredAt = -Infinity;
@@ -134,6 +140,7 @@ export class Gate {
       this.playId++;
     } else if (count === 0 && this.count > 0) {
       this.playEnd = t;
+      this.playedMs += t - this.playStart;
     }
     this.count = count;
   }
@@ -156,17 +163,20 @@ export class Gate {
   }
 
   // One frame; returns the events it caused: { type: 'turn', ... } or { type: 'barge' }.
-  frame(buf, t) {
+  // `raw`, when an echo canceller ran, is the frame as the mic gave it (`buf` is the
+  // cleaned one); `speech`, when a speech detector ran, whether the frame holds a voice.
+  frame(buf, t, raw = null, speech = true) {
     const k = this.k;
     const events = [];
     const level = levelDb(buf);
+    const removed = raw ? levelDb(raw) - level : 0;
     this.level = level; // the last frame's loudness, for the meter (T16)
     if (this.floor === null) {
       this.calib.push(level);
       if (this.calib.length * k.frameMs >= k.floorMs) this.floor = this.calib.reduce((a, b) => a + b, 0) / this.calib.length;
       return events;
     }
-    const voice = level >= this.floor + k.voiceDb && level >= k.minVoiceDbfs;
+    const voice = speech !== false && level >= this.floor + k.voiceDb && level >= k.minVoiceDbfs;
     if (!this.turn) {
       if (!voice) {
         this.floor = this.floor * 0.98 + level * 0.02;
@@ -185,7 +195,7 @@ export class Gate {
       const overlap = this.count > 0 || (this.playEnd !== null && t - this.playEnd < k.echoHoldMs) || !!this.soundOn || (this.soundEnd != null && t - this.soundEnd < k.echoHoldMs);
       // The rest of a cut turn: it begins within the end-of-speech wait of the cut.
       const continued = this.cutAt !== null && t - this.cutAt <= this.silenceMs;
-      this.turn = { frames: [...this.roll, buf], voice: 1, silent: 0, afterReply, overlap, playId: this.playId, barged: false, continued, chain: continued ? this.cutChain : undefined };
+      this.turn = { frames: [...this.roll, buf], voice: 1, loud: 0, silent: 0, afterReply, overlap, playId: this.playId, barged: false, continued, chain: continued ? this.cutChain : undefined };
       this.cutAt = null;
       this.roll = [];
     } else {
@@ -199,7 +209,12 @@ export class Gate {
       }
     }
     const turn = this.turn;
-    if (this.count > 0 && !turn.barged && turn.voice * k.frameMs >= k.bargeMs) {
+    // With the canceller running, only a frame well above the voice level, that the
+    // canceller left mostly alone, and past the settle time, counts toward a barge-in.
+    if (raw !== null) {
+      if (this.count > 0 && t - this.playStart >= k.bargeGraceMs && this.playedMs + (t - this.playStart) >= k.bargeWarmMs && voice && removed < k.bargeRemovedDb && level >= this.floor + k.voiceDb + k.bargeExtraDb) turn.loud++;
+    } else if (voice) turn.loud = turn.voice;
+    if (this.count > 0 && !turn.barged && turn.loud * k.frameMs >= k.bargeMs) {
       turn.barged = true;
       events.push({ type: 'barge' });
     }
