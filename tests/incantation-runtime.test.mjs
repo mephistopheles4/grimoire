@@ -17,9 +17,11 @@ import { secureState } from '../skills/incantation/scripts/lib.mjs';
 
 const sha256 = b => createHash('sha256').update(b).digest('hex');
 const sha512 = b => createHash('sha512').update(b).digest('base64');
-const KEY = 'win32-x64';
-const platform = 'win32';
+// The install runs for the platform the test runs on (Windows or Linux), x64, so
+// the fake uv's path, the interpreter's path and the pinned key all agree.
+const platform = process.platform;
 const arch = 'x64';
+const KEY = `${platform}-${arch}`;
 
 // A tar entry: 512-byte header, then the data padded to 512.
 function tar(entries) {
