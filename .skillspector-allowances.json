@@ -162,7 +162,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "787bb722218305617d6efc72e98b5b935fea740ad80c357df52ca590e77cec3a",
+      "sha256": "ed0ad4fad0fba27c354a16485b3c52255d45f1a192638d5b5f0072db9096d179",
       "reason": "The turn gate, which decides from the mic's loudness readings and the heard text when a turn opens, closes and counts as a yes. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts no program, touches no file and reaches no network. Re-read on 2026-11-22 (GRIM-36): the change adds knobs, a cut-turn chain, a lull-based soft cut, the overlap flag and a splitter for long heard text; it is still pure, holds no rm, del or erase, no eval and no shell string, starts no program, touches no file and reaches no network. Re-read on 2026-11-22 (GRIM-36 ticket 3): the gate gains the echo-stack barge knobs and a speech flag on each frame; it is pure arithmetic over frames, with no rm, del or erase, no eval, no Function constructor and no shell string."
     },
     {
@@ -182,7 +182,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "02bb23ef8f254e58f30db4e9760204da1f22d0b78a060b1760f322523efcc25c",
+      "sha256": "1ef2d777945eca995781a3855f688fb41cbbba23ccbb1dd7bcb4d83d4ec3a76a",
       "reason": "The listener, which opens the microphone through ffmpeg, asks Voicebox to transcribe and to speak, and plays the reply through a player. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts programs only with an argument list and shell false (ffmpeg, ffplay or a system player, and the setup listing), and deletes only its own files in its state folder: the say file it has read, the player temporary file and its run files. Re-read on 2026-11-14 (issue 638): the change imports the meter's settings and hands the meter the gate's frame length; it adds no command, no deletion and no shell string. Re-read on 2026-11-22 (GRIM-36): the change adds the working, mute-voice and unmute-voice commands, spinner words made once by the engine and played by the player, a progress notice, a voice file in the run folder that is removed with the status file, and a cut-turn chain; it adds no program start, no shell string, and no deletion beyond its own run files. Re-read on 2026-11-22 (GRIM-36 ticket 3): the listener now also wires the echo stack (a canceller, a loopback reference, a steady player, a speech detector, a turn judge) through modules that start child processes with an argument list and no shell; the file itself still holds no rm, del or erase in any spelling beyond its removal of its own status and levels files, no eval, no Function constructor and no shell string, and no text that tells a reader to remove characters."
     },
     {
@@ -203,7 +203,7 @@
         "static_patterns_supply_chain",
         "static_patterns_system_prompt_leakage"
       ],
-      "sha256": "02bb23ef8f254e58f30db4e9760204da1f22d0b78a060b1760f322523efcc25c",
+      "sha256": "1ef2d777945eca995781a3855f688fb41cbbba23ccbb1dd7bcb4d83d4ec3a76a",
       "reason": "The listener. The scanner could not fully evaluate text it took for obfuscated instructions, and reports that under this code for the twelve checks named. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it holds regular expressions, fixed message lines and code, no base64 or other encoded text, no escape sequence that hides a character, and no instruction addressed to a model. Re-read on 2026-11-14 (issue 638): the change imports the meter's settings and hands the meter the gate's frame length; it adds no encoded text and no instruction addressed to a model. Re-read on 2026-11-22 (GRIM-36 ticket 3): the listener now also wires the echo stack (a canceller, a loopback reference, a steady player, a speech detector, a turn judge) through modules that start child processes with an argument list and no shell; the file itself still holds no rm, del or erase in any spelling beyond its removal of its own status and levels files, no eval, no Function constructor and no shell string, and no text that tells a reader to remove characters."
     },
     {
