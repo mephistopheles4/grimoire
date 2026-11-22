@@ -12,7 +12,7 @@
 //
 // It does two things and no more. It reads the command as data, never runs it,
 // and never changes it. It runs one program, `athanor --version`, and only
-// when the command is the host check. It writes nothing and sends nothing.
+// when the command is a host run. It writes nothing and sends nothing.
 //
 // Everything that is not a refusal is silence: exit 0, nothing on standard
 // output, nothing on standard error. That is deliberate. A hook that answers
@@ -202,7 +202,7 @@ function runsTests(args) {
 
 // The seam. Returns { reason } to refuse the call, and null for everything
 // else. `athanorPresent` is called, and awaited, only after a segment of the
-// command is the host check without a named fallback.
+// command is a host run without a named fallback.
 export async function decide(input, { athanorPresent }) {
   try {
     if (!input || typeof input !== 'object') return null;
