@@ -351,8 +351,9 @@ template's eval offer maps parts to case types. Say the rough cost of a run
 first. Offer nothing for a tool the runner cannot load. A no is not logged
 against the person. Write each case's expected behaviour before any run.
 
-Run cases you wrote only after the person's yes in chat, each time, with
-`--max-cost-usd` and `--no-publish`. One yes never covers the next run. Add a
+Run cases you wrote only after the person's confirmation, in any form, each
+time, with `--max-cost-usd` and `--no-publish`. One confirmation never covers
+the next run. Add a
 case later only for a failure seen in use, and review the suite's size at
 each amendment.
 

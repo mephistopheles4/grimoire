@@ -249,7 +249,7 @@ files you ask for:
 - **eagle-eye's optional audit** (`audit.mjs`) sends the box's text to
   TypeSafe, or to OpenRouter, which passes it on to TypeSafe. It runs only
   when you set `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`, and the skill does
-  a dry run and asks for your yes in chat first. `EAGLE_EYE_AUDIT_ENDPOINT`
+  a dry run and asks for your confirmation first. `EAGLE_EYE_AUDIT_ENDPOINT`
   points it at another endpoint. Each request is charged to your key.
 - **contract, eagle-eye and groundtrack** write their pages as local files.
   eagle-eye may open its page with your system's browser command. contract's
