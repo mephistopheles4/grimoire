@@ -35,9 +35,9 @@ test('the counter reports a padded copy over the cap', () => {
     // Fixed sizes, so a raised CAP fails here; newlines and tabs split words too.
     writeFileSync(copy, `${readFileSync(join(root, MODEL), 'utf8')}\n${'word\n'.repeat(3001)}`);
     assert.match(overCap(copy), /over its cap/);
-    writeFileSync(copy, 'word\tword\n'.repeat(1500));
+    writeFileSync(copy, 'word\tword\n'.repeat(1550));
     assert.equal(overCap(copy), null);
-    writeFileSync(copy, `${'word\tword\n'.repeat(1500)}word`);
+    writeFileSync(copy, `${'word\tword\n'.repeat(1550)}word`);
     assert.match(overCap(copy), /over its cap/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
