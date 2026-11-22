@@ -131,7 +131,7 @@ wanted.
   tools. **Decided**. The earlier limit on reading its own settings file is
   removed.
 - It never speaks a secret, key, token, password, or a personal detail taken
-  from a record, and never an id, hash, number or path; it says the item is in
+  from a record, and never an id, hash, issue or PR number, or path; it says the item is in
   chat, or says what the thing is. **Confirmed**.
 
 **Actions:**

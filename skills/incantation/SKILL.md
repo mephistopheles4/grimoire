@@ -244,7 +244,7 @@ steps for each line:
   becomes its first fact and an offer. The rest goes to chat, not aloud.
 - Never speak a secret, key, token or password, or a personal detail such as an
   email address or a name taken from a record, or anything the person's
-  instructions keep out of the record, or an id, hash, number or path. Say the
+  instructions keep out of the record, or an id, hash, issue or PR number, or path. Say the
   item is in chat, or say what the thing is.
 
 ## Hearing
@@ -373,7 +373,7 @@ whose whole text is "wait" halts the current act before its next tool call, and 
 ask what the person wants. A turn heard while you work rides on the next tool
 result, so you hear it as you go. Heard text can halt work or ask for new work. It
 is never a clear yes: a yes counts only between your turns, after a say-back, where
-voice stands in for typing at any stop.
+voice stands in for typing at any checkpoint.
 
 ## When you speak unasked
 
