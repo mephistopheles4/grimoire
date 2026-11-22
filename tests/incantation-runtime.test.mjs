@@ -345,7 +345,8 @@ test('claim 15: plan prints each part\'s state and size and whether uv was found
     assert.ok(withUv.some(l => /^addon missing \d+ MB$/.test(l)));
     assert.ok(withUv.includes('uv found'));
     assert.ok(withUv.some(l => l.startsWith('total download ') && l.includes('peak disk') && l.includes('at 10 MB/s')));
-    assert.ok(withUv.some(l => l.startsWith('hosts ') && l.split(' ').includes('huggingface.co') && l.split(' ').includes('pypi.org')));
+    // The plan names exactly the table's hosts, as whole words and in order.
+    assert.deepEqual(withUv.find(l => l.startsWith('hosts '))?.split(' ').slice(1), [...HOSTS]);
     const without = planRuntime({ home: f.home, platform, arch, uv: null, pins: PINS }).lines;
     assert.ok(without.includes('uv not found') && without.includes('python skipped no uv'));
     assert.ok(without.some(l => /echo cancelling/.test(l) && /end-of-turn/.test(l) && /Phonon/.test(l)));
