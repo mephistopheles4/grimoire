@@ -238,7 +238,7 @@
       "skill": "eagle-eye",
       "from": "SKILL.md",
       "target": "audit.mjs",
-      "count": 2
+      "count": 1
     },
     {
       "skill": "head-chef",
