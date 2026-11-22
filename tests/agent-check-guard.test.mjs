@@ -47,6 +47,51 @@ const FORMS = [
   'Measure-Command { node scripts/check.mjs }',
 ];
 
+// The direct host test run (issue GRIM-48): `node --test` over the repo's tests,
+// bare or behind a wrapper. It runs the whole suite on the host, which is the
+// memory the check's container exists to hold.
+const TEST_FORMS = [
+  'node --test',
+  'node --test tests/',
+  'node --test tests/x.test.mjs',
+  'node --test tests\\x.test.mjs',
+  'node.exe --test ./tests/x.test.mjs',
+  'node --test --test-name-pattern=foo tests/x.test.mjs',
+  'node --test-reporter=spec --test tests/x.test.mjs',
+  'mise x -- node --test tests/x.test.mjs',
+  'mise exec -- node --test tests/x.test.mjs',
+  'mise x node@22 -- node --test tests/x.test.mjs',
+  'npx node --test tests/x.test.mjs',
+  'npx -y node --test tests/x.test.mjs',
+  'npx --yes node --test',
+  'cd repo && mise x -- node --test tests/',
+  'FOO=1 node --test tests/x.test.mjs',
+  'timeout 600 node --test tests/x.test.mjs 2>&1 | tail -5',
+  '& node --test tests/x.test.mjs',
+  'Measure-Command { node --test tests/x.test.mjs }',
+];
+
+for (const tool of ['Bash', 'PowerShell']) {
+  for (const form of TEST_FORMS) {
+    test(`${tool}: ${JSON.stringify(form)} is refused while athanor is present`, async () => {
+      const out = await ask(form, { tool });
+      assert.ok(out, 'expected a refusal');
+      assert.equal(out.reason, (await ask('node scripts/check.mjs', { tool })).reason);
+    });
+  }
+}
+
+test('every host test run passes while athanor is missing', async () => {
+  for (const form of TEST_FORMS) assert.equal(await ask(form, { athanorPresent: missing }), null, form);
+});
+
+test('the flag with a reason lets a host test run through, and an empty one does not', async () => {
+  assert.equal(await ask('node --test tests/x.test.mjs --host-fallback=docker-down'), null);
+  assert.equal(await ask('mise x -- node --test tests/ --host-fallback="exit 137 from athanor"'), null);
+  assert.ok(await ask('node --test tests/x.test.mjs --host-fallback='));
+  assert.ok(await ask('echo --host-fallback=x; node --test tests/'));
+});
+
 for (const tool of ['Bash', 'PowerShell']) {
   for (const form of FORMS) {
     test(`${tool}: ${JSON.stringify(form)} is refused while athanor is present`, async () => {
@@ -102,8 +147,14 @@ test('commands that are not the host check pass untouched', async () => {
     'athanor run check --untracked',
     'athanor run fast',
     'node scripts/build-pages.mjs',
-    'node --test tests/x.test.mjs',
     'node scripts/check.mjs.bak',
+    'node scripts/build-pages.mjs --test',
+    'node --version',
+    'mise x -- node scripts/build-pages.mjs',
+    'npx prettier --test tests/x.test.mjs',
+    'echo node --test tests/',
+    'git commit -m "run node --test tests/ on the host"',
+    'ls tests/x.test.mjs',
     'node other/check.mjs',
     'node myscripts/check.mjs',
     'node xscripts\\check.mjs',
