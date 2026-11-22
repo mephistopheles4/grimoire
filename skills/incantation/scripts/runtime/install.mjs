@@ -316,7 +316,8 @@ export function readTgz(tgz, { maxBytes }) {
 /** The arguments of each uv call. Every call holds `--no-config`, the one index
  *  and `--python-preference only-managed` (S13.11, S13.12). */
 export const uvArgs = {
-  venv: venv => ['venv', '--no-config', '--index-url', PYTHON.index, '--python-preference', 'only-managed', '--managed-python', '--python', PYTHON.version, venv],
+  // --managed-python is the strict form of only-managed and uv refuses both together.
+  venv: venv => ['venv', '--no-config', '--index-url', PYTHON.index, '--managed-python', '--python', PYTHON.version, venv],
   install: (python, lock) => ['pip', 'install', '--no-config', '--index-url', PYTHON.index, '--python-preference', 'only-managed', '--require-hashes', '--only-binary', ':all:', '--no-deps', '--python', python, '-r', lock],
   cacheDir: () => ['cache', 'dir', '--no-config'],
 };
