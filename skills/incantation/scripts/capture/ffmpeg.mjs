@@ -62,7 +62,7 @@ function parseSources(text) {
 // stderr, -sources to stdout). `input` turns a device id into the -f and -i
 // arguments. Capture itself discards stderr.
 export const ROWS = {
-  win32: [{ input: id => ['-f', 'dshow', '-i', `audio=${id}`], list: ['-hide_banner', '-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], parse: t => parseBracketed(t, { section: 'audio' }) }],
+  win32: [{ input: id => ['-audio_buffer_size', '50', '-f', 'dshow', '-i', `audio=${id}`], list: ['-hide_banner', '-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], parse: t => parseBracketed(t, { section: 'audio' }) }],
   darwin: [{ input: id => ['-f', 'avfoundation', '-i', id], list: ['-hide_banner', '-list_devices', 'true', '-f', 'avfoundation', '-i', ''], parse: t => parseBracketed(t, { section: 'audio' }) }],
   linux: [
     { input: id => ['-f', 'pulse', '-i', id], list: ['-hide_banner', '-sources', 'pulse'], parse: parseSources },
@@ -169,7 +169,7 @@ function trustedPosix(real, fs) {
 // qualified drive folders count, and the real path must still be a drive
 // path (590's rule). On macOS and Linux only absolute entries count, and the
 // recorder must pass the ownership rule.
-export function resolveRecorder({ platform, pathValue, startDir, fs = realFs }) {
+export function resolveRecorder({ platform, pathValue, startDir, fs = realFs, name = recorderName(platform) }) {
   const paths = platform === 'win32' ? win32 : posix;
   const sep = platform === 'win32' ? ';' : ':';
   for (let entry of String(pathValue ?? '').split(sep)) {
@@ -177,7 +177,7 @@ export function resolveRecorder({ platform, pathValue, startDir, fs = realFs }) 
     if (!entry || entry === '.') continue;
     if (platform === 'win32' ? !DRIVE.test(entry) : !posix.isAbsolute(entry)) continue;
     if (startDir && inside(paths, startDir, entry)) continue;
-    const candidate = paths.join(entry, recorderName(platform));
+    const candidate = paths.join(entry, name);
     if (!fs.isFile(candidate)) continue;
     const real = fs.realpath(candidate);
     if (!real) continue;
