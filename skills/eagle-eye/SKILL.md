@@ -157,8 +157,8 @@ strawman, or an edge with no reason: name the gap. Do not fill it with a guess.
    `reference/writing-edges.md`. Flag each edge that fails. A flag tells you
    which edge to reread first. It is not a verdict.
 
-   Its `--probe` says whether a key is set and sends nothing: probe before
-   you offer the audit.
+   The audit's `--probe` says whether a key is set and sends nothing: probe
+   before you offer the audit.
 
    **A score never changes a tier, and never goes into the box.** Reason: an
    audit score treated as a verdict (failure 6). The full audit procedure,

@@ -220,8 +220,9 @@ and Decided apart.
 Anthropic's Skills docs. If they keep it, record it **Decided** with that
 noted.
 
-**When you are unsure, ask at once,** one question at a time. Between
-questions, draft, and mark each draft *Proposed*.
+**When you are unsure, ask at once,** one question at a time. Ask, don't
+guess: a fact missing from the contract, the template, the skill's steps or a
+binding is a gap. Between questions, draft, and mark each draft *Proposed*.
 
 **Write the contract and its change log** where the person's skills and
 agents already live. The template's table names each file for each type.

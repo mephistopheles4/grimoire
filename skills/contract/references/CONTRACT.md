@@ -245,7 +245,9 @@ session. A different model is an escalation, and that call is yours.
 
 **When it is unsure** (**Confirmed**): **asks you at once**, one question at a
 time. It can tell when it does not know your intent, you can answer, and a
-wrong contract costs a rebuild. Between questions it drafts, and marks each
+wrong contract costs a rebuild. Ask, don't guess: a fact missing from the
+contract, the template, the skill's steps or a binding is a gap. Between
+questions it drafts, and marks each
 draft *Proposed*.
 
 **What it hands back** (**Confirmed**). Nothing is called ready until the

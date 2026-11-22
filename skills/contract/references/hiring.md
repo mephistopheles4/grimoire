@@ -215,14 +215,13 @@ hand-back. Reset clears this draft's name and type only. When the page
 said that Reset here does not clear earlier answers, render that earlier
 draft too, and press Reset there.
 
-Then delete the page and the answers file, as `SKILL.md` says for
-`--clean`:
+Then delete the page and the answers file:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>'
 ```
 
-Offer to delete the draft too, as it says for `--clean --draft`:
+Offer to delete the draft too, as `SKILL.md` says for `--clean --draft`:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>' --draft
