@@ -225,6 +225,36 @@
       ],
       "sha256": "d9aa5128a18e2ffca9e6db9735d96d7533dc90da6b8b8dcb907cc2bc5ffee60e",
       "reason": "The setup script, which the skill's install step runs to list microphones and voices and to save the person's choice. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-11-13 (issue 208): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts only ffmpeg for the device listing, with an argument list and shell false, and deletes no file. Re-read on 2026-11-13: a failure other than a refused state folder now prints its own fixed line, and the file still starts only ffmpeg for the listing and deletes no file. Re-read on 2026-11-22 (GRIM-36): choose now also makes the digest key in the state folder and saves the mic as keyed digests; it starts no program beyond the recorder listing and adds no deletion and no shell string. Re-read on 2026-11-22 (GRIM-36): `runtime install` also starts the person's own uv, with an argument list, shell false and a named environment, and hands the rest to runtime/install.mjs; this file still holds no rm, del or erase, no eval, no Function constructor and no shell string, and deletes no file."
+    },
+    {
+      "skill": "incantation",
+      "path": "scripts/engines/sherpa.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "a3fdda285e84ca7c12faba09941348ddb1ebc07731a0c7bcac34505c5fc6f670",
+      "reason": "The local speech engine: it loads the sherpa-onnx addon from the runtime folder and runs Parakeet to hear and Kokoro or Phonon to speak. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Read by hand on 2026-11-22 (GRIM-36): the file holds no rm, del or erase in any spelling, no eval, no Function constructor and no shell string; it starts one program, the runtime's own Python for the Phonon worker, with an argument list, shell false, the state folder as its working folder and a named environment, and it deletes no file and opens no network connection."
+    },
+    {
+      "skill": "incantation",
+      "path": "scripts/runtime/install.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "40f1a9a2632170cf631412fd3af05bc12896a8a950e1d5ec912dc7be75d00bbe",
+      "reason": "The runtime installer, which /incantation install runs on the person's clear yes: it downloads pinned files over https, checks each against its size and sha256, unpacks npm archives with a reader that refuses links and escapes, and runs the person's own uv with an argument list to make one venv. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Read by hand on 2026-11-22 (GRIM-36): the file holds no eval, no Function constructor and no shell string; its only removals are recursive deletes of folders it made itself under the runtime folder (the partial and staging folders, a part's old folder, the venv and its manifest), by paths built from the runtime folder and the pins table and never from a downloaded name; it starts only uv, shell false, with a named environment, and sends no cookie, token or Authorization header."
+    },
+    {
+      "skill": "incantation",
+      "path": "scripts/runtime/pins.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "e7dfb5c3ac6b27bfa13c45623ded54af3fb1b7c52d74d6a25ce6cd61e15e296f",
+      "reason": "The table of pinned files for the runtime installer: each file's source, size and sha256, the hosts a redirect may reach and the one Python version. It is data only. The destructive-command parser stops partway through its long expressions and marks the file partial for that one check; every other check reads it in full. Read by hand on 2026-11-22 (GRIM-36): the file holds no code that runs a program, deletes a file, reads the network or the environment, and no eval, no Function constructor and no shell string."
     }
   ],
   "references": [
