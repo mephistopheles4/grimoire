@@ -1,6 +1,6 @@
 # Starting a Desktop session
 
-Read this only when the owner's words in the lead's chat name the Desktop route, for example "as a Desktop session", or a clear yes heard after a say-back that names it. A start with no route named is a background session: `references/starting.md` gives it. A Desktop session is otherwise a session like any other: the same start prompt, reports, card and cleanup.
+Read this only when the owner's words in the lead's chat name the Desktop route, for example "as a Desktop session". A start with no route named is a background session: `references/starting.md` gives it. A Desktop session is otherwise a session like any other: the same start prompt, reports, card and cleanup.
 
 Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and the idle notice). Follow this file in place of its steps 3 to 7.
 

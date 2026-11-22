@@ -35,7 +35,7 @@ const BUDGET = {
 // the text before `## schedules`, here. The body states intent; the schedules
 // copy the skill's text, so they grow with it.
 const BODY_BUDGET = {
-  'skills/head-chef/references/CONTRACT.md': 5060,
+  'skills/head-chef/references/CONTRACT.md': 5000,
 };
 const BODY_END = '\n## schedules\n';
 

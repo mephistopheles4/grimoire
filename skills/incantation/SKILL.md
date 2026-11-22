@@ -133,31 +133,45 @@ Do each step in order and stop at the first failure.
 
 1. **Node.** If `node` is not on the path, print the README's Node line and stop.
 2. **A running listener.** Run `node <skill base>/scripts/listen.mjs stop`.
-3. **Microphone.** Run `node <skill base>/scripts/setup.mjs devices`. Show its
+3. **Runtime.** Run `node <skill base>/scripts/setup.mjs runtime plan`. Show its
+   lines in chat: for each part whether it is there and its size, whether `uv`
+   was found (without it the Python layer is skipped and the plan says what is
+   lost: echo cancelling, the end-of-turn hold, Phonon), the hosts it will
+   contact, and the total download, peak disk use and expected time. Say the plan
+   back with its size, naming the download as the cost, and ask for a yes. On a
+   first install no mic is open, so that yes is typed; on a later run a clear yes
+   after the spoken say-back counts. A heard turn alone never starts the
+   download. On the yes, run `node <skill base>/scripts/setup.mjs runtime install`
+   as a background command: it prints one line per part (`ok`,
+   `skipped <why>` or `failed <file>`). Show each line, and stop on a `failed`
+   one. `node <skill base>/scripts/setup.mjs runtime verify` checks every file
+   again later and prints the same lines. When the plan says every part is there,
+   go on.
+4. **Microphone.** Run `node <skill base>/scripts/setup.mjs devices`. Show its
    lines in chat: a stamp, then the microphones by number. If it prints a
    `setup:` line, show it and stop. Ask the person for the number of the
    microphone they will use. On a first install no mic is open, so the number is
    typed. On a later run, with the mic open, a spoken number counts after the say-back.
-4. **Voice.** Run `node <skill base>/scripts/setup.mjs profiles`. Show its lines
+5. **Voice.** Run `node <skill base>/scripts/setup.mjs profiles`. Show its lines
    and ask the person for the id of the voice they want, typed on a first install
    and spoken or typed after that. Recommend a preset on Kokoro: a heavier engine
    costs seconds a line.
-5. **Save.** Run `node <skill base>/scripts/setup.mjs choose <index> <stamp> <profile id>`
+6. **Save.** Run `node <skill base>/scripts/setup.mjs choose <index> <stamp> <profile id>`
    with the number and the id the person gave and the stamp setup printed in
-   step 3. Show its line. If the stamp is stale, run step 3 again.
-6. **Check.** Run `node <skill base>/scripts/guard.mjs`. Unless it prints `ok`, show
+   step 4. Show its line. If the stamp is stale, run step 4 again.
+7. **Check.** Run `node <skill base>/scripts/guard.mjs`. Unless it prints `ok`, show
    its line and stop. Nothing is registered in Claude Code: the listener speaks.
-7. **Mic indicator, optional.** Offer a status line segment that shows `mic: listening`,
+8. **Mic indicator, optional.** Offer a status line segment that shows `mic: listening`,
    `hearing`, `thinking`, `working`, `speaking` or `muted`, and `voice: muted` while your voice is muted. On a yes, show the one
    status line entry for the person's Claude Code user settings file that runs
    `node <skill base>/scripts/statusline.mjs`, and add it with your file tool
    only when that file has no status line yet. With one already there, change
    nothing: show the person the command to add to their own. Say that a plugin
    update changes the skill base, so the entry is repeated after one.
-8. **Done.** Print `Installed. Type /incantation to start.`
+9. **Done.** Print `Installed. Type /incantation to start.`
 
-The microphone and voice names appear in this chat during steps 3 and 4, and so
-reach the model provider. Say so once, before step 3.
+The microphone and voice names appear in this chat during steps 4 and 5, and so
+reach the model provider. Say so once, before step 4.
 
 ## Start
 
