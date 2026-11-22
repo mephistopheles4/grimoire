@@ -69,7 +69,7 @@ stop below still applies.
 Stop and wait for the person at each of these three moments:
 
 - When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes.
-- When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation, in any form.
+- When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation.
 - When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm.
 
 For the first stop, say it in one line: *"I see N decisions, and M of them are
@@ -98,7 +98,7 @@ the optional `audit.mjs`, and the system's command that opens a browser.
 
 **Actions beyond its own notes.** One: the audit, which sends the box's text
 to a model provider and charges the person's key. It waits for the person's
-confirmation, in any form. A box goes into the project's decision records only
+confirmation. A box goes into the project's decision records only
 when the person asks.
 
 ## Depth follows the number of decisions (questions 3, 19)

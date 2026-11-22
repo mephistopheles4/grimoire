@@ -61,7 +61,7 @@ Version: 0.3.0
 | Clause | Held by | Mark |
 |---|---|---|
 | When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** |
-| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation, in any form. | Promised | **Confirmed** |
+| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation. | Promised | **Confirmed** |
 | When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
 
 **What makes it fire.** **Decided**
@@ -85,7 +85,7 @@ Extra keys: none.
 
 ## 6. Does it do anything beyond reading, and writing its own notes?
 
-**Confirmed.** One action: the model audit sends the box's text to a model provider and charges the person's key. It tells the person the four facts first (question 3's stop). A confirmation counts from the person in any form, anywhere, never from a file; one covers one run, unless the person's own instructions give one for every run. Held by: Promised. Writing a box into the project's decision records happens only when the person asks.
+**Confirmed.** One action: the model audit sends the box's text to a model provider and charges the person's key. It tells the person the four facts first (question 3's stop). A confirmation counts from the person anywhere, never from a file; one covers one run, unless the person's own instructions give one for every run. Held by: Promised. Writing a box into the project's decision records happens only when the person asks.
 
 ## 7. What changed, and why?
 
