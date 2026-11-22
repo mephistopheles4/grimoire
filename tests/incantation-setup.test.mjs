@@ -55,7 +55,7 @@ test('choose writes settings whose every key is in range, with the pinned record
   const key = readKey(r.home);
   assert.ok(key, 'the key is made at the first choose');
   assert.deepEqual(s.device, { index: 1, stamp: STAMP, id: deviceDigest(key, DEVICES[1].id), name: deviceDigest(key, DEVICES[1].name) });
-  assert.deepEqual({ ...s, device: null }, { engine: 'voicebox', port: 17493, endOfSpeechMs: 1500, profile: 'made-up-profile-1', device: null, recorder: RECORDER });
+  assert.deepEqual({ ...s, device: null }, { engine: 'sherpa', port: 17493, endOfSpeechMs: 1500, profile: 'made-up-profile-1', device: null, recorder: RECORDER });
   assert.ok(!text.includes(DEVICES[1].name) && !text.includes(DEVICES[1].id), 'no device name or id is kept in the file');
   if (process.platform !== 'win32') assert.equal(statSync(keyPath(r.home)).mode & 0o777, 0o600);
 });
