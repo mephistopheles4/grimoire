@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { listDevices, listingLines, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { loadEngine } from './engines/index.mjs';
-import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, runDir, secureState, settingsPath, writePrivate } from './lib.mjs';
+import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, deviceDigest, ensureKey, runDir, secureState, settingsPath, writePrivate } from './lib.mjs';
 
 export const LINES = {
   usage: 'usage: setup.mjs devices | profiles | choose <index> <stamp> <profile id>',
@@ -69,7 +69,10 @@ export async function runSetup(argv, o) {
   const profiles = await engine.profiles();
   if (!profiles) return { lines: [LINES.voicebox], code: 1 };
   if (!profiles.some(p => p.id === args[2])) return { lines: [LINES.profile], code: 1 };
-  const settings = { ...SETTINGS_DEFAULTS, profile: args[2], device: { index, stamp: args[1] }, recorder };
+  // The mic is kept as keyed digests of its id and name, never as text (S13.5);
+  // the key is made at the first choose and stays, so older digests keep matching.
+  const key = ensureKey(o.home, { platform });
+  const settings = { ...SETTINGS_DEFAULTS, profile: args[2], device: { index, stamp: args[1], id: deviceDigest(key, devices[index].id), name: deviceDigest(key, devices[index].name) }, recorder };
   for (const [k, v] of Object.entries(settings)) if (!SETTINGS_KEYS[k](v)) return { lines: [LINES.usage], code: 2 };
   writePrivate(settingsPath(o.home), `${JSON.stringify(settings, null, 2)}\n`, { platform });
   return { lines: [LINES.saved], code: 0 };

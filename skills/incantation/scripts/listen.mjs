@@ -5,8 +5,10 @@
 //   node listen.mjs wait    prints what was heard, once a turn is waiting
 //   node listen.mjs stop    stops the running listener, through its own channel
 //   node listen.mjs mute    the person's mic mute (T11); unmute undoes it
-//   node listen.mjs idle    returns once no reply is playing (T12)
-//   node listen.mjs status  prints listening, hearing, thinking, speaking or muted
+//   node listen.mjs working the session is acting now: the status word shows working until the next line is spoken or turn heard
+//   node listen.mjs mute-voice | unmute-voice   incantation's own voice, apart from the mic: while muted a say counts as played and makes no audio
+//   node listen.mjs idle    returns once no reply is playing and no turn is being heard (T12)
+//   node listen.mjs status  prints listening, hearing, thinking, working, speaking or muted
 //   node listen.mjs say <8 hex>  speaks the text in observe/say-<8 hex>.txt, in the person's voice (T18)
 //
 // It reaches the engine only through the seam (S5): synthesize() for each reply,
@@ -25,10 +27,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
-import { captureArgs, listDevices, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
+import { captureArgs, fallbackName, listDevices, pickDevice, resolveRecorder } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
-import { Gate, HeardQueue, Joiner, KNOBS, formatHeard, frameBytes, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
-import { checkFile, cleanText, commandPath, levelsPath, observeDir, readSettings, readText, runDir, secureState, statusPath, writePrivate } from './lib.mjs';
+import { Gate, HeardQueue, Joiner, KNOBS, frameBytes, heardLines, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
+import { checkFile, cleanText, commandPath, deviceDigest, levelsPath, observeDir, readKey, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
 import { METER, Meter, levelsLine } from './meter.mjs';
 import { makePlayer } from './player.mjs';
 
@@ -104,8 +106,9 @@ const WAIT_LINE = new RegExp(
     '|timing: wait \\d{1,5} stt \\d{1,6}',
     '|plays \\d{1,4}',
     '|ready \\d{1,6} voice [A-Za-z0-9-]{1,64}',
+    '|mic-fallback "[^"\\\\\\n]{1,64}"',
     '|dropped \\d{1,4}',
-    '|stt-dropped|say-failed|mic-muted|mic-unmuted|interrupted|quiet \\d{1,4}|stopped',
+    '|stt-dropped|say-failed|mic-muted|mic-unmuted|interrupted|progress-due|quiet \\d{1,4}|stopped',
     `|listener error (?:${REASONS.join('|')})`,
     ')$',
   ].join(''),
@@ -121,6 +124,32 @@ export const waitLines = out =>
 // of UTF-8 text. Resolves the listener's one fixed line, or null when nothing
 // answers. The text goes to the listener in memory, over 127.0.0.1, and nowhere else.
 export const SAY_REPLIES = ['speaking', 'say-failed', 'say-refused', 'say-busy', 'say-no-player'];
+
+// The instant acknowledgement (W3, W6, S5.2): one of these, in the person's
+// voice, the moment a turn is heard and kept, a different one each time. Made
+// once by the engine after `ready`. They stand in for the session's own "got it".
+export const SPINNERS = Object.freeze(['Combobulating.', 'One sec.', 'Looking into it.', 'Percolating.', 'Noodling on it.', 'Pondering.', 'Clauding.', 'Julienning.', 'Let me see.', 'On it.']);
+const SPINNER_KEYS = new Set(SPINNERS.map(s => s.toLowerCase().replace(/[^a-z ]/g, '')));
+/** An index into `n` spinner words, never `last` again while there is another. */
+export function pickSpinner(n, last, rand = Math.random) {
+  if (n <= 1) return 0;
+  const skip = last >= 0 && last < n;
+  const i = Math.min(Math.floor(rand() * (skip ? n - 1 : n)), skip ? n - 2 : n - 1);
+  return skip && i >= last ? i + 1 : i;
+}
+// Is this heard text one of the spinner words, as the mic picks up our own speaker?
+export const isSpinnerEcho = text => SPINNER_KEYS.has(String(text).toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim());
+// A WAV with `ms` of silence in front (the player loses its first moment while it
+// opens the device). Anything that is not a plain 44-byte-header PCM WAV is returned as it came.
+export function leadSilence(wav, ms = 150) {
+  if (!Buffer.isBuffer(wav) || wav.length <= 44 || wav.toString('latin1', 0, 4) !== 'RIFF' || wav.toString('latin1', 36, 40) !== 'data') return wav;
+  const pad = Buffer.alloc(Math.round((wav.readUInt32LE(24) * ms) / 1000) * wav.readUInt16LE(22) * 2);
+  const data = Buffer.concat([pad, wav.subarray(44)]);
+  const head = Buffer.from(wav.subarray(0, 44));
+  head.writeUInt32LE(36 + data.length, 4);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
 function sendSay(channel, text, timeoutMs = 0) {
   return new Promise(resolve => {
     if (!channel) return resolve(null);
@@ -183,11 +212,16 @@ export async function startListener(options = {}) {
     };
     if (!recorder.path || recorder.path !== settings.recorder) stop('recorder');
 
-    // The device: the list again, and its stamp must be the one setup kept.
+    // The device: the saved mic, wherever it sits in the list now (found by the
+    // digest of its id, then of its name), or another when it is gone, named in
+    // the first delivery so the session says so (S5.5). With no key the digests
+    // match nothing, and settings from before (no id or name) match by stamp and index.
     const listing = await listDevices({ recorder: recorder.path, platform, run: recorder.list });
-    if (listing.row < 0 || stampOf(listing.devices) !== settings.device.stamp) stop('device');
-    const device = listing.devices[settings.device.index];
+    if (listing.row < 0) stop('device');
+    const key = readKey(home, fsOptions);
+    const { device, how } = pickDevice(listing.devices, settings.device, text => (key ? deviceDigest(key, text) : ''));
     if (!device) stop('device');
+    const micNotice = how === 'fallback' ? `mic-fallback "${fallbackName(device.name)}"` : null;
 
     // One listener at a time.
     const live = readChannel(home, fsOptions);
@@ -237,6 +271,14 @@ export async function startListener(options = {}) {
     let plays = 0;
     let userMuted = false; // the person's mute, by voice or through the channel, and nobody else's (T11)
     let thinkingUntil = 0;
+    let workingUntil = null; // the session said it is acting now (clock time it lapses); a spoken line or a heard turn ends it
+    let progressFrom = 0; // the clock time the progress beat counts from
+    let voiceMuted = false; // incantation's own voice, apart from the mic: a say counts as played and makes no audio
+    let unheard = 0; // turns the gate handed over whose text is not settled yet
+    const endedChains = new Set(); // cut turns whose continuation did not come
+    const spinnerClips = [];
+    let lastSpinner = -1;
+    let spinner = null; // the handle of the spinner word playing now
     let lastPlayEvent = 0;
     let joinTimer = null;
     let heartbeat = null;
@@ -253,13 +295,20 @@ export async function startListener(options = {}) {
     const idlers = new Set(); // connections waiting for no reply to be playing (T12)
     let idlePoll = null;
 
-    // The one word on screen (T9): muted, hearing, speaking, thinking or listening.
-    const stateWord = () => (userMuted ? 'muted' : gate.hearing ? 'hearing' : playing > 0 ? 'speaking' : Date.now() < thinkingUntil ? 'thinking' : 'listening');
+    // Is the session acting now (`working`), and has the status word not lapsed?
+    const isWorking = () => workingUntil !== null && clock() < workingUntil;
+    // The one word on screen (T9): muted, hearing, speaking, working, thinking or listening.
+    const stateWord = () => (userMuted ? 'muted' : gate.hearing ? 'hearing' : playing > 0 ? 'speaking' : isWorking() ? 'working' : Date.now() < thinkingUntil ? 'thinking' : 'listening');
     const writeStatus = (force = false) => {
       const word = stateWord();
       writeLevels(force);
       if (!force && word === lastState) return;
       lastState = word;
+      try {
+        writePrivate(voicePath(home), voiceMuted ? 'muted\n' : 'on\n', fsOptions);
+      } catch {
+        // A convenience, like the status word.
+      }
       try {
         writePrivate(statusPath(home), `${word}\n`, fsOptions);
       } catch {
@@ -300,6 +349,8 @@ export async function startListener(options = {}) {
       }
       rmSync(path, { force: true });
       if (word === 'mute' || word === 'unmute') setMuted(word === 'mute');
+      // The band's second button: the listener's own voice, apart from the mic.
+      if (word === 'mute-voice' || word === 'unmute-voice') setVoiceMuted(word === 'mute-voice');
     };
 
     let resolveDone;
@@ -315,6 +366,9 @@ export async function startListener(options = {}) {
       idlers.clear();
       clearInterval(commandTimer);
       if (lastState) rmSync(statusPath(home), { force: true });
+      if (lastState) rmSync(voicePath(home), { force: true });
+      spinner?.stop();
+      spinner = null;
       if (wroteLevels) rmSync(levelsPath(home), { force: true });
       queue.items = [];
       joiner.take();
@@ -347,10 +401,12 @@ export async function startListener(options = {}) {
       if (!waiter || finished) return;
       const now = Date.now();
       // A wait ends only on a real heard turn, the first ready line, a stop or an
-      // error (T14). Every other notice, a quiet stretch and a dropped count
-      // included, rides in the next such delivery, so silence costs the session
-      // no turn.
-      if (!queue.ready(now) && !notices.has('ready')) {
+      // error (T14), and on two notices the session must act on: a progress line
+      // that is due, and a turn lost out of a cut one (nothing the person said
+      // goes missing unsaid). Every other notice, a quiet stretch and a dropped
+      // count included, rides in the next such delivery, so silence costs the
+      // session no turn.
+      if (!queue.ready(now) && !notices.has('ready') && !notices.has('progress-due') && notices.get('stt-dropped') !== 'urgent') {
         clearTimeout(rateTimer);
         const at = queue.nextAt(now);
         if (at !== null) rateTimer = setTimeout(serve, Math.max(at - now, 0) + 5);
@@ -360,7 +416,7 @@ export async function startListener(options = {}) {
       let dropped = 0;
       if (queue.ready(now)) {
         const taken = queue.take(now);
-        for (const t of taken.turns) lines.push(formatHeard(t.text, t.afterReply, knobs.maxText));
+        for (const t of taken.turns) lines.push(...heardLines(t.text, t.afterReply, knobs.maxText));
         lines.push(`timing: wait ${settings.endOfSpeechMs} stt ${Math.round(sttMs)}`);
         // Playbacks since the last delivery, from any caller: the skill counts a
         // heard yes only when exactly one, its own say-back, came between.
@@ -372,9 +428,12 @@ export async function startListener(options = {}) {
         if (quiet > 0) lines.push(`quiet ${Math.min(quiet, 9999)}`);
         lastDeliveryAt = now;
       }
-      if (notices.has('ready')) lines.push(notices.get('ready'));
+      if (notices.has('ready')) {
+        if (micNotice) lines.push(micNotice); // a fallback mic is said before ready, once
+        lines.push(notices.get('ready'));
+      }
       if (dropped) lines.push(`dropped ${dropped}`);
-      for (const n of ['stt-dropped', 'say-failed', 'mic-muted', 'mic-unmuted', 'interrupted']) if (notices.has(n)) lines.push(n);
+      for (const n of ['stt-dropped', 'say-failed', 'mic-muted', 'mic-unmuted', 'interrupted', 'progress-due']) if (notices.has(n)) lines.push(n);
       notices.clear();
       const w = waiter;
       waiter = null;
@@ -417,35 +476,136 @@ export async function startListener(options = {}) {
       }, Math.max(at - Date.now(), 0) + 5);
     };
 
-    const heard = turn => {
-      transcribing = transcribing.then(async () => {
-        if (finished) return;
-        const began = clock();
-        const text = await engine.transcribe(turn.pcm);
-        sttMs = clock() - began;
-        if (finished) return;
-        if (text === null) {
-          if (userMuted) return;
-          sttFails++;
-          if (sttFails >= knobs.sttFailures) return finish('stt');
-          notices.set('stt-dropped', true);
-          return serve();
-        }
-        sttFails = 0;
-        if (userMuted) {
-          if (isUnmuteWord(text)) setMuted(false);
-          return;
-        }
-        if (isMuteWord(text)) return setMuted(true);
-        if (isFragment(text)) return;
-        armIdle();
-        thinkingUntil = Date.now() + knobs.thinkingMs;
-        const item = { text, afterReply: turn.afterReply, exempt: turn.firstAfterReply || isStopWord(text), at: Date.now() };
-        for (const out of joiner.offer(item, Date.now())) queue.push(out);
-        armJoin();
-        writeStatus();
-        serve();
+    // The listener's own voice, apart from the mic (S5.1): while muted a say
+    // counts as played and makes and plays no audio.
+    const setVoiceMuted = muted => {
+      voiceMuted = muted;
+      if (muted) {
+        spinner?.stop();
+        spinner = null;
+      }
+      writeStatus(true);
+    };
+
+    // The held part of a cut turn goes on now: its continuation will not come, or was lost.
+    const releaseHeld = chain => {
+      for (const out of joiner.flush(Date.now(), chain)) queue.push(out);
+      armJoin();
+    };
+
+    // The gate says no continuation came for a cut turn: it goes as it is, now or when its text settles.
+    const endChain = chain => {
+      endedChains.add(chain);
+      if (endedChains.size > 50) endedChains.delete(endedChains.values().next().value);
+      releaseHeld(chain);
+      serve();
+    };
+
+    // The progress beat (L5): while the session is working, with no line spoken and no
+    // turn heard, `progress-due` is raised once per progressMs. A line spoken or a turn
+    // heard ends the working state, so the beat ends with it. Called on every frame;
+    // the fake clock of a test moves with its frames.
+    const checkProgress = () => {
+      if (!isWorking() || userMuted || hearingTurn()) return;
+      const now = clock();
+      if (now - progressFrom < knobs.progressMs) return;
+      progressFrom = now;
+      notices.set('progress-due', true);
+      serve();
+    };
+
+    // Is a turn being heard now: one open in the gate, one waiting for its text, or a held part waiting for its rest?
+    const hearingTurn = () => gate.hearing || unheard > 0 || !!joiner.hold;
+
+    // The spinner word (S5.2): one of the ten, the moment a turn is kept. None on
+    // a muted voice or while a line plays or waits, and it never counts in `plays`.
+    const playSpinner = () => {
+      if (voiceMuted || !player.available || spinner || current || playing > 0 || inSay > 0 || !spinnerClips.length) return;
+      lastSpinner = pickSpinner(spinnerClips.length, lastSpinner);
+      let handle = null;
+      try {
+        handle = player.play(spinnerClips[lastSpinner]);
+      } catch {
+        handle = null;
+      }
+      if (!handle) return;
+      spinner = handle;
+      gate.sound(true, clock());
+      handle.done.then(() => {
+        if (spinner !== handle) return;
+        spinner = null;
+        gate.sound(false, clock());
       });
+    };
+
+    const heard = turn => {
+      unheard++;
+      transcribing = transcribing
+        .then(() => settle(turn))
+        .catch(() => {})
+        .finally(() => unheard--);
+    };
+
+    // One turn's text, and what it does (the body of `heard`, after the turns before it).
+    const settle = async turn => {
+      if (finished) return;
+      // A turn the gate cut for length, or the rest of one: the two are joined, and
+      // if either is lost the session is told at once, not left to wonder (S5.7, bug fix).
+      const chained = !!turn.cut || !!turn.continued;
+      const began = clock();
+      const text = await engine.transcribe(turn.pcm);
+      sttMs = clock() - began;
+      if (finished) return;
+      if (text === null) {
+        if (userMuted) return;
+        sttFails++;
+        if (sttFails >= knobs.sttFailures) return finish('stt');
+        if (notices.get('stt-dropped') !== 'urgent') notices.set('stt-dropped', chained ? 'urgent' : true);
+        if (turn.continued) releaseHeld(turn.chain);
+        return serve();
+      }
+      sttFails = 0;
+      if (userMuted) {
+        if (isUnmuteWord(text)) setMuted(false);
+        return;
+      }
+      if (isMuteWord(text)) return setMuted(true);
+      // Our own spinner word, picked up again by the mic: not a turn.
+      if (isFragment(text) || (turn.overlap && !isStopWord(text) && isSpinnerEcho(text))) {
+        if (turn.continued) releaseHeld(turn.chain);
+        return serve();
+      }
+      // A real turn heard moves the reply on (W8): a line still playing stops,
+      // every say that has not started is dropped (its caller gets say-failed),
+      // and the next delivery says `interrupted`.
+      // A turn begun over a line, or with one waiting, gets no spinner word (S5.2).
+      const overALine = !!current || inSay > 0 || !!turn.barged;
+      if (current) {
+        const cut = current;
+        current = null;
+        playing = 0;
+        gate.playback(0, clock());
+        notices.set('interrupted', true);
+        cut.stop();
+      }
+      speechEpoch++;
+      if (!isStopWord(text) && !overALine) playSpinner();
+      armIdle();
+      thinkingUntil = Date.now() + knobs.thinkingMs;
+      workingUntil = null;
+      const item = {
+        text,
+        afterReply: turn.afterReply,
+        exempt: turn.firstAfterReply || isStopWord(text),
+        at: Date.now(),
+        cut: !!turn.cut && !endedChains.has(turn.chain),
+        continued: !!turn.continued,
+        chain: turn.chain,
+      };
+      for (const out of joiner.offer(item, Date.now())) queue.push(out);
+      armJoin();
+      writeStatus();
+      serve();
     };
 
     // A person who talks over a reply cuts it off (T8). The mic was never shut,
@@ -477,12 +637,23 @@ export async function startListener(options = {}) {
         wav = null;
       }
       if (gone() || !wav) return reply('say-failed');
+      // Never over the person (bug fix): while a turn is being heard, or its text
+      // is not settled, the line waits. If that turn is kept the line is stale and
+      // is dropped (gone); if it is dropped the line goes on. A person who talks
+      // past holdSayMs fails the line rather than have it spoken over them.
+      const waitedFrom = Date.now();
+      while (!gone() && (hearingTurn() || spinner)) {
+        if (Date.now() - waitedFrom > knobs.holdSayMs) return reply('say-failed');
+        await new Promise(r => setTimeout(r, knobs.holdPollMs));
+      }
+      if (gone()) return reply('say-failed');
       const handle = player.play(wav);
       if (!handle) return reply('say-failed');
       current = handle;
       playing = 1;
       plays++;
       thinkingUntil = 0;
+      workingUntil = null;
       lastPlayEvent = Date.now();
       gate.playback(1, clock());
       writeStatus();
@@ -503,6 +674,17 @@ export async function startListener(options = {}) {
       };
       const text = cleanText(raw, knobs.maxSayChars + 1);
       if (!text || [...text].length > knobs.maxSayChars) return answer('say-refused');
+      if (voiceMuted) {
+        // A muted voice: the line counts as said (the play count and the reply mark
+        // stay true, so a spoken yes still counts) but nothing is synthesized or played.
+        plays++;
+        thinkingUntil = 0;
+        workingUntil = null;
+        gate.playback(1, clock());
+        gate.playback(0, clock());
+        writeStatus();
+        return answer('speaking');
+      }
       if (!player.available) return answer('say-no-player');
       if (inSay >= 1 + knobs.sayQueueMax) return answer('say-busy');
       inSay++;
@@ -534,9 +716,11 @@ export async function startListener(options = {}) {
       socket.on('data', more);
     };
 
-    // Replies still playing or waiting, or ended less than the tail ago, hold an idle wait (T12).
+    // Replies still playing or waiting, or ended less than the tail ago, hold an
+    // idle wait (T12), and so does a turn being heard: the person is mid-sentence
+    // and a reply now would be spoken over them (bug fix).
     const checkIdle = () => {
-      if (playing > 0 || inSay > 0 || Date.now() - lastPlayEvent < tailMs) return;
+      if (playing > 0 || inSay > 0 || spinner || hearingTurn() || Date.now() - lastPlayEvent < tailMs) return;
       for (const s of idlers) s.end('idle\n');
       idlers.clear();
       clearInterval(idlePoll);
@@ -564,13 +748,28 @@ export async function startListener(options = {}) {
           if (!sameToken(head[1], token)) return socket.destroy();
           return void takeSay(socket, Buffer.from(pending.slice(nl + 1), 'latin1'), Number(head[2]));
         }
-        const m = /^(wait|stop|ping|mute|unmute|idle|status) ([0-9a-f]{64})\r?$/.exec(pending.slice(0, nl));
+        const m = /^(wait|stop|ping|mute|unmute|idle|status|working|mute-voice|unmute-voice) ([0-9a-f]{64})\r?$/.exec(pending.slice(0, nl));
         if (!m || !sameToken(m[2], token)) return socket.destroy();
         if (m[1] === 'ping') return void socket.end('alive\n');
         if (m[1] === 'status') return void socket.end(`${stateWord()}\n`);
         if (m[1] === 'mute' || m[1] === 'unmute') {
           setMuted(m[1] === 'mute');
           return void socket.end(m[1] === 'mute' ? 'mic-muted\n' : 'mic-unmuted\n');
+        }
+        if (m[1] === 'working') {
+          // The session is acting now. The word shows until the next line is spoken or
+          // turn heard, or workingMs after the last call. A repeat call extends the word;
+          // the progress beat counts from when work began, not from the repeat (S5.3).
+          const now = clock();
+          if (!isWorking()) progressFrom = now;
+          thinkingUntil = 0;
+          workingUntil = now + knobs.workingMs;
+          writeStatus();
+          return void socket.end('working\n');
+        }
+        if (m[1] === 'mute-voice' || m[1] === 'unmute-voice') {
+          setVoiceMuted(m[1] === 'mute-voice');
+          return void socket.end(voiceMuted ? 'voice-muted\n' : 'voice-unmuted\n');
         }
         if (m[1] === 'idle') {
           if (idlers.size >= 4) return void socket.end('idle-timeout\n');
@@ -629,10 +828,20 @@ export async function startListener(options = {}) {
     }
 
     // Warm in the background; `ready` goes to the next waiter.
+    // After `ready`, in the background, the engine makes the ten spinner words once,
+    // each with 150 ms of silence in front. Until they exist nothing plays (L3).
+    const makeSpinners = async () => {
+      for (const line of SPINNERS) {
+        if (finished) return;
+        const wav = await Promise.resolve(engine.synthesize(line)).catch(() => null);
+        if (wav) spinnerClips.push(leadSilence(wav));
+      }
+    };
     withTimeout(engine.warm(), knobs.warmMs).then(
       ms => {
         notices.set('ready', `ready ${ms} voice ${settings.profile}`);
         serve();
+        makeSpinners().catch(() => {});
       },
       () => finish('warm'),
     );
@@ -659,7 +868,9 @@ export async function startListener(options = {}) {
         for (const e of gate.frame(frame, clock())) {
           if (e.type === 'turn') heard(e);
           else if (e.type === 'barge') bargeIn();
+          else if (e.type === 'cut-over') endChain(e.chain);
         }
+        checkProgress();
         meter.add(gate.level, clock(), userMuted);
         writeStatus();
       }
@@ -740,12 +951,23 @@ async function main(argv, home = homedir()) {
     return say(SAY_REPLIES.includes(out) ? out : 'listener: not running'), 0;
   }
   // The person's mute, the idle wait and the status word: each answers one fixed line.
-  const ONE = { mute: ['mic-muted'], unmute: ['mic-unmuted'], idle: ['idle', 'idle-timeout'], status: ['listening', 'hearing', 'thinking', 'speaking', 'muted'] };
+  const ONE = { mute: ['mic-muted'], unmute: ['mic-unmuted'], idle: ['idle', 'idle-timeout'], status: ['listening', 'hearing', 'thinking', 'working', 'speaking', 'muted'] };
   if (Object.hasOwn(ONE, command)) {
     const out = ((await ask(readChannel(home), command, KNOBS.idleWaitMs + 2000)) ?? '').trim();
     return say(ONE[command].includes(out) ? out : 'listener: not running'), 0;
   }
-  say('usage: listen.mjs start | wait | stop | mute | unmute | idle | status | say <8 hex>');
+  // `working` and the voice mute are newer than the first listener build. A listener
+  // started before them closes the connection on the command; the client then says a
+  // restart is needed, not that nothing is running (S5.1).
+  const NEWER = { working: ['working'], 'mute-voice': ['voice-muted'], 'unmute-voice': ['voice-unmuted'] };
+  if (Object.hasOwn(NEWER, command)) {
+    const channel = readChannel(home);
+    const out = ((await ask(channel, command, 5000)) ?? '').trim();
+    if (NEWER[command].includes(out)) return say(out), 0;
+    const alive = (await ask(channel, 'ping', 2000)) === 'alive\n';
+    return say(alive ? 'listener: restart needed for this command' : 'listener: not running'), 0;
+  }
+  say('usage: listen.mjs start | wait | stop | mute | unmute | mute-voice | unmute-voice | working | idle | status | say <8 hex>');
   return 2;
 }
 

@@ -76,6 +76,31 @@ export const recorderName = platform => (platform === 'win32' ? 'ffmpeg.exe' : '
 // The list's stamp: a hash of every device's name and id, in order (590's rule).
 export const stampOf = devices => createHash('sha256').update(JSON.stringify(devices.map(d => [d.name, d.id]))).digest('hex').slice(0, 16);
 
+// A device that records what plays, not a mic: never a fallback (S5.5). Only a
+// device whose name or id matches is skipped; another input may still carry other
+// sound or hear the room (the README says so).
+const LOOPBACK = /stereo mix|what u hear|wave out mix|loopback|monitor of|cable output|voicemeeter out|blackhole|soundflower|\.monitor/i;
+
+// The mic to open: the saved one, found by the digest of its id, then of its
+// name, wherever it now sits in the list; settings from before that (no id or
+// name) by their stamp and index. When it is gone, the first mic that is not a
+// loopback, as how 'fallback', so the first delivery can say which. `digest`
+// turns a device's id or name into what settings.json keeps (S13.5).
+export function pickDevice(devices, saved, digest = text => text) {
+  const exact = (saved.id && devices.find(d => digest(d.id) === saved.id)) || (saved.name && devices.find(d => digest(d.name) === saved.name));
+  if (exact) return { device: exact, how: 'saved' };
+  if (!saved.id && !saved.name && stampOf(devices) === saved.stamp && devices[saved.index]) return { device: devices[saved.index], how: 'saved' };
+  const other = devices.find(d => !LOOPBACK.test(d.name) && !LOOPBACK.test(d.id));
+  return other ? { device: other, how: 'fallback' } : { device: null, how: null };
+}
+
+// A fallback mic's name as it reaches the chat (S13.5): letters, digits, spaces
+// and ()-_. only, one space at a time, cut at 64.
+export const fallbackName = name => {
+  const clean = String(name).replace(/[^\p{L}\p{N} ()\-_.]/gu, '').replace(/ {2,}/g, ' ').trim();
+  return [...clean].slice(0, 64).join('').trim() || 'another mic';
+};
+
 // What setup prints: the stamp, then one line per device, cleaned and cut at
 // 64 characters, never an id or a path.
 export const listingLines = devices => [`stamp ${stampOf(devices)}`, ...devices.map((d, i) => `${i} ${cleanText(d.name, 64)}`)];
