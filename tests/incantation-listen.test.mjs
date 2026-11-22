@@ -1015,6 +1015,7 @@ test('claim 4: a kept turn plays one spinner word within 100 ms, never the same 
   await tick(120); // the ten words are made after ready
   const seen = [];
   for (let i = 0; i < 50; i++) {
+    r.t += 1600; // a person's next sentence comes more than echoHoldMs after the last cue
     r.turn();
     await tick(70);
     assert.equal(r.player.spinners.length, i + 1, `turn ${i}: one word, within the pause`);
@@ -1028,21 +1029,97 @@ test('claim 4: a kept turn plays one spinner word within 100 ms, never the same 
   assert.match(out, /^plays 0$/m);
 });
 
-test('claim 4: a spinner word starts with a short silence, and none plays on a stop word, a mute word, a fragment, a muted voice or while a line waits', async t => {
+test('follow-up 1: the spinner word plays when the gate hears the end of speech, before the turn is transcribed', async t => {
+  const r = await live(t, { engineOptions: { text: () => new Promise(res => setTimeout(() => res('Run the tests.'), 400)) } });
+  await tick(120);
+  r.turn();
+  await tick(100); // well before the transcript is back
+  assert.equal(r.player.spinners.length, 1, 'the cue came with the end of speech, not after the text');
+  assert.equal(r.engine.calls, 1, 'and the engine is still working on the turn');
+  const pending = wait(r.home);
+  assert.equal(await raced(pending, 100), 'still waiting', 'nothing delivered yet');
+  assert.match(await pending, /^Heard: "Run the tests\."$/m);
+});
+
+test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a fragment is cut short; none for a muted mic, a muted voice, a cut part, a turn over a line, or a turn that may be an echo', async t => {
   const words = ['stop', 'Mute.', 'Unmute.', 'you', 'Run the tests.'];
   const r = await live(t, { engineOptions: { text: texts(...words) } });
   await tick(120);
-  for (const w of words.slice(0, 4)) {
+  const turn = () => {
+    r.t += 1600; // each sentence comes more than echoHoldMs after the last sound
     r.turn();
-    await tick(70);
-    assert.equal(r.player.spinners.length, 0, `none on ${JSON.stringify(w)}`);
-  }
-  // A line is waiting behind a playing one when the person's turn is kept: no spinner.
-  assert.equal(await cli(r.home, 'unmute'), 'mic-unmuted\n');
+  };
+  turn(); // stop
+  await tick(70);
+  assert.equal(r.player.spinners.length, 1);
+  assert.equal(r.player.spinners[0].stopped, true, 'a stop word: the stray cue is stopped as soon as the text says so');
+  turn(); // mute
+  await tick(70);
+  assert.equal(r.player.spinners.length, 2);
+  assert.equal(r.player.spinners[1].stopped, true, 'a mute word: stopped');
+  turn(); // unmute, said while the mic is muted: heard for that word only, so no cue
+  await tick(70);
+  assert.equal(r.player.spinners.length, 2, 'none while the mic is muted');
+  turn(); // a fragment
+  await tick(70);
+  assert.equal(r.player.spinners.length, 3);
+  assert.equal(r.player.spinners[2].stopped, true, 'a fragment: stopped');
+  // A person who talks over a line gets no cue.
   assert.equal(await spoken(r, 'First line.'), 'speaking\n');
+  turn();
+  await tick(70);
+  assert.equal(r.player.spinners.length, 3, 'none over a line');
+  // A muted voice plays nothing.
+  assert.equal(await cli(r.home, 'mute-voice'), 'voice-muted\n');
+  turn();
+  await tick(70);
+  assert.equal(r.player.spinners.length, 3, 'none while the voice is muted');
+});
+
+test('follow-up 1: a turn that begins soon after a reply, or over a spinner word, plays no cue, so our own sound heard back cannot start a loop', async t => {
+  const r = await live(t, { engineOptions: { text: 'Run the tests.' } });
+  await tick(120);
   r.turn();
   await tick(70);
-  assert.equal(r.player.spinners.length, 0, 'none while a line plays');
+  assert.equal(r.player.spinners.length, 1);
+  r.push(3163, 12); // the mic hears the spinner word's own tail, within echoHoldMs of its end
+  r.push(1000, 15);
+  await tick(70);
+  assert.equal(r.player.spinners.length, 1, 'no cue for a turn that may be our own echo');
+});
+
+test('follow-up 2: a say queued behind a playing line holds while a new turn is being heard, and plays when it is dropped or fails when a turn lands', async t => {
+  const r = await live(t, { engineOptions: { text: texts('you', 'Hold on.') } });
+  r.push(1000, 34);
+  const channel = readChannel(r.home);
+  assert.equal(await say(channel, 'First line.', 3000), 'speaking\n');
+  let answered = null;
+  const queued = say(channel, 'Second line.', 3000).then(v => ((answered = v), v));
+  await tick(40);
+  r.push(3163, 5); // the person begins a new turn, short of a barge-in
+  assert.equal(r.player.stops, 0);
+  r.player.plays[0].end(); // the first line ends: the queued one would start now
+  await tick(250);
+  assert.equal(answered, null, 'held while they talk');
+  assert.equal(r.player.plays.length, 1, 'and not started');
+  r.push(1000, 15); // a fragment: dropped
+  assert.equal(await queued, 'speaking\n', 'played once they stopped');
+  assert.equal(r.player.plays.length, 2);
+  r.player.plays[1].end();
+  await tick(30);
+  // The same again, with a turn that lands.
+  assert.equal(await say(channel, 'Third line.', 3000), 'speaking\n');
+  const fourth = say(channel, 'Fourth line.', 3000);
+  await tick(40);
+  r.push(1000, 34);
+  r.push(3163, 5);
+  r.player.plays[2].end();
+  await tick(150);
+  assert.equal(r.player.plays.length, 3, 'held');
+  r.push(3163, 5);
+  r.push(1000, 15);
+  assert.equal(await fourth, 'say-failed\n', 'a turn landed: the line is stale');
+  assert.equal(r.player.plays.length, 3);
 });
 
 test('claim 4: the 150 ms of silence in front of a spinner word keeps the WAV valid, and anything else is returned as it came', () => {
@@ -1261,6 +1338,7 @@ test('bug a: a turn cut at 30 s and its rest reach the session as one turn, in o
   const out = await wait(r.home);
   assert.match(out, /^Heard: "This is the first part of a long turn\. And this is the rest of it\."$/m);
   assert.equal(r.engine.calls, 2);
+  assert.equal(r.player.spinners.length, 1, 'one cue for the whole turn, at its end, not one at the cut');
   assert.doesNotMatch(out, /stt-dropped/);
 });
 
