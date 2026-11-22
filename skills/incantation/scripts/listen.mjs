@@ -317,7 +317,7 @@ export async function startListener(options = {}) {
     // One ffplay for the session when there is one, so the speaker delay stays put
     // and the canceller converges once; every sample it is given is the reference.
     const ffplay = own ? null : findPlayer({ platform, recorder: settings.recorder });
-    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, onWrite: s => loopback.active || refFeed.append(s), leadMs: 300, timers: false }) : null;
+    const stream = ffplay && /ffplay(\.exe)?$/i.test(ffplay.file) ? makeStreamPlayer({ ffplay: ffplay.file, cwd: run, onWrite: s => loopback.active || refFeed.append(s), leadMs: 300, timers: false }) : null;
     const speech = options.speech === undefined ? (own ? null : makeSpeech({ home })) : options.speech;
     const turnJudge = options.turnJudge ?? (own ? { ...off, done: () => Promise.resolve(null) } : makeTurnJudge({ home, platform }));
     const spoken = [];

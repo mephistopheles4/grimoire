@@ -15,7 +15,7 @@ export const SOURCES = Object.freeze({
 });
 
 /** Every host the installer and uv contact, for the plan to name. */
-export const HOSTS = Object.freeze(['huggingface.co', 'us.aws.cdn.hf.co', 'registry.npmjs.org', 'github.com', 'release-assets.githubusercontent.com', 'pypi.org', 'files.pythonhosted.org']);
+export const HOSTS = Object.freeze(['huggingface.co', 'us.aws.cdn.hf.co', 'registry.npmjs.org', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com', 'pypi.org', 'files.pythonhosted.org']);
 
 /** The one CPython uv is asked for, and the one index it may read. */
 export const PYTHON = Object.freeze({ version: '3.12.12', index: 'https://pypi.org/simple' });

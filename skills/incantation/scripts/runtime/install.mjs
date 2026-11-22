@@ -454,8 +454,21 @@ export async function installRuntime(o) {
     return 'ok';
   };
 
+  const lockPath = () => join(o.lockDir ?? dirname(fileURLToPath(import.meta.url)), pins.LOCKS[key] ?? '');
+  const stampOf = () => {
+    try {
+      return createHash('sha256').update(PYTHON.version).update('\0').update(readFileSync(lockPath())).digest('hex');
+    } catch {
+      return null;
+    }
+  };
+  const partCurrent = part => {
+    if (part === 'python') return readManifest(home)?.stamp === stampOf();
+    return specOf(part, key, pins).units.flatMap(u => u.files).every(f => hashFile(join(root, ...f.rel.split('/'))) === f.sha256);
+  };
+
   const installPython = async () => {
-    const lock = join(o.lockDir ?? dirname(fileURLToPath(import.meta.url)), pins.LOCKS[key]);
+    const lock = lockPath();
     // uv's own cache, asked of uv and passed back explicitly, so no UV_* variable
     // of the person's environment ever reaches it.
     const bare = namedEnv(o.env ?? {}, {}, platform);
@@ -475,7 +488,7 @@ export async function installRuntime(o) {
     r = await run(uvArgs.install(pythonExe(home, platform), lock), root);
     if (r.code !== 0) return 'failed wheels';
     const files = walkFiles(venv, venv, n => n === '__pycache__').sort();
-    const manifest = { python: PYTHON.version, files: files.map(f => [f, statSync(join(venv, ...f.split('/'))).size, hashFile(join(venv, ...f.split('/')))]) };
+    const manifest = { python: PYTHON.version, stamp: stampOf(), files: files.map(f => [f, statSync(join(venv, ...f.split('/'))).size, hashFile(join(venv, ...f.split('/')))]) };
     writePrivate(join(root, MANIFEST), `${JSON.stringify(manifest)}\n`, { platform });
     return 'ok';
   };
@@ -501,7 +514,10 @@ export async function installRuntime(o) {
         continue;
       }
     }
-    if (partState(home, part, key, pins) === 'ok') {
+    // Installed and the right size is not enough here: a part is current only when
+    // its files hash to this table's pins (python: the lock and the interpreter it
+    // was built from), so a pin changed by a later release is applied, not skipped.
+    if (partState(home, part, key, pins) === 'ok' && partCurrent(part)) {
       say(`${part} ok`);
       continue;
     }

@@ -140,7 +140,10 @@ test('claim 9: the steady player writes what is due, hands the reference out at 
   const child = fakeChild();
   child.stdin.on('data', d => written.push(d));
   const ref = [];
-  const player = makeStreamPlayer({ ffplay: 'ffplay', exists: always, spawn: () => child, onWrite: s => ref.push(...s), timers: false, latencyMs: 0, leadMs: 0 });
+  const started = [];
+  const player = makeStreamPlayer({ ffplay: 'ffplay', cwd: 'STATE', exists: always, spawn: (file, args, opts) => (started.push(opts), child), onWrite: s => ref.push(...s), timers: false, latencyMs: 0, leadMs: 0 });
+  assert.equal(started[0].cwd, 'STATE', 'ffplay starts in the state folder, not the session\'s');
+  assert.equal(started[0].shell, false);
   const line = player.play(wav(new Array(2400).fill(1000), OUT_RATE)); // 100 ms
   for (let i = 0; i < 6; i++) player.pump(30);
   assert.equal(await line.done, 'ended');
