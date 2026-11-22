@@ -166,8 +166,8 @@ The person copies one fenced JSON block from the page and pastes it in
 chat. Write it as `answers.json` in the scratch folder, as `SKILL.md` says
 for the pasted block. Then check it.
 
-The hashes bind the block to its draft and its kinds table. They prove
-nothing about who made the block.
+The block's two hashes, one of the draft and one of the kinds table, bind it
+to both. They prove nothing about who made the block.
 
 ## Reading the block back
 

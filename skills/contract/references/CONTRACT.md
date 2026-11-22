@@ -162,8 +162,8 @@ not show this skill finds them in a contract it helped write.
   case that applies.
 - **Confirmed.** When the person says, after the page is rendered, that they
   cannot open it, it names that case, keeps every answer already given, and
-  goes on by chat. It asks for Reset and offers the deletes at the hand-back,
-  as on every path.
+  goes on by chat. It asks for Reset, deletes the page and the answers file,
+  and offers the draft delete at the hand-back, as on every path.
 - **Confirmed.** It never recommends chat for its own ease.
 - **Decided.** At the hand-back of a hiring interview, it asks the person to
   press Reset on the page. Before any delete of the page, it waits for their
@@ -337,7 +337,7 @@ each told first; the first three are done on the person's own request for
 the interview, in this chat, and the last on their confirmation, in any
 form:
 
-| Action | What the skill tells you first | Your yes |
+| Action | What the skill tells you first | Your go |
 |---|---|---|
 | Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your request for the interview |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your request for the interview |

@@ -158,7 +158,7 @@ strawman, or an edge with no reason: name the gap. Do not fill it with a guess.
    which edge to reread first. It is not a verdict.
 
    The audit's `--probe` says whether a key is set and sends nothing: probe
-   before you offer the audit.
+   before you offer the audit. It needs a box file, so a chat table gets none.
 
    **A score never changes a tier, and never goes into the box.** Reason: an
    audit score treated as a verdict (failure 6). The full audit procedure,
@@ -384,7 +384,7 @@ Test (ISO 24495-1): can the reader find it, understand it, and use it?
 
 The shape is in `box.schema.json`. A complete example is in
 `examples/eagle-eye-skill.box.json` (the skill's own design, boxed). What the
-renderer refuses, what it warns on, and what no validator can check are in
+renderer warns on, and what no validator can check, are in
 `reference/box-file.md`, "What the renderer checks".
 
 **What it does not check is the part that goes wrong.** No validator can tell

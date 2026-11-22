@@ -8,7 +8,7 @@ stop first. Nothing in this file removes it.
 
 - What the audit is (questions 5, 6, 14)
 - The probe (questions 3, 6)
-- Who can say yes (questions 3, 6)
+- Who can confirm (questions 3, 6)
 - The run (questions 4, 14, 16, 18)
 - Dispositions (questions 4, 16, 18)
 - A second round (questions 3, 6)
@@ -61,7 +61,7 @@ the four facts, and wait for the person's confirmation, in any form:
 
 Never state a price. The provider sets it and can change it.
 
-## Who can say yes (questions 3, 6)
+## Who can confirm (questions 3, 6)
 
 Offer the audit once in a conversation. Run it only after the person's
 confirmation, in any form, anywhere. One confirmation covers one run. The
@@ -109,7 +109,8 @@ A rewrite that adds a factual claim names a `src`, or the edge stays
 To check the rewritten edges, run the audit again. A second run sends every
 edge again, so the provider charges again. The second run is not a new
 offer. It is a new charge. So run `--dry-run` first, state the four facts,
-and then ask, unless the person's own instructions gave a yes for every run.
+and then ask, unless the person's own instructions gave a confirmation for every
+run.
 
 Stop after two rounds. The audit stops when every flagged edge has a
 disposition. It never stops on a score.
@@ -125,8 +126,9 @@ node <skill base directory>/audit.mjs <box.json> --sel "eagle-eye: opt-a, opt-b"
 
 It scores only the argued edges that make the set fail. It lists a sourced or
 measured edge, and does not send it. Every rule above applies to this run.
-After an earlier yes, this run is not a new offer. It is a new charge. Run it
+After an earlier confirmation, this run is not a new offer. It is a new charge. Run it
 with `--dry-run` and the same `--sel` first, state the four facts, and then
-ask, unless the person's own instructions gave a yes for every run. If the
+ask, unless the person's own instructions gave a confirmation for every run.
+If the
 person said no to the audit earlier in the conversation, do not offer it
 again. If the audit fails, check the edges by hand.

@@ -164,7 +164,8 @@ Use chat only in these cases, and name the one that applies:
 
 When the person says, after the page is rendered, that they cannot open it,
 name that case, keep every answer already given, and go on by chat. Ask for
-Reset and offer the deletes at the hand-back, as on every path.
+Reset, delete the page and the answers file, and offer the draft delete at
+the hand-back, as on every path.
 
 Never recommend chat for your own ease.
 
