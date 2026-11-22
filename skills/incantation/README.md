@@ -108,8 +108,9 @@ is written by Incantation's own script. A session may read it, for example to
 troubleshoot: it holds no secret, but it holds the full path to ffmpeg, which can
 include your account name, and the mic's id and name as keyed digests (HMAC-SHA-256
 with a random key made at your first choice and kept in
-`~/.grimoire/incantation/key`), not the text, so a device name cannot be guessed
-back from the file. At each start the listener finds your mic by those, wherever
+`~/.grimoire/incantation/key`), not the text. The file also keeps a plain hash
+of the whole device list, which could confirm a guessed list, so do not have a
+session read `key` or the settings without need. At each start the listener finds your mic by those, wherever
 it now sits in the device list. If your microphones change, run
 `/incantation install` again. A settings file with no `engine` key means
 `voicebox`, as before; a fresh install writes `sherpa`.
@@ -216,7 +217,7 @@ silence, and the listener stops with `listener error mic`.
 
 Type `/incantation` in a session, the lead session of a brigade included. It
 checks the setup, starts the listener, prints `Listening, always on.`, warms the
-engine, and greets you, naming the mic it is using. It prints `Stopped listening.`
+engine, and greets you (naming the mic when it is a fallback). It prints `Stopped listening.`
 whenever it stops.
 
 - **If your mic is gone.** The listener finds your saved mic by its id, then its
@@ -302,8 +303,8 @@ the session, and with Remote Control on, claude.ai and every signed-in device. A
 muted mic sends nothing. **Tell people within the mic's reach that it is always
 listening.**
 
-Say "stop" or type to end it. It also stops after 30 minutes with nothing heard,
-and when the Claude Code session it belongs to ends.
+Say "stop" or type to end it. It also stops after 30 minutes with nothing heard
+(not while the mic is muted: a muted mic stays open until you stop it), and when the Claude Code session it belongs to ends.
 
 `listen.mjs` keeps no audio and no heard text. It writes one word, the listening
 state, to `~/.grimoire/incantation/run/status`, and one word, `muted` or `on`, to
@@ -312,8 +313,9 @@ a stop. It passes the microphone's
 device id, which can name the hardware, to ffmpeg on its command line, so
 anything that reads or reports this machine's command lines sees it. The mod
 sends each heard turn into the chat as a user-role prompt, so every prompt hook
-and Remote Control sees it as if you had typed it, and the session treats a clear
-yes in it as yours; anyone or anything the mic hears can therefore raise a request
+and Remote Control sees it as if you had typed it (other plugins' tool-call hooks
+see the mid-turn route, and the Desktop app's store and phone sync keep the
+transcript), and the session treats a clear yes in it as yours; anyone or anything the mic hears can therefore raise a request
 or confirm one that was said back. The mod writes no heard text anywhere. Claude
 Code keeps every heard line in the session transcript. A mic that is not yours
 (see "If your mic is gone") is named in the chat when it is used.

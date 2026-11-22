@@ -309,7 +309,8 @@ session. Its rows:
 
   > Superseded by [0001-incantation-from-the-prototype](0001-incantation-from-the-prototype.md):
   > the settings now keep keyed digests of the mic id and name, never the text,
-  > so a saved mic can be found again or replaced by a fallback.
+  > so a saved mic can be found again or replaced by a fallback; a fallback's
+  > name (cleaned and cut) is printed to the session when it is used.
 - **The recorder** is resolved once, at setup, and its real path is pinned in
   the settings. At start the listener resolves it again by the same rule and
   refuses a different real path (`listener error recorder`). On every

@@ -285,7 +285,7 @@ because its procedure lives in schedules, not as a precedent.
 - The `open` row stays: "whether a heard yes is safe enough for every act,
   when the listener cannot tell voices apart", settled by "a month of use with
   no act taken on a yes the person did not give". Its clock restarts on
-  2026-11-22, when a paid run started on a turn that was not a yes (W9). The
+  2026-11-22. The
   month is counted without heard text: the practice record and the owner's own
   word count acts the owner disowns.
 - `tuning.md` edits: "progress" leaves "Kinds that never pass it" (the
