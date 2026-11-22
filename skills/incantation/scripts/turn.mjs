@@ -89,22 +89,30 @@ export class TurnHold {
     this.held = null;
     this.quietSince = 0;
     this.chain = Promise.resolve();
+    this.offered = 0; // turns offered and not yet released or held
   }
 
   offer(turn, now) {
-    this.chain = this.chain.then(async () => {
-      let t = turn;
-      if (this.held) {
-        const h = this.held;
-        this.held = null;
-        t = { ...turn, pcm: Buffer.concat([h.turn.pcm, turn.pcm]), afterReply: h.turn.afterReply, firstAfterReply: h.turn.firstAfterReply, overlap: h.turn.overlap || turn.overlap, joins: (h.turn.joins ?? 0) + 1 };
-      }
-      const p = (t.joins ?? 0) >= this.maxJoins ? null : await this.judge.done(t.pcm);
-      if (p === null || p >= this.threshold) return this.release(t);
-      this.held = { turn: t };
-      this.quietSince = now;
-    });
+    this.offered++;
+    // One failed decision must not block the turns after it.
+    this.chain = this.chain.then(() => this.decide(turn, now)).catch(() => {}).finally(() => this.offered--);
     return this.chain;
+  }
+
+  async decide(turn, now) {
+    let t = turn;
+    if (this.held) {
+      const h = this.held;
+      this.held = null;
+      t = { ...turn, pcm: Buffer.concat([h.turn.pcm, turn.pcm]), afterReply: h.turn.afterReply, firstAfterReply: h.turn.firstAfterReply, overlap: h.turn.overlap || turn.overlap, barged: h.turn.barged || turn.barged, joins: (h.turn.joins ?? 0) + 1 };
+    }
+    // A turn the gate cut for length is unfinished by construction and is joined
+    // with its continuation downstream (S5.7): it is never held here, and the
+    // chain flags go through as the gate set them.
+    const p = t.cut || (t.joins ?? 0) >= this.maxJoins ? null : await this.judge.done(t.pcm);
+    if (p === null || p >= this.threshold) return this.release(t);
+    this.held = { turn: t };
+    this.quietSince = now;
   }
 
   tick(now, hearing) {
@@ -120,7 +128,8 @@ export class TurnHold {
     }
   }
 
+  // A turn is held, or offered and not yet decided: either way one is on its way.
   get holding() {
-    return this.held !== null;
+    return this.held !== null || this.offered > 0;
   }
 }
