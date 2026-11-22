@@ -538,6 +538,19 @@ export async function startListener(options = {}) {
       });
     };
 
+    // The cue plays at the gate's end of speech, before the turn is transcribed, so the
+    // person hears it at once and not seconds later where it would sound like a reply (S5.2).
+    // That is before the text says whether the turn counts, so a stray cue is possible:
+    // `settle` stops it where it stands for a mute word, a stop word, a fragment or a
+    // failed transcript. None for a mic that is muted, for the part of a turn the gate cut
+    // (the person is still talking), for a turn begun over a line or one waiting, or for a
+    // turn that began over our own sound or soon after it, which may be its echo and
+    // would otherwise start a loop of cues.
+    const earlyCue = turn => {
+      if (userMuted || turn.cut || turn.overlap || turn.barged || current || inSay > 0) return;
+      playSpinner();
+    };
+
     const heard = turn => {
       unheard++;
       transcribing = transcribing
@@ -557,6 +570,7 @@ export async function startListener(options = {}) {
       sttMs = clock() - began;
       if (finished) return;
       if (text === null) {
+        spinner?.stop(); // nothing was understood: no cue for it
         if (userMuted) return;
         sttFails++;
         if (sttFails >= knobs.sttFailures) return finish('stt');
@@ -569,17 +583,23 @@ export async function startListener(options = {}) {
         if (isUnmuteWord(text)) setMuted(false);
         return;
       }
-      if (isMuteWord(text)) return setMuted(true);
+      // The cue was played at the end of speech, before this text existed. A turn
+      // that proves to be a mute word, a stop word or a fragment (or our own sound
+      // heard back) was no turn to acknowledge: the cue is stopped where it stands.
+      if (isMuteWord(text)) {
+        spinner?.stop();
+        return setMuted(true);
+      }
       // Our own spinner word, picked up again by the mic: not a turn.
       if (isFragment(text) || (turn.overlap && !isStopWord(text) && isSpinnerEcho(text))) {
+        spinner?.stop();
         if (turn.continued) releaseHeld(turn.chain);
         return serve();
       }
+      if (isStopWord(text)) spinner?.stop();
       // A real turn heard moves the reply on (W8): a line still playing stops,
       // every say that has not started is dropped (its caller gets say-failed),
       // and the next delivery says `interrupted`.
-      // A turn begun over a line, or with one waiting, gets no spinner word (S5.2).
-      const overALine = !!current || inSay > 0 || !!turn.barged;
       if (current) {
         const cut = current;
         current = null;
@@ -589,7 +609,6 @@ export async function startListener(options = {}) {
         cut.stop();
       }
       speechEpoch++;
-      if (!isStopWord(text) && !overALine) playSpinner();
       armIdle();
       thinkingUntil = Date.now() + knobs.thinkingMs;
       workingUntil = null;
@@ -866,7 +885,10 @@ export async function startListener(options = {}) {
           else if (framesSeen >= silentFrames) return void finish('mic');
         }
         for (const e of gate.frame(frame, clock())) {
-          if (e.type === 'turn') heard(e);
+          if (e.type === 'turn') {
+            earlyCue(e);
+            heard(e);
+          }
           else if (e.type === 'barge') bargeIn();
           else if (e.type === 'cut-over') endChain(e.chain);
         }
