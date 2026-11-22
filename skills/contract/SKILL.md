@@ -365,7 +365,8 @@ single-quoted. It makes the scratch folder, renders the page, checks the
 pasted block and prints the change list, so you never retell it. It needs
 Node.js 24 or later, and nothing else.
 
-Each write and delete it makes is an action. Tell the person first:
+Each write it makes, and the draft delete, is an action. Tell the person
+first:
 
 - **The scratch folder** (`--new-folder`): where it is, that its files hold
   the answers unencrypted until deleted, and that a folder they name is as
