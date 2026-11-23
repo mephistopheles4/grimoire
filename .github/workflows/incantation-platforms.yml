@@ -37,6 +37,11 @@ jobs:
       matrix:
         os: [macos-15, macos-15-intel, ubuntu-24.04-arm, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    # Named, so a step runs with pipefail and a failed command before `tee`
+    # fails the step.
+    defaults:
+      run:
+        shell: bash
     steps:
       # persist-credentials: false. Nothing here runs a git command.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,14 +58,22 @@ jobs:
         with:
           version: '0.13.7'
           enable-cache: false
+      # The installer runs a uv only from a folder that no one else can write,
+      # and each folder above it must be the same (README, "Finding ffmpeg").
+      # The runner's tool cache fails that rule, so copy uv into a private folder.
+      - name: Put uv where the installer trusts it
+        run: |
+          install -d -m 0755 "$HOME/uv-bin"
+          install -m 0755 "$(command -v uv)" "$HOME/uv-bin/uv"
+          echo "$HOME/uv-bin" >> "$GITHUB_PATH"
       - name: Plan
         run: |
           node skills/incantation/scripts/setup.mjs runtime plan | tee plan.txt
-          ! grep -E ' (unavailable|skipped) ' plan.txt
+          if grep -E ' (unavailable|skipped) |^uv not found' plan.txt; then exit 1; fi
       - name: Install
         run: |
           node skills/incantation/scripts/setup.mjs runtime install | tee install.txt
-          ! grep -E ' (failed|skipped) ' install.txt
+          if grep -E ' (failed|skipped) ' install.txt; then exit 1; fi
       - name: Verify
         run: node skills/incantation/scripts/setup.mjs runtime verify
       # Each worker writes its ready mark and exits when its stdin closes.
