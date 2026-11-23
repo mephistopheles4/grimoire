@@ -90,13 +90,11 @@ first line fails with `say-no-player`: install an ffmpeg build that includes
 `ffplay` and run `/incantation install` again. The player is started with no
 shell, and the reply's text never reaches it: it gets audio only.
 
-**Bluetooth earbuds on macOS.** When something opens a Bluetooth headset's mic,
-macOS switches the headset from its music profile to its call profile. Speech
-then sounds thinner, and the first words heard can be lost while the switch
-happens. To avoid the switch, pick the Mac's own mic as the input in
-System Settings > Sound > Input, and at `/incantation install`. The earbuds then
-stay on their music profile for the replies. macOS may pick the headset again
-after it reconnects, so check the input if the voice sounds thin.
+**A Bluetooth headset on macOS.** The headset's own mic works as the input, and
+the replies play in the headset. While its mic is open, macOS puts the headset in
+call-quality audio, so the replies sound thinner than music does. If you want
+full-quality playback in the headset, you can pick the Mac's own mic as the input
+instead.
 
 The session hands the listener each line in a small file it writes under
 `~/.grimoire/incantation/observe/`, which the listener reads once and deletes, so
