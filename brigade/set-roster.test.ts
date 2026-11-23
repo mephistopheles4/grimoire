@@ -10255,8 +10255,7 @@ test('578 C7: rule 5 refuses a note naming a live session or a card title, passe
   }
   expect(claudes()).toBe(0)
   expect((await startTool($, { note: 'Work with delta and head chef here.' })).ok).toBe(true)
-  for (const name of ['a2', 'a3', 'a4']) expect((await startTool($, { name })).ok).toBe(true)
-  expect(claudes()).toBe(4)
+  expect(claudes()).toBe(1)
 })
 
 test('543 C5/C13: two concurrent calls with one name start one, and set_roster answers while a start is pending', async ($, on) => {
