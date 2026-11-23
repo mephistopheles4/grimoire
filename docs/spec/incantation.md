@@ -920,7 +920,8 @@ pair. behaviour-lens waits for Test.
 
 Asks 1 to 14 on #208, built on #626's branch, which stays a draft. Where a
 line here and an earlier section differ, this section holds. Item 15 (check
-for a newer turn before acting) is deferred by the owner as a later polish.
+for a newer turn before acting) is deferred by the owner as a later polish; before speaking, the
+listener now holds a line that a kept turn overtook (S5.4 of 0001).
 
 - **T1. `/incantation install`** runs the whole setup in the chat: devices,
   voices, save, (T18: no MCP registration now) an optional status

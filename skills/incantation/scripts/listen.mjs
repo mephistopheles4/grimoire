@@ -351,7 +351,7 @@ export async function startListener(options = {}) {
     let inSay = 0;
     let speechTail = Promise.resolve();
     let speechEpoch = 0;
-    // Counts the real turns kept. A line is held, and not failed, when this moved since it was said (GRIM-53).
+    // Counts the real turns kept. A line a kept turn overtook is answered say-held; this moving since it was said tells the two apart.
     let turnEpoch = 0;
     const idlers = new Set(); // connections waiting for no reply to be playing (T12)
     let idlePoll = null;
@@ -666,7 +666,7 @@ export async function startListener(options = {}) {
       }
       if (isStopWord(text)) spinner?.stop();
       // A real turn heard moves the reply on (W8): a line still playing stops,
-      // every say that has not started is dropped (its caller gets say-failed),
+      // every say that has not started is dropped (its caller gets say-held),
       // and the next delivery says `interrupted`.
       if (current) {
         const cut = current;
@@ -716,7 +716,8 @@ export async function startListener(options = {}) {
     // this listener owns, so the status word and the idle wait follow the audio
     // itself. `reply` answers the one `say` that asked, once, with a fixed line.
     // A line that a kept turn overtook is `say-held`: the session has not seen that turn when it wrote
-    // the line, so it decides again with the turn in hand. Any other end of a line is `say-failed`.
+    // the line, so it decides again with the turn in hand. Any other end of a line is `say-failed`,
+    // a line that waits past holdSayMs included: that one is failed, not held.
     const speakOne = async (text, epoch, reply, turnAt) => {
       const gone = () => finished || epoch !== speechEpoch;
       const dropped = () => reply(!finished && turnAt !== turnEpoch ? 'say-held' : 'say-failed');
@@ -767,7 +768,8 @@ export async function startListener(options = {}) {
       const text = cleanText(raw, knobs.maxSayChars + 1);
       if (!text || [...text].length > knobs.maxSayChars) return answer('say-refused');
       // A turn kept and not yet delivered, or its held first part: the session wrote this line
-      // without it, so the line is held and the session decides again once it has seen the turn (GRIM-53).
+      // without it, so the line is held and the session decides again once it has seen the turn.
+      // Turns past ageMs go first, so an expired turn holds nothing.
       queue.age(Date.now());
       if (queue.items.length || joiner.hold) return answer('say-held');
       if (voiceMuted) {

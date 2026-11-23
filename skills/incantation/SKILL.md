@@ -197,7 +197,9 @@ chat and speaks nothing.
    line arrives, the greeting is the first line you speak, as
    "Speaking" says. If the answer is `say-no-player`, print the README's player
    line, run `node <skill base>/scripts/listen.mjs stop`, print
-   `Stopped listening.` and stop. Any other answer but `speaking`: show it, run
+   `Stopped listening.` and stop. If the answer is `say-held`, the person spoke
+   first: read the turn, then greet or answer it, as "A held line" says. Any other
+   answer but `speaking`: show it, run
    `node <skill base>/scripts/listen.mjs stop`, print `Stopped listening.` and
    stop. There is no retry loop.
    When the same delivery has a `mic-fallback "<name>"` line, the mic chosen at
@@ -229,9 +231,9 @@ steps for each line:
    longer than 800 characters: say the first fact and put the rest in chat),
    `say-busy` (too many lines waiting), `say-failed` (the line was not turned into
    audio, or was cut with the line before it), `say-held` (the person spoke, and
-   you have not heard it yet: see "A held line") or `say-no-player` (this machine
-   has no player). Show anything but `speaking` and `say-held` in chat only, with
-   the line you meant to say. Never speak through Voicebox's own tools: the
+   you have not read it yet) or `say-no-player` (this machine has no player). On
+   `say-held`, follow "A held line". Show any other reply but `speaking` in chat
+   only, with the line you meant to say. Never speak through Voicebox's own tools: the
    listener plays nothing that you do not hand it, and the mic has one reader, the
    listener.
 
