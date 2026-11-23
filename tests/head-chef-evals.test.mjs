@@ -25,7 +25,7 @@ function schedule(title) {
 
 // The contract holds the start prompt in the ```text fence its start prompt schedule carries.
 function contractTemplate() {
-  const m = schedule('SKILL.md: The start prompt').match(/\n```text\n(Your work is issue <number>[\s\S]*?)\n```\n/);
+  const m = schedule('SKILL.md: The start prompt').match(/\n```text\n(Your work is issue `<issue id>`[\s\S]*?)\n```\n/);
   assert.ok(m, 'the start prompt schedule fences the prompt');
   return m[1];
 }
@@ -33,14 +33,14 @@ function contractTemplate() {
 // Issue 503, decision 546 (the owner's words, relayed): the start prompt is the
 // issue and the lead, nothing more. The harness labels cross-session messages
 // as data, and the member's own rules govern stages, approvals and posting.
-const S4 = "Your work is issue <number> on <owner/repository>. Send your questions and reports to <lead name>.";
+const S4 = "Your work is issue `<issue id>` on `<repository>`, in the project's tracker. Send your questions and reports to <lead name>.";
 
 test('the contract and SKILL.md carry the start prompt word for word, and nothing more', () => {
   assert.equal(contractTemplate(), S4);
-  const line = read('skills/head-chef/SKILL.md').split('\n').find(l => l.startsWith('Your work is issue <number>'));
+  const line = read('skills/head-chef/SKILL.md').split('\n').find(l => l.startsWith('Your work is issue `<issue id>`'));
   assert.equal(line, S4);
   // Nothing more: the fence holds the prompt alone, so no rule rides after it.
-  const fence = read('skills/head-chef/SKILL.md').match(/\n```text\n(Your work is issue <number>[\s\S]*?)\n```\n/);
+  const fence = read('skills/head-chef/SKILL.md').match(/\n```text\n(Your work is issue `<issue id>`[\s\S]*?)\n```\n/);
   assert.ok(fence && fence[1] === S4, 'SKILL.md fences the prompt alone');
 });
 
@@ -179,10 +179,14 @@ test('"What goes out" names the title route, in the contract and the SKILL.md (i
   const skill = flat(read('skills/head-chef/SKILL.md'));
   const contract = flat(schedule('SKILL.md: Tools'));
   const levels = flat(schedule('SKILL.md: Autonomy levels'));
+  // GRIM-44 (r232): the temp-file steps and the title route moved to references/posting.md; "What goes out" points there.
+  const pointer = 'Post free text from a temporary file, as [posting](<references/posting.md>) says.';
+  assert.ok(flat(read('skills/head-chef/references/posting.md')).includes(sentence), 'posting.md holds the title route');
+  assert.ok(flat(schedule('references/posting.md: Posting')).includes(sentence), 'the Posting schedule holds the title route');
   // The "What goes out" bullet runs to the next top-level "- **" or "- Never" bullet.
   const rule = t => t.split('**What goes out.**')[1]?.split(/ - (\*\*|Never)/)[0] ?? '';
-  assert.ok(rule(skill).includes(sentence), 'SKILL.md, in What goes out');
-  assert.ok(rule(contract).includes(sentence), 'CONTRACT.md, in the Tools schedule\'s What goes out');
+  assert.ok(rule(skill).includes(pointer), 'SKILL.md, in What goes out');
+  assert.ok(rule(contract).includes(pointer), 'CONTRACT.md, in the Tools schedule\'s What goes out');
   // The issue number went with the provenance: the body holds none, and the schedule is still Proposed.
   assert.match(contract, /\*Proposed\*: pending at 1\.36\.1 in /, 'the Tools schedule is marked Proposed');
   // The quoted example, kept word for word, names issue 296 and is the one place a number stands.
@@ -211,18 +215,13 @@ test('no head-chef file prescribes a to-do that names only a decision; the contr
   }
   const rule = 'A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule.';
   const chat = ['No ids but a decision number given as a reference', 'Each ask names the action, and the work by repository and number', 'a decision number is never the thing to act on', 'one about a carried decision names it as its to-do does', "An ask writes no github.com address: the address stays on the to-do's `link`."];
-  const carried = ['"Answer carried <owner/name>: <title>"', 'ASCII letters, digits, spaces and `. _ -`', 'alone does not fit, the to-do is "Answer a carried decision (decision N)"'];
   const skillText = flat(read('skills/head-chef/SKILL.md'));
   assert.ok(skillText.includes(rule), 'SKILL.md holds the to-do rule');
-  for (const s of [...chat, ...carried]) assert.ok(skillText.includes(s), `SKILL.md holds "${s}"`);
+  for (const s of chat) assert.ok(skillText.includes(s), `SKILL.md holds "${s}"`);
   // In the contract the rule stands in the "The Brigade pane" schedule, and the asks in the two schedules that carry them.
   assert.ok(flat(schedule('SKILL.md: The Brigade pane')).includes(rule), 'the Brigade pane schedule holds the to-do rule');
   const asks = flat(schedule('SKILL.md: How you write to the owner'));
   for (const s of chat) assert.ok(asks.includes(s), `the "How you write to the owner" schedule holds "${s}"`);
-  const log = flat(schedule('SKILL.md: The decision log and the hand-off'));
-  for (const s of carried) assert.ok(log.includes(s), `the hand-off schedule holds "${s}"`);
-  const hand = flat(read('skills/head-chef/references/handoff.md'));
-  for (const s of carried) assert.ok(hand.includes(s), `handoff.md holds "${s}"`);
 });
 
 // #604 S6: the contract's schedules are matched to their homes by heading, so
@@ -246,8 +245,7 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   const cleanup = flat(read('skills/head-chef/references/cleanup.md'));
   const handoff = flat(read('skills/head-chef/references/handoff.md'));
   const section = (t, from, to) => { const i = t.indexOf(from); assert.ok(i >= 0, `${from} is there`); const j = t.indexOf(to, i + from.length); return t.slice(i, j < 0 ? undefined : j); };
-  // A1 SKILL.md "The decision log and the hand-off"
-  assert.ok(section(skill, '## The decision log and the hand-off', '## Asking the owner').includes("With the pane closed Brigade shows no note: you still rewrite your hand-off before a compaction you can see coming, and read it back after one."), 'A1');
+  // A1 went with the compaction notes (GRIM-44, r225).
   // A2 SKILL.md "Sending and idle notices"
   assert.ok(section(skill, '## Sending and idle notices', '## Between the owner').includes("The idle-cost line below still holds for a check that reaches a member idle over an hour."), 'A2');
   // A3 cleanup.md

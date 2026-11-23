@@ -177,7 +177,7 @@ export function checkInput(v: unknown): Checked<EntryInput> {
 // alone judges them.
 
 export const ASK_TYPES = ['question', 'review', 'notify'] as const
-/** The waits the head-chef skill keeps at level 3, one kind each (S4). */
+/** The kinds of wait this tool accepts, one each (S4). */
 export const STOP_KINDS = [
   'owner-file-keeps', 'owner-words', 'carried', 'blocked', 'owner-hands', 'install', 'private-post',
   'leaves-machine', 'sensitive-route', 'merge', 'threat-model', 'never-lifted', 'outside-goal',
@@ -269,9 +269,9 @@ export function mapInput(v: unknown): Record<string, unknown> {
 
 /** The two fixed answers: neither echoes input, and neither takes the refusal's "act at level 1". */
 export const ASK_FORM =
-  "Fix the entry's ask, stop or question and log it again: ask is question, review or notify, notify never waits, stop is one of the head-chef skill's kinds and only on a wait, and at level 3 a wait needs both and a one-line question. The step stays held until it is logged; if you can't log it, say so in chat."
+  "Fix the entry's ask, stop or question and log it again: ask is question, review or notify, notify never waits, stop is one of this tool's kinds and only on a wait, and at level 3 a wait needs both and a one-line question. The step stays held until it is logged; if you can't log it, say so in chat."
 export const ASK_NO_STOP =
-  "At level 3 a wait needs one stop from the head-chef skill's list. At level 3 only blocked, owner-hands, owner-words, never-lifted and outside-goal fit a wait. A call that fits none of them is yours: log it with source lead and your pick, flag it, act, and tell the owner what you took."
+  "At level 3 a wait needs one stop from this tool's kinds. At level 3 only blocked, owner-hands, owner-words, never-lifted and outside-goal fit a wait. A call that fits none of them is yours: log it with source lead and your pick, flag it, act, and tell the owner what you took."
 
 // --- the to-do gate (618, S5) ---------------------------------------------------
 

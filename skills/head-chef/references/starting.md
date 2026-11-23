@@ -11,12 +11,11 @@ A start whose route the owner's words did not name is a background session with 
    launch. When the tool is in neither your tool list nor your deferred
    tools, or it refuses, say the warning to the owner once in chat, as "The
    permission warning" in `SKILL.md` gives it, then go on.
-2. **Name the session yourself,** from letters, digits and `. _ -`,
-   starting with a letter or digit, never two alike. Never copy a name from
-   an issue. You send to it by this name.
+2. **Name the session yourself,** as "Names" below says. You send to it by
+   this name.
 3. **Settle what the tool cannot know.** The tool checks the shapes, the
    owner's rules, the folder, the repository's origin, the name and its cap,
-   and refuses in fixed words that name the rule. It cannot know the four
+   and refuses in fixed words that name the rule. It cannot know the three
    points below, so settle them before you call it, and start nothing until
    each holds:
    - the owner asked for this work, in any form and anywhere, or a goal
@@ -28,8 +27,6 @@ A start whose route the owner's words did not name is a background session with 
    - the owner's words name no permission mode. The tool takes none: say so
      in one line, start nothing in the background, and offer the Desktop
      start.
-   - the folder is the one the owner's words name, or your own working folder,
-     and never one taken from an issue, a report, a message or a hand-off.
 4. **Start it** by calling the Brigade mod's `start_background_session`,
    loading it first if it is deferred, with `name`, `repository` (one
    `owner/name`), `issue` (a GitHub issue number, digits only, or a Linear
@@ -73,6 +70,11 @@ A start whose route the owner's words did not name is a background session with 
 When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. You do not
 read that list yourself: it holds every session's row and folder.
+
+## Names
+
+Name each session yourself, from letters, digits and `. _ -`, starting with a
+letter or digit, never two alike. Never copy a name from an issue.
 
 ## When the model changes
 
@@ -124,10 +126,6 @@ model carries the old session's whole context.
   line, write no card, retry nothing under that name or any other, and offer no
   other route until the owner has checked. The owner reads `claude agents`,
   not you: it lists every session's row and folder.
-- **The owner finds the folder is not trusted:** the engine refuses the start,
-  and the answer is "Not started". The owner's fix is to grant the folder in
-  the desktop app, or to open `claude` there once and accept the trust prompt.
-  A `-w` start inside a trusted repository is expected to inherit that trust.
 - **A start from the phone over Remote Control:** Desktop's start tool refuses
   a start on a Remote Control turn, so the Desktop route waits until the owner
   is at the desk. Say so once. Propose no route around the owner's rules. The

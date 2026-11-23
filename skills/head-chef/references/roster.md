@@ -114,28 +114,12 @@ the file itself.
   the first a letter, then `-` and 1 to 9 digits with no leading zero. The pane
   shows the identifier only, and opens the item's page only when the owner has
   set `GRIMOIRE_LINEAR_SLUG` to the workspace's name in its address.
-- Caps: a title at most 80 characters; `work` and `settings` at
-  most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
-  most 40, its `text` at most 300, its `session` at most 80, its `link` at
-  most 210.
-  `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
+- Caps: `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
   the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
   or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
 - A card and a to-do hold what `SKILL.md`'s "What goes out" allows: other
   plugins can read the pane's file. A waiting entry's to-do is
   written as the to-do bullet above says, and holds no more of the question.
-
-## If the pane is rolled back
-
-A pane from before the to-do `link` field refuses a roster that holds one, and
-a pane from before comment links refuses a roster that holds a link with a
-`#` fragment, and a pane from before Linear links refuses one that holds a
-bare identifier.
-If `set_roster` refuses a `link`, or the owner says the pane refused the roster
-file for one, send the roster again without links, and ask the owner to delete
-that session's roster file by hand: you write no file yourself, and the mod
-keeps that one. This happens only when a session spans a downgrade of the
-plugin.
 
 ## When to call it
 
