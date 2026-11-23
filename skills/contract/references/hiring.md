@@ -152,7 +152,7 @@ that is there and is not a page it wrote. The page loads nothing from the
 network. Its top bar shows the scratch folder's name.
 
 The person opens the file in their own browser. When you hand the page
-over, tell them what `SKILL.md` says for `--out`.
+over, tell them its path.
 
 Render a shared draft, as `SKILL.md` defines it, with `--shared`, and read
 its block back with `--shared`. A shared page offers no "Agree to the rest

@@ -171,7 +171,7 @@ before the go to build all stay.
 existing skill or agent you hand it, included. The skill no longer asks which way you want. Before the
 first write it gives one notice, naming the scratch folder, the browser store
 and the routes that can carry your answers off the machine, and waits for
-your yes; a no means chat (both cut in 0.16.0 and 0.17.0). Chat is used only when Node is missing or older
+your yes; a no means chat (the yes cut in 0.16.0, the notice in 0.17.0; an objection still means chat). Chat is used only when Node is missing or older
 than 24.0.0, when you cannot open a file from this machine in your browser,
 when the draft is too large for the page, when the skill's own folder holds a
 character the script refuses, or the scratch folder's does and you name no
@@ -191,8 +191,7 @@ where you answer by picking, then read back the one block you paste. Its
 interview script, `scripts/render.mjs`, makes a scratch folder for each
 interview, renders the page, checks the block, prints the change list, and
 deletes its own files at the hand-back. It needs Node.js 24 or later. The
-page keeps your answers in your browser until you press Reset, unencrypted:
-see "Read before you install" above. On the page you can add, move and
+page keeps your answers in your browser until you press Reset. On the page you can add, move and
 remove a schedule's entries. To remove or move a term in the letter, say so
 in chat at push-back.
 
