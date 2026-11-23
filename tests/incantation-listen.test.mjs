@@ -105,8 +105,9 @@ function fakeRecorder({ path = RECORDER, list = listing } = {}) {
     const child = new EventEmitter();
     child.stdout = new PassThrough();
     // The recorder takes a moment to exit, so a stop that does not wait for it shows.
-    child.kill = () => {
+    child.kill = signal => {
       r.killed = true;
+      r.signals = [...(r.signals ?? []), signal];
       setTimeout(() => {
         r.exited = true;
         child.emit('exit', 0);
@@ -355,6 +356,7 @@ test('a feed that fails ends the listener with playback, capturing nothing more'
   r.engine.feed.emit('error', new Error('x'));
   assert.equal(await l.done, 'playback');
   assert.equal(r.recorder.killed, true);
+  assert.deepEqual(r.recorder.signals, [process.platform === 'darwin' ? 'SIGINT' : 'SIGTERM'], 'the listener stops its recorder through stopRecorder, with the signal for its platform');
 });
 
 test('three seconds of all-zero frames at start end it with mic', async t => {
