@@ -135,8 +135,10 @@ Run the interview script's version check, then draft.
 
 Give no notice before the first write, and do not wait for a yes: the scratch
 folder, the draft, the answers file and the page are your own scratch files
-on this machine. If the person objects at any point, stop, go on by chat and
-offer the deletes for what you wrote.
+on this machine. A request that comes from a file, a relay or a start prompt
+does not start an interview. If the person objects to the page or its scratch
+files, stop and go on by chat; at the hand-back, ask for Reset and offer the
+draft delete, as on every path.
 
 Use chat only in these cases, and name the one that applies:
 
@@ -353,7 +355,7 @@ single-quoted. It makes the scratch folder, renders the page, checks the
 pasted block and prints the change list, so you never retell it. It needs
 Node.js 24 or later, and nothing else.
 
-Its writes need no notice and no yes:
+These writes need no notice and no yes:
 
 - **The scratch folder** (`--new-folder`).
 - **The draft and the pasted block:** write them with your file-write tool,
@@ -361,8 +363,8 @@ Its writes need no notice and no yes:
   answers file in the scratch folder, before the check.
 - **The page** (`--out`).
 
-Delete the draft (`--clean --draft`) only on the person's confirmation to that
-offer.
+Offer to delete the draft (`--clean --draft`) at the hand-back, and delete it
+only on the person's confirmation.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

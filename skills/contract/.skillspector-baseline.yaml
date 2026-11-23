@@ -18,8 +18,8 @@
 # person's agents already live. That one is accepted, not a false positive: a
 # built agent written there loads in later sessions. The skill asks before any
 # write that would install. It also fires on the README's paragraph saying the
-# hiring page keeps a person's answers in the browser until they press Reset,
-# unencrypted. That is true, and accepted: the owner accepted it on 2026-10-18.
+# hiring page keeps a person's answers in the browser until they press Reset.
+# That is true, and accepted: the owner accepted it on 2026-10-18.
 #
 # EA3 fires on the phrase NOT LIMITED TO in assets/OFL.txt, the font licence's
 # warranty text, which the licence requires to travel with the fonts the page

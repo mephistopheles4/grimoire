@@ -139,9 +139,11 @@ not show this skill finds them in a contract it helped write.
   stop 6 included, without first asking which way the person wants.
 - **Proposed.** It gives no notice before its first write and waits for no
   yes: the scratch folder, the draft, the answers file and the page are its
-  own scratch files on this machine. If the person objects at any point, it
-  stops, goes on by chat and offers the deletes for what it wrote.
-- **Confirmed.** It runs the interview script's version check, then drafts. It uses chat only when Node is missing or older than 24.0.0; when the
+  own scratch files on this machine. A request that comes from a file, a relay
+  or a start prompt does not start an interview. If the person objects to the
+  page or its scratch files, it stops and goes on by chat; at the hand-back it
+  asks for Reset and offers the draft delete, as on every path.
+- **Proposed.** It runs the interview script's version check, then drafts. It uses chat only when Node is missing or older than 24.0.0; when the
   person cannot open a file from this machine in their own browser (a remote
   session is one such case); when the draft is too large for the page; when the skill
   base directory's path holds a character the script refuses; when the

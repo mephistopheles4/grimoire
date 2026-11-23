@@ -54,7 +54,6 @@ refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Give no notice first, and wait for no yes.
 Make one new folder for each interview:
 
 ```text
@@ -73,7 +72,8 @@ node '<skill base directory>/scripts/render.mjs' --new-folder '<parent>'
 ```
 
 The script refuses a parent inside a git work tree. Never offer a synced
-folder, such as Desktop or Documents.
+folder, such as Desktop or Documents. When the person names a parent unasked,
+use it.
 
 The folder holds three files, with fixed names: `draft.interview.json`,
 `interview.html` and `answers.json`.
