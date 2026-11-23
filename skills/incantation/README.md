@@ -38,7 +38,7 @@ uninstall it: the skill now comes with grimoire. Only your own typed
 | Windows 11 without `uv` | the core: hearing, speaking, the speech detector, the steady player, the loopback reference and the text echo guard; no echo canceller (so use a headset), no end-of-turn hold, no Phonon voice | Same trial, core only. |
 | Linux x64 and Linux on ARM (64-bit) | the whole runtime, with `uv` for the Python layer, which needs glibc 2.28 or later (the onnxruntime and livekit wheels are `manylinux_2_28`) | Installed, verified and each part started once by the `incantation-platforms` workflow; no real-mic run. |
 | macOS 14 or later, Apple Silicon | the whole runtime, with `uv` for the Python layer | The same workflow, and a Phonon run on an Apple Silicon Mac; no real-mic run. |
-| macOS 13 or later, Intel | the whole runtime, with `uv` for the Python layer. Intel Macs run an older onnxruntime, 1.23.2, because later releases publish no Intel Mac wheel; elsewhere it is 1.32.0 | The same workflow; no real-mic run. |
+| macOS 13 or later, Intel | the whole runtime, with `uv` for the Python layer. Intel Macs run an older onnxruntime, 1.23.2, because later releases publish no Intel Mac wheel; elsewhere it is 1.32.0. 1.23.2 gets no upstream security fixes, and is safe here only because every model it loads is pinned by hash | The same workflow; no real-mic run. |
 | macOS 13 on Apple Silicon, macOS 12 on Intel | the core only: onnxruntime's wheel needs macOS 14 on Apple Silicon and macOS 13 on Intel, and `setup.mjs runtime plan` says so | |
 | Windows on ARM | no pinned addon: `sherpa-onnx-node` 1.13.8 publishes no Windows on ARM build, and the plan says so; choose Voicebox | |
 | Any other platform | no pinned addon: the plan names the platform; choose Voicebox | |
