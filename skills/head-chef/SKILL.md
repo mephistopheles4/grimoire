@@ -483,8 +483,8 @@ Limits:
 ## The start prompt
 
 On a background start the start tool fills in the issue, the repository and
-the lead's name from its fields and sends the prompt as written; its `lead`
-field is your own name, exactly as the first line of your session list gives
+the lead's name from its fields and sends its own fixed prompt, which says the
+same; its `lead` field is your own name, exactly as the first line of your session list gives
 it. On a Desktop start you fill them in yourself, the same way, and send it
 as written:
 
@@ -497,7 +497,8 @@ When the work is a Linear item, the `issue` field holds its identifier, such as
 for <owner/repository>.`; the rest is the same.
 
 A background start may also carry one `note`. The tool writes it after that
-line, under a label it writes itself, and the member gets one line:
+line, under a label it writes itself, and the member gets one line, in the
+tool's own words for the first sentences:
 
 ```text
 Your work is issue `<issue id>` on `<repository>`, in the project's tracker. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>

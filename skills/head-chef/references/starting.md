@@ -100,8 +100,7 @@ model carries the old session's whole context.
   issue, and send the old session nothing more for this issue. Ask to archive
   the old session (a Desktop session) or stop it (a background session). That
   is the "Archive or stop a session" row of "Actions that need the owner's
-  yes" in `SKILL.md`: it waits for the owner's words at levels 1 and 2, and
-  for the owner's user-level instructions file at level 3. Until then, leave
+  yes" in `SKILL.md`: it is in the skill's stops list. Until then, leave
   the old session running and say so. The old session's worktree and branch
   stay with the cleaner.
 - Changing only the effort on the same model stays allowed, with Desktop's
