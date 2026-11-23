@@ -25,7 +25,7 @@ function schedule(title) {
 
 // The contract holds the start prompt in the ```text fence its start prompt schedule carries.
 function contractTemplate() {
-  const m = schedule('SKILL.md: The start prompt').match(/\n```text\n(Your work is issue `<issue id>`[\s\S]*?)\n```\n/);
+  const m = schedule('SKILL.md: The start prompt').match(/\n```text\n(Your work is issue <issue id>[\s\S]*?)\n```\n/);
   assert.ok(m, 'the start prompt schedule fences the prompt');
   return m[1];
 }
@@ -33,15 +33,29 @@ function contractTemplate() {
 // Issue 503, decision 546 (the owner's words, relayed): the start prompt is the
 // issue and the lead, nothing more. The harness labels cross-session messages
 // as data, and the member's own rules govern stages, approvals and posting.
-const S4 = "Your work is issue `<issue id>` on `<repository>`, in the project's tracker. Send your questions and reports to <lead name>.";
+const S4 = "Your work is issue <issue id> on <repository>, in the project's tracker. Send your questions and reports to <lead name>.";
 
 test('the contract and SKILL.md carry the start prompt word for word, and nothing more', () => {
   assert.equal(contractTemplate(), S4);
-  const line = read('skills/head-chef/SKILL.md').split('\n').find(l => l.startsWith('Your work is issue `<issue id>`'));
+  const line = read('skills/head-chef/SKILL.md').split('\n').find(l => l.startsWith('Your work is issue <issue id>'));
   assert.equal(line, S4);
   // Nothing more: the fence holds the prompt alone, so no rule rides after it.
-  const fence = read('skills/head-chef/SKILL.md').match(/\n```text\n(Your work is issue `<issue id>`[\s\S]*?)\n```\n/);
+  const fence = read('skills/head-chef/SKILL.md').match(/\n```text\n(Your work is issue <issue id>[\s\S]*?)\n```\n/);
   assert.ok(fence && fence[1] === S4, 'SKILL.md fences the prompt alone');
+});
+
+// The skill's template, filled in as it says, is the line the start tool builds: the two are
+// written apart, so nothing else keeps them in step.
+test('the start prompt template, filled in, is the line the start tool sends, with and without a note', async () => {
+  const S = await import('../brigade/start.ts');
+  const good = { name: 'build-543', repository: 'mephistopheles4/grimoire', issue: '543', model: 'sonnet', effort: 'high', lead: 'Head chef handoff', folder: 'C:\\src\\grimoire' };
+  const fill = (t, lead) => t.replace('<issue id>', good.issue).replace('<repository>', good.repository).replaceAll('<lead name>', lead);
+  assert.equal(fill(S4, good.lead), S.startPrompt(good));
+  const noted = read('skills/head-chef/SKILL.md').match(/\n```text\n(Your work is issue <issue id>[^\n]*adds: <note>)\n```\n/);
+  assert.ok(noted, 'SKILL.md fences the prompt with a note');
+  const checked = S.checkInputs({ ...good, note: 'Build from the spec.' }, good.lead);
+  assert.ok('value' in checked, JSON.stringify(checked));
+  assert.equal(fill(noted[1], good.lead).replace('<note>', 'Build from the spec.'), S.startPrompt(checked.value));
 });
 
 // Wrapped lines are compared with whitespace collapsed.

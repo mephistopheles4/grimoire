@@ -272,7 +272,7 @@ files you ask for:
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
   Dismiss and, since 0.89.0, Mark all as read presses, and from 0.90.0 to 0.94.0 Mark these N read and from 0.91.0 to 0.94.0 Mark N relayed read presses, you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and from 0.83.0 to 0.168.0 each lead's hand-off, its working state, beside them
-  (since 0.169.0 the mod has no tool that writes one; the pane still draws a file that exists).
+  (since 0.169.0 the mod neither writes nor reads one).
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and, until 0.116.0, each alarm, with its time (not an alarm that repeated
   while an earlier one was unread, which the pane counted instead). The level is held in the mod's
@@ -314,12 +314,11 @@ files you ask for:
   stays until you run `claude rm <id>` yourself, after its worktree has gone or
   you have saved what it holds: `claude rm` deletes the worktree with whatever
   is left in it.
-  The files are named by session id, and the log and the hand-off hold a plain
+  The files are named by session id, and the log holds a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
   while the pane is open it reads this session's decision log and marks file
-  and, for the Lead hand-off card, this session's hand-off and the 20 newest
-  others' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
+  ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
 - **Eight calls skip the permission prompt:** the `set_roster` tool, which
@@ -340,8 +339,8 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `read_autonomy`, `start_background_session`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.148.0 its `session.start` hook (not `classic.SessionStart`) also deletes an old `startFolders` key, only when one is present. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
-| `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `read_autonomy`, `start_background_session`, `stop_background_session` and `read_context` while the pane is open, again after a reload, a clear or a resume. Since 0.148.0 its `session.start` hook (not `classic.SessionStart`) also deletes an old `startFolders` key, only when one is present. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not; a start after a compaction keeps it; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.compact` | After a compaction of the lead's own conversation that went ahead, keeps the autonomy level and shows the level-3 line of the band again if it was dismissed (from 0.88.0 until issue 504 it set a level above 1 back to 1 and logged it). It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.99.0, `/brigade level 1`, `level 2` and `level 3 <goal>` set the autonomy level instead, only when you typed the command or sent it from your phone. Since 0.118.0, `/brigade done` and `/brigade cleaner` are gone and open the pane like any other arguments. Since 0.148.0, `/brigade folders` is gone, as are the list it kept and its `startFolders` key, and it opens the pane like any other arguments. To upgrade, open `claude` once in each main checkout and accept the trust prompt: the start tool relies on the harness's folder trust. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |

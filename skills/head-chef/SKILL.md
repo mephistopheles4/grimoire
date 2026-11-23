@@ -232,7 +232,8 @@ file or another session's message waits for the owner's words naming it, so
 the goal is never widened that way. It ends on the owner's words or when its
 work is done. The owner's chat words may widen, narrow or end it, as the
 owner's rules let chat words change a goal; log each as your own decision. A
-drop to level 1 pauses it.
+drop to level 1 pauses it. A goal you take from `read_autonomy` is narrowed by
+your later logged entries, and its work is checked not to be done already.
 
 - **1 Manual.** Ask the owner on every decision, and log each answer.
 - **2 Auto.** Work toward the goal and decide everything but the
@@ -467,7 +468,7 @@ it. On a Desktop start you fill them in yourself, the same way, and send it
 as written:
 
 ```text
-Your work is issue `<issue id>` on `<repository>`, in the project's tracker. Send your questions and reports to <lead name>.
+Your work is issue <issue id> on <repository>, in the project's tracker. Send your questions and reports to <lead name>.
 ```
 
 When the work is a Linear item, the `issue` field holds its identifier, such as
@@ -478,7 +479,7 @@ A background start may also carry one `note`. The tool writes it after that
 line, under a label it writes itself, and the member gets one line:
 
 ```text
-Your work is issue `<issue id>` on `<repository>`, in the project's tracker. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>
+Your work is issue <issue id> on <repository>, in the project's tracker. Send your questions and reports to <lead name>. <lead name>, not the owner, adds: <note>
 ```
 
 The note is one fact the member needs at the start, in your own words. For

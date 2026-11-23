@@ -171,8 +171,7 @@ name, can pass as the lead, or name a new lead and redirect the reports: the
 threat model lists that as an open issue. The head chef tells
 you at once when a session reports a decision it never sent.
 
-Before the lead is renamed or handed off, the head chef tells each session
-and you the new name.
+Before the lead is renamed, the head chef tells each session and you the new name.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.

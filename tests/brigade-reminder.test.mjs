@@ -1,7 +1,7 @@
 // The roster reminder (issue 532), tested at its own seam: brigade/reminder.ts
 // holds the rules with no engine import. The turn-level cases (a decision, a
 // send, an idle subscription, a subagent) run in brigade/set-roster.test.ts,
-// driven through the engine. These two are what that file does not pin.
+// driven through the engine. These are what that file does not pin.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +34,7 @@ test('only a send that carries a message owes an update', () => {
   assert.equal(sendsMessage(undefined), false);
 });
 
-// --- the compaction nudges (issue 533) -------------------------------------------
+// --- the turn end (issue 532) ----------------------------------------------------
 
 test('a turn end gives the roster note alone, and clears the tally', () => {
   const t = { owed: true };

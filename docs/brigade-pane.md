@@ -124,10 +124,6 @@ reading of each entry, and the marks one press writes share one press time.
 A claim it marks stays in History only until its log's cap drops it as a
 read entry.
 
-The Lead hand-off section, folded at the foot of the Decisions view, shows a
-hand-off file a session wrote, if there is one: its writer, when it was updated
-and the five sections. The mod has no tool that writes or reads one.
-
 At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
 it decides everything but what your user-level instructions file keeps for
