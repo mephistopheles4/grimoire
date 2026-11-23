@@ -76,7 +76,7 @@ the file itself.
   card `bgId`, so leave `url` out.
 - `work` names the repository and the issue number or Linear identifier only, as in the example.
 - A to-do is one line the owner takes in at a glance: at most 50 characters
-  (the 300 below is only the check's limit), one ask or one owner step. It
+  one ask or one owner step. It
   starts with a verb, then names the act and the work: "<verb> <repository>
   issue N" or "... PR N", as in "Decide whether to merge app PR 71", or for a
   session the card's title in place of the number, as in "Approve cleaning up
@@ -90,7 +90,7 @@ the file itself.
   from a report. Put no other facts, options, picks, reasons, commands, file
   names, paths, error text or quoted text in it; they stay in your chat
   message or on the issue. A decision id may follow in brackets as a reference
-  only, as in "(decision 32)", when it fits; when the to-dos of two waiting entries would read the same, end each with its id. A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule. The one exception is a carried decision, which `handoff.md` gives: "Answer carried <owner/name>: <title>", or "Answer a carried decision (decision N)" when `<owner/name>` alone does not fit. A waiting entry's
+  only, as in "(decision 32)", when it fits; when the to-dos of two waiting entries would read the same, end each with its id. A to-do that names only a decision, or points only at the Decisions tab or the log, breaks the rule. A waiting entry's
   to-do follows this rule too, and replaces another to-do for that ask that is not a waiting entry's, under a new `id`, so a tick on the old one never hides it. The pane draws a
   to-do on one line and cuts what does not fit.
 - A to-do's `session` is a card's title: give it when the step is in that

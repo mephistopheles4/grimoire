@@ -7,7 +7,7 @@ Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and 
 1. **Give it the start prompt** in "The start prompt" in `SKILL.md`, filled
    in. You may add one note after it, written, labelled and bounded as "The
    start prompt" in `SKILL.md` says. You write and check it yourself, as no
-   tool does. A hand-off is the same start, with the effort's context on the issue.
+   tool does.
    Send later updates to the session as messages, by its name.
 2. **Keep its Desktop id** from the start tool's result, in this chat only,
    for its card and the archive. Keep its folder and branch too, as the start

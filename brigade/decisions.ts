@@ -988,9 +988,9 @@ export const commandHolds = (o: { commanded: { at: number; goal: string } | unde
 
 // --- the lead hand-off (S5.1 and S5.3) -------------------------------------------
 //
-// The lead's working state, one file per session, which set_lead_handoff
-// replaces whole and read_lead_handoff reads back. Each section is a list of
-// lines under the entry fields' text rules, and a line holds no line break.
+// The lead's working state, one file per session. The mod has no tool that
+// writes or reads one; the pane draws a file that exists. Each section is a
+// list of lines under the entry fields' text rules, and a line holds no line break.
 
 /** The five sections, in the order the pane draws them. */
 export const HANDOFF_SECTIONS = ['resume', 'rules', 'sessions', 'cleanup', 'owner'] as const
@@ -1019,7 +1019,7 @@ function checkSections(v: unknown, where: string): Checked<HandoffSections> {
   return { value: out }
 }
 
-/** A set_lead_handoff call's input, checked: exactly the five sections, each
+/** A hand-off's sections, checked: exactly the five sections, each
  *  a list of at most 20 lines of 1 to 300 characters, under the text rules. */
 export const checkHandoffInput = (v: unknown): Checked<HandoffSections> => checkSections(v, 'the hand-off')
 
@@ -1052,7 +1052,7 @@ export function serializeHandoff(h: Handoff): Checked<string> {
 /** One hand-off as read, with the session id of the file that held it. */
 export type ReadHandoff = { sid: string; handoff: Handoff }
 
-/** The hand-off read_lead_handoff gives, and the pane draws: this session's
+/** The hand-off the pane draws: this session's
  *  own when it has one, else the newest by stamped time among the others with
  *  the same non-null project digest. One dated more than two minutes ahead of
  *  the engine clock is never chosen. */

@@ -40,8 +40,7 @@ A start whose route the owner's words did not name is a background session with 
    prompt in "The start prompt" in `SKILL.md` from them, runs it with no shell, and prints nothing from the run. Type no
    `claude --bg` command, in any shell. Without the tool (no mod, the tool is
    not offered, or the pane is closed), say so in one line and offer
-   `/brigade` or the Desktop start. A hand-off is the same start, with the
-   effort's context on the issue. Send later updates to the session as
+   `/brigade` or the Desktop start. Send later updates to the session as
    messages, by its name.
 5. **Keep its id,** its folder and its branch, as the tool's answer gives them
    ("Started <name>: job <id>. Folder: <folder>. Branch: <branch>." and a note to write its card), in this
@@ -83,8 +82,7 @@ differs from that session's own model, for example when the owner asks for
 the next piece of work on another model.
 
 Do not change the session's model with a setter. Start a fresh session from
-the record on the issue, with steps 1 to 8 above. It is a plain start, not a
-hand-off request. The reason: a model switch drops the prompt cache, so the
+the record on the issue, with steps 1 to 8 above. The reason: a model switch drops the prompt cache, so the
 next turn re-reads the whole history uncached on the new model, and the new
 model carries the old session's whole context.
 

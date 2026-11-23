@@ -340,8 +340,14 @@ own hash; it protects nothing secret. What follows from it:
   the owner accepted this on 2026-10-26 (q10 A on #402's ticket 411), and
   reworded this sentence on 2026-10-30 in chat ("Reword them").
 
-**Since 0.83.0 a lead keeps a hand-off** (spec 402, ticket 3). The mod offers
-two more tools wherever it offers `set_roster`. `set_lead_handoff` replaces
+**Since 0.169.0 the mod offers no hand-off tool.** `set_lead_handoff` and
+`read_lead_handoff`, described next, are gone, and so are the notes the mod
+added before and after a compaction. The pane still lists, reads and draws a
+hand-off file that exists, under the checks below, and nothing in the mod
+writes one. The paragraph and the list below describe 0.83.0 to 0.168.0.
+
+**From 0.83.0 to 0.168.0 a lead kept a hand-off** (spec 402, ticket 3). The mod
+offered two more tools wherever it offers `set_roster`. `set_lead_handoff` replaces
 the lead session's own hand-off, `brigade/handoff/<session id>.json` in the
 plugin's data folder: five sections (how to resume, rules in force, running
 sessions, cleanup waiting, open for the owner), each at most 20 lines of at
@@ -512,7 +518,7 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
   as it landed; the command's reply is no check, since a plugin that rewrote
   the command can rewrite its reply too.
 - **Where the level is copied:** each answer of `read_autonomy`,
-  `log_decision` and `set_lead_handoff` names the level in the lead's
+  `log_decision` (and, until 0.168.0, `set_lead_handoff`) names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
   after the log is deleted. Since 0.88.0 the band above the lead's prompt
   draws a 3 and its press time in the tree that other plugins' band hooks see.

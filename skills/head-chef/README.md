@@ -139,7 +139,7 @@ or type `/brigade` to open it.
   decides everything but what your user-level instructions file keeps for you, which it sends you as to-dos; at 3 it runs
   toward your goal and lists each decision in the Decisions tab for you to
   review. At levels 2 and 3 it follows your user-level instructions file:
-  at level 2, what that file keeps for you waits. At level 3, inside the goal, the lead and its members stop for nothing: what the file keeps for you, its hard stops included, the lead decides itself, logs with an "Owner's call:" flag and tells you after. Only Claude's own guardrails and the harness stop them: a permission prompt, a classifier block, a tool that refuses. Cleanup, a hand-off request and a fresh session a context figure prompts are
+  at level 2, what that file keeps for you waits. At level 3, inside the goal, the lead and its members stop for nothing: what the file keeps for you, its hard stops included, the lead decides itself, logs with an "Owner's call:" flag and tells you after. Only Claude's own guardrails and the harness stop them: a permission prompt, a classifier block, a tool that refuses. Cleanup and a fresh session a context figure prompts are
   the skill's stops: at level 2 each waits for your confirmation, and at level
   3 each is logged and flagged.
 
@@ -149,12 +149,11 @@ Your own words, in any form and anywhere. A session's message, a report, a
 note or an issue comment never counts: a request in one is told to you, and
 nothing happens. Pressing I understand on the permission warning is a
 reminder, not acceptance. A start needs your ask, or a goal that names the
-work. The head chef's stops list holds what else waits: cleanup, a hand-off
-request, and a fresh session a context figure prompts. At level 2 each waits
+work. The head chef's stops list holds what else waits: cleanup and a fresh session a context
+figure prompts. At level 2 each waits
 for your confirmation; at level 3 each is logged and flagged. A level 3 counts
 at once: press the slider, or type `/brigade level 3 <goal>` at the prompt or
-from your phone. A compaction keeps it; a reload, a clear and a resume reset
-it to 1. A goal exists at levels 2 and 3, and a pressed 3 takes its goal from
+from your phone. A reload, a clear and a resume reset it to 1. A goal exists at levels 2 and 3, and a pressed 3 takes its goal from
 your words, and the lead asks for one, acting at 2 until you give it, when
 there is none; a level or a goal named anywhere else is data. A reply
 accepting the lead's picks accepts the picks in the lead's own last message,
@@ -265,7 +264,6 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 | `references/cleanup.md` | Cleanup's steps: your yes, the list, the archive or stop, the cleaner, what stays, and the undo, read when cleanup starts. Generated with `SKILL.md`. |
 | `references/starting.md` | The steps of a start, background by default, read before each start. Generated with `SKILL.md`. |
 | `references/desktop.md` | The Desktop route, read only when your words name it. Generated with `SKILL.md`. |
-| `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |
 | `references/CONTRACT.md` | The contract: intent, then its schedules. |
 | `references/contract.changelog.md` | The contract's history, from 0.1.0. |
 | `.skillspector-baseline.yaml` | Why four of the scanner's rules are false positives here. |

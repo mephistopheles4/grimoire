@@ -971,11 +971,11 @@ test('issue 466, issue 509: Mark all as read takes everything under To review, o
 // the only check that each written tool's own catch answers a fresh copy of
 // its fixed refusal, and those refusals stay (spec S4); the two decision
 // tools' descriptions bar error text only (claim 5).
-test('issue 486 claims 3 and 5: each written tool\'s catch answers a fresh copy of its refusal, and the two decision tools bar only error text', () => {
+test('issue 486 claims 3 and 5: each written tool\'s catch answers a fresh copy of its refusal, and the decision tool bars only error text', () => {
   const src = readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
-  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT', 'HANDOFF_CAUGHT']) assert.ok(src.includes(`}).catch(() => ({ ...${own} }))`), own);
+  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT']) assert.ok(src.includes(`}).catch(() => ({ ...${own} }))`), own);
   const descriptions = src.match(/ Plain text only, with no [^."]*\./g) ?? [];
-  assert.deepEqual(descriptions, [' Plain text only, with no error text.', ' Plain text only, with no error text.']);
+  assert.deepEqual(descriptions, [' Plain text only, with no error text.']);
 });
 
 // Issue 509 (the owner's words, 2026-11-05 and 2026-11-07): Mark all as read

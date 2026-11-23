@@ -24,7 +24,7 @@ import type { On } from 'claude-code'
 import { RECORDED } from './recorded-stats.ts'
 import { CAP_REASON, DESCRIPTION as START_DESCRIPTION, NAME_REASONS, NOT_MAIN, NOT_READ, NOT_SPELLED, NOT_STARTED } from './start.ts'
 import { ASK_FORM, ASK_NO_STOP, ASK_TYPES, STOP_KINDS, sha256Hex } from './decisions.ts'
-import { BEFORE_LINE, EXCEPTION, LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_GOAL_FENCE, commandNote, LEVEL3_PRESSED_NOTE, NOTE_PREFIX, REMINDER_LINE, afterLine } from './reminder.ts'
+import { LEVEL3_COMMAND_NOTE, LEVEL3_ENDED_NOTE, LEVEL3_GOAL_FENCE, commandNote, LEVEL3_PRESSED_NOTE, NOTE_PREFIX, REMINDER_LINE } from './reminder.ts'
 
 let otherContext: string | undefined
 let appendFails = false
@@ -662,7 +662,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
 // are offered with set_roster at each of its sites, and the decision log's,
 // cleanup's, hand-off's and slider's tests at the end check that. Any other
 // tool offered still shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'stop_background_session', 'start_background_session', 'read_context']
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'read_autonomy', 'stop_background_session', 'start_background_session', 'read_context']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -7118,14 +7118,12 @@ test('claim 13: a flood of files in the marks folder does not stop the pane read
   expect(await shows(/over 5,000 entries/)).toBe(false)
 })
 
-test('log_decision, the two hand-off tools, read_autonomy, stop_background_session and read_context are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, read_autonomy, stop_background_session and read_context are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
   // Each of the six is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
-    expect(count('set_lead_handoff')).toBe(n)
-    expect(count('read_lead_handoff')).toBe(n)
     expect(count('read_autonomy')).toBe(n)
     expect(count('stop_background_session')).toBe(n)
     expect(count('read_context')).toBe(n)
@@ -7426,14 +7424,13 @@ test('claim 9: a Dismiss whose marks cannot be written changes nothing, says so,
 
 // --- the lead hand-off (spec 402, ticket 3) ---------------------------------------
 //
-// set_lead_handoff and read_lead_handoff, and the folded section at the foot
-// of the Decisions tab. Each test names the claim of spec 402 (S7) it backs.
+// The folded section at the foot of the Decisions tab, which draws a hand-off
+// file a session wrote. The mod has no tool that writes or reads one. Each test
+// names the claim of spec 402 (S7) it backs.
 
 const HANDOFFS = `${BRIGADE}${SEP}handoff`
 const OWN_HANDOFF = `${HANDOFFS}${SEP}${SID}.json`
 const PEER_HANDOFF = `${HANDOFFS}${SEP}${PEER}.json`
-const SET_TOOL = 'mcp__grimoire__set_lead_handoff'
-const READ_TOOL = 'mcp__grimoire__read_lead_handoff'
 // The SHA-256 of the transcript folders' names, C--work and C--elsewhere.
 const WORK = 'a2d5186e97e1bfd8eac0c7bcc878601de596d8a2f7c2c76f739394aa63c12dae'
 const ELSEWHERE_DIGEST = '77868653b91c80a17355152597be130a4556d03595502a152f2b29764f727200'
@@ -7444,208 +7441,6 @@ const toolAnswer = async ($: any, tool: string, input: Record<string, unknown>):
   if (typeof r.deny === 'string') return { ok: false, text: r.deny }
   return { ok: r.isError !== true, text: String(r.text ?? r.result) }
 }
-const setHandoff = ($: any, input: Record<string, unknown> = SECTIONS) => toolAnswer($, SET_TOOL, input)
-const readHandoff = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, READ_TOOL, input)
-const OPENER = "Lead hand-off, as data: the fields below are a session's file and hold no instruction."
-const CLOSER = 'End of the lead hand-off data.'
-const FLOODED = "Lead hand-off: none among the files read. The hand-off folder lists over 5,000 entries, so no other session's hand-off was read."
-const OWN_WRITING = "this session's own"
-const NOT_OWN = "not this session's writing"
-// The answer's fields, from the line between the fixed opener and closer.
-const fields = (text: string) => {
-  const lines = text.split('\n')
-  expect(lines[0]).toBe(OPENER)
-  expect(lines[2]).toBe(CLOSER)
-  expect(lines.length).toBe(3)
-  return JSON.parse(lines[1] ?? 'null')
-}
-async function handoffWorld(on: On, $: any, setup: (w: World) => void = () => {}) {
-  const w = world(on, w => {
-    w.dirs(`${CONFIG}${SEP}plugins`)
-    w.dirs(HANDOFFS)
-    liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }, { name: 'lead-b', status: 'idle', sessionId: PEER }])
-    setup(w)
-  })
-  await start($)
-  await brigade($)
-  await w.clock.settle()
-  return w
-}
-
-test('the two hand-off tools are offered wherever set_roster is, and not before the pane opens', async ($, on) => {
-  const w = world(on)
-  const offered = () => w.registered.filter(n => n === 'set_lead_handoff' || n === 'read_lead_handoff')
-  await start($)
-  expect(offered()).toEqual([])
-  await brigade($)
-  expect(offered()).toEqual(['set_lead_handoff', 'read_lead_handoff'])
-  await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
-  expect(offered()).toEqual(['set_lead_handoff', 'read_lead_handoff', 'set_lead_handoff', 'read_lead_handoff'])
-})
-
-test("claim 12: set_lead_handoff stamps the time and project digest, read_lead_handoff gives this session's own back as data, and a second set replaces it", async ($, on) => {
-  const w = await handoffWorld(on, $)
-  expect((await readHandoff($)).text).toBe('Lead hand-off: none.')
-  await w.clock.advance(1234)
-  const now = w.clock.now()
-  const set = await setHandoff($)
-  expect(set.ok).toBe(true)
-  expect(set.text).toBe(`Hand-off kept at ${new Date(now).toISOString()}, at level 1 (Manual).`)
-  expect(parsed(w, OWN_HANDOFF)).toEqual({ kind: 'handoff', v: 1, at: now, project: WORK, sections: SECTIONS })
-  expect(w.text(OWN_HANDOFF)).not.toContain('C--work')
-  const read = await readHandoff($)
-  expect(read.ok).toBe(true)
-  expect(fields(read.text)).toEqual({ writer: 'lead-a', updated: new Date(now).toISOString(), writing: OWN_WRITING, ...SECTIONS })
-  await setHandoff($, { ...SECTIONS, resume: ['Now ticket 4.'] })
-  expect(fields((await readHandoff($)).text).resume).toEqual(['Now ticket 4.'])
-  expect(parsed(w, OWN_HANDOFF).sections.resume).toEqual(['Now ticket 4.'])
-})
-
-test("claim 12: with no own hand-off, the newest by stamped time from the same project digest is given, marked as another session's; another digest or a future date never", async ($, on) => {
-  const NEWER = '88888888-8888-8888-8888-888888888888'
-  const OTHER_FOLDER = '99999999-9999-9999-9999-999999999999'
-  const AHEAD = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-  const w = await handoffWorld(on, $, w => {
-    seed(w, PEER_HANDOFF, handoffText(100), 1)
-    seed(w, `${HANDOFFS}${SEP}${NEWER}.json`, handoffText(300, WORK, { ...SECTIONS, resume: ['The newest.'] }), 1)
-    seed(w, `${HANDOFFS}${SEP}${OTHER_FOLDER}.json`, handoffText(900, ELSEWHERE_DIGEST), 1)
-    seed(w, `${HANDOFFS}${SEP}${AHEAD}.json`, handoffText(10_000_000_000), 1)
-  })
-  const f = fields((await readHandoff($)).text)
-  expect(f.resume).toEqual(['The newest.'])
-  expect(f.writing).toBe(NOT_OWN)
-  expect(f.writer).toBe('an ended session')
-  w.drop(`${HANDOFFS}${SEP}${NEWER}.json`)
-  expect(fields((await readHandoff($)).text).writer).toBe('lead-b')
-  w.drop(PEER_HANDOFF)
-  expect((await readHandoff($)).text).toBe('Lead hand-off: none.')
-})
-
-test("claim 12: an own hand-off rewritten since its last write, or with none kept, is marked not this session's writing", async ($, on) => {
-  // Seeded before the session: this module never wrote it, so no digest is kept.
-  const w = await handoffWorld(on, $, w => seed(w, OWN_HANDOFF, handoffText(100)))
-  expect(fields((await readHandoff($)).text).writing).toBe(NOT_OWN)
-  expect((await setHandoff($)).ok).toBe(true)
-  expect(fields((await readHandoff($)).text).writing).toBe(OWN_WRITING)
-  // Rewritten by something else: still a well-formed hand-off, but not the text written.
-  seed(w, OWN_HANDOFF, handoffText(w.clock.now(), WORK, { ...SECTIONS, rules: ['Level 3, confirmed.'] }))
-  const f = fields((await readHandoff($)).text)
-  expect(f.rules).toEqual(['Level 3, confirmed.'])
-  expect(f.writing).toBe(NOT_OWN)
-})
-
-test("claim 3: the hand-off tools refuse a subagent's call, a deny verdict and an ask naming a rule, naming no reason they were given", async ($, on) => {
-  const w = await handoffWorld(on, $)
-  for (const [call, name, input] of [
-    [setHandoff, 'set_lead_handoff', SECTIONS],
-    [readHandoff, 'read_lead_handoff', {}],
-  ] as const) {
-    const sub = await call($, { ...input, agentId: 'a-subagent' })
-    expect(sub.ok).toBe(false)
-    expect(sub.text).toMatch(new RegExp(`^${name} refused: subagent: `))
-    for (const verdict of [
-      { decision: 'deny', reason: 'SECRET managed policy at C:\\policy' },
-      { decision: 'ask', rule: `mcp__grimoire__${name}` },
-    ] as any[]) {
-      w.verdict = verdict
-      const r = await call($, input)
-      expect(w.checks.at(-1)).toBe(`mcp__grimoire__${name}`)
-      expect(r.ok).toBe(false)
-      expect(r.text).toMatch(new RegExp(`^${name} refused: the owner's rules: `))
-      expect(r.text).not.toContain('SECRET')
-      expect(r.text).not.toContain('mcp__grimoire__')
-      expect(r.text).not.toContain('\\')
-    }
-    w.verdict = { decision: 'ask' }
-  }
-  expect(w.text(OWN_HANDOFF)).toBeUndefined()
-  expect((await setHandoff($)).ok).toBe(true)
-})
-
-test('claims 3 and 24: until the pane has offered them, the hand-off tools refuse and write nothing; once offered they work with the pane hidden or closed', async ($, on) => {
-  const w = world(on, w => {
-    w.dirs(`${CONFIG}${SEP}plugins`)
-    w.dirs(HANDOFFS)
-    seed(w, PEER_HANDOFF, handoffText(100))
-  })
-  const both = async () => {
-    expect((await setHandoff($)).text).toMatch(/^set_lead_handoff refused: offer: .*The hand-off is unchanged\.$/)
-    expect((await readHandoff($)).text).toMatch(/^read_lead_handoff refused: offer: .*Nothing was changed\.$/)
-  }
-  await start($)
-  await both()
-  w.unlisted = true
-  await brigade($)
-  await both()
-  w.unlisted = false
-  // Listed and placed now, but nothing has offered the tools yet.
-  await both()
-  expect(w.text(OWN_HANDOFF)).toBeUndefined()
-  // Offered while listed but not placed: both work, and still once the pane is closed.
-  w.unplaced = true
-  await brigade($)
-  expect((await setHandoff($)).ok).toBe(true)
-  w.open = false
-  await w.clock.advance(1000)
-  expect((await setHandoff($)).ok).toBe(true)
-  expect((await readHandoff($)).ok).toBe(true)
-})
-
-test('claim 14: a hand-off line holding a hidden character or a line break is refused through the tool, and nothing is written', async ($, on) => {
-  const w = await handoffWorld(on, $)
-  for (const line of ['a\u{202E}b', 'two\nlines']) {
-    const r = await setHandoff($, { ...SECTIONS, sessions: [line] })
-    expect(r.ok).toBe(false)
-    expect(r.text).toMatch(/^set_lead_handoff refused: shape: sessions line 1 /)
-  }
-  for (const input of [{ ...SECTIONS, at: 5 }, { resume: [] }]) expect((await setHandoff($, input)).text).toMatch(/^set_lead_handoff refused: shape: /)
-  expect((await readHandoff($, { at: 5 })).text).toMatch(/^read_lead_handoff refused: shape: /)
-  expect(w.text(OWN_HANDOFF)).toBeUndefined()
-})
-
-test('claim 5: an own hand-off file that fails its strict check is never overwritten, and the refusal names no path', async ($, on) => {
-  const w = await handoffWorld(on, $, w => seed(w, OWN_HANDOFF, '{"cards":[],"todos":[]}'))
-  const r = await setHandoff($)
-  expect(r.ok).toBe(false)
-  expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
-  expect(r.text).not.toContain('\\')
-  expect(r.text).not.toContain(CONFIG)
-  expect(w.text(OWN_HANDOFF)).toBe('{"cards":[],"todos":[]}')
-})
-
-test('claim 5: an own hand-off file over 32 KiB is never read as one or overwritten', async ($, on) => {
-  const big = JSON.stringify({ kind: 'handoff', note: 'x'.repeat(33 * 1024) })
-  const w = await handoffWorld(on, $, w => seed(w, OWN_HANDOFF, big))
-  const r = await setHandoff($)
-  expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
-  expect(w.text(OWN_HANDOFF)).toBe(big)
-})
-
-withJunction('claim 5: a handoff folder that becomes a link after the write is told to the owner with fixed words', async ($, on) => {
-  const w = await handoffWorld(on, $)
-  const write = w.write
-  w.write = (p, t) => {
-    write(p, t)
-    w.dirs(`${ELSEWHERE}${SEP}h`)
-    w.put(HANDOFFS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}h` })
-  }
-  const r = await setHandoff($)
-  expect(r.ok).toBe(false)
-  expect(r.text).toBe('set_lead_handoff failed after the write began: the hand-off path then failed its check. The hand-off may or may not hold the new text; tell the owner.')
-  expect(w.toasts.some(t => t.startsWith('Brigade: after the hand-off was kept, the hand-off path failed its check.'))).toBe(true)
-  expect(w.toasts.some(t => t.includes('\\'))).toBe(false)
-})
-
-withJunction('claim 5: a handoff folder that is a link is refused, and nothing is written through it', async ($, on) => {
-  const w = await handoffWorld(on, $, w => {
-    w.drop(HANDOFFS)
-    w.dirs(ELSEWHERE)
-    w.put(HANDOFFS, { type: 'link', kind: 'junction', target: ELSEWHERE })
-  })
-  expect((await setHandoff($)).text).toMatch(/^set_lead_handoff refused: path: /)
-  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeUndefined()
-})
-
 test('claim 13: the pane reads no hand-off while it is closed, reads its own and others once, and again only when a size or time changed', async ($, on) => {
   const w = world(on, w => {
     w.dirs(`${CONFIG}${SEP}plugins`)
@@ -7685,13 +7480,9 @@ test('claim 13: from a hand-off folder whose listing passes 5,000 entries the pa
   expect(await shows(/^Own resume line\.$/)).toBe(true)
   expect(await shows(/over 5,000 entries/)).toBe(true)
   expect(readsOf(w, PEER_HANDOFF)).toBe(0)
-  // With no own hand-off, the tool reads no other either, and says why it found none.
-  w.drop(OWN_HANDOFF)
-  expect((await readHandoff($)).text).toBe(FLOODED)
-  expect(readsOf(w, PEER_HANDOFF)).toBe(0)
 })
 
-test('claim 13: the Lead hand-off section, folded at first, draws the hand-off read_lead_handoff would give, its writer, time and five sections (desktop)', async ($, on) => {
+test('claim 13: the Lead hand-off section, folded at first, draws the hand-off chosen for this session, its writer, time and five sections (desktop)', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => {
     w.dirs(HANDOFFS)
     seed(w, PEER_HANDOFF, handoffText(200, WORK, { ...SECTIONS, resume: ['Peer resume line.'] }))
@@ -7702,7 +7493,6 @@ test('claim 13: the Lead hand-off section, folded at first, draws the hand-off r
   expect(await shows(/^Peer resume line\.$/)).toBe(true)
   expect(await shows(/^Elsewhere line\.$/)).toBe(false)
   expect(await shows(/^Updated 1970-01-01 00:00$/)).toBe(true)
-  expect(await shows(/^Not this session's writing$/)).toBe(true)
   for (const label of ['How to resume', 'Rules in force', 'Running sessions', 'Cleanup waiting', 'Open for the owner']) expect(await shows(new RegExp(`^${label}$`))).toBe(true)
   expect(await shows(/^q1 waits\.$/)).toBe(true)
 })
@@ -8077,19 +7867,17 @@ test('claim 10: an Owner entry this pane did not write draws as recorded, and an
   expect(await shows(/id\(s\) missing/)).toBe(false)
 })
 
-test("the level in force is stamped on each log_decision entry and named in its answer and set_lead_handoff's", async ($, on) => {
+test("the level in force is stamped on each log_decision entry and named in its answer", async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
   await press($, 'level-2')
   const r = await decide($)
   expect(r.text).toMatch(/^Logged decision 2 at .*, at level 2 \(Auto\)\.$/)
   expect(parsed(w, LOG).entries[1].level).toBe(2)
-  expect((await setHandoff($)).text).toMatch(/^Hand-off kept at .*, at level 2 \(Auto\)\.$/)
   // A 3 counts for the stamp as read_autonomy answers it.
   await w.clock.advance(1000)
   await press($, 'level-3')
   // A 3 is named with the same words read_autonomy gives it, never bare.
   expect((await decide($)).text.endsWith(`, at level 3 (Turbo), set by a press. ${FILE_RULE}`)).toBe(true)
-  expect((await setHandoff($)).text.endsWith(`, at level 3 (Turbo), set by a press. ${FILE_RULE}`)).toBe(true)
   await press($, 'level-1')
   expect((await decide($)).text).toMatch(/, at level 1 \(Manual\)\.$/)
   expect(parsed(w, LOG).entries.at(-1).level).toBe(1)
@@ -8716,8 +8504,6 @@ test("C11, Test round 1's q3f: a clear to another session id with the pane close
   await w.clock.advance(5000)
   await switchTo($, w, NEW_SID, 'clear')
   expect((await decide($)).text).toMatch(/^log_decision refused: offer: /)
-  expect((await setHandoff($)).text).toMatch(/^set_lead_handoff refused: offer: /)
-  expect((await readHandoff($)).text).toMatch(/^read_lead_handoff refused: offer: /)
   await switchTo($, w, SID, 'resume')
   expect((await decide($)).ok).toBe(true)
 })
@@ -8731,7 +8517,7 @@ test('claim 24 (C9): with the pane up, a reload whose offer fails leaves read_au
   expect((await readLevel($)).text).toBe(LEVEL_1)
 })
 
-test('claim 24: with the pane behind another tab or closed, read_autonomy answers the level, and log_decision and the hand-off tools work', async ($, on) => {
+test('claim 24: with the pane behind another tab or closed, read_autonomy answers the level, and log_decision works', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
   await press($, 'level-2')
   for (const step of [() => (w.unplaced = true), () => (w.open = false)]) {
@@ -8739,8 +8525,6 @@ test('claim 24: with the pane behind another tab or closed, read_autonomy answer
     await w.clock.advance(5000)
     expect((await readLevel($)).text).toBe(LEVEL_2)
     expect((await decide($)).text).toMatch(/^Logged decision \d+ at .*, at level 2 \(Auto\)\.$/)
-    expect((await setHandoff($)).text).toMatch(/^Hand-off kept at .*, at level 2 \(Auto\)\.$/)
-    expect((await readHandoff($)).ok).toBe(true)
   }
 })
 
@@ -8753,8 +8537,6 @@ test('claim 24: a session whose pane never offered the tools has none of them, a
   await start($)
   const refusedAll = async (level = true) => {
     expect((await decide($)).text).toBe('log_decision refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. The decision log is unchanged; act at level 1.')
-    expect((await setHandoff($)).text).toBe('set_lead_handoff refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. The hand-off is unchanged.')
-    expect((await readHandoff($)).text).toBe('read_lead_handoff refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. Nothing was changed.')
     if (level) expect((await readLevel($)).text).toBe(LEVEL_1)
   }
   await refusedAll()
@@ -8930,7 +8712,7 @@ test("claim 27: the compaction hook returns the engine's result unchanged, and n
   const started: any = await compactStart($)
   await turnEnd($)
   await w.clock.advance(15000)
-  const answers = [(await readLevel($)).text, (await decide($)).text, (await setHandoff($)).text]
+  const answers = [(await readLevel($)).text, (await decide($)).text]
   // The issue 533 sinks too: the SessionStart result and the notes appended to the conversation.
   for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers, JSON.stringify(started ?? {}), ...w.notes]) expect(text.includes(SENTINEL)).toBe(false)
   expect(ownEntries(w).slice(0, 1)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
@@ -9688,10 +9470,10 @@ test('C12: a dismissed band line shows again when a command 3 lands and after a 
   expect(await bandTexts(b)).toEqual([BAND_CMD(at)])
 })
 
-test("C13: log_decision and set_lead_handoff name a command 3 as set by the owner's command, with no goal", async ($, on) => {
+test("C13: log_decision names a command 3 as set by the owner's command, with no goal", async ($, on) => {
   const w = await decisionsPane(on, $)
   await command3($, w)
-  for (const r of [await decide($), await setHandoff($)]) {
+  for (const r of [await decide($)]) {
     expect(r.text.endsWith(`, at level 3 (Turbo), set by the owner's command. ${FILE_RULE}`)).toBe(true)
     expect(r.text.includes(GOAL)).toBe(false)
   }
@@ -10231,7 +10013,7 @@ test('543 C1/C4: a start reads the origin once, then runs the fixed start with t
   expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. Write its card with set_roster; the tool wrote none.`)
   expect(runs()).toEqual([
     [exe('git'), '-C', REPO_DIR, 'config', '--local', '--get-all', 'remote.origin.url'],
-    [exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high', 'Your work is issue 543 on mephistopheles4/grimoire. Send your questions and reports to Head chef.'],
+    [exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high', 'Your work is issue 543 on mephistopheles4/grimoire, in the project\'s tracker. Send your questions and reports to Head chef.'],
   ])
   // The git run keeps -C and takes no working folder; the start takes one and adds no variable.
   const inits = w.procs.map((a, i) => [a[0], w.inits[i]]).filter(([p]) => p === exe('git') || p === exe('claude'))
@@ -10398,7 +10180,7 @@ test('578 C2/C4: a note that passes rides as the last argv element behind the to
   expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. Write its card with set_roster; the tool wrote none.`)
   expect(runs()[1]).toEqual([
     exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high',
-    `Your work is issue 543 on mephistopheles4/grimoire. Send your questions and reports to Head chef. Head chef, not the owner, adds: ${note}`,
+    `Your work is issue 543 on mephistopheles4/grimoire, in the project's tracker. Send your questions and reports to Head chef. Head chef, not the owner, adds: ${note}`,
   ])
   expect(sets).toEqual([])
   expect(w.log.filter(l => l.includes('approved'))).toEqual([])
@@ -11050,18 +10832,12 @@ test('532: the reminder is said once, and a refused set_roster does not clear th
   expect(reminders(w).length).toBe(1)
 })
 
-// --- the compaction nudges (issue 533) -------------------------------------------
+// --- the usage read's breakdown ---------------------------------------------------
 //
-// Two fixed lines around a compaction. Before it, a lead turn's end near the
-// engine's auto-compact threshold adds one note, once per cycle. After it, the
-// classic SessionStart (source compact) adds the other to its result; where the
-// engine skips that hook, the next turn's end adds it. The two signs of one
-// compaction deliver it once. The rules themselves are tested in
-// tests/brigade-reminder.test.mjs; these cases drive them through the engine.
+// Every usage read asks the engine for the local summary breakdown; the terminal
+// drops its rows before anything is stored, Desktop keeps them.
 
-const NUDGE = (line: string) => `${NOTE_PREFIX}${line}`
-const nudges = (w: World) => w.notes.filter(n => n.startsWith(`${NOTE_PREFIX}Your context`))
-// A usage reading whose breakdown carries the threshold, as the local summary does.
+// A usage reading whose breakdown holds categories, as the local summary does.
 const NEAR = (tokens: number | undefined, threshold: number | null = 1000): any => ({
   rateLimits: [],
   context: { percent: 50, tokens, window: 1000, breakdown: { autoCompactThreshold: threshold, categories: [{ name: 'Messages', kind: 'used', tokens: 900 }] } },
@@ -11075,177 +10851,20 @@ const nudgeWorld = async (on: On, $: any, setup: (w: World) => void = () => {}, 
   await w.clock.settle()
   return w
 }
-const compactStartAs = ($: any, over: Record<string, unknown> = {}) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT, ...over })
 
-test('533: a compaction seen by the classic SessionStart adds the after-line once to its result, with the stale clause, and the turn end adds nothing more', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  const r: any = await compactStart($)
-  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: where the classic hook is skipped, session.compact alone gets the after-line at the next turn end, once', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await compactNow($)
-  await turnEnd($)
-  await turnEnd($)
-  expect(nudges(w)).toEqual([NUDGE(afterLine(false))])
-})
-
-test("533: both signs of one compaction, in the engine's order, deliver the after-line once", async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await compactNow($)
-  const r: any = await compactStart($)
-  expect(r.additionalContext).toEqual([NUDGE(afterLine(false))])
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: near the threshold a lead turn end adds the before-line once; a compaction after it carries no stale clause', async ($, on) => {
-  const w = await nudgeWorld(on, $, w => {
-    w.usage = NEAR(950)
-  })
-  await turnEnd($)
-  expect(nudges(w)).toEqual([NUDGE(BEFORE_LINE)])
-  await turnEnd($)
-  expect(nudges(w).length).toBe(1)
-  await compactNow($)
-  const r: any = await compactStart($)
-  expect(r.additionalContext).toEqual([NUDGE(afterLine(true))])
-})
-
-for (const [what, reading] of [
-  ['below the margin', NEAR(899)],
-  ['no threshold', NEAR(950, null)],
-  ['no token count', NEAR(undefined)],
-] as const) {
-  test(`533: ${what} adds no before-line`, async ($, on) => {
-    const w = await nudgeWorld(on, $, w => {
-      w.usage = reading
-    })
-    await turnEnd($)
-    expect(nudges(w)).toEqual([])
-  })
-}
-
-test("533: a compaction clears the reading, so the old figure cannot fire the before-line after it", async ($, on) => {
-  const w = await nudgeWorld(on, $, w => {
-    w.usage = NEAR(950)
-  })
-  await compactNow($)
-  await compactStart($)
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: with the pane closed nothing is added and no usage call is made', async ($, on) => {
-  const closed = await nudgeWorld(on, $, () => {}, false)
-  expect(((await compactStart($)) as any).additionalContext ?? []).toEqual([])
-  await compactNow($)
-  await turnEnd($)
-  expect(nudges(closed)).toEqual([])
-  expect(closed.usageCalls).toBe(0)
-  // Opening the pane afterwards leaves the compaction that happened while it
-  // was closed unannounced: the arm was never set.
-  await brigade($)
-  await turnEnd($)
-  expect(nudges(closed)).toEqual([])
-})
-
-test('533: a subagent, and a source other than compact, add nothing', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  expect(((await compactStartAs($, { agent_id: 'a1' })) as any).additionalContext ?? []).toEqual([])
-  for (const source of ['startup', 'clear', 'resume']) {
-    expect(((await compactStartAs($, { source })) as any).additionalContext ?? []).toEqual([])
-  }
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test("533: a subagent's, a precompute and a skipped compaction arm nothing", async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await compactNow($, { agentId: 'a1' })
-  await compactNow($, { trigger: 'precompute' })
-  w.compactSkip = true
-  await compactNow($)
-  w.compactSkip = false
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: a later compaction in the same session is announced again', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await compactNow($)
-  await turnEnd($)
-  await compactNow($)
-  await turnEnd($)
-  expect(nudges(w)).toEqual([NUDGE(afterLine(false)), NUDGE(afterLine(false))])
-})
-
-test("533: another plugin's added context is kept beside the after-line, untouched", async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  otherContext = 'other plugin text'
-  try {
-    const r: any = await compactStart($)
-    expect(r.additionalContext).toEqual(['other plugin text', NUDGE(afterLine(false))])
-    expect(w.notes.some(n => n.includes('other plugin text'))).toBe(false)
-  } finally {
-    otherContext = undefined
-  }
-})
-
-test('533: a turn that owes the hand-off line and the roster note gets one note, the hand-off line first', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await sendTo($, { message: 'go on', summary: 'go' })
-  await compactNow($)
-  await turnEnd($)
-  expect(w.notes.filter(n => n.startsWith(NOTE_PREFIX))).toEqual([`${NOTE_PREFIX}${afterLine(false)}\n${REMINDER_LINE}`])
-})
-
-test('533: a failed usage read leaves the last figures and the turn unchanged', async ($, on) => {
-  const w = await nudgeWorld(on, $, w => {
-    w.usage = NEAR(899)
-  })
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-  // The next measurement's read fails: the figures stay as they were, the turn
-  // ends as before and nothing is added.
-  w.usage = 'fail'
-  await $.session.measure({ context: { percent: 90, tokens: 950, window: 1000 }, rateLimits: [], changed: ['context'] })
-  await w.clock.settle()
-  await turnEnd($)
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: a failed append leaves the turn unchanged', async ($, on) => {
-  const w = await nudgeWorld(on, $)
-  await compactNow($)
-  appendFails = true
-  try {
-    await expect(turnEnd($)).resolves.toBeDefined()
-  } finally {
-    appendFails = false
-  }
-  expect(nudges(w)).toEqual([])
-})
-
-test('533: on the terminal the read asks for the summary breakdown, stores no categories and keeps the threshold out of plugin state', async ($, on) => {
+test('on the terminal the usage read asks for the summary breakdown and stores no categories', async ($, on) => {
   const terminal = await nudgeWorld(on, $, w => {
     w.surfaces = ['terminal']
     w.usage = NEAR(950)
   })
-  await turnEnd($)
-  expect(nudges(terminal)).toEqual([NUDGE(BEFORE_LINE)])
   expect(terminal.usageArgs.length).toBeGreaterThan(0)
   for (const arg of terminal.usageArgs) expect(arg).toBe('summary')
   const stored = JSON.parse(terminal.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
   expect(stored.categories).toBeUndefined()
   expect(stored.context.tokens).toBe(950)
-  expect(terminal.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
 })
 
-test('533: on Desktop the read asks for the summary breakdown and the stored snapshot keeps its categories, as before', async ($, on) => {
+test('on Desktop the usage read asks for the summary breakdown and the stored snapshot keeps its categories', async ($, on) => {
   const desktop = await nudgeWorld(on, $, w => {
     w.usage = NEAR(950)
   })
@@ -11253,16 +10872,6 @@ test('533: on Desktop the read asks for the summary breakdown and the stored sna
   for (const arg of desktop.usageArgs) expect(arg).toBe('summary')
   const stored = JSON.parse(desktop.states.filter(([k]) => k === 'usage').at(-1)?.[1] ?? '{}')
   expect(stored.categories?.length).toBe(1)
-  expect(desktop.states.some(([, v]) => v.includes('autoCompactThreshold'))).toBe(false)
-})
-
-test('533: the exception is in every variant the lead can be handed', async ($, on) => {
-  const w = await nudgeWorld(on, $, w => {
-    w.usage = NEAR(950)
-  })
-  await turnEnd($)
-  const r: any = await compactStart($)
-  for (const text of [...nudges(w), ...r.additionalContext]) expect(text.includes(EXCEPTION)).toBe(true)
 })
 
 // --- issue 223: quick actions on Desktop cards ---------------------------------------------------
