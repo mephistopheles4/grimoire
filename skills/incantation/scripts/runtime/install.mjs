@@ -526,13 +526,14 @@ export async function installRuntime(o) {
       continue;
     }
     if (LAYER.includes(part)) {
-      if (!uv) {
-        say(`${part} skipped no uv`);
-        continue;
-      }
+      // The platform's own gap comes first, as in the plan: uv would not help.
       const noPython = part === 'python' && pythonGap(key, release, pins);
       if (noPython) {
         say(`python skipped ${noPython}`);
+        continue;
+      }
+      if (!uv) {
+        say(`${part} skipped no uv`);
         continue;
       }
       if ((part === 'turn' || part === 'phonon') && partState(home, 'python', key, pins) !== 'ok') {

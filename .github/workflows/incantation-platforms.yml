@@ -25,6 +25,8 @@ on:
   pull_request:
     paths:
       - skills/incantation/scripts/runtime/**
+      - skills/incantation/scripts/engines/*-worker.py
+      - skills/incantation/scripts/setup.mjs
       - .github/workflows/incantation-platforms.yml
 
 permissions:
@@ -69,11 +71,12 @@ jobs:
       - name: Plan
         run: |
           node skills/incantation/scripts/setup.mjs runtime plan | tee plan.txt
-          if grep -E ' (unavailable|skipped) |^uv not found' plan.txt; then exit 1; fi
+          test "$(grep -cE '^(addon|hearing|speaking|detector|python|turn|phonon) missing [0-9]+ MB$' plan.txt)" = 7
+          grep -qx 'uv found' plan.txt
       - name: Install
         run: |
           node skills/incantation/scripts/setup.mjs runtime install | tee install.txt
-          if grep -E ' (failed|skipped) ' install.txt; then exit 1; fi
+          test "$(grep -cE '^(addon|hearing|speaking|detector|python|turn|phonon) ok$' install.txt)" = 7
       - name: Verify
         run: node skills/incantation/scripts/setup.mjs runtime verify
       # Each worker writes its ready mark and exits when its stdin closes.
