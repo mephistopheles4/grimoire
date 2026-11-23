@@ -274,6 +274,7 @@ const SHIPPED = {
     ['EA2', 'references/binding-codex.md'],
     ['EA2', 'references/contract.changelog.md'],
     ['EA2', 'references/CONTRACT.md'],
+    ['EA2', 'README.md'],
     ['P2', 'SKILL.md'],
     ['RA2', 'references/binding-codex.md'],
     ['LP3', 'SKILL.md'],
