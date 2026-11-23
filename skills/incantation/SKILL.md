@@ -228,11 +228,18 @@ steps for each line:
    at once, and no audio is made), or `say-refused` (empty, or
    longer than 800 characters: say the first fact and put the rest in chat),
    `say-busy` (too many lines waiting), `say-failed` (the line was not turned into
-   audio, or was cut with the line before it) or `say-no-player` (this machine has
-   no player). Show anything but `speaking` in chat only, with the line you meant
-   to say. Never speak through Voicebox's own tools: the listener plays nothing
-   that you do not hand it, and the mic has one reader, the listener.
+   audio, or was cut with the line before it), `say-held` (the person spoke, and
+   you have not heard it yet: see "A held line") or `say-no-player` (this machine
+   has no player). Show anything but `speaking` and `say-held` in chat only, with
+   the line you meant to say. Never speak through Voicebox's own tools: the
+   listener plays nothing that you do not hand it, and the mic has one reader, the
+   listener.
 
+- **A held line.** `say-held` means the listener kept a turn you have not read,
+  and it played nothing. The line was written without that turn, so it may no
+  longer fit. Read the turn when it reaches you, then decide again: say a new
+  line, say the old one if it still fits, or say nothing. A held line is not a
+  play.
 - **One line at a time.** Before every say, run
   `node <skill base>/scripts/listen.mjs idle` and let it finish. It returns when
   no line is playing or waiting, so a new line never cuts off the one before it. If it
