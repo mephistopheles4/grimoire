@@ -13,4 +13,4 @@ You ran the interview script's version check. It printed:
 render.mjs 0.13.0, Node v24.11.0
 ```
 
-The scratch folder would be `/home/sam/.cache/contract-interview/`. Say what you do next.
+Say what you do next.

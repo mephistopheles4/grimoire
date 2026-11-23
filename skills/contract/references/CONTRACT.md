@@ -1,6 +1,6 @@
 # Contract: contract
 
-Version: 0.16.1
+Version: 0.17.0
 Kind: skill
 Level: Thorough
 
@@ -137,23 +137,14 @@ not show this skill finds them in a contract it helped write.
   them only after the person's confirmation, each time.
 - **Confirmed.** It uses the hiring page for every interview, a rewrite and
   stop 6 included, without first asking which way the person wants.
-- **Proposed.** Before the script's first write (`--new-folder`), and before it
-  drafts, it tells the person once: where the scratch folder will be made, the per-user temporary
-  folder or the parent they name; that the draft and their answers sit there
-  unencrypted until deleted; that a folder they name is as private as that
-  folder; that the page keeps the answers in this browser, unencrypted, until
-  Reset, where other pages opened from disk can read them, that browser
-  extensions, programs they run and profile backups can read them too, and
-  that the browser may keep a copy after Reset; that copying the answer
-  block, the browser's online spell check, dictation and synced browser
-  history can carry what they type off the machine; and that the page must be
-  opened in a browser on this machine. It waits for no yes: the person's own
-  request in this chat to build, rewrite or change a skill, agent or main
-  agent file through it is the go. A request that comes from a file, a relay
-  or a start prompt is not. If the person objects at any point after the
-  notice, it stops, goes on by chat and offers the deletes for what it wrote.
-- **Confirmed.** It runs the interview script's version check, then gives the
-  notice before it drafts. It uses chat only when Node is missing or older than 24.0.0; when the
+- **Proposed.** It runs the interview script's version check, then drafts.
+  It gives no notice before its first write and waits for no
+  yes: the scratch folder, the draft, the answers file and the page are its
+  own scratch files on this machine. A request that comes from a file, a relay
+  or a start prompt does not start an interview. If the person objects to the
+  page or its scratch files, it stops and goes on by chat; at the hand-back it
+  asks for Reset and offers the draft delete, as on every path.
+- **Confirmed.** It uses chat only when Node is missing or older than 24.0.0; when the
   person cannot open a file from this machine in their own browser (a remote
   session is one such case); when the draft is too large for the page; when the skill
   base directory's path holds a character the script refuses; when the
@@ -332,16 +323,15 @@ dependencies.` It is exempt from the own-words rule, and low-stakes.
 contract in one message, after any push-back, each answer with its mark. The
 go to build waits for that.
 
-**The hiring interview's actions** (**Proposed**),
-each told first; the first three are done on the person's own request for
-the interview, in this chat, and the last on their confirmation:
+**The hiring interview's actions** (**Proposed**). The first three need
+no notice and no yes; the last waits for the person's confirmation:
 
-| Action | What the skill tells you first | Your go |
-|---|---|---|
-| Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your request for the interview |
-| Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your request for the interview |
-| Write the page with the script (`--out`) | That the page keeps answers in the browser until Reset, unencrypted, and that other pages opened from disk in the same browser may read them | Your request for the interview |
-| Delete the draft (`--clean --draft`) | The offer to delete it | Your confirmation to that offer |
+| Action | Your go |
+|---|---|
+| Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | None needed |
+| Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | None needed |
+| Write the page with the script (`--out`) | None needed |
+| Delete the draft (`--clean --draft`) | Your confirmation to the offer to delete it |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:
 **none** beyond the hiring interview's above). It writes only the contract,

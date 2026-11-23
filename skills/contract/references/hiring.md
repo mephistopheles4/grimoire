@@ -54,7 +54,6 @@ refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
-Give the notice in `SKILL.md`'s "The way in" first, then go on unless the person has objected.
 Make one new folder for each interview:
 
 ```text
@@ -73,9 +72,8 @@ node '<skill base directory>/scripts/render.mjs' --new-folder '<parent>'
 ```
 
 The script refuses a parent inside a git work tree. Never offer a synced
-folder, such as Desktop or Documents. When the person names a parent, tell
-them what `SKILL.md` says for `--new-folder`. Add that the files leave the
-machine if the folder syncs.
+folder, such as Desktop or Documents. When the person names a parent unasked,
+use it.
 
 The folder holds three files, with fixed names: `draft.interview.json`,
 `interview.html` and `answers.json`.
@@ -154,7 +152,7 @@ that is there and is not a page it wrote. The page loads nothing from the
 network. Its top bar shows the scratch folder's name.
 
 The person opens the file in their own browser. When you hand the page
-over, tell them what `SKILL.md` says for `--out`.
+over, tell them its path.
 
 Render a shared draft, as `SKILL.md` defines it, with `--shared`, and read
 its block back with `--shared`. A shared page offers no "Agree to the rest

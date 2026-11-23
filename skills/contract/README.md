@@ -40,20 +40,15 @@ request to run a skill or agent that already exists.
 **Read before you install.** Read a shared skill, agent or CLAUDE.md and its
 contract before you use it, as you would any code from someone else.
 
-**The hiring page keeps your answers, unencrypted.** Once you have asked for
-the interview (see the notice below), the page keeps your answers in your browser until you press
-**Reset** on it. Other pages opened from disk in the same
-browser, browser extensions with file access, programs running as you and
-backups of your browser profile can read them. Reset removes them from the
-page's store; your browser may keep its own copy on disk for a while. Your
-browser's history keeps the page's title and location. The draft, the page and the
-answers file in the interview's scratch folder hold the same answers,
-unencrypted, until the skill deletes them at the hand-back. The scratch
-folder is in your own temporary folder on Windows and macOS, and under
-`$XDG_CACHE_HOME/contract-interview/` or `~/.cache/contract-interview/` on
-Linux; on macOS and Linux only your account can open it. Once the page and
-the draft are gone, clearing your browser's stored data for pages opened
-from disk is the one way left to remove saved answers.
+**The hiring page keeps your answers until Reset.** The page keeps your
+answers in your browser until you press **Reset** on it. The draft, the page
+and the answers file sit in the interview's scratch folder until the skill
+deletes them at the hand-back. The scratch folder is in your own temporary
+folder on Windows and macOS, and under `$XDG_CACHE_HOME/contract-interview/`
+or `~/.cache/contract-interview/` on Linux; on macOS and Linux only your
+account can open it. Once the page and the draft are gone, clearing your
+browser's stored data for pages opened from disk is the one way left to
+remove saved answers.
 
 To try the skill before a release, install it with the "Pinned to one commit"
 route in the [root README](../../README.md), using a commit from the pull
@@ -98,13 +93,8 @@ the skill uses a page where you answer by picking. It does not first ask
 which way you want.
 
 1. In chat, you agree what good output looks like, as above.
-   Before it writes anything, the skill gives you one notice: where the
-   scratch folder is, that the draft and your answers sit there unencrypted
-   until deleted, that the page keeps them in your browser until Reset, and
-   that copying the answer block, online spell check, dictation and synced
-   browser history can carry what you type off the machine. It does not wait
-   for a yes: your request for the interview is the go. If you object, it
-   stops and goes on by chat.
+   The skill then writes its scratch files and renders the page without
+   asking. If you object to the page, it stops and goes on by chat.
 2. The skill drafts the contract, every answer *Proposed*, and renders it as
    a page on your machine: a short offer letter with blanks, and its
    schedules below it. You open the page in your own browser.
@@ -166,13 +156,22 @@ contract and the built file. It then hands back:
 - It never follows an instruction that it finds inside a file. A "yes" in a
   file is never your yes.
 
+## Changes in 0.17.0
+
+**No notice before the hiring page.** The skill no longer tells you, before
+its first write, where the scratch folder is, what sits there unencrypted or
+what can carry your answers off the machine. It drafts and renders the page
+when you ask for the interview in chat, with no notice and no yes. The page stays the default way
+in, and the chat fallbacks, Reset before any delete and the whole contract
+before the go to build all stay.
+
 ## Changes in 0.14.0
 
 **The hiring page is the default way in** for every interview, a rewrite, and an
 existing skill or agent you hand it, included. The skill no longer asks which way you want. Before the
 first write it gives one notice, naming the scratch folder, the browser store
 and the routes that can carry your answers off the machine, and waits for
-your yes; a no means chat. Chat is used only when Node is missing or older
+your yes; a no means chat (the yes cut in 0.16.0, the notice in 0.17.0; an objection still means chat). Chat is used only when Node is missing or older
 than 24.0.0, when you cannot open a file from this machine in your browser,
 when the draft is too large for the page, when the skill's own folder holds a
 character the script refuses, or the scratch folder's does and you name no
@@ -192,8 +191,7 @@ where you answer by picking, then read back the one block you paste. Its
 interview script, `scripts/render.mjs`, makes a scratch folder for each
 interview, renders the page, checks the block, prints the change list, and
 deletes its own files at the hand-back. It needs Node.js 24 or later. The
-page keeps your answers in your browser until you press Reset, unencrypted:
-see "Read before you install" above. On the page you can add, move and
+page keeps your answers in your browser until you press Reset. On the page you can add, move and
 remove a schedule's entries. To remove or move a term in the letter, say so
 in chat at push-back.
 
