@@ -73,8 +73,8 @@ Nothing is registered in Claude Code. The listener makes each reply as audio
 (from the local engine, or from Voicebox's stream route, which generates without
 playing) and plays it itself, so it knows when a reply starts and ends and kills
 it the moment you talk over it. Voicebox's own speaking is not used, and its MCP
-tools are not needed. With the local engine the player is one `ffplay` kept open
-for the session and fed silence between lines, so the speaker's delay stays the
+tools are not needed. With the local engine the player is one `ffplay`, started once
+the mic is open and kept for the session, fed silence between lines, so the speaker's delay stays the
 same, which the echo canceller needs.
 
 The player is `ffplay`, which comes with most ffmpeg builds, found in the same

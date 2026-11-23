@@ -14,7 +14,7 @@ import { PassThrough } from 'node:stream';
 import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SPINNERS, ask, leadSilence, pickSpinner, readChannel, runListing, say, startListener, waitLines } from '../skills/incantation/scripts/listen.mjs';
+import { SPINNERS, ask, leadSilence, pickSpinner, readChannel, runListing, say, startListener, stopRecorder, waitLines } from '../skills/incantation/scripts/listen.mjs';
 
 const LISTEN = fileURLToPath(new URL('../skills/incantation/scripts/listen.mjs', import.meta.url));
 import { deviceDigest, ensureKey, observeDir, runDir, secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
@@ -1463,4 +1463,33 @@ test('GRIM-53: the say command prints say-held for a held line, and deletes its 
   assert.equal(out, 'say-held\n', 'not "listener: not running"');
   assert.equal(existsSync(file), false);
   assert.equal(r.player.plays.length, 0);
+});
+
+// GRIM-57: on macOS, `listen.mjs stop` left the avfoundation recorder running
+// with parent PID 1. It ignored SIGTERM and ended on SIGINT.
+const stubbornRecorder = endsOn => {
+  const child = new EventEmitter();
+  child.signals = [];
+  child.kill = (signal = 'SIGTERM') => {
+    child.signals.push(signal);
+    if (endsOn.includes(signal)) setTimeout(() => child.emit('exit', null, signal), 5);
+    return true;
+  };
+  return child;
+};
+
+test('GRIM-57: stop ends the macOS recorder with SIGINT, the signal it answers', async () => {
+  const child = stubbornRecorder(['SIGINT']);
+  const exited = new Promise(r => child.once('exit', r));
+  await stopRecorder(child, exited, { platform: 'darwin', graceMs: 200 });
+  assert.deepEqual(child.signals, ['SIGINT']);
+});
+
+test('GRIM-57: a recorder that ignores the stop signal is killed once the grace is over, so it outlives no listener', async () => {
+  const child = stubbornRecorder(['SIGKILL']);
+  let gone = false;
+  const exited = new Promise(r => child.once('exit', () => r((gone = true))));
+  await stopRecorder(child, exited, { platform: 'linux', graceMs: 50 });
+  assert.deepEqual(child.signals, ['SIGTERM', 'SIGKILL']);
+  assert.equal(gone, true, 'stop returns once the recorder has exited');
 });
