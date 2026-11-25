@@ -478,7 +478,6 @@ test('a summary it cannot write is said out loud and leaves the verdict alone', 
 // rules; these tests drive them through the gate, the way the workflow does.
 // Every case is the accepted report below with exactly one thing changed.
 
-const HASH = 'a'.repeat(64);
 const TM = 'static_patterns_tool_misuse';
 
 // An allowance accepting one parse-limit read of lib/long.mjs in the skill
@@ -486,7 +485,7 @@ const TM = 'static_patterns_tool_misuse';
 const allowance = () => ({
   version: 1,
   exceptions: [
-    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], sha256: HASH, reason: 'A neutral reason for the test.' },
+    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], reason: 'A neutral reason for the test.' },
   ],
   references: [{ skill: 'demo', from: 'SKILL.md', target: 'lib/long.mjs', count: 1 }],
 });

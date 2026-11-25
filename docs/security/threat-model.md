@@ -146,7 +146,7 @@ Likelihood and impact, 0 to 1, are judgement after today's controls, a ranking o
 A class covers only what its sentence names; nothing under Open issues is inside a class.
 
 - **Text steers a session.** The host agent is the last guard against text read as instruction; no injection detector is built, closing a gap in a check aside, so a well-worded injection steers a session and breaks rules held only by prose.
-- **Review is the guard for scanner gaps.** Baseline allowances cover whole files or rules, some files are read in part, nothing is signed, and a skill is dangerous by its nature (ADR 0006).
+- **Review is the guard for scanner gaps.** Baseline allowances cover whole files or rules, some files are read in part and an edit to one passes the deeper pass that gave up there ([Detail](scanners.md)), nothing is signed, and a skill is dangerous by its nature (ADR 0006).
 - **Renderer output carries author text.** An escaped one-line name can still read like a path or a reason; refusal lines are bounded each, not in count; deep nesting stops a renderer with one line.
 - **Other plugins share the mod's trust.** An installed plugin can read the mod's plugin state (not the report store, Remote Control link or old folder key), rewrite the usage record, plant the warning's dismissal, and rewrite or press the autonomy level, forging a 3's confirmation.
 - **A forged or misled session can speak for the lead.** A message under the lead's shown name or a relay counted as a decision can move the lead; a steered lead or an unasked skill load can write false log entries and lead hand-offs.

@@ -135,32 +135,27 @@ and carries a reason. The rules that hold it:
   number of partly read files equals the number of accepted ones. A file the
   scanner counted as partial with no exception recorded would be matched by
   count alone. No such report has been seen.
-- **Every entry pins its file's content.** The scanner records a give-up once
-  per file, reason and check, with no count and no place, so a second give-up
-  inside an accepted file is invisible to the gate. Each entry carries the
-  file's SHA-256 (line endings normalised to LF), and `node scripts/check.mjs`
-  fails when it no longer matches. Any edit to an accepted file therefore puts
-  the allowance in the same diff, where review sees it. The failure says what
-  to review by hand, and never prints a new hash to paste. To compute the new
-  value after that review, run
-  `node --input-type=module -e "import {contentHash} from './scripts/lib/skillspector-allowances.mjs'; import {readFileSync} from 'node:fs'; console.log(contentHash(readFileSync(process.argv[1])))" skills/<skill>/<file>`
-  from the repository root. A plain `sha256sum` on a Windows checkout with CRLF
-  line endings gives a different value.
-- **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
-  lists each one against `main`, in its log and, in CI, on the run's summary
-  page and as a warning on the pull request, so a re-hash is hard to miss.
-- **A re-hash needs a new dated reason.** The check fails when an entry's hash
-  differs from `main` and its `reason` gains no new "Re-read on <date>: ..."
-  sentence. A change in spacing or in other words does not count. The sentence
-  says what the review found, so each re-hash leaves a record of someone
-  looking. A renamed file does not escape this: a new entry that carries the
-  reason of a removed entry of the same skill, on a different hash, fails the
-  same way.
+- **No entry pins its file's content.** An edit to an accepted file leaves its
+  entry as it is, and the gate and `node scripts/check.mjs` both stay green.
+  The owner's review of each merge is the control for edits to accepted files.
+  Until GRIM-66, each entry carried the file's SHA-256 and every edit needed a
+  new hash and a dated re-read in its reason; the owner dropped that for the
+  friction it caused. A reason that says "Read by hand" or "Re-read on" records
+  the file as it was on that date, not as it is now.
+- **What that leaves open.** The scanner records a give-up once per file, reason
+  and check, with no count and no place. So an edit to an accepted file that
+  hides a directive only the pass that gave up would catch now passes that pass,
+  and so does an edit that adds a second give-up there. The plain scan still
+  reads what it read before.
+- **Every entry added, removed or changed is named.** `node scripts/check.mjs`
+  lists an entry added or removed, a change of its checks, and a reference added,
+  removed or recounted, against `main`, in its log and, in CI, on the run's
+  summary page and as a warning on the pull request.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks
-  report their own marker give-ups, which need their own entry. The content
-  pin is the guard.
+  report their own marker give-ups, which need their own entry. Review of the
+  merge is the guard.
 
 The allowance lives at the repository root, not in each skill. The gate reads
 it, not SkillSpector, so a copy inside an installed skill would do nothing for
