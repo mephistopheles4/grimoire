@@ -1340,7 +1340,7 @@ test('GRIM-67: with the mic muted the session still speaks: talk at the muted mi
   assert.equal(r.player.plays.length, 1);
 });
 
-test('GRIM-67: with the mic muted the progress beat still runs, talk at the muted mic or not', async t => {
+test('GRIM-67: with the mic muted the progress beat still runs, through talk at the muted mic', async t => {
   const r = await live(t, { knobs: { progressMs: 600 } });
   r.push(1000, 34);
   assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
