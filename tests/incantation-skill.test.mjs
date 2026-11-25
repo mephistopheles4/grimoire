@@ -116,7 +116,7 @@ test('setup.mjs is run in the Install section and nowhere else', () => {
   assert.ok(install.indexOf('runtime plan') < install.indexOf('setup.mjs devices'), 'the runtime step comes before the microphone');
   assert.match(install, /On a first install no mic is open, so the number is\s+typed/);
   assert.match(install, /typed on a first install/);
-  assert.doesNotMatch(install, /Who asked/, '0001 S4.8: the Install section holds no who-asked step');
+  assert.doesNotMatch(install, /Who asked/, '0001 S4.8: the frontmatter flag, not an Install step, keeps the model from starting an install');
 });
 
 test('every script and reference the skill names exists', () => {
@@ -309,6 +309,9 @@ test('the skill is under 500 lines and its frontmatter holds only the keys the c
   assert.deepEqual(keys, ['name', 'description', 'disable-model-invocation']);
   // The frontmatter keeps the model from starting the skill on its own.
   assert.match(front, /^disable-model-invocation: true$/m);
+  // GRIM-72 (r291): the start-or-install stop stays cut, in the skill and its contract.
+  assert.doesNotMatch(text, /start or install/);
+  assert.doesNotMatch(readFileSync(join(SKILL, 'references', 'CONTRACT.md'), 'utf8'), /start or install/);
   assert.ok(/description: (.+)/.exec(front)[1].length <= 1024);
 });
 

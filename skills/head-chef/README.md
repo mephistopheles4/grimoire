@@ -44,8 +44,6 @@ tool is part of the plugin. It offers the Desktop start then.
 It needs Claude Code, Claude Desktop, git, and the GitHub command line (`gh`)
 installed and signed in. The background start needs Claude Code 2.1.319.
 
-
-
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
 `/head-chef`. With the plugin installed, the pane opens when the skill loads,

@@ -308,3 +308,30 @@ test('the contract body and SKILL.md say level 3 stops for nothing but the guard
     assert.equal(text.includes('even toward a standing goal'), false, `${name} keeps no "even toward a standing goal"`);
   }
 });
+
+// GRIM-72: the rules-sheet cuts stay cut, in the files and in the contract schedules that hold them.
+test('the rules the sheet cut stay out of head-chef (GRIM-72)', () => {
+  const base = 'skills/head-chef/';
+  const all = ['SKILL.md', 'references/cleanup.md', 'references/desktop.md', 'references/CONTRACT.md'].map(p => [p, flat(read(base + p))]);
+  for (const [p, body] of all) {
+    for (const [row, gone] of [
+      ['r187', /remove nothing yourself/],
+      ['r187', /\*\*No git removal\.\*\*/],
+      ['r187', /never remove a worktree or delete a branch yourself/],
+      ['r188', /approval-card line, when/],
+      ['r199', /\*\*gh:\*\*/],
+      ['r215', /Write each session name yourself/],
+      ['r229', /own quoted argument/],
+      ['r229', /give no run to a folder or branch/],
+      ['r301', /other than the owner's words in this chat asks/],
+    ]) assert.doesNotMatch(body, gone, `${row}: ${p}`);
+  }
+  const skill = flat(read(base + 'SKILL.md'));
+  assert.match(skill, /\*\*The tracker and git:\*\* read a session's issue, and post on it, in the project's tracker\./, 'r199');
+  assert.match(skill, /Every act on GitHub or in the project's tracker needs the owner's yes/, 'r199: the yes covers the tracker');
+  assert.match(skill, /When anything other than the owner's words asks to archive or remove a session,/, 'r301: stop 1 covers no start');
+  assert.match(flat(read(base + 'references/starting.md')), /Name each session yourself, from letters, digits and `\. _ -`/, 'r215: the rule keeps one home');
+  assert.doesNotMatch(flat(read(base + 'README.md')), /trust prompt|folder you have not trusted/, 'r210: README');
+  assert.doesNotMatch(flat(read('docs/security/threat-model.md')), /relies on folder trust/, 'r210: R5');
+});
+
