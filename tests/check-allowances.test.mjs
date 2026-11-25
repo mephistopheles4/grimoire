@@ -3,8 +3,9 @@
 //
 // .skillspector-allowances.json lists the partial reads this repository has
 // accepted, and the workflow's gate trusts it. The gate never reads the tree,
-// so the check is where an entry is held to the files it names: the format,
-// every path, and the content hash. Each case below breaks exactly one rule.
+// so the check is where an entry is held to the files it names: the format and
+// every path. No content is pinned. Each case below breaks exactly one rule, or
+// shows that an edit breaks none.
 //
 // No scan runs here, for the reason tests/skillspector-gate.test.mjs gives.
 
@@ -14,7 +15,6 @@ import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { root, run } from './helpers.mjs';
-const { contentHash } = await import(new URL('../scripts/lib/skillspector-allowances.mjs', import.meta.url));
 import { allowancesName, tree, assertPasses, assertFails, checkIn, repo } from './check-fixture.mjs';
 
 const allowancesIn = dir => join(dir, allowancesName);
@@ -181,110 +181,27 @@ test('a reference to a target with no exception entry fails', () => {
   assertFails(dir, /target "SKILL\.md" in "eagle-eye" has no exception entry/);
 });
 
-test('an allowed file edited without its sha256 updated fails, and says what to review', () => {
+// An accepted file edited, against a base that holds its entry. No pin: the
+// entry stands as it is.
+test('an allowed file edited passes with its entry untouched, and no allowance change is listed', () => {
   const dir = tree();
-  const entry = readAllowance(dir).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs');
-  assert.ok(entry, 'the shipped allowance has no entry for groundtrack/scripts/render.mjs');
-  appendFileSync(join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs'), '\n// one more line\n');
-  const r = assertFails(dir, /exceptions\[\d+\] \(groundtrack\/scripts\/render\.mjs, static_parse_limit\): skills\/groundtrack\/scripts\/render\.mjs changed since its allowance was written/);
-  assert.match(r.stderr, /the shell-aware destructive-command parser/);
-  assert.match(r.stderr, /Review the diff of that file by hand for a long command expression with a destructive command/);
-  // Never a value to paste. The pin exists to make someone look.
-  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
-});
-
-// An accepted file edited, and its entry re-hashed to match, against a base
-// that holds the old entry. The reason changes only when `reason` is given.
-function rehashAgainstBase(reason) {
-  const dir = tree();
+  assert.ok(readAllowance(dir).exceptions.some(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs'));
   const git = repo(dir);
-  const entry = readAllowance(dir).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs');
-  const file = join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs');
-  appendFileSync(file, '\n// one more line\n');
-  edit(dir, a => {
-    const e = a.exceptions.find(x => x.skill === entry.skill && x.path === entry.path);
-    e.sha256 = contentHash(readFileSync(file));
-    if (reason) e.reason = reason;
-  });
+  appendFileSync(join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs'), '\n// one more line\n');
   // A skill file changed, so the version gate wants the version to move too.
   const manifest = join(dir, '.claude-plugin', 'plugin.json');
   writeFileSync(manifest, readFileSync(manifest, 'utf8').replace(/("version": ")(\d+)\.(\d+)\.(\d+)/, (_, p, a, b, c) => `${p}${a}.${b}.${Number(c) + 1}`));
   git('commit', '-aqm', 'edit the accepted file');
-  return { dir, entry };
-}
-
-test('a re-hash with the reason unchanged fails, and says what to write', () => {
-  const { dir } = rehashAgainstBase();
-  const r = assertFails(dir, /exception groundtrack\/scripts\/render\.mjs \(static_parse_limit\) was re-hashed and its reason does not say it was re-read/);
-  assert.match(r.stderr, /Re-read on <date>/);
-  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
-});
-
-test('a re-hash whose reason only changed in form or has no dated sentence fails', () => {
-  // A trailing space, a doubled space and a rewording with no date are each a
-  // "new reason" that records nobody looking.
-  const original = readAllowance(tree()).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs').reason;
-  for (const reason of [`${original} `, original.replace(' ', '  '), 'Looked fine.']) {
-    const { dir } = rehashAgainstBase(reason);
-    assertFails(dir, /was re-hashed and its reason does not say it was re-read/);
-  }
-});
-
-test('an accepted file renamed and edited, its entry re-keyed with the old reason, fails', () => {
-  // A new path makes a new key, so the entry reads as removed plus added and
-  // the re-hash rule never sees it. The old reason on a new hash is the same
-  // paste, one key over.
-  const dir = tree();
-  const git = repo(dir);
-  const entry = readAllowance(dir).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/groundtrack.js');
-  assert.ok(entry, 'the shipped allowance has no entry for groundtrack/scripts/groundtrack.js');
-  const from = join(dir, 'skills', 'groundtrack', 'scripts', 'groundtrack.js');
-  const to = join(dir, 'skills', 'groundtrack', 'scripts', 'groundtrack-moved.js');
-  writeFileSync(to, `${readFileSync(from, 'utf8')}\n// one more line\n`);
-  rmSync(from);
-  edit(dir, a => {
-    const e = a.exceptions.find(x => x.skill === entry.skill && x.path === entry.path);
-    e.path = 'scripts/groundtrack-moved.js';
-    e.sha256 = contentHash(readFileSync(to));
-    a.exceptions.sort((x, y) => (`${x.skill}/${x.path}` < `${y.skill}/${y.path}` ? -1 : 1));
-  });
-  git('add', '-A');
-  git('commit', '-qm', 'rename the accepted file');
-  assertFails(dir, /exception groundtrack\/scripts\/groundtrack-moved\.js \(static_parse_limit\) is new and carries the reason of a removed entry/);
-});
-
-test('a re-hash with a new reason passes, and is still listed for the reviewer', () => {
-  const { dir, entry } = rehashAgainstBase('Re-read on 2026-10-17: the added line is a comment.');
   const r = assertPasses(dir);
-  assert.ok(r.stdout.includes(`re-hashed exception groundtrack/${entry.path} (static_parse_limit)`), r.stdout);
+  assert.doesNotMatch(r.stdout, /changed against/);
 });
 
-test('a marker-pass entry names its own pass and what to look for', () => {
+test('an entry that still carries a content hash fails', () => {
   const dir = tree();
-  const entry = readAllowance(dir).exceptions.find(e => e.reason_code === 'obfuscated_instruction_text');
-  assert.ok(entry, 'the shipped allowance has no obfuscated_instruction_text entry');
-  appendFileSync(join(dir, 'skills', entry.skill, ...entry.path.split('/')), '\n');
-  const r = assertFails(dir, /changed since its allowance was written/);
-  assert.match(r.stderr, /the declared-marker pass/);
-  assert.match(r.stderr, /a disguised "remove the marker" directive/);
-  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
-});
-
-test('a CRLF checkout hashes the same as an LF one', () => {
-  // A Windows checkout and the CI runner must agree, or every Windows run fails.
-  const dir = tree();
-  const p = join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs');
-  writeFileSync(p, readFileSync(p, 'utf8').replace(/\r?\n/g, '\r\n'));
-  assertPasses(dir);
-});
-
-test('a lone CR hashes the same as an LF too, and nothing else is folded', () => {
-  // Through the module, so the case needs no tree to carry the lone CR.
-  const lf = contentHash(Buffer.from('one\ntwo\n'));
-  assert.equal(contentHash(Buffer.from('one\rtwo\r')), lf);
-  assert.equal(contentHash(Buffer.from('one\r\ntwo\r\n')), lf);
-  assert.notEqual(contentHash(Buffer.from('one\n\ntwo\n')), lf);
-  assert.notEqual(contentHash(Buffer.from('one\u{85}two\n')), lf);
+  edit(dir, a => {
+    a.exceptions[0].sha256 = 'a'.repeat(64);
+  });
+  assertFails(dir, /exceptions\[0\] must have exactly the keys skill, path, reason_code, analyzers, reason/);
 });
 
 test('the check and the gate refuse the same malformed file', () => {
@@ -303,20 +220,18 @@ test('the check and the gate refuse the same malformed file', () => {
   assert.match(gate.stderr, /the allowance file cannot be used[\s\S]*is not one of/);
 });
 
-test('every entry added, removed, re-hashed or re-checked against the base is listed by name', () => {
+test('every entry added, removed or re-checked against the base is listed by name', () => {
   const dir = tree();
   const git = repo(dir);
   const before = readAllowance(dir);
   const [first, second] = before.exceptions;
   const [, droppedRef] = before.references;
   edit(dir, a => {
-    // Removed: the first entry. Re-hashed and re-checked at once: the second,
-    // so neither line can hide the other. Added: a new one, in another skill
+    // Removed: the first entry. Re-checked: the second. Added: a new one, in another skill
     // on the second entry's own path and code, so a notice that keyed entries
     // without their skill would read it as the second one and never list it.
     a.exceptions = a.exceptions.slice(1);
-    // The reason changes with the hash, as the check now requires.
-    a.exceptions[0] = { ...second, sha256: 'b'.repeat(64), reason: 'Re-read on 2026-10-17: a neutral reason for the test.', analyzers: [...second.analyzers, 'static_patterns_ssrf'].sort() };
+    a.exceptions[0] = { ...second, analyzers: [...second.analyzers, 'static_patterns_ssrf'].sort() };
     a.exceptions.push({ ...second, skill: 'groundtrack', reason: 'A neutral reason for the test.' });
     // Recounted: the first reference. Removed: the second. Added: a new one.
     a.references[0].count += 1;
@@ -333,7 +248,6 @@ test('every entry added, removed, re-hashed or re-checked against the base is li
   // escaping it into a regular expression is one more thing to get wrong.
   const expected = [
     `removed exception ${first.skill}/${first.path} (${first.reason_code})`,
-    `re-hashed exception ${second.skill}/${second.path} (${second.reason_code})`,
     `changed the checks on exception ${second.skill}/${second.path} (${second.reason_code})`,
     `added exception groundtrack/${second.path} (${second.reason_code})`,
     `removed reference ${droppedRef.skill}: ${droppedRef.from} -> ${droppedRef.target}`,
@@ -346,7 +260,6 @@ test('every entry added, removed, re-hashed or re-checked against the base is li
     assert.ok(page.includes(`- ${line}`), `summary lacks "${line}":\n${page}`);
   }
   assert.match(r.stdout, /recounted reference/);
-  assert.doesNotMatch(`${r.stdout}${page}`, /[0-9a-f]{64}/);
 });
 
 test('an unchanged allowance prints no change notice', () => {
@@ -359,12 +272,6 @@ test('an unchanged allowance prints no change notice', () => {
 // An entry names one directory under skills/, and is held to that skill's files.
 const incantation = 'incantation';
 const lastOf = (a, skill) => a.exceptions.findLast(e => e.skill === skill);
-
-test('an entry for the incantation skill is held to its files: a script edited without its sha256 updated fails', () => {
-  const dir = tree();
-  appendFileSync(join(dir, 'skills/incantation/scripts/observe.mjs'), '\n// a change nobody re-hashed\n');
-  assertFails(dir, /skills\/incantation\/scripts\/observe\.mjs changed since its allowance was written/);
-});
 
 test('an entry names one directory under skills/, so <plugin>/<name> and anything deeper fail', () => {
   for (const name of ['incantation/incantation', 'incantation/scripts']) {

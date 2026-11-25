@@ -71,8 +71,7 @@ export function tree() {
   }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   cpSync(join(root, baselineName), join(dir, baselineName));
-  // The SkillSpector allowance, whose entries name files under skills/ and
-  // pin their content, so the copy above keeps every hash true.
+  // The SkillSpector allowance, whose entries name files under skills/.
   cpSync(join(root, allowancesName), join(dir, allowancesName));
   // A test that edits a skill and expects a pass edits this fixture, so it
   // never touches a skill that ships. It carries a

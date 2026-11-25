@@ -390,7 +390,7 @@ const TM = 'static_patterns_tool_misuse';
 const allowance = () => ({
   version: 1,
   exceptions: [
-    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], sha256: 'a'.repeat(64), reason: 'A neutral reason for the test.' },
+    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], reason: 'A neutral reason for the test.' },
   ],
   references: [{ skill: 'demo', from: 'SKILL.md', target: 'lib/long.mjs', count: 2 }],
 });
