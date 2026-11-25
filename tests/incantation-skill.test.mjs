@@ -116,7 +116,7 @@ test('setup.mjs is run in the Install section and nowhere else', () => {
   assert.ok(install.indexOf('runtime plan') < install.indexOf('setup.mjs devices'), 'the runtime step comes before the microphone');
   assert.match(install, /On a first install no mic is open, so the number is\s+typed/);
   assert.match(install, /typed on a first install/);
-  assert.doesNotMatch(install, /Who asked/, '0001 S4.8: the Stops already hold that only a typed slash command installs');
+  assert.doesNotMatch(install, /Who asked/, '0001 S4.8: the Install section holds no who-asked step');
 });
 
 test('every script and reference the skill names exists', () => {
@@ -307,9 +307,8 @@ test('the skill is under 500 lines and its frontmatter holds only the keys the c
   const front = /^---\n([\s\S]*?)\n---\n/.exec(text)[1];
   const keys = [...front.matchAll(/^([A-Za-z-]+):/gm)].map(m => m[1]);
   assert.deepEqual(keys, ['name', 'description', 'disable-model-invocation']);
-  // The frontmatter sets the flag, and the start stop names it as its gate.
+  // The frontmatter keeps the model from starting the skill on its own.
   assert.match(front, /^disable-model-invocation: true$/m);
-  assert.match(text, /Gated by: `disable-model-invocation: true`\.$/m);
   assert.ok(/description: (.+)/.exec(front)[1].length <= 1024);
 });
 

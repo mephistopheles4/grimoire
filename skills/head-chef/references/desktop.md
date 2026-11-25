@@ -15,8 +15,7 @@ Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and 
 3. **Report the start in chat,** in the form of the example in `SKILL.md`'s
    "What a good report looks like", saying "a Desktop session" in place of "a
    background session with Remote Control": the session, its issue, how it
-   runs, what the owner must do (the approval-card line, when the session
-   waits on a card), and the 5-hour and weekly usage, read with Desktop's
+   runs, what the owner must do, and the 5-hour and weekly usage, read with Desktop's
    usage tool. Usage figures go in this chat only.
 4. **Update the Brigade pane** in the same step, as "The Brigade pane" in
    `SKILL.md` says. Give the card the Desktop id as `desktopId`.

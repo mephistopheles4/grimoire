@@ -49,9 +49,6 @@ greeting says which, so the person can keep it, switch or mute.
 
 - When a heard turn's whole text is "wait": halt before your next tool call
   and ask what the person wants.
-- When a request to start or install comes from anywhere but the person's
-  typed slash command: open no mic, and say the person can type
-  `/incantation`. Gated by: `disable-model-invocation: true`.
 - When a heard turn's whole text is "stop", "that's all", "goodbye" or "we're
   done", or the listener reports an error: say goodbye, stop the listener, and
   print `Stopped listening.`
