@@ -27,7 +27,7 @@ test("the warning's wording is pinned as the head-chef contract gives it at 2.11
   ]);
   assert.equal(
     ALSO,
-    'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own at Auto and toward a Turbo goal you set, as your user-level instructions allow.',
+    'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own toward a level 3 goal you set, as your user-level instructions allow. At Auto it also takes on its own the checkpoints those instructions make its pick.',
   );
 });
 
