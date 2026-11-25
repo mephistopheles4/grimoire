@@ -624,10 +624,11 @@ export async function startListener(options = {}) {
     // person hears it at once and not seconds later where it would sound like a reply (S5.2).
     // That is before the text says whether the turn counts, so a stray cue is possible:
     // `settle` stops it where it stands for a mute word, a stop word, a fragment, a
-    // failed transcript, or our own sound heard back. It always plays when a turn ends,
-    // whatever began the turn (a quick answer inside the echo window, talk over a line,
-    // a turn the gate cut), by the owner's word; only a muted mic skips it (and a muted
-    // voice, which plays nothing).
+    // failed transcript, or our own sound heard back. It plays whenever the person stops,
+    // whatever began the turn (a quick answer inside the echo window, talk over a line),
+    // by the owner's word. A turn the gate cut for length is no stop (GRIM-51): its cue
+    // comes with the end of the rest, or when the gate says no rest came. A muted mic
+    // skips it (and a muted voice plays nothing).
     const earlyCue = () => {
       if (userMuted) return;
       playSpinner(true);
@@ -977,11 +978,14 @@ export async function startListener(options = {}) {
       if (finished) return;
       for (const e of gate.frame(clean, clock(), aec.active ? raw : null, speech ? speech(clean) : true)) {
         if (e.type === 'turn') {
-          earlyCue();
+          if (!e.cut) earlyCue();
           turnHold.offer(e, clock());
         }
         else if (e.type === 'barge') bargeIn();
-        else if (e.type === 'cut-over') endChain(e.chain);
+        else if (e.type === 'cut-over') {
+          earlyCue();
+          endChain(e.chain);
+        }
       }
       turnHold.tick(clock(), gate.hearing);
       checkProgress();

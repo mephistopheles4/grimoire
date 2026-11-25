@@ -346,9 +346,11 @@ A listener older than a command closes the connection; the client then prints
   it is not heard seconds late where it would sound like a reply; chosen by
   `pickSpinner`, never the one before while there is another. It always plays
   when a turn ends: for a quick answer inside the echo window, for talk over a
-  line playing or waiting, and for a turn the gate cut (the owner never asked
-  for a rule that skips it: "I never asked for that"). It is skipped only while
-  the mic is muted (and the voice, which plays nothing). When the text says the
+  line playing or waiting. A turn the gate cut for length plays none
+  (amended 2026-11-24, GRIM-51: the owner heard it while still talking, and
+  asked for the fix); the cue comes at the end of the rest, or when the gate
+  says no rest came. It is otherwise skipped only while the mic is muted (and
+  the voice, which plays nothing). When the text says the
   turn was a stop word, a mute word, a fragment, or our own sound heard back, or
   the transcript failed, the cue is stopped where it stands.
 - Not counted in `plays`, so a say-back alone is `plays 1`.

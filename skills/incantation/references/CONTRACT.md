@@ -1,6 +1,6 @@
 # Contract: incantation
 
-Version: 0.2.5
+Version: 0.2.6
 Kind: skill
 Level: Thorough
 
@@ -82,6 +82,7 @@ something for you, then why am I using voice in the first place?"
 
 - speaking one fact a turn through its own listener, in plain words, then
   offering the next;
+- writing every line it speaks in chat, word for word, as it is said;
 - saying each request that changes anything back in one sentence, asking for
   a yes or a no, and acting on a clear yes;
 - hearing every turn as the listener delivers it, and checking first whether
@@ -161,6 +162,8 @@ or Voicebox running (**Decided**: the owner, 646 trial, and by voice, 2026-11-22
 | Each heard delivery reaches the session as a chat message the mod sends for the person, labeled as heard by the mic and relayed by incantation; that message, sent by this plugin, counts as a delivery from the listener's own wait; the relay is the only route, so the session never runs a wait of its own; a turn heard while the session works rides on the next tool result | a spoken ask the session's prompt hooks (a judge, a recorder) never see, because it came as a tool's output | prototype, observed: a judge missed spoken asks | **Decided**: "I want incantation to be the one sending a little message in the chat on my behalf… clearly labeled" |
 | A line the listener answers `say-held` was written before the session read a turn the person has since spoken, and nothing was played: read the turn, then say a new line, the old one if it still fits, or nothing; a held line is not a play | speaking a line that the person's latest words have overtaken, or answering a question that has moved on | observed: lines written before a heard turn played after it, unchanged, 2026-11-23 | **Decided**: the owner's issue, "a line that is waiting when a heard turn arrives doesn't play blindly" |
 | Never ask for a spoken yes and then say the yes does not count | asking for a yes, hearing it, then asking the person to come and type | observed: the grimoire update in the first contract session | **Decided** |
+| Every line it speaks is also in chat, word for word, written as it is said | words the person heard, or missed, with nothing on screen to read | observed: a line spoken from its file with no words in chat, 2026-11-24 | **Decided**: "when you say something, it needs to be visible to the user" |
+| A turn that talks over a say-back and answers it is its answer: on a clear yes, act, and never say the act back a second time because it was interrupted | making the person confirm twice when they were sure enough to interrupt | observed: the owner, 2026-11-24 | **Decided**: "if I interrupted you with a confirmation, just take it" |
 | A clear yes covers the say-back's act and nothing more; anything else the turn asks is a new request | a yes stretched to an act it was not given for | observed: a paid run started on a turn that was not a yes | **Decided** |
 | A turn about a yes ("did you get my yes?") is not the answer: say the act back again, with its cost when it has one, and wait | a paid run started on a turn that was not a yes | observed: a paid run started on one, 2026-11-22 | **Decided** |
 | A say-back names the act's cost when it has one: money, a paid run, usage | a yes given without the cost in view | observed: the same run, with a budget in the person's mind | **Decided** |
@@ -187,7 +190,7 @@ or Voicebox running (**Decided**: the owner, 646 trial, and by voice, 2026-11-22
 |---|---|---|---|
 | say-back | the request repeated in one sentence, asking for a yes or a no | none | **Confirmed** |
 | heard turn | one thing the person says, from when they start talking until they pause, delivered as one message by the listener | none | **Decided** |
-| clear yes | the person's confirmation of the say-back you just gave. Typed, it is their answer in chat. Spoken, it is a heard turn that answers the say-back itself: it arrives as a relayed message between your turns, or after the say-back, marked `(after reply)`, with no `interrupted`, and with `plays` equal to the lines you had the listener say since the last delivery; it opens with "yes" or its like ("go ahead", "do it", "sounds good", "yeah, go for it"); and it agrees outright, holding none of the pull-back words: no, not, don't, wait, stop, instead, actually | none | **Confirmed**: the lead's proposed term, approved with the spec |
+| clear yes | the person's confirmation of the say-back you just gave. Typed, it is their answer in chat. Spoken, it is a heard turn that answers the say-back itself: it arrives as a relayed message between your turns, or after the say-back, marked `(after reply)`, with `plays` equal to the lines you had the listener say since the last delivery; a turn that talked over the say-back and cut it off (`interrupted`) answers it like any other; it opens with "yes" or its like ("go ahead", "do it", "sounds good", "yeah, go for it"); and it agrees outright, holding none of the pull-back words: no, not, don't, wait, stop, instead, actually | none | **Confirmed**: the lead's proposed term, approved with the spec |
 
 **Style** (**Confirmed**): spoken turns in plain words, one fact, with no
 markdown and no code or path read aloud, then an offer of the next; the same

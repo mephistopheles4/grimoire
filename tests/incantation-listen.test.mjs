@@ -1347,6 +1347,36 @@ test('bug a: a turn cut at 30 s and its rest reach the session as one turn, in o
   assert.doesNotMatch(out, /stt-dropped/);
 });
 
+// GRIM-51: the cue means "you stopped". A cut for length is not a stop. The waits
+// let a spinner word that did play end, so a second one could not hide behind it.
+test('GRIM-51: no spinner word plays at a cut for length; one plays when the person stops', async t => {
+  const r = await live(t, { engineOptions: { text: texts('This is the first part.', 'And the rest.') } });
+  await tick(120);
+  r.push(1000, 34);
+  r.push(3163, 1010); // past the limit, and still talking
+  await tick(100);
+  assert.equal(r.player.spinners.length, 0, 'nothing while they talk');
+  r.push(1000, 15);
+  await tick(100);
+  assert.equal(r.player.spinners.length, 1, 'one at the end');
+});
+
+test('GRIM-51: a person who stops right at the cut still gets one spinner word, whether silence follows or only a click', async t => {
+  for (const click of [false, true]) {
+    const r = await live(t, { engineOptions: { text: 'a lone part with no rest' } });
+    await tick(120);
+    r.push(1000, 34);
+    r.push(3163, 1000); // exactly the limit
+    await tick(100);
+    assert.equal(r.player.spinners.length, 0, 'none at the cut itself');
+    if (click) r.push(3163, 2); // too short to be a turn
+    r.push(1000, 60);
+    await tick(100);
+    assert.equal(r.player.spinners.length, 1, click ? 'after a click' : 'after silence');
+    assert.match(await Promise.race([wait(r.home), tick(2000).then(() => 'never')]), /^Heard: "a lone part with no rest"$/m);
+  }
+});
+
 test('bug a: a cut turn that ends on no sentence mark still waits for its rest, and its rest that is lost is said at once', async t => {
   let calls = 0;
   const r = await live(t, { engineOptions: { text: () => (calls++ === 0 ? 'first part with no end' : null) } });

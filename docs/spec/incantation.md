@@ -964,7 +964,8 @@ listener now holds a line that a kept turn overtook (S5.4 of 0001).
   over a playing reply cancels the generation Voicebox reports (`POST
   /generate/<id>/cancel`, the id from the speak-start event, kept in memory
   only) and the next delivery carries `interrupted`, which voids a pending
-  say-back. Voicebox 0.5.0 has no stop-playback call, so whether audio already
+  say-back. (Superseded 2026-11-24, GRIM-65: a turn that cuts a say-back off
+  answers it.) Voicebox 0.5.0 has no stop-playback call, so whether audio already
   generated stops is unverified.
 - **T9. Listening indicator.** The listener writes one word (`listening`,
   `hearing`, `thinking`, `speaking`, `muted`) to `run/status`, touched every
