@@ -1,6 +1,6 @@
 # Contract: incantation
 
-Version: 0.2.6
+Version: 0.2.7
 Kind: skill
 Level: Thorough
 
@@ -105,13 +105,11 @@ the greeting says which, so the person can keep it, switch or mute
 | When | Then | Mark | Gated by |
 |---|---|---|---|
 | a heard turn's whole text is "wait" | halts before its next tool call and asks what the person wants | **Confirmed** | |
-| a request to start or install comes from anywhere but the person's typed slash command | opens no mic, and says the person can type `/incantation` | **Decided** | `disable-model-invocation: true` in the frontmatter. A slash command the person pastes into their own message passes this gate; the stop's own words cover that case |
 | a heard turn's whole text is "stop", "that's all", "goodbye" or "we're done", or the listener reports an error | says goodbye, stops the listener, and prints `Stopped listening.` | **Decided** | |
 
 **Trigger** (**Decided**): the person's typed slash command. It is kept in
 the frontmatter, `disable-model-invocation: true`, so the model never invokes it on its own;
-a slash command the person pastes passes that flag, and the start stop
-covers it. When it
+a slash command the person pastes passes that flag. When it
 fails, no mic opens, and nothing is heard or spoken.
 
 **When it is unsure** (**Decided**): it asks you at once, because hearing it

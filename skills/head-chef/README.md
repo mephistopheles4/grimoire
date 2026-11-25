@@ -44,10 +44,6 @@ tool is part of the plugin. It offers the Desktop start then.
 It needs Claude Code, Claude Desktop, git, and the GitHub command line (`gh`)
 installed and signed in. The background start needs Claude Code 2.1.319.
 
-Before the first background start, open `claude` once in each main checkout you
-want sessions started in and accept the trust prompt. The harness refuses a
-background start in a folder you have not trusted (see `SECURITY.md`).
-
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
 `/head-chef`. With the plugin installed, the pane opens when the skill loads,
