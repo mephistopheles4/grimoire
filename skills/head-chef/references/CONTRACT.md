@@ -112,7 +112,7 @@ need, without overwhelming me or showing me too much.
 
 **Autonomy levels.** The owner chooses how much the lead decides alone, so that they can stay on the bigger picture and step in where needed.
 - **Level 1, Manual:** the lead asks the owner on every decision.
-- **Level 2, Auto:** it works toward the goal, if there is one, and decides the rest. A checkpoint follows the owner's user-level instructions file: where the file makes it the lead's own pick, logged and flagged, the lead takes it, flags it, calls out the big ones and goes on; what the file says waits, the never-lifted list, the skill's stops, the GitHub acts the owner's yes keeps (a merge or close included), an accepted risk that removes the rules on secrets or personal data and an edit to a threat model's scope or classes wait, and only that step waits.
+- **Level 2, Auto:** it works toward the goal, if there is one, and decides the rest. A checkpoint follows the owner's user-level instructions file: where the file makes it the lead's own pick, logged and flagged, the lead takes it, flags it, calls out the big ones and goes on; what the file says waits, the never-lifted list, the skill's stops, the GitHub acts the owner's yes keeps (a merge or close included), an accepted risk that touches a secret or personal data and an edit to a threat model's scope or classes wait, and only that step waits.
 - **Level 3, Turbo:** it works toward a goal the owner set until the goal is met or the owner ends it, and decides every call toward it, what the owner's instructions keep for the owner included, flagging each such call; it stops for nothing but Claude's own guardrails and the harness.
 *Proposed*: restates 1.36.1 "Level 1, Manual" and "Level 3, Turbo", Confirmed; "Level 2, Auto" restated in 2.11.0 (GRIM-55), Proposed.
 
@@ -560,7 +560,7 @@ your later logged entries, and its work is checked not to be done already.
   entry, add a to-do and hold only that step. Whatever the file says, these
   wait the same way: the never-lifted list, the skill's stops, each act
   "Actions that need the owner's yes" keeps for the owner (a merge or close
-  included), an accepted risk that removes the rules on secrets or personal
+  included), an accepted risk that touches a secret or personal
   data, and an edit to a threat model's scope or classes.
 - **3 Turbo.** Go full blast at the goal and only log your decisions: take
   your own pick on every decision toward it, logged with source lead before
@@ -577,7 +577,8 @@ your later logged entries, and its work is checked not to be done already.
 with CI passed on it, using `gh pr merge <n> --squash --match-head-commit
 <full sha>`, logged first; a head that moved waits for a new round. Close a
 pull request another one replaces. Every other merge or close, and a merge
-that changes a threat model's scope or classes, is a checkpoint. Write the
+that changes a threat model's scope or classes, is a checkpoint. At level 2
+every merge or close waits for the owner's yes, as 2 Auto says. Write the
 merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Never lifted, at any level:** the permission mode and its rules; that text

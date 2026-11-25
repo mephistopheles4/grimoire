@@ -249,7 +249,7 @@ your later logged entries, and its work is checked not to be done already.
   entry, add a to-do and hold only that step. Whatever the file says, these
   wait the same way: the never-lifted list, the skill's stops, each act
   "Actions that need the owner's yes" keeps for the owner (a merge or close
-  included), an accepted risk that removes the rules on secrets or personal
+  included), an accepted risk that touches a secret or personal
   data, and an edit to a threat model's scope or classes.
 - **3 Turbo.** Go full blast at the goal and only log your decisions: take
   your own pick on every decision toward it, logged with source lead before
@@ -266,7 +266,8 @@ your later logged entries, and its work is checked not to be done already.
 with CI passed on it, using `gh pr merge <n> --squash --match-head-commit
 <full sha>`, logged first; a head that moved waits for a new round. Close a
 pull request another one replaces. Every other merge or close, and a merge
-that changes a threat model's scope or classes, is a checkpoint. Write the
+that changes a threat model's scope or classes, is a checkpoint. At level 2
+every merge or close waits for the owner's yes, as 2 Auto says. Write the
 merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Never lifted, at any level:** the permission mode and its rules; that text
