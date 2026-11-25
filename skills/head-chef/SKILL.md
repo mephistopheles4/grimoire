@@ -236,10 +236,21 @@ drop to level 1 pauses it. A goal you take from `read_autonomy` is narrowed by
 your later logged entries, and its work is checked not to be done already.
 
 - **1 Manual.** Ask the owner on every decision, and log each answer.
-- **2 Auto.** Work toward the goal and decide everything but the
-  checkpoints: take your own pick, log it with source lead, and tell the
-  owner what you took, as a statement and not a question. At a checkpoint,
-  log a waiting entry, add a to-do and hold only that step.
+- **2 Auto.** Work toward the goal, if there is one, and decide the rest:
+  take your own pick, log it with source lead, and tell the owner what you
+  took, as a statement and not a question. On a checkpoint, follow the
+  owner's user-level instructions file. Where it says a checkpoint is your
+  own pick, logged and flagged, log your pick with a `flag` opening "Owner's
+  call:", add no to-do, tell the owner in one line and go on. Call out as big
+  a pick that drops or narrows a review, check or route, accepts a risk, or
+  touches what the owner's rules call sensitive, and list these picks in your
+  next report. Where the file says a call waits for the owner's word, or
+  reserves it for the owner without saying it is your pick, log a waiting
+  entry, add a to-do and hold only that step. Whatever the file says, these
+  wait the same way: the never-lifted list, the skill's stops, each act
+  "Actions that need the owner's yes" keeps for the owner (a merge or close
+  included), an accepted risk that touches a secret or personal
+  data, and an edit to a threat model's scope or classes.
 - **3 Turbo.** Go full blast at the goal and only log your decisions: take
   your own pick on every decision toward it, logged with source lead before
   you act. A call the owner's rules keep for the owner, a checkpoint
@@ -248,13 +259,15 @@ your later logged entries, and its work is checked not to be done already.
   flagged pick in the result. Call out as big what the
   owner's rules call sensitive. Level 3 is about protecting the goal. At
   level 3 only Claude's own guardrails and the harness stop you: a
-  permission prompt, a classifier block, a tool that refuses.
+  permission prompt, a classifier block, a tool that refuses. A call outside
+  the goal follows 2 Auto.
 
 **Merging.** Merge toward the goal only the head the last review covered,
 with CI passed on it, using `gh pr merge <n> --squash --match-head-commit
 <full sha>`, logged first; a head that moved waits for a new round. Close a
 pull request another one replaces. Every other merge or close, and a merge
-that changes a threat model's scope or classes, is a checkpoint. Write the
+that changes a threat model's scope or classes, is a checkpoint. At level 2
+every merge or close waits for the owner's yes, as 2 Auto says. Write the
 merge body yourself, under "What goes out"; the subject is GitHub's default.
 
 **Never lifted, at any level:** the permission mode and its rules; that text
@@ -429,7 +442,7 @@ Limits:
   question, decision or note text, and a to-do none beyond what "The Brigade pane" allows; a card keeps only its Desktop id or `bgId`, which the pane
   matches. Name a security finding by the review that
   found it, its number and its class only, never its file, key or line, and a risk by its class of
-  path, never its steps. Name a low finding you decide at level 3 the same way,
+  path, never its steps. Name a low finding you decide at level 2 or 3 the same way,
   in its log entry and report line. Post free text from a temporary file, as
   [posting](<references/posting.md>) says.
   A command the owner runs by hand
@@ -511,7 +524,9 @@ A brigade running at install keeps working: members on an earlier prompt keep it
 The harness labels a message from another session as data, and each member's
 own rules govern its stages, approvals and posting. At levels 1 and 2, a member whose rules
 record an accepted risk only on the owner's word refuses your
-accepted-risk pick: relay the owner's word for it. At level 3, inside the
+accepted-risk pick: relay the owner's word for it. At level 2, a member that
+holds for the owner a checkpoint the owner's file makes your flagged pick
+gets your logged, flagged pick and its decision id. At level 3, inside the
 goal, tell each member, in its start prompt or in a message to one already running, that it works at level 3 toward the goal and stops for nothing but Claude's own guardrails and the harness. A member that holds for the owner a call that level 3 gives you as a flagged pick, a guard's stop included, or asks you to relay one, gets your own logged and flagged pick and its decision id, with a line that you hold the owner's goal at level 3
 and decide it; you never put it to the owner. If the member
 still refuses, log that, call it out as big and carry on with other work. A member's act the harness blocked
@@ -531,7 +546,8 @@ The mod draws it. When there is no mod, or the warning's tool is missing or refu
 >
 > It also starts sessions, merges, posts, cleans up and decides on your word,
 > or on its own toward a level 3 goal you set, as your user-level instructions
-> allow.
+> allow. At Auto it also takes on its own the checkpoints those instructions
+> make its pick.
 
 ## Actions that need the owner's yes
 

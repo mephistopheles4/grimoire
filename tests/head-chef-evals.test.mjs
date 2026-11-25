@@ -275,7 +275,7 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   // A7 and A13 SKILL.md "Tools"
   const tools = section(skill, '## Tools', '## The start prompt');
   assert.ok(tools.includes("Run the checks and the removals as separate calls. When a folder will not go, tell the owner, and never delete it another way."), 'A7');
-  assert.ok(tools.includes("Name a low finding you decide at level 3 the same way, in its log entry and report line."), 'A13');
+  assert.ok(tools.includes("Name a low finding you decide at level 2 or 3 the same way, in its log entry and report line."), 'A13');
   // A9 SKILL.md "The Brigade pane"
   assert.ok(section(skill, '## The Brigade pane', '## Rules').includes("Record nothing beyond the roster and your decision log."), 'A9');
   // A10, A12, A14 SKILL.md "Autonomy levels"
