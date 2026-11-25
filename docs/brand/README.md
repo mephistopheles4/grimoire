@@ -154,6 +154,17 @@ script or the box:
 node scripts/eagle-eye-sheets.mjs skills/eagle-eye/examples/eagle-eye-skill.box.json docs/brand
 ```
 
+## The incantation timeline
+
+`incantation-timeline.svg` is the drawing the incantation README shows.
+`scripts/incantation-sheets.mjs` draws it from the skill's own timing constants
+in `gate.mjs`, `turn.mjs` and `nudge.mjs`, so its numbers match the code.
+Redraw it after a change to the script or those timings:
+
+```bash
+node scripts/incantation-sheets.mjs docs/brand
+```
+
 ## Tokens
 
 | Token | Value | Rule |

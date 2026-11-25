@@ -377,13 +377,14 @@ test('a skill entry may pin an exact message where the root has none, never a wi
 
 // The skill's RA2 entry names its file, and dropping it, or widening it, would
 // pass every other check: pin the entries here.
-test('the incantation skill ships exactly its two entries, LP3 and RA2 with its file', () => {
+test('the incantation skill ships exactly its three entries, LP3 and RA2 with its two files', () => {
   const got = entriesOf(join(root, 'skills', 'incantation', '.skillspector-baseline.yaml'));
   assert.deepEqual(
     got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
     [
       ['LP3'],
       ['RA2', 'SKILL.md'],
+      ['RA2', 'README.md'],
     ],
   );
 });
