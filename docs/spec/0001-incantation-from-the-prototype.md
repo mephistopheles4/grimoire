@@ -360,6 +360,8 @@ A listener older than a command closes the connection; the client then prints
 - New: `progressMs` in `KNOBS`, 90 000. While the status word is `working`
   and no line has been spoken and no turn heard for `progressMs`, the listener
   raises `progress-due` once, then again every `progressMs` while that holds.
+- The mic mute is not the voice mute: with the mic muted the beat still runs,
+  and what the mic picks up then holds no beat, no line and no `idle` wait.
 - `progress-due` ends a `wait` (a notice the session acts on, like `ready`);
   #208's rule T14, that a wait ends only on a real turn, gains this one
   exception.

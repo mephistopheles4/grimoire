@@ -1330,6 +1330,26 @@ test('bug b: a line waits at most holdSayMs for the person to finish, then fails
   assert.equal(r.player.plays.length, 0);
 });
 
+test('GRIM-67: with the mic muted the session still speaks: talk at the muted mic holds no line and no idle wait', async t => {
+  const r = await live(t, { knobs: { holdSayMs: 200 } });
+  r.push(1000, 34);
+  assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
+  r.push(3163, 5); // a turn is open: the person is talking to someone else
+  assert.equal(await cli(r.home, 'idle'), 'idle\n');
+  assert.equal(await say(readChannel(r.home), 'Still here.', 3000), 'speaking\n');
+  assert.equal(r.player.plays.length, 1);
+});
+
+test('GRIM-67: with the mic muted the progress beat still runs, through talk at the muted mic', async t => {
+  const r = await live(t, { knobs: { progressMs: 600 } });
+  r.push(1000, 34);
+  assert.equal(await cli(r.home, 'mute'), 'mic-muted\n');
+  assert.equal(await cli(r.home, 'working'), 'working\n');
+  const pending = wait(r.home);
+  r.push(3163, 21);
+  assert.match(await pending, /^progress-due$/m);
+});
+
 const longTurn = r => {
   r.push(1000, 34);
   r.push(3163, 1010); // more than 30 s: cut at the limit, the rest goes on as the next turn

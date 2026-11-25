@@ -583,7 +583,7 @@ export async function startListener(options = {}) {
     // heard ends the working state, so the beat ends with it. Called on every frame;
     // the fake clock of a test moves with its frames.
     const checkProgress = () => {
-      if (!isWorking() || userMuted || hearingTurn()) return;
+      if (!isWorking() || hearingTurn()) return;
       const now = clock();
       if (now - progressFrom < knobs.progressMs) return;
       progressFrom = now;
@@ -592,7 +592,9 @@ export async function startListener(options = {}) {
     };
 
     // Is a turn being heard now: one open in the gate, one waiting for its text, or a held part waiting for its rest?
-    const hearingTurn = () => gate.hearing || unheard > 0 || !!joiner.hold || turnHold.holding;
+    // Never with the mic muted: nothing said then reaches the session, so it holds no line,
+    // no idle wait and no progress beat. The mic mute is not the voice mute (S5.1).
+    const hearingTurn = () => !userMuted && (gate.hearing || unheard > 0 || !!joiner.hold || turnHold.holding);
 
     // The spinner word (S5.2): one of the ten, the moment a turn ends. None on
     // a muted voice, and it never counts in `plays`. `early` (the end of speech) plays it over a line.

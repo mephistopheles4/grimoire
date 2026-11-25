@@ -297,7 +297,7 @@ show the line, print `Stopped listening.` and print the README's line on the mod
     act, with no second say-back. Take their words as the next thing they said,
     and do not speak the cut reply again unless they ask.
   - `mic-muted` and `mic-unmuted`: the person muted or unmuted the mic. Say so in
-    chat only. While muted, nothing is heard.
+    chat only. While muted, nothing is heard; you still speak.
   - `quiet <n>`: `n` stretches of 10 minutes passed with nothing heard before this
     turn.
   - `stt-dropped`: a turn was not understood; say so in chat only.
