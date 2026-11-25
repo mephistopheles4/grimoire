@@ -34,8 +34,8 @@ runs it as a required check called `check`. `main` takes no direct pushes.
 Three more workflows check things the command above does not. One runs SkillSpector
 over the skill prose and fails on any finding the baselines do not cover, and on
 any file it reads only in part unless `.skillspector-allowances.json` accepts that
-partial read by name, or a finding that reports a reference to an accepted file. The command above holds each accepted file to its content
-hash, so an edit to one fails until its entry is updated in the same pull request, with a new dated "Re-read on" sentence in its reason. One
+partial read by name, or a finding that reports a reference to an accepted file. The command above checks that each entry names files that exist,
+and pins no content: an edit to an accepted file passes, and the review of the merge reads it. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned

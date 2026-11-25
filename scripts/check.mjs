@@ -38,8 +38,7 @@
 //    repository root is reasoned away the same way inside a skill: the same
 //    reason, and a skill entry no broader than the root's.
 //    7a. No two paths under skills/ differ only in case.
-//    7b. The SkillSpector allowance is well formed, names files that exist,
-//    and pins each one by its current content.
+//    7b. The SkillSpector allowance is well formed and names files that exist.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
@@ -50,7 +49,7 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
-import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances, unexplainedRehashes } from './lib/skillspector-allowances.mjs';
+import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances } from './lib/skillspector-allowances.mjs';
 import { caseTwin, caseTwinPaths } from './lib/case.mjs';
 import { masked, printable, shown } from './lib/printable.mjs';
 
@@ -1486,13 +1485,11 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(isSkillPath))) {
 //
 // .skillspector-allowances.json lists the partial reads this repository has
 // accepted, and the workflow's gate trusts it. The gate does not read the tree,
-// so this is where an entry is held to the files it names: the format, every
-// path, and the content hash. The hash is the point. The scanner records a
-// give-up once per file, reason and check, with no count and no place, so a
-// second give-up inside an accepted file is invisible to the gate. Pinning the
-// content makes every edit to an accepted file carry an allowance change in
-// the same diff, where review sees it. scripts/lib/skillspector-allowances.mjs
-// holds the reader; the gate and the strip step use the same one.
+// so this is where an entry is held to the files it names: the format and every
+// path. No content is pinned, so an edit to an accepted file passes here; the
+// review of the merge reads it (docs/security/scanners.md).
+// scripts/lib/skillspector-allowances.mjs holds the reader; the gate and the
+// strip step use the same one.
 //
 // A missing file fails rather than reading as empty. Empty lists are fine, so
 // the file can stay once every entry is gone.
@@ -1504,19 +1501,12 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(isSkillPath))) {
     const skillDir = s => join(root, 'skills', s);
     const problems = checkAgainstTree(read.value, {
       isSkill: s => existsSync(join(skillDir(s), 'SKILL.md')),
-      readFile: (s, p) => {
-        try {
-          return readFileSync(join(skillDir(s), ...p.split('/')));
-        } catch (e) {
-          if (e.code === 'ENOENT' || e.code === 'EISDIR' || e.code === 'ENOTDIR') return null;
-          throw e;
-        }
-      },
+      hasFile: (s, p) => statSync(join(skillDir(s), ...p.split('/')), { throwIfNoEntry: false })?.isFile() ?? false,
     });
     for (const p of problems) fail(p);
     // What changed against the base, by name. An allowance entry is the one
     // place a partial read becomes acceptable, so every added, removed or
-    // re-hashed entry is printed for the reviewer, not left to the diff.
+    // changed entry is printed for the reviewer, not left to the diff.
     if (!mergeBase) {
       console.log(`note: cannot resolve ${baseRef} — ${ALLOWANCES} change notice skipped`);
     } else {
@@ -1525,15 +1515,14 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(isSkillPath))) {
       if (before !== null && !parsedBefore) {
         console.log(`note: ${ALLOWANCES} on ${baseRef} cannot be read — every entry here is listed as added`);
       }
-      for (const p of unexplainedRehashes(parsedBefore, read.value)) fail(p);
       const changes = diffAllowances(parsedBefore, read.value);
       if (changes.length) {
         console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
         for (const c of changes) console.log(`note:   ${c}`);
-        // In CI, also where a reviewer already looks. A re-hash with a new
-        // dated reason passes this check by design, so a line in a green job's log is a line nobody
+        // In CI, also where a reviewer already looks. A change passes this
+        // check by design, and a line in a green job's log is a line nobody
         // reads: each change is a warning on the pull request too, and a list
-        // on the run's summary page. Names only, never a hash.
+        // on the run's summary page. Names only.
         if (process.env.GITHUB_ACTIONS === 'true') {
           for (const c of changes) console.log(`::warning title=SkillSpector allowance changed::${c} — review the file by hand`);
         }

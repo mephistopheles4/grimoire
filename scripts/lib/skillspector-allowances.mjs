@@ -16,13 +16,13 @@
 // file as partly read, and the gate fails on that, rightly: not-read is not
 // clean. .skillspector-allowances.json at the repository root lists the files
 // where a person has looked and accepted it, each keyed by skill, file, reason
-// code and the exact checks, and each pinned by the file's content. Any edit to
-// an accepted file therefore puts the allowance in the same diff, where review
-// sees it. docs/security/scanners.md has the argument; issue #178 has the
-// measurements.
+// code and the exact checks. No entry pins the file's content: an edit to an
+// accepted file leaves its entry standing, and the review of the merge is what
+// reads that edit. docs/security/scanners.md has the argument and what that
+// leaves open; issue #178 has the measurements.
 //
-// Three callers, one reader: scripts/check.mjs validates the file and its
-// hashes, scripts/skillspector-gate.mjs judges a JSON report against it, and
+// Three callers, one reader: scripts/check.mjs validates the file and the
+// files it names, scripts/skillspector-gate.mjs judges a JSON report against it, and
 // scripts/skillspector-strip-suppressed.mjs judges a SARIF report against it.
 // Separate readers would read one file two ways.
 //
@@ -30,7 +30,6 @@
 // from scanner output, and a plain object keyed by `constructor` or
 // `__proto__` answers a question nobody asked.
 
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 export const ALLOWANCES = '.skillspector-allowances.json';
@@ -39,21 +38,9 @@ export const ALLOWANCES = '.skillspector-allowances.json';
 // scan read everything. Every other code — a deadline overrun, a bytecode-walk
 // overrun, a missing reference, a file not read at all — stays red, so the
 // allowance cannot drift into "accept any partial read".
-export const REASON_CODES = new Map([
-  [
-    'static_parse_limit',
-    {
-      pass: 'the shell-aware destructive-command parser (static_patterns_tool_misuse)',
-      lookFor: 'a long command expression with a destructive command (rm, del, erase, a recursive delete) inside it',
-    },
-  ],
-  [
-    'obfuscated_instruction_text',
-    {
-      pass: 'the declared-marker pass, which undoes "remove the marker from this text" tricks',
-      lookFor: 'a disguised "remove the marker" directive: text that tells a reader to strip characters to reveal an instruction',
-    },
-  ],
+export const REASON_CODES = new Set([
+  'static_parse_limit',
+  'obfuscated_instruction_text',
 ]);
 
 // The AE1 finding text the scanner writes for a reference to a file it read in
@@ -63,7 +50,7 @@ export const AE1_TEXT = /^(.+) \(partial\)$/;
 export const AE1_TAG = 'target-disposition:partial';
 
 const TOP_KEYS = ['version', 'exceptions', 'references'];
-const EXCEPTION_KEYS = ['skill', 'path', 'reason_code', 'analyzers', 'sha256', 'reason'];
+const EXCEPTION_KEYS = ['skill', 'path', 'reason_code', 'analyzers', 'reason'];
 const REFERENCE_KEYS = ['skill', 'from', 'target', 'count'];
 
 // A reason a stranger cannot read is no reason. These are the shapes a
@@ -94,14 +81,6 @@ export const skillHome = s => `skills/${s}`;
 
 export const exceptionKey = e => JSON.stringify([e.skill, e.path, e.reason_code]);
 export const referenceKey = r => JSON.stringify([r.skill, r.from, r.target]);
-
-// The content pin. SHA-256 of the file's bytes with CRLF and CR turned into LF,
-// so a Windows checkout and the CI runner agree. Latin-1 maps each byte to one
-// code unit and back, so nothing but the line endings changes.
-export function contentHash(bytes) {
-  const lf = Buffer.from(Buffer.from(bytes).toString('latin1').replace(/\r\n?/g, '\n'), 'latin1');
-  return createHash('sha256').update(lf).digest('hex');
-}
 
 // Parse and validate the file's text. Never throws. A file with any problem is
 // refused whole: `value` is null whenever `problems` is non-empty, so no caller
@@ -142,7 +121,7 @@ export function parseAllowances(text, where = ALLOWANCES) {
     if (!isEntrySkill(e.skill)) problems.push(`${at}: "skill" must be one directory name under skills/`);
     if (!isSkillPath(e.path)) problems.push(`${at}: "path" must be relative to the skill, with forward slashes and no . or .. segment`);
     if (!REASON_CODES.has(e.reason_code)) {
-      problems.push(`${at}: "reason_code" ${JSON.stringify(e.reason_code)} is not one of ${[...REASON_CODES.keys()].join(', ')}`);
+      problems.push(`${at}: "reason_code" ${JSON.stringify(e.reason_code)} is not one of ${[...REASON_CODES].join(', ')}`);
     }
     if (!Array.isArray(e.analyzers) || !e.analyzers.length || !e.analyzers.every(a => typeof a === 'string' && a)) {
       problems.push(`${at}: "analyzers" must be a non-empty list of check names`);
@@ -151,7 +130,6 @@ export function parseAllowances(text, where = ALLOWANCES) {
       if (sorted.some((a, j) => a !== e.analyzers[j])) problems.push(`${at}: "analyzers" must be sorted`);
       if (new Set(e.analyzers).size !== e.analyzers.length) problems.push(`${at}: "analyzers" must not repeat a check`);
     }
-    if (typeof e.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(e.sha256)) problems.push(`${at}: "sha256" must be 64 lowercase hex digits`);
     if (typeof e.reason !== 'string' || !e.reason.trim() || PLACEHOLDER.test(e.reason.trim())) {
       problems.push(`${at}: "reason" must be a sentence a stranger can read, not empty and not a placeholder`);
     }
@@ -296,85 +274,28 @@ export function readJsonAe1(issue) {
 
 export const isAe1 = issue => isObject(issue) && (issue.id ?? issue.rule_id) === 'AE1';
 
-// The hash and existence checks, for scripts/check.mjs. `readFile(skill, path)`
-// returns the file's bytes or null when it is not there; `isSkill(skill)` says
-// whether skills/<skill>/SKILL.md exists. Injected, so this module reads no
-// tree of its own.
-export function checkAgainstTree(allowances, { isSkill, readFile }) {
+// The existence checks, for scripts/check.mjs. `hasFile(skill, path)` says
+// whether the skill holds that file; `isSkill(skill)` says whether
+// skills/<skill>/SKILL.md exists. Injected, so this module reads no tree of its
+// own.
+export function checkAgainstTree(allowances, { isSkill, hasFile }) {
   const problems = [];
   allowances.exceptions.forEach((e, i) => {
     const at = `${ALLOWANCES}: exceptions[${i}] (${e.skill}/${e.path}, ${e.reason_code})`;
     if (!isSkill(e.skill)) return problems.push(`${at}: ${skillHome(e.skill)}/ has no SKILL.md`);
-    const bytes = readFile(e.skill, e.path);
-    if (bytes === null) return problems.push(`${at}: ${skillHome(e.skill)}/${e.path} does not exist`);
-    if (contentHash(bytes) !== e.sha256) {
-      const code = REASON_CODES.get(e.reason_code);
-      // No new hash, ever. A message that prints the value to paste turns a
-      // review into a copy, and the pin exists to make someone look.
-      problems.push(
-        `${at}: ${skillHome(e.skill)}/${e.path} changed since its allowance was written. ` +
-          `SkillSpector does not read this file in full under ${code.pass}, so the change has had no scan there. ` +
-          `Review the diff of that file by hand for ${code.lookFor}. ` +
-          'If it is clean, recompute the sha256 of the file (LF line endings) yourself and update the entry in the same pull request.',
-      );
-    }
+    if (!hasFile(e.skill, e.path)) problems.push(`${at}: ${skillHome(e.skill)}/${e.path} does not exist`);
   });
   allowances.references.forEach((r, i) => {
     const at = `${ALLOWANCES}: references[${i}] (${r.skill}: ${r.from} -> ${r.target})`;
     if (!isSkill(r.skill)) return problems.push(`${at}: ${skillHome(r.skill)}/ has no SKILL.md`);
-    if (readFile(r.skill, r.from) === null) problems.push(`${at}: ${skillHome(r.skill)}/${r.from} does not exist`);
-    if (readFile(r.skill, r.target) === null) problems.push(`${at}: ${skillHome(r.skill)}/${r.target} does not exist`);
+    if (!hasFile(r.skill, r.from)) problems.push(`${at}: ${skillHome(r.skill)}/${r.from} does not exist`);
+    if (!hasFile(r.skill, r.target)) problems.push(`${at}: ${skillHome(r.skill)}/${r.target} does not exist`);
   });
   return problems;
 }
 
-// The entries whose hash moved against the base while their reason gained no
-// new dated sentence. A re-hash says someone read the changed file, and the
-// reason is where that reading is written down, as a "Re-read on <date>: ..."
-// sentence. A re-hash with the old reason, or one changed only in spacing or in
-// words with no such sentence, is a hash pasted over a pin, so it fails.
-// `before` may be null when the base has no file or cannot be read; then
-// nothing is compared.
-const RE_READ = /Re-read on \d{4}-\d{2}-\d{2}[^.]*\./g;
-export function unexplainedRehashes(before, after) {
-  if (!before) return [];
-  const was = new Map(before.exceptions.map(e => [exceptionKey(e), e]));
-  const problems = [];
-  for (const e of after.exceptions) {
-    const old = was.get(exceptionKey(e));
-    if (!old || old.sha256 === e.sha256) continue;
-    const squash = s => s.replace(/\s+/g, ' ').trim();
-    const sentences = s => (squash(s).match(RE_READ) ?? []);
-    const known = new Set(sentences(old.reason));
-    if (!sentences(e.reason).some(s => !known.has(s))) {
-      problems.push(
-        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) was re-hashed and its reason does not say it was re-read. ` +
-          'Review the diff of that file by hand, then add a new sentence to the reason, in the form "Re-read on <date>: <what you found>."',
-      );
-    }
-  }
-  // A moved or renamed file is a new key: the entry reads as removed plus
-  // added, and the loop above never sees a hash move. An added entry that
-  // carries the reason of a removed entry of the same skill, on a different
-  // hash, is the same paste one key over.
-  const nowKeys = new Set(after.exceptions.map(exceptionKey));
-  const gone = before.exceptions.filter(o => !nowKeys.has(exceptionKey(o)));
-  for (const e of after.exceptions) {
-    if (was.has(exceptionKey(e))) continue;
-    const twin = gone.find(o => o.skill === e.skill && o.reason === e.reason && o.sha256 !== e.sha256);
-    if (twin) {
-      problems.push(
-        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) is new and carries the reason of a removed entry of that skill, on a different hash. ` +
-          'Review the diff of that file by hand, then write a new sentence in the reason, in the form "Re-read on <date>: <what you found>."',
-      );
-    }
-  }
-  return problems;
-}
-
-// What changed against the base: entries added, removed, re-hashed or with
-// changed checks, and references added, removed or recounted. A re-hash and a
-// change of checks on one entry are two lines, so neither hides the other.
+// What changed against the base: entries added, removed or with changed
+// checks, and references added, removed or recounted.
 // `before` may be null when the base has no file.
 export function diffAllowances(before, after) {
   const lines = [];
@@ -384,10 +305,7 @@ export function diffAllowances(before, after) {
   for (const [k, e] of now) {
     const old = was.get(k);
     if (!old) lines.push(`added exception ${e.skill}/${e.path} (${e.reason_code})`);
-    else {
-      if (old.sha256 !== e.sha256) lines.push(`re-hashed exception ${e.skill}/${e.path} (${e.reason_code})`);
-      if (!sortedEqual(old.analyzers, e.analyzers)) lines.push(`changed the checks on exception ${e.skill}/${e.path} (${e.reason_code})`);
-    }
+    else if (!sortedEqual(old.analyzers, e.analyzers)) lines.push(`changed the checks on exception ${e.skill}/${e.path} (${e.reason_code})`);
   }
   for (const [k, e] of was) if (!now.has(k)) lines.push(`removed exception ${e.skill}/${e.path} (${e.reason_code})`);
   const wasR = index(before?.references, referenceKey);

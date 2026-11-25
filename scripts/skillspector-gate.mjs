@@ -59,8 +59,8 @@
 //   - an entry for this skill that matched nothing is red, because an
 //     allowance nobody needs is an allowance waiting for something to hide.
 //
-// The gate does not check an entry's content hash. scripts/check.mjs does, on
-// every pull request. Without `--allowances` the gate behaves as it did before
+// The gate does not read the tree: scripts/check.mjs holds each entry to the
+// files it names, on every pull request. Without `--allowances` the gate behaves as it did before
 // the allowance existed.
 
 import { appendFileSync, readFileSync } from 'node:fs';
@@ -347,9 +347,9 @@ if (failures.length) {
     'An exception or a short count is not a finding. It says the scanner did not read\n' +
     'everything, and its reason code says why.\n\n' +
     (allowances && exceptionRows.length
-      ? `An exception with reason code ${[...REASON_CODES.keys()].join(' or ')} can be accepted\n` +
+      ? `An exception with reason code ${[...REASON_CODES].join(' or ')} can be accepted\n` +
         `in ${ALLOWANCES}, keyed by skill, file, reason code and checks, with\n` +
-        'a reason and the file\'s content hash. docs/security/scanners.md says when. No other\n' +
+        'a reason. docs/security/scanners.md says when. No other\n' +
         'reason code can be accepted, and a baseline entry never accepts a partial read.\n\n'
       : '') +
     (allowances && refusedWhy.size
