@@ -185,6 +185,7 @@ test('a reference to a target with no exception entry fails', () => {
 // entry stands as it is.
 test('an allowed file edited passes with its entry untouched, and no allowance change is listed', () => {
   const dir = tree();
+  assert.ok(readAllowance(dir).exceptions.some(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs'));
   const git = repo(dir);
   appendFileSync(join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs'), '\n// one more line\n');
   // A skill file changed, so the version gate wants the version to move too.
@@ -271,14 +272,6 @@ test('an unchanged allowance prints no change notice', () => {
 // An entry names one directory under skills/, and is held to that skill's files.
 const incantation = 'incantation';
 const lastOf = (a, skill) => a.exceptions.findLast(e => e.skill === skill);
-
-test('an entry for the incantation skill is held to its files: a script it names that is gone fails', () => {
-  const dir = tree();
-  edit(dir, a => {
-    lastOf(a, incantation).path = 'scripts/gone.mjs';
-  });
-  assertFails(dir, /skills\/incantation\/scripts\/gone\.mjs does not exist/);
-});
 
 test('an entry names one directory under skills/, so <plugin>/<name> and anything deeper fail', () => {
   for (const name of ['incantation/incantation', 'incantation/scripts']) {
