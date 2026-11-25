@@ -295,7 +295,7 @@ whenever it stops.
   turn that runs past 25 s is cut and joined the same way. Heard text over 500
   characters is split before it reaches the session.
 - **Say yes aloud.** A request that changes anything is said back, and a spoken
-  clear yes is enough: the first turn after the say-back, which opens with "yes",
+  clear yes is enough: the first turn after the say-back, or over it, which opens with "yes",
   "go ahead", "do it" or the like and agrees outright, with none of "no", "not",
   "don't", "wait", "stop", "instead" or "actually" in it ("but" is allowed). A yes
   that narrows the act, or a bare "okay" or "sure", is not one: the session says

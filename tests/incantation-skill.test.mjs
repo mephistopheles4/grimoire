@@ -174,7 +174,7 @@ test('0001 claim 1: a clear yes is defined, with the pull-back words and no "but
   assert.deepEqual(clearYes('CONTRACT.md', contract), []);
   const words = section('## Words and style', '## Install');
   assert.match(flat(words), /opens with "yes" or its like \("go ahead", "do it", "sounds good", "yeah, go for it"\)/);
-  assert.match(flat(words), /marked `\(after reply\)`, with no `interrupted`, and with `plays` equal to the lines you had the listener say since the last delivery/);
+  assert.match(flat(words), /marked `\(after reply\)`, with `plays` equal to the lines you had the listener say since the last delivery/);
   const requests = section('## Requests', '## Heard while working');
   assert.match(flat(requests), /It covers the say-back's act and nothing more/);
   assert.match(flat(requests), /A turn that narrows or conditions the act/);
@@ -183,6 +183,23 @@ test('0001 claim 1: a clear yes is defined, with the pull-back words and no "but
   assert.match(flat(requests), /"yeah" and "yep" alone are its like and count\. "okay", "sure", "right", "mhm"/);
   assert.match(flat(requests), /A say-back ends the turn/);
   assert.match(flat(text), /with its cost when it has one/);
+});
+
+// GRIM-65: talking over a say-back answers it; it no longer voids it.
+test('GRIM-65: a turn that cuts a say-back off and answers it is taken, with no second say-back, in SKILL.md and the contract', () => {
+  for (const [name, body] of [['SKILL.md', text], ['CONTRACT.md', contract]]) {
+    const b = flat(body);
+    assert.match(b, /a turn that talked over the say-back and cut it off \(`interrupted`\) answers it like any other/, name);
+    assert.doesNotMatch(b, /with no `interrupted`|say-back is void/, name);
+  }
+  assert.match(flat(section('## Hearing', '## Requests')), /`interrupted`: the person talked over your reply and it was cut\. When that reply was a say-back, the turn that cut it is its answer: on a clear yes, act, with no second say-back\./);
+  assert.match(flat(contract), /never say the act back a second time because it was interrupted/);
+});
+
+test('GRIM-65: every spoken line is written in chat word for word before it is said, in SKILL.md and the contract', () => {
+  assert.match(flat(section('## Speaking', '## Hearing')), /\*\*Show it\.\*\* Before each say, write the line in chat, word for word as the file holds it/);
+  assert.match(flat(section('## House rules', '## Words and style')), /Every line you speak is also in chat, word for word, written as you say it/);
+  assert.match(flat(contract), /Every line it speaks is also in chat, word for word, written as it is said/);
 });
 
 test('0001 claim 1: the check fails on a missing term, a missing word, and a "but" in the list', () => {

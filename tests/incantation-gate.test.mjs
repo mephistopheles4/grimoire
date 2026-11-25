@@ -80,6 +80,7 @@ test('T17: a 0.12 s turn, a clipped "yes", is delivered and a 0.09 s click is dr
     r.feed(QUIET, 12);
     r.feed(VOICE, 3); // 0.09 s
     r.feed(QUIET, 12);
+    assert.deepEqual(r.ends, [], 'a click with no cut before it ends no chain');
     assert.equal(r.turns.length, 1, afterReply ? 'after a reply' : 'with no reply before it');
   }
   assert.equal(KNOBS.minVoiceMs, 120);

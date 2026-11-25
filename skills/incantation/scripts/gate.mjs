@@ -247,6 +247,9 @@ export class Gate {
           continued: turn.continued,
           chain: cut ? this.cutChain : turn.chain,
         });
+      } else if (!cut && turn.continued) {
+        // The rest of a cut turn was too short to be one: the chain is over here.
+        events.push({ type: 'cut-over', chain: turn.chain });
       }
     }
     return events;
