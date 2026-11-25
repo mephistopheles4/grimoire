@@ -126,14 +126,16 @@ read entry.
 
 At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
-it decides everything but what your user-level instructions file keeps for
-you, and sends you that as to-dos while it carries on. At 3 Turbo (Turbo mode before 0.113.0), once you
+it decides the rest, takes each checkpoint your user-level instructions file
+makes its own pick as a flagged pick, and sends you as to-dos what that file
+says waits for you, while it carries on. At 3 Turbo (Turbo mode before 0.113.0), once you
 press 3 or type `/brigade turbo <goal>` at the prompt or from your phone,
 it runs toward your goal: it checks whether the goal is met, and if not,
 continues, until it is met or you say otherwise. A press counts at once; the
 lead asks for a goal in its chat when there is none, and acts at Auto until it has one. At levels 2 and 3 the
-lead follows your user-level instructions file: at level 2 what that file keeps for you
-waits for you, as a to-do; at level 3, inside the goal, nothing waits, and the lead
+lead follows your user-level instructions file: at level 2 a checkpoint that file makes the lead's pick is
+logged with an "Owner's call:" flag, and what the file says waits for you
+waits, as a to-do; at level 3, inside the goal, nothing waits, and the lead
 decides it, flagged "Owner's call:", stopped only by Claude's own guardrails and the harness. Cleanup's yes is yours in chat at levels 1 and 2, and at level 3 your user-level
 instructions file decides it; a fresh session a context
 figure prompts waits for you at level 2, and is logged and flagged at level 3.

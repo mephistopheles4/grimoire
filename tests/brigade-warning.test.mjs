@@ -19,7 +19,7 @@ if (major < 24) {
 
 const { TITLE, RISKS, ALSO, WORDING, versionOf, isAcknowledged } = await import('../brigade/warning-text.ts');
 
-test("the warning's wording is pinned as the head-chef contract gives it at 1.20.0", () => {
+test("the warning's wording is pinned as the head-chef contract gives it at 2.11.0", () => {
   assert.equal(TITLE, 'Head chef is on. Two things to know:');
   assert.deepEqual(RISKS, [
     'Every background session it starts is on Remote Control, so any device signed in to your account can read and drive it.',
@@ -27,7 +27,7 @@ test("the warning's wording is pinned as the head-chef contract gives it at 1.20
   ]);
   assert.equal(
     ALSO,
-    'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own toward a level 3 goal you set, as your user-level instructions allow.',
+    'It also starts sessions, merges, posts, cleans up and decides on your word, or on its own at Auto and toward a Turbo goal you set, as your user-level instructions allow.',
   );
 });
 
