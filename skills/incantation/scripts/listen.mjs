@@ -620,6 +620,9 @@ export async function startListener(options = {}) {
     // judge running, turns pass straight to `heard`. It only waits, never ends sooner.
     const turnHold = new TurnHold({ judge: turnJudge, release: turn => heard(turn) });
 
+    // The cut chains whose last cut part was lost or was only noise: nothing to cue.
+    const lostChains = new Set();
+
     // The cue plays at the gate's end of speech, before the turn is transcribed, so the
     // person hears it at once and not seconds later where it would sound like a reply (S5.2).
     // That is before the text says whether the turn counts, so a stray cue is possible:
@@ -654,6 +657,7 @@ export async function startListener(options = {}) {
       if (finished) return;
       if (text === null) {
         spinner?.stop(); // nothing was understood: no cue for it
+        if (turn.cut) lostChains.add(turn.chain);
         if (userMuted) return;
         sttFails++;
         if (sttFails >= knobs.sttFailures) return finish('stt');
@@ -674,9 +678,11 @@ export async function startListener(options = {}) {
       // The cue was played at the end of speech, before this text existed: stop it where it stands.
       if (isFragment(text) || (turn.overlap && !isStopWord(text) && (isSpinnerEcho(text) || isEcho(text, recentSpoken())))) {
         spinner?.stop();
+        if (turn.cut) lostChains.add(turn.chain);
         if (turn.continued) releaseHeld(turn.chain);
         return serve();
       }
+      if (turn.cut) lostChains.delete(turn.chain);
       if (isStopWord(text)) spinner?.stop();
       // A real turn heard moves the reply on (W8): a line still playing stops,
       // every say that has not started is dropped (its caller gets say-held),
@@ -983,7 +989,7 @@ export async function startListener(options = {}) {
         }
         else if (e.type === 'barge') bargeIn();
         else if (e.type === 'cut-over') {
-          earlyCue();
+          if (!lostChains.delete(e.chain)) earlyCue();
           endChain(e.chain);
         }
       }

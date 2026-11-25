@@ -255,7 +255,7 @@ steps for each line:
   and it played nothing. The line was written without that turn, so it may no
   longer fit. Read the turn when it reaches you, then decide again: say a new
   line, say the old one if it still fits, or say nothing. A held line is not a
-  play.
+  play: say in chat that it was not spoken.
 - **One line at a time.** Before every say, run
   `node <skill base>/scripts/listen.mjs idle` and let it finish. It returns when
   no line is playing or waiting, so a new line never cuts off the one before it. If it

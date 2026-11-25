@@ -1377,6 +1377,19 @@ test('GRIM-51: a person who stops right at the cut still gets one spinner word, 
   }
 });
 
+test('GRIM-51: a cut part that was lost or was only noise, with no rest, gets no spinner word', async t => {
+  for (const text of [null, 'you']) {
+    const r = await live(t, { engineOptions: { text: () => text } });
+    await tick(120);
+    r.push(1000, 34);
+    r.push(3163, 1000); // exactly the limit
+    await tick(100); // its text has settled before the chain ends
+    r.push(1000, 60);
+    await tick(100);
+    assert.equal(r.player.spinners.length, 0, String(text));
+  }
+});
+
 test('bug a: a cut turn that ends on no sentence mark still waits for its rest, and its rest that is lost is said at once', async t => {
   let calls = 0;
   const r = await live(t, { engineOptions: { text: () => (calls++ === 0 ? 'first part with no end' : null) } });
