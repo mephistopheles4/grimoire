@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.12.0
+Version: 2.12.1
 Kind: skill
 Level: Thorough
 
@@ -231,7 +231,7 @@ need, without overwhelming me or showing me too much.
 | lead | the Desktop session the head chef runs in |
 | name-back | the list the head chef shows before an act that cannot be undone, naming exactly what it will touch |
 | permission warning (**Decided**) | the band above the prompt that says what the head chef's sessions put at risk, with an I understand button and a Don't show again box |
-| level | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo, set only by the owner: a press on the Brigade pane's slider, or a `/brigade manual`, `/brigade auto` or `/brigade turbo` command |
+| level | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo, set only by the owner: a press on the Brigade pane's slider or in its footer popover, or a `/brigade manual`, `/brigade auto` or `/brigade turbo` command |
 | goal | the work a level-2 or level-3 lead runs toward, in the owner's words in the lead's chat or in a `/brigade auto` or `/brigade turbo` command |
 | waiting entry | a decision the lead logs for the owner, with no pick, shown in the Decisions tab as "Waits for you" |
 | idle notice | the one notice the message tool's `notify_when_idle` gives when a session next goes idle or exits |
@@ -315,8 +315,9 @@ Home: `SKILL.md`, the section "Words". Carries out: "Terms".
   chef's sessions put at risk, with an I understand button and a Don't show
   again box.
 - **Level:** how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo,
-  set only by the owner: a press on the Brigade pane's slider, or a
-  `/brigade manual`, `/brigade auto` or `/brigade turbo` command.
+  set only by the owner: a press on the Brigade pane's slider or in its
+  footer popover, or a `/brigade manual`, `/brigade auto` or `/brigade turbo`
+  command.
 - **Goal:** the work a level-2 or level-3 lead runs toward, in the owner's
   words in the lead's chat or in a `/brigade auto` or `/brigade turbo` command.
 - **The owner's words:** what the owner types in the lead's chat, or a clear
@@ -523,8 +524,8 @@ Home: `SKILL.md`, the section "Autonomy levels". Carries out: "Autonomy levels",
 *Proposed*: the level-2 checkpoint rule and "A call outside the goal follows 2 Auto", added in 2.11.0 (GRIM-55); pending at 1.36.1 in "The owner's user-level instructions file"; "A command goal"; "A command goal, widened or narrowed in chat"; "Level 3, a finding that is not security, and a risk of any size"; "Level 3, a merge toward the goal"; "Levels 2 and 3, accepting picks"; "Level 3, a flagged owner-kept call"; "Risk at level 3". Text added since 1.36.1 is Proposed too: the mod's gate on waits with its table of stop kinds, the confirmation the file asks for, which holds nothing at level 3, and the gate's mention in "3 Turbo" and "Waiting entries".
 
 The owner sets your level: 1 Manual, 2 Auto or 3 Turbo. Only the owner sets
-it, with the slider in the Brigade pane or by typing `/brigade manual`,
-`/brigade auto [goal]` or `/brigade turbo <goal>`. A reload, a clear and a
+it, with the slider in the Brigade pane or its footer popover, or by typing
+`/brigade manual`, `/brigade auto [goal]` or `/brigade turbo <goal>`. A reload, a clear and a
 resume reset it to 1. Never run a `/brigade` mode command
 yourself, and never write a goal for the owner to type.
 

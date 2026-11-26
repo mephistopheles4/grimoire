@@ -139,7 +139,8 @@ install. Not for work in the same session.
 
 `/brigade` opens the Brigade pane, which comes with the plugin: one row per
 session, the pull requests, and the decisions the lead took, with a slider
-for how far it may go on its own.
+for how far it may go on its own, which on Desktop a chip under the prompt
+also sets.
 
 What it does, what counts as your yes, and what cleanup names back:
 [`skills/head-chef/README.md`](skills/head-chef). The pane's views, the
@@ -346,7 +347,7 @@ What each of Brigade's hooks does with what it sees:
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. At a level 3, and once after it ends, it also adds one level-3 note (fixed text that, after a command 3, ends with a copy of the owner's goal). Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
-| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane, the warning band and, since 0.88.0, the autonomy level's line above the warning, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
+| `ui.render`, `ui.press`, `ui.message`, `ui.input`, `ui.close` | Draws the pane, the warning band, since 0.88.0 the autonomy level's line above the warning, and on Desktop a level chip under the prompt with its popover, handles their buttons and the popover's pick, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
 
 Claude Code's bundled security default, on a machine with managed settings or
 a Team or Enterprise account, keeps the plugins you install from seeing
