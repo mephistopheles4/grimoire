@@ -74,7 +74,10 @@ export type Sample = { at: number; percent: number }
  *  found, because no transcript passed the finder's checks. No path is kept. */
 export type Warmth =
   | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
-  | { name: string; kind: 'too-large' | 'shared' | 'unread' | 'not-found' }
+  | { name: string; kind: 'too-large' }
+  | { name: string; kind: 'shared' }
+  | { name: string; kind: 'unread' }
+  | { name: string; kind: 'not-found' }
 
 /** One card's call series, from its session's summary file or its
  *  transcript: the time its burn buckets end, the end of the clock minute
@@ -95,7 +98,7 @@ declare module 'claude-code' {
       files: Files
       roster: Roster
       rosterError: string
-      live: { name: string; value: string; shown?: string; move?: 'waiting' }[]
+      live: { name: string; value: string; shown?: string; move?: 'waiting' | 'idle' }[]
       liveError: string
       links: Pair[]
       reports: Report[]

@@ -5,9 +5,18 @@
 // fills the box, and only on Desktop. A button never sends: the owner reads
 // the line and presses Enter, so the yes stays the owner's own submission.
 
-import { sha256Hex } from './decisions.ts'
-import { REPO, type GhPr } from './roster.ts'
-import { isIdle, prAnswer, slug, type Moves } from './view.ts'
+import {
+  sha256Hex,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './decisions.ts'
+import {
+  REPO, type GhPr,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
+import {
+  isIdle, prAnswer, slug, type Moves,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './view.ts'
 
 /** A title that may be built into a line: whole-string, no space. */
 export const TITLE = /^[A-Za-z0-9._-]{1,80}$/

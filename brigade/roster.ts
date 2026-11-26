@@ -688,7 +688,7 @@ export function dataFolder(config: string, id: string): string {
 export function configFromSynced(root: string, name: string): string | undefined {
   const m = /^(.+)[\\/]plugins[\\/]synced[\\/][^\\/]+[\\/]([^\\/]+)$/.exec(root)
   if (m === null) return undefined
-  const tail = m[2].startsWith(`${name}~g`) ? m[2].slice(name.length + 2) : undefined
+  const tail = m[2]!.startsWith(`${name}~g`) ? m[2]!.slice(name.length + 2) : undefined
   return m[2] === name || (tail !== undefined && /^\d+$/.test(tail)) ? m[1] : undefined
 }
 
@@ -1049,6 +1049,6 @@ export function listedAsOurs(skills: SkillListing | undefined, name: string): bo
   const copies = (skills.skillFrontmatter ?? []).filter(s => s.name === name)
   if (copies.length === 0) return false
   return name === 'grimoire:head-chef'
-    ? copies.length === 1 && copies[0].source === 'plugin' && copies[0].pluginName === 'grimoire'
+    ? copies.length === 1 && copies[0]!.source === 'plugin' && copies[0]!.pluginName === 'grimoire'
     : copies.every(s => s.source === 'userSettings')
 }
