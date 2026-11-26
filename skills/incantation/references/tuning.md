@@ -66,7 +66,7 @@ lands, or the person stops talking. It is never held past its deadline.
 
 These words, alone, while the session speaks or works, and after a say-back
 too, are not requests, not interruptions and never a yes: "mhm", "uh huh",
-"okay", "ok", "right", "sure", "got it", "go on". After a say-back, ask at once
+"okay", "ok", "right", "sure", "got it", "go on". After a say-back that asks, ask at once
 whether that was a yes. "Yeah" and "yep" alone are the exception: they count as
 a yes after a say-back, or over one.
 
