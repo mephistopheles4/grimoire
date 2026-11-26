@@ -588,6 +588,10 @@ your next report, and you carry on. A card's `work` names the repository and
 the issue number or Linear identifier only. A card's `status` is `working`, `idle`, `done` or `stopped`.
 Write `idle` for a member that has reported and waits on the owner or on you,
 and `working` again when it resumes; put what the owner must do in a to-do.
+While an idle member's last report waits on you (a document to read, a question,
+ready to close), give its card `waitsOnLead: true`. Each of your turns then
+starts with a Brigade note naming it, until you message it or send a roster
+without the mark.
 
 Give each background session's card its job id as `bgId`, and no
 `desktopId` or `url`: the pane finds it by the job id and reads its Remote

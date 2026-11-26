@@ -215,7 +215,7 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
     const { phase: _dropped, ...rest } = v
     given = rest
   }
-  const f = fields(where, given, ['title', 'work', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'repo', 'since'])
+  const f = fields(where, given, ['title', 'work', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'repo', 'waitsOnLead', 'since'])
   if ('error' in f) return f
   const o = f.value
   const title = text(`${where} title`, o.title, MAX_TITLE, true)
@@ -249,6 +249,11 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
   if (o.repo !== undefined) {
     if (typeof o.repo !== 'string' || !REPO.test(o.repo)) return { error: `${where} repo is not a plain owner/name` }
     out.repo = o.repo
+  }
+  if (o.waitsOnLead !== undefined) {
+    if (typeof o.waitsOnLead !== 'boolean') return { error: `${where} waitsOnLead is not true or false` }
+    if (o.waitsOnLead && out.status !== 'idle') return { error: `${where} waitsOnLead goes only on an idle card` }
+    if (o.waitsOnLead) out.waitsOnLead = true
   }
   if (o.since !== undefined) {
     if (!isWhole(o.since)) return { error: `${where} since is not a whole number from 0 to ${Number.MAX_SAFE_INTEGER}` }
