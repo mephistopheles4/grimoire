@@ -174,7 +174,8 @@ stop.
   report.
 - **The checks are evidence, not proof.** They cover only the six places.
   The backups sit where an allowed command could overwrite them, the
-  manifest among them, and `send` reads its skill-copy hashes unchecked.
+  manifest among them, and `send` reads its skill-copy hashes unchecked. It
+  trusts the run state too, so an edit there steers the next turn.
 - **The rules are only a rule check.** Claude Code has no operating-system
   sandbox on native Windows.
 
