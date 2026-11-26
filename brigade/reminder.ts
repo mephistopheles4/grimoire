@@ -4,7 +4,10 @@
 // with one fixed line. The hook only reminds: it never writes the roster,
 // because only the lead knows each card's state.
 
-import { oneLine } from './roster.ts'
+import {
+  oneLine,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 import type { Card } from './types'
 
 export const SEND_TOOL = 'SendMessage'
