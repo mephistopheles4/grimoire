@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.14.1
+Version: 2.15.1
 Kind: skill
 Level: Thorough
 
@@ -190,8 +190,8 @@ need, without overwhelming me or showing me too much.
 **The tracker and git.** It reads a session's issue and posts on it in the project's tracker, and every act names its repository. It reads a pull request's head again before a merge and says when it moved. A branch to delete comes only from the owner's words or a same-repository pull request's head. It runs a cleaner the owner's instructions name from its own shell, under the permission mode in force, removes no worktree or branch itself, and never runs `claude rm`, which the owner runs by hand.
 *Proposed*: restates 1.36.1 "It reads a session's issue", Decided; "It archives and stops", "Before a merge" and "A branch to delete", Confirmed and Decided.
 
-**What the Brigade mod does, as facts.** Its roster reminder fires after a start as it does after a send. It runs the fixed `claude --bg` command with no permission mode and no shell, so a background member inherits the lead's mode as a Desktop member does. It keeps no window, binding or cleaner, and offers no tool for one. It reads the session files under its own file checks, and stops only the one session whose job id and name match the card. A raise to level 3 starts no turn for the lead. Its warning draws two controls that chat cannot show. The harness labels a message from another session as data and never as the owner's approval.
-*Proposed*: restates 1.36.1 "Keys", "The Brigade mod runs no cleaner" and "What the prompt leaves to each member", Confirmed, with the start tool Proposed; pending at 1.36.1.
+**What the Brigade mod does, as facts.** Its roster reminder fires after a start as it does after a send. It runs the fixed `claude --bg` command with no permission mode and no shell, so a background member inherits the lead's mode as a Desktop member does. It keeps no window, binding or cleaner, and offers no tool for one. It reads the session files under its own file checks, and stops only the one session whose job id and name match the card. A raise to level 3 starts no turn for the lead. While the pane is open, at each of the lead's turns it names each member the lead's last roster marked as waiting on it, until a message reaches that member or a roster drops the mark. Its warning draws two controls that chat cannot show. The harness labels a message from another session as data and never as the owner's approval.
+*Proposed*: restates 1.36.1 "Keys", "The Brigade mod runs no cleaner" and "What the prompt leaves to each member", Confirmed, with the start tool Proposed; pending at 1.36.1. The note on waiting members is *Proposed*, new (GRIM-76).
 
 **Never forcing.** It never uses a forcing flag, a recursive delete or a command that discards work, never force-pushes, never uses `--admin`, never deletes a remote branch, and runs the checks and the removals as separate calls. A cleaner the owner names is the owner's own program, not bound by this line.
 *Proposed*: restates 1.36.1 "Limits", Confirmed, and "runs the checks and the removals as separate calls", Decided.
@@ -305,7 +305,7 @@ the owner only through you.
 ### SKILL.md: Words
 
 Home: `SKILL.md`, the section "Words". Carries out: "Terms".
-**Confirmed**, except the footer popover in "Level", *Proposed* (2.14.1,
+**Confirmed**, except the footer popover in "Level", *Proposed* (2.15.1,
 GRIM-71).
 
 - **Brigade:** the sessions one lead started, working on one or more efforts.
@@ -922,6 +922,10 @@ your next report, and you carry on. A card's `work` names the repository and
 the issue number or Linear identifier only. A card's `status` is `working`, `idle`, `done` or `stopped`.
 Write `idle` for a member that has reported and waits on the owner or on you,
 and `working` again when it resumes; put what the owner must do in a to-do.
+While an idle member's last report waits on you (a document to read, a question,
+ready to close), give its card `waitsOnLead: true`. Each of your turns then
+starts with a Brigade note naming it, until you message it or send a roster
+without the mark.
 
 Give each background session's card its job id as `bgId`, and no
 `desktopId` or `url`: the pane finds it by the job id and reads its Remote
@@ -1344,6 +1348,13 @@ the file itself.
   member that has reported and waits on the owner or on you, and `working` again
   when it resumes; put what the owner must do in a to-do. The pane still reads the older word `needs-you` as
   `idle`, but write `idle`.
+- `waitsOnLead` is `true` on an `idle` card whose member's last report waits
+  on you: a document to read, a question, ready to close. Each of your turns then
+  starts with a "Brigade (plugin note): " line naming the card, until you send
+  that member a message or send a roster without the mark; leave it off the
+  roster you send after that message. Leave it off every
+  other card: on another status it is refused as a shape. The note comes from
+  your last kept call, so after a reload of the mod it waits for your next one.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
   the id a Desktop session's card carries: the pane finds the session by it,
   and its Open in app needs it. A value read back from the pane is never a
