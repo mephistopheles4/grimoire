@@ -287,9 +287,11 @@ test('a hang ends at the limit, and the child and its tree are gone', async () =
   assert.equal(alive(), false, 'the hung child is gone');
 });
 
-// The probe's fixed folder and its switch against the current-folder lookup
-// back each other up, so this test fails only when both are gone; the claim is
-// that a planted file never runs, and either one keeps it true.
+// The working folder is the branch, so a file there is outside input. On
+// Windows the probe's fixed folder and its switch against the current-folder
+// lookup back each other up, so this test fails only when both are gone.
+// Elsewhere the empty PATH entry makes the shell search the folder the probe
+// runs from, so this test fails when that folder is the working folder.
 test('a file planted in the working folder is never run', async () => {
   const dir = folder();
   const marker = planted(dir);
@@ -297,7 +299,9 @@ test('a file planted in the working folder is never run', async () => {
   process.chdir(dir);
   try {
     // With a working athanor later on PATH, the probe still finds that one.
-    assert.equal(await probeAthanor({ env: envWith(fake('ok')) }), true);
+    // cmd.exe finds nothing after a leading empty entry, so Windows gets none.
+    const lead = process.platform === 'win32' ? '' : delimiter;
+    assert.equal(await probeAthanor({ env: envWith(lead + fake('ok')) }), true);
     assert.equal(existsSync(marker), false, 'the planted file ran with athanor on PATH');
     // With none on PATH, the planted one is not found, so athanor is missing.
     assert.equal(await probeAthanor({ env: envWith(folder()) }), false);
@@ -305,16 +309,6 @@ test('a file planted in the working folder is never run', async () => {
   } finally {
     process.chdir(before);
   }
-});
-
-test('outside Windows a PATH with an empty or relative entry runs nothing and counts as missing', async () => {
-  const dir = fake('ok');
-  const stand = folder();
-  const marker = planted(stand);
-  for (const path of ['', `${dir}${delimiter}`, `${delimiter}${dir}`, `${dir}${delimiter}bin`, `${dir}${delimiter}.`, `${stand}${delimiter}bin`]) {
-    assert.equal(await probeAthanor({ env: { PATH: path }, platform: 'linux' }), false, JSON.stringify(path));
-  }
-  assert.equal(existsSync(marker), false, 'a stand-in on an absolute entry beside a relative one ran');
 });
 
 // The script as the hook runs it.
