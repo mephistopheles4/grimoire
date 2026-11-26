@@ -177,3 +177,13 @@ test('618 C1: the phrase appears in no line of the tree', async () => {
   for (const f of ['SECURITY.md', 'README.md', 'CONTRIBUTING.md', 'CONTEXT.md', 'AGENTS.md']) walk(f);
   assert.deepEqual(hits, []);
 });
+
+// --- the waiting-member note (GRIM-76) -------------------------------------------
+
+test('GRIM-76: one prefixed line per waiting title, the title last, and nothing for none', async () => {
+  const m = await import('../brigade/reminder.ts');
+  assert.equal(m.onLeadNote([]), undefined);
+  const two = m.onLeadMembers([{ title: 'plan-a', waitsOnLead: true }, { title: 'x' }, { title: 'plan\nb', waitsOnLead: true }]);
+  assert.equal(m.onLeadNote(two), `${m.ON_LEAD_LINE}plan-a\n${m.ON_LEAD_LINE}plan b`);
+  assert.ok(m.ON_LEAD_LINE.startsWith(m.NOTE_PREFIX));
+});
