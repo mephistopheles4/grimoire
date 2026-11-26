@@ -1,5 +1,11 @@
 # Incantation from the prototype
 
+> **GRIM-77 (2026-11-26) cut the guards against other accounts on the same
+> machine.** The recorder and `uv` are no longer held to an owner or a mode.
+> The state folder and its files take the system's default modes, and a link
+> in place of a folder is followed. The observe log and the player's temporary
+> file keep their own modes. Where a section below says otherwise, this holds.
+
 Status: Draft: in force only when the owner merges it.
 
 This spec turns the incantation prototype, a dev mod the owner tried live by

@@ -161,7 +161,7 @@ test('slots are filled in one pass: a title that spells a later slot takes no fi
   assert.equal(html.split('const Interview = (() =>').length, 2, 'the module appears once');
 });
 
-/* -- claim 4: --out's refusals and the page's mode --------------------------- */
+/* -- claim 4: --out's refusals ----------------------------------------------- */
 
 test('--out refuses a target that does not end in .html, and writes nothing', () => {
   const target = join(work, `page-${n++}.htm`);
@@ -195,21 +195,15 @@ test('--out refuses a draft its check refuses, and writes no page', () => {
   assert.ok(!existsSync(target));
 });
 
-test('the page is mode 600 wherever it lands unless --site is given; a draft outside a scratch folder keeps its mode', { skip: !posix && 'POSIX modes' }, () => {
-  const loose = derive(example);
-  chmodSync(loose, 0o644);
-  const outside = join(work, `outside-${n++}.html`);
-  render(loose, outside);
-  assert.equal(statSync(outside).mode & 0o777, 0o600);
-  assert.equal(statSync(loose).mode & 0o777, 0o644, 'a draft outside a scratch folder changed mode');
+test('--out sets no mode: an earlier page of its own keeps the mode it has, and so does the draft', { skip: !posix && 'POSIX modes' }, () => {
   const dir = scratch();
-  const inside = derive(example, null, dir, 'draft.interview.json');
-  chmodSync(inside, 0o644);
-  render(inside, join(dir, 'interview.html'));
-  assert.equal(statSync(inside).mode & 0o777, 0o600);
-  const site = join(work, `site-${n++}.html`);
-  render(example, site, '--site');
-  assert.notEqual(statSync(site).mode & 0o777, 0o600);
+  const draft = derive(example, null, dir, 'draft.interview.json');
+  chmodSync(draft, 0o644);
+  const target = join(dir, 'interview.html');
+  render(draft, target);
+  chmodSync(target, 0o640);
+  render(draft, target);
+  assert.deepEqual([statSync(target).mode & 0o777, statSync(draft).mode & 0o777], [0o640, 0o644]);
 });
 
 /* -- claim 5: what a question shows before a pick ---------------------------- */

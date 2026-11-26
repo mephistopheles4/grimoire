@@ -17,7 +17,7 @@
 // two. The page's logic, the block check included, sits in interview.js; this
 // script requires it, so the page and the script run one copy.
 
-import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -100,7 +100,6 @@ function readJson(file, label, strip = s => s) {
   let bytes;
   try {
     const size = statSync(file).size;
-    ownerOnly(file);
     if (size > Interview.LIMITS.bytes) {
       say(`${label}: file: larger than the limit of ${Interview.LIMITS.bytes.toLocaleString('en-US')} bytes`);
       say(`${label}: 1 refusal(s)`);
@@ -125,21 +124,11 @@ const kindsBytes = () => readFileSync(resolve(here, 'kinds.json'));
 /* -- the scratch folder -----------------------------------------------------
  *
  * One interview's draft, page and answers file live in a folder this script
- * makes, named `contract-interview-` and 16 random lowercase hex digits. On
- * POSIX it is mode 700, so everything in it is owner-only; on Windows the
- * per-user temp folder's own access keeps it private. */
+ * makes, named `contract-interview-` and 16 random lowercase hex digits. The
+ * script sets no file mode in it or on it. */
 const SCRATCH = /^contract-interview-[0-9a-f]{16}$/;
 const FILES = { page: 'interview.html', answers: 'answers.json', draft: 'draft.interview.json' };
-const posix = process.platform !== 'win32';
 const inScratch = file => SCRATCH.test(basename(dirname(resolve(file))));
-
-/* A file the script reads inside a scratch folder is set to mode 600, so a
- * file Claude wrote with a tool that cannot set a mode is owner-only too. It
- * is set before the file is parsed, so a file that fails to parse is too.
- * Outside such a folder, such as the repository's example, no mode changes. */
-const ownerOnly = file => {
-  if (posix && inScratch(file)) chmodSync(file, 0o600);
-};
 
 /** The folder a new scratch folder goes in when the person names none: the
  *  per-user temp folder on Windows and macOS, and on Linux and other POSIX
@@ -149,8 +138,7 @@ function defaultParent() {
   const cache = process.env.XDG_CACHE_HOME || join(homedir(), '.cache');
   const dir = join(cache, 'contract-interview');
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    chmodSync(dir, 0o700);
+    mkdirSync(dir, { recursive: true });
   }
   return dir;
 }
@@ -177,8 +165,7 @@ function newFolder(parentArg) {
     return 2;
   }
   try {
-    mkdirSync(folder, { mode: 0o700 });
-    if (posix) chmodSync(folder, 0o700);
+    mkdirSync(folder);
   } catch (e) {
     say(`cannot make a folder in ${named(parent)}: ${e.code || e.name}`);
     return 2;
@@ -415,22 +402,10 @@ function out(draftFile, pageFile, site, shared) {
   // other folder's name could be the person's own.
   const folder = !site && inScratch(pageFile) ? basename(dirname(resolve(pageFile))) : null;
   const html = page(read.value, read.bytes, { site, shared, folder });
-  // The page holds the person's draft, so it is owner-only wherever it lands,
-  // unless it is the published example, and owner-only before the draft is in
-  // it: an earlier page is set to 600 first, and a new one is created at 600.
   // A new page is created exclusively, so nothing put at the target since the
   // look above is written through.
-  const owner = posix && !site;
-  if (owner && there) {
-    try {
-      chmodSync(pageFile, 0o600);
-    } catch (e) {
-      say(`cannot make ${named(pageFile)} owner-only, so nothing was written: ${e.code || e.name}`);
-      return 2;
-    }
-  }
   try {
-    writeFileSync(pageFile, html, { mode: owner ? 0o600 : 0o666, flag: there ? 'w' : 'wx' });
+    writeFileSync(pageFile, html, { flag: there ? 'w' : 'wx' });
   } catch (e) {
     say(`cannot write ${named(pageFile)}: ${e.code || e.name}`);
     return 2;

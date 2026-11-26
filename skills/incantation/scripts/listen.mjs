@@ -406,7 +406,7 @@ export async function startListener(options = {}) {
         // A convenience, like the status word.
       }
     }
-    // The band's click (T16): a file holding exactly `mute` or `unmute`, written to the private
+    // The band's click (T16): a file holding exactly `mute` or `unmute`, written to the
     // run folder, read once and removed. A link, a big file or a stale one is removed unread.
     const pollCommand = () => {
       const path = commandPath(home);

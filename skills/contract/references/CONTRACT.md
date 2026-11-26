@@ -1,6 +1,6 @@
 # Contract: contract
 
-Version: 0.16.1
+Version: 0.16.2
 Kind: skill
 Level: Thorough
 
@@ -338,7 +338,7 @@ the interview, in this chat, and the last on their confirmation:
 
 | Action | What the skill tells you first | Your go |
 |---|---|---|
-| Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your request for the interview |
+| Make the scratch folder (`--new-folder`) | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your request for the interview |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your request for the interview |
 | Write the page with the script (`--out`) | That the page keeps answers in the browser until Reset, unencrypted, and that other pages opened from disk in the same browser may read them | Your request for the interview |
 | Delete the draft (`--clean --draft`) | The offer to delete it | Your confirmation to that offer |
