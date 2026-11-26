@@ -142,7 +142,7 @@ figure prompts waits for you at level 2, and is logged and flagged at level 3.
 Only your press or your own `/brigade manual`, `/brigade auto [goal]`
 or `/brigade turbo <goal>` moves the level, and
 the level in force is drawn on every view (on Desktop, at the pane's foot), 3 in the warning colour; a lowering or a 2 you type also gives the lead one turn, so it reads the new level at once (a 3 does not: tell the lead yourself); a 3 the
-command set shows its goal under the slider (an Auto goal reaches the lead through `read_autonomy` and is not drawn). Each move
+command set shows its goal under the slider (an Auto goal reaches the lead through `read_autonomy` and is not drawn). On Desktop, while the pane is open, a chip left of the model name under the prompt names the level; a press on it opens a popover of the three levels beside the message box. A pick there is a press on the slider, with one difference: a raise acts while the popover is open, whether or not the pane is in view. The popover needs Claude Code 2.1.331 or later; on an older one the chip opens nothing. Each move
 is logged as your own decision ("Owner"). The level is the last one set, held
 in the mod's memory; a stored copy in plugin state serves one job, a reload,
 and something else rewriting it changes nothing (since 0.116.0; before that,
