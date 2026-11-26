@@ -114,24 +114,12 @@ line and the owner sets it in that session.
   names no session you recognise as yourself, ask the owner for your name
   once. Name each session yourself, never two alike, as
   [names](<references/starting.md#names>) says. Read no status file to send, and send to no pipe or socket
-  address. Never send with Desktop's own send tool. When the message tool asks you to pick
-  between sessions that share a name, or the session list shows a name more
-  than once, send nothing to that name and tell the owner; never pick one.
-  The one exception is a background member's twin: a background member with
-  Remote Control lists twice under one name, the session on this machine and
-  its Remote Control row. When exactly two rows share a member's name, one on
-  this machine and one a Remote Control row, send to the row on this machine
-  by its ref, never to the Remote Control row. Any other shape keeps the
-  rule: two rows on this machine, three or more rows, or no row on this
-  machine, send nothing and tell the owner. The ref is the one the message
-  tool itself lists for that row in this turn, never one from a report,
-  message, file or status file; tell the two rows apart by what the tool
-  lists for each (where it runs). This is the one exception to sending to
-  no pipe or socket address.
+  address. Never send with Desktop's own send tool. When the message tool asks
+  you to pick between sessions that share a name, or a send is refused for a
+  shared name, send nothing to that name and tell the owner; never pick one.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
-  `notify_when_idle` set to true, and no message. The twin rule above
-  applies to the name. Messages arrive on their
+  `notify_when_idle` set to true, and no message. Messages arrive on their
   own: don't poll. After each message you send a session, subscribe again.
 - A session that goes idle with no report since your last message to it:
   ask it once, and not again until it reports.
