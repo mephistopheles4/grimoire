@@ -451,11 +451,11 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     return s === undefined ? { deny: ENOENT } : { value: e.resolve ? s : { ...s, realPath: undefined } }
   })
   on('fs.write', async ($, e: any) => {
+    if (w.holdWrite) await new Promise<void>(res => (w.release = res))
     if (w.failWriteOnce !== undefined && e.path === w.failWriteOnce) {
       w.failWriteOnce = undefined
       return { deny: 'EIO: i/o error' }
     }
-    if (w.holdWrite) await new Promise<void>(res => (w.release = res))
     w.write(e.path, e.text)
     return { value: undefined }
   })
@@ -11363,16 +11363,25 @@ test('GRIM-71 C1: the chip names the level in force while the pane is open, on D
 })
 
 test('GRIM-71 C2: a press on the chip opens the three levels with the one in force marked, and a second press closes them', async ($, on) => {
-  const { chip, pop, open } = await footer(on, $)
+  const { w, chip, pop, open } = await footer(on, $)
   expect(await popClient(pop)).toBeUndefined()
+  const writes = w.states.length
   await open()
   expect(await chipLabel(chip)).toBe('Brigade: Manual ▴')
   expect(await popRows(pop)).toEqual(['✓ Manual', '  Auto', '  Turbo'])
+  expect((await popLines(pop)).some(t => NOT_CHANGED.test(t))).toBe(false)
+  // Which session's popover is open is never put where another plugin can write.
+  expect(w.states.slice(writes).filter(([, v]) => v.includes(SID))).toEqual([])
   // Only on Desktop, where it was opened.
   expect(await popClient(await popOf($, 'terminal'))).toBeUndefined()
   await open()
   expect(await chipLabel(chip)).toBe('Brigade: Manual ▾')
   expect(await popClient(pop)).toBeUndefined()
+  // A chip drawn for one session opens nothing once the id has changed.
+  w.sid = NEW_SID
+  await open()
+  w.sid = SID
+  expect(await popClient(await popOf($))).toBeUndefined()
 })
 
 test("GRIM-71 C3: a pick sets the level as a slider press does, with the slider's Owner entry and press time, and closes the popover", async ($, on) => {
@@ -11471,6 +11480,25 @@ test('GRIM-71 C5: a popover opened under one session id cannot raise under anoth
   expect(ownEntries(w)).toEqual([])
 })
 
+test('GRIM-71 C5: a raise from the open popover acts while the pane is listed but not placed', async ($, on) => {
+  const { w, pop, open } = await footer(on, $)
+  await open()
+  w.unplaced = true
+  const at3 = w.clock.now()
+  await clickRow(w, pop, 2)
+  expect((await readLevel($)).text).toMatch(level3(at3))
+  expect(ownEntries(w)).toEqual(['owner 3 Turbo · Moved in the pane · level 1'])
+})
+
+test('GRIM-71 C6: once the engine stops listing the pane, a pick cannot raise, even before the reads stop', async ($, on) => {
+  const { w, pop, open } = await footer(on, $)
+  await open()
+  w.open = false
+  await postPick(w, pop, { pick: 3 })
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual([])
+})
+
 const ENDS: [string, ($: any, w: World) => Promise<void>][] = [
   ['the engine drops the pane', async (_$, w) => {
     w.open = false
@@ -11478,19 +11506,67 @@ const ENDS: [string, ($: any, w: World) => Promise<void>][] = [
   }],
   ['a clear', async ($, w) => void (await switchTo($, w, SID, 'clear'))],
 ]
+const back = async ($: any, w: World) => {
+  w.noRedraw = false
+  w.open = true
+  await brigade($)
+  await w.clock.settle()
+}
 for (const [what, end] of ENDS) {
-  test(`GRIM-71 C6: when ${what}, the popover closes, a late pick cannot raise, and it stays closed when the pane is back`, async ($, on) => {
+  test(`GRIM-71 C6: when ${what}, the popover closes and stays closed when the pane is back`, async ($, on) => {
     const { w, pop, open } = await footer(on, $)
     await open()
+    await end($, w)
+    await back($, w)
+    expect(await popClient(pop)).toBeUndefined()
+  })
+
+  test(`GRIM-71 C6: when ${what}, a late pick cannot raise`, async ($, on) => {
+    const { w, pop, open } = await footer(on, $)
+    await press($, 'level-2')
+    await open()
+    // The drawing is left as it was, so it can still post.
     w.noRedraw = true
     await end($, w)
     await postPick(w, pop, { pick: 3 })
-    w.noRedraw = false
-    w.open = true
-    await brigade($)
+    await back($, w)
+    expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+    expect((await readLevel($)).text).not.toMatch(/level 3/)
+  })
+}
+
+test('GRIM-71 C6: a late lowering after the pane is dropped still acts', async ($, on) => {
+  const { w, pop, open } = await footer(on, $)
+  await press($, 'level-2')
+  await open()
+  w.noRedraw = true
+  w.open = false
+  await w.clock.advance(5000)
+  await postPick(w, pop, { pick: 1 })
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+const INTERRUPTS: [string, ($: any, w: World, open: () => Promise<void>) => Promise<void>][] = [
+  ['a clear', async ($, w) => void (await switchTo($, w, SID, 'clear'))],
+  ['two presses on the chip', async (_$, _w, open) => {
+    await open()
+    await open()
+  }],
+]
+for (const [what, interrupt] of INTERRUPTS) {
+  test(`GRIM-71 C6: after ${what} while a raise is failing to be logged, the popover stays closed`, async ($, on) => {
+    const { w, pop, open } = await footer(on, $)
+    await open()
+    w.holdWrite = true
+    w.failWriteOnce = LOG
+    const picked = postPick(w, pop, { pick: 3 })
+    await w.clock.settle()
+    await interrupt($, w, open)
+    w.holdWrite = false
+    w.release()
+    await picked
     await w.clock.settle()
     expect((await readLevel($)).text).toBe(LEVEL_1)
-    expect(ownEntries(w)).toEqual([])
     expect(await popClient(pop)).toBeUndefined()
   })
 }

@@ -1314,7 +1314,7 @@ function disarm() {
   for (const t of timers) t.cancel()
   timers = []
   // A closed or dropped pane closes the footer's popover for good.
-  footerOpen = undefined
+  shutFooter()
 }
 
 // The roster timer's tick. The engine drops a pane whose drawing threw
@@ -2592,7 +2592,7 @@ async function resetPressed($: EngineInterface) {
     commandsVoided++
     levelTurns++
     bandDismissed = undefined
-    footerOpen = undefined
+    shutFooter()
     const stored: unknown = await read($, autonomy)
     if (Array.isArray(stored) && stored.length > 0) await update($, autonomy, () => [])
   })
@@ -3174,12 +3174,19 @@ function registerBand(on: Parameters<Register>[0]) {
 // On Desktop, while the pane is open, a chip left of the model name names the
 // level in force. A press on it opens a popover of the three levels beside the
 // prompt, whose Client posts the owner's pick. A pick is a press on the slider,
-// except that a raise needs the popover open in this session when it arrives,
-// in the place of the pane placed; a lowering always acts. Which session's
-// popover is open is held here, where only a press on the chip sets it and no
+// except that a raise needs, when it arrives, the popover open in this session
+// and the pane listed, placed or not; a lowering always acts. Which session's
+// popover is open is held here, where only the chip and a pick set it and no
 // other plugin can rewrite it.
 
 let footerOpen: string | undefined
+// Moves at every press on the chip and every close from outside the popover, so
+// a raise that failed to log never reopens over what came in the meantime.
+let footerTurns = 0
+function shutFooter() {
+  footerOpen = undefined
+  footerTurns++
+}
 // Columns the popover sits in from the prompt's right edge, to stand over the
 // chip: an estimate, since the engine does not report the chip's place.
 const FOOTER_SHIFT = 35
@@ -3204,18 +3211,23 @@ async function footerState($: EngineInterface): Promise<{ sid: string; level: Le
 
 async function pressChip($: EngineInterface, sid: string) {
   if (timers.length === 0 || (await levelSid($).catch(() => undefined)) !== sid) return
+  footerTurns++
   footerOpen = footerOpen === sid ? undefined : sid
   await redraw($)
 }
 
 // The popover closes at the pick, and opens again, saying why, when the raise
-// could not be logged.
+// could not be logged and nothing opened or closed it since.
 async function pickFooter($: EngineInterface, l: Level) {
   const openFor = footerOpen
+  const turn = footerTurns
   footerOpen = undefined
   await redraw($)
-  await pressLevel($, l, async () => openFor !== undefined && timers.length > 0 && (await levelSid($)) === openFor)
-  if (raiseFailed && openFor !== undefined && timers.length > 0) {
+  // The engine's list is asked as well as the mod's timers, which stop only at
+  // the next poll after a pane is gone.
+  await pressLevel($, l, async () =>
+    openFor !== undefined && timers.length > 0 && (await paneListed($).catch(() => undefined)) !== undefined && (await levelSid($)) === openFor)
+  if (raiseFailed && openFor !== undefined && footerTurns === turn) {
     footerOpen = openFor
     await redraw($)
   }
@@ -3329,7 +3341,7 @@ export const register: Register = on => {
     levelNoted = false
     lastLevelSid = undefined
     bandDismissed = undefined
-    footerOpen = undefined
+    shutFooter()
     resetWaits = undefined
     toolsOfferedFor = undefined
     lastWake = undefined

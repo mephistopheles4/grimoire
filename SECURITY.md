@@ -406,7 +406,9 @@ foot of the Decisions tab. What follows from it:
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
 Auto and 3 Turbo (Turbo mode before 0.113.0), and only the owner sets
-a level above 1: by a press on it or, since 0.99.0, by a mode command. **A
+a level above 1: by a press on it, since 0.99.0 by a mode command or, since
+0.179.0 (GRIM-71, proposed; it waits on the owner's merge), by a pick in the
+footer's popover. **A
 level 3 lets the lead merge pull requests, post, waive reviews and settle
 security findings toward the goal without a per-act word from the owner**,
 as far as the owner's user-level instructions file allows (since head-chef
@@ -487,7 +489,11 @@ read the session id, or one of whose steps throws, waits, reading 1, until it
 lands. Since 0.88.0 a press on the slider that would raise the level acts only
 while the engine lists the pane and it is placed, and one pressed on a hidden or
 closed pane is dropped; a lowering acts whatever the pane list answers. A pane
-list that does not answer within 5 seconds counts as not placed. A Pane entry that cannot be written keeps the
+list that does not answer within 5 seconds counts as not placed. Since 0.179.0,
+on Desktop and while the pane is open, a chip under the prompt opens a popover
+of the three levels, and a pick there runs the slider's path, except that a
+raise acts only while the popover is open in this session and the engine lists
+the pane, placed or not. A Pane entry that cannot be written keeps the
 level at 1 and is tried again at the next poll; an entry
 written late carries the time it was written. A clear or a resume
 forgets every other session's level and press time too. Since 0.88.0 the
@@ -502,8 +508,9 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
   slider moves and mode commands, and of the reloads, which show roughly when
   the owner let the lead run alone. Owner, Pane and alarm entries never drop.
 - **Who can move it:** another plugin can read `autonomy`, and so learn when
-  the owner let the lead run alone, and can press the slider, and so raise the
-  level the lead reads; a press by another plugin is logged as the owner's.
+  the owner let the lead run alone, and can press the slider or the footer
+  chip, and so raise the level the lead reads; a press by another plugin is
+  logged as the owner's.
   A rewrite of the stored copy changes nothing until the next reload, which
   resets it. The owner accepted this on 2026-10-26, and again for level 3 (q2
   and q32 A on #402). Since head-chef 0.17.0 (issue 416) the skill has the
