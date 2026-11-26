@@ -196,11 +196,8 @@ test('GRIM-65: a turn that cuts a say-back off and answers it is taken, with no 
   assert.match(flat(contract), /never say the act back a second time because it was interrupted/);
 });
 
-test('GRIM-65: every spoken line is written in chat word for word before it is said, in SKILL.md and the contract', () => {
-  assert.match(flat(section('## Speaking', '## Hearing')), /\*\*Show it\.\*\* Before each say, write the line in chat, word for word as the file holds it/);
-  assert.match(flat(section('## House rules', '## Words and style')), /Every line you speak is also in chat, word for word, written as you say it/);
-  assert.match(flat(contract), /Every line it speaks is also in chat, word for word, written as it is said/);
-});
+// GRIM-65's "every spoken line is in chat, word for word" now also sets each
+// line as a block quote: its assertions are the 0002 C6 test below.
 
 test('0001 claim 1: the check fails on a missing term, a missing word, and a "but" in the list', () => {
   assert.equal(clearYes('x', 'nothing').length, 3 - 1, 'no term, no pull-back words (the "but" check passes)');
@@ -337,4 +334,93 @@ test('claim 5: the check fails on each thing it forbids', () => {
   assert.equal(claim5('x', 'const t = setTimeout(go, words * 250);').length, 1);
   assert.equal(claim5('x', 'After speaking, wait about 9 seconds before listening.').length, 1);
   assert.equal(claim5('x', 'setTimeout(serve, knobs.quietMs);').length, 0);
+});
+
+// Spec 0002: an easily undone act goes on after its say-back (S3), spoken
+// lines are block quotes and relayed heard lines are not repeated (S4), and a
+// head chef files a non-public issue without waiting (S4a).
+const both = () => [['SKILL.md', flat(text)], ['CONTRACT.md', flat(contract)]];
+// The four tests live in references/acts.md, which SKILL.md points to, and in the contract.
+const acts = () => [['acts.md', flat(readFileSync(join(SKILL, 'references', 'acts.md'), 'utf8'))], ['CONTRACT.md', flat(contract)]];
+
+test('0002 C1: "easily undone" has its four tests, the examples, and "in doubt it is not"', () => {
+  assert.match(flat(section('## Words and style', '## Install')), /\*\*Easily undone:\*\* [^*]*by the four tests in `references\/acts\.md`[^*]*In doubt, an act is not easily undone\./);
+  assert.match(flat(text), /`references\/acts\.md`: the four tests of an easily undone act\. Read at start\./);
+  for (const [name, b] of acts()) {
+    assert.match(b, /put it back (?:yourself|itself), right after, in one step/, name);
+    assert.match(b, /close an issue (?:you|it) filed/, name);
+    assert.match(b, /it costs nothing/i, name);
+    assert.match(b, /the record is not public \(in doubt, it is public\)/, name);
+    assert.match(b, /no rule (?:you run|the session runs) under keeps it for the person's own confirmation/i, name);
+    for (const ex of ["an issue or a comment in the person's own, non-public tracker", "another of the person's sessions", 'a scratch file', 'a roster or status card']) assert.ok(b.includes(ex), `${name}: ${ex}`);
+    assert.match(b, /an issue or a comment on a public record/, name);
+    assert.match(b, /In doubt, an act is not easily undone/, name);
+  }
+});
+
+test('0002 C2: an easily undone say-back asks nothing, is followed by idle, working and the act, and waits when it may not have been heard', () => {
+  const requests = flat(section('## Requests', '## Heard while working'));
+  assert.match(requests, /\*\*An easily undone act\*\*/);
+  assert.match(requests, /says what you are doing now \("I'll file that as a new issue now\."\), asks nothing, and is not your turn's last tool call/);
+  assert.match(requests, /run `listen\.mjs idle`, so the line finishes playing, then `listen\.mjs working`, then act, in the same turn/);
+  assert.match(requests, /The act waits instead, as one that is not easily undone, when the person may not have heard the say-back: the `say` answered anything but `speaking`, `idle` answered `idle-timeout`, or your voice is muted/);
+  assert.match(flat(contract), /an easily undone act goes on after its say-back, with no yes/i);
+});
+
+test('0002 C3: what a turn heard before an easily undone act is done does to it', () => {
+  const requests = flat(section('## Requests', '## Heard while working'));
+  assert.match(requests, /[Aa] yes or a backchannel alone lets the act go on/);
+  assert.match(requests, /Room talk neither halts it nor gets an answer/);
+  assert.match(requests, /A turn whose aim is unclear halts it, and the act then waits for a clear yes/);
+  assert.match(requests, /Any other turn aimed at you halts it before your next tool call: read the turn and answer it\. When part of the act was done, say so and offer to put it back/);
+  assert.match(requests, /usually lands after the act, so cutting in then means putting it back/);
+  assert.match(flat(section('## Hearing', '## Requests')), /When it was an easily undone say-back and the turn does not halt the act, say the say-back again, and go on after it plays/);
+});
+
+test('0002 C4 and C5: "a say-back ends the turn" names only acts that wait; a mixed request waits; a rule that keeps an act wins', () => {
+  const requests = flat(section('## Requests', '## Heard while working'));
+  assert.match(requests, /\*\*An act that waits\*\*/);
+  assert.match(requests, /When one request holds an easily undone act and one that waits, the whole request waits/);
+  assert.match(flat(text), /An easily undone act goes on after its say-back with no yes/);
+  assert.match(flat(contract), /\| A request goes: read-back, thinking, plan[^|]*the say-back of an act that waits ends the turn/);
+});
+
+test('0002 C6: each spoken line is a block quote in chat, chat-only text outside it', () => {
+  assert.match(flat(section('## House rules', '## Words and style')), /Every line you speak is also in chat, as a Markdown block quote, word for word as you say it; text only for chat \(an id, a link, detail\) goes outside the quote/);
+  assert.match(flat(section('## Speaking', '## Hearing')), /\*\*Show it\.\*\* Before each say, write the line in chat as a block quote \(`> `\), word for word as the file holds it/);
+  assert.match(flat(contract), /Every line it speaks is also in chat, as a Markdown block quote, word for word as it is said/);
+});
+
+test('0002 C7 and C8: relayed Heard lines are not repeated; a turn heard while working is shown once; room talk gets no answer', () => {
+  const hearing = flat(section('## Hearing', '## Requests'));
+  assert.doesNotMatch(hearing, /show each `Heard: "…"`/);
+  assert.match(hearing, /A relayed delivery is already in chat as the person's message: do not repeat its `Heard` lines/);
+  assert.match(hearing, /show its words once, in one plain line outside any quote \(`Heard while working: "hold on"`\)/);
+  assert.match(hearing, /When you read a turn differently from its words \(a mis-hearing you corrected\), say how you read it, in chat/);
+  for (const [name, b] of both()) assert.doesNotMatch(b, /gets only (?:its|the `?)Heard/, name);
+  assert.match(flat(section('## House rules', '## Words and style')), /Talk not aimed at the session gets no answer/);
+});
+
+test('0002 C9: the README shows a say-back that goes on and one that still asks', () => {
+  const readme = flat(readFileSync(join(SKILL, 'README.md'), 'utf8'));
+  assert.match(readme, /I'll file that as a new issue now\./);
+  assert.match(readme, /Shall I\?/);
+  assert.match(readme, /\*\*Easily undone acts go on\.\*\*/);
+});
+
+test("0002 C10: head-chef's heard-yes paragraph lets a non-public filing the owner asked for go on, and keeps every other wait", () => {
+  const chef = flat(readFileSync(join(ROOT, 'skills', 'head-chef', 'SKILL.md'), 'utf8'));
+  const line = /One act goes on: filing an issue the owner asked for, in the project's tracker, when the record is not public\. Say it back, naming the tracker, and file it in the same turn, with no wait for a yes, only after a say-back the owner heard whole/;
+  assert.match(chef, line);
+  assert.match(chef, /only after a say-back the owner heard whole/);
+  assert.match(chef, /without a label that hands it to an agent/);
+  assert.match(chef, /room talk does not halt it and gets no answer/);
+  assert.match(chef, /A filing on a public record, or one you are unsure is not public, waits for a clear yes/);
+  assert.match(chef, /and end your turn on the say-back, so the yes arrives between your turns/);
+  assert.match(chef, /\*\*The owner's words:\*\* what the owner types in the lead's chat, or a clear yes heard after a say-back that names the act and its cost, for that act alone; or, for a filing that goes on after its say-back, the heard request itself/);
+  assert.match(flat(readFileSync(join(ROOT, 'skills', 'head-chef', 'references', 'CONTRACT.md'), 'utf8')), line);
+});
+
+test('0002 C11: a message to another session goes on only when it asks for nothing that would wait', () => {
+  for (const [name, b] of acts()) assert.match(b, /A message to another session goes on only when it asks that session for nothing that would wait; one that asks it to change anything waits/, name);
 });
