@@ -1,7 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { On } from 'claude-code'
 
-import { ALSO, RISKS, TITLE, WORDING, isAcknowledged, versionOf } from './warning-text.ts'
+import {
+  ALSO, RISKS, TITLE, WORDING, isAcknowledged, versionOf,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './warning-text.ts'
 import type { Ack } from './warning-text.ts'
 
 // The permission warning: a band above the prompt in a lead session, saying

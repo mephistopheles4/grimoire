@@ -1,6 +1,12 @@
-import { AHEAD_MS, PR_NUMBER, PR_STATES, REPO, SESSION_ID, foldsCase, linearUrl, linkUrl, oneLine, parseLinear, parseLink, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
+import {
+  AHEAD_MS, PR_NUMBER, PR_STATES, REPO, SESSION_ID, foldsCase, linearUrl, linkUrl, oneLine, parseLinear, parseLink, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 import type { GhPr, LinkParts, Move, SessionRow, StatAnswer } from './roster.ts'
-import { sha256Hex } from './decisions.ts'
+import {
+  sha256Hex,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './decisions.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -2799,7 +2805,7 @@ export function linkStep(found: string | undefined, from: string | undefined, st
 
 /** The stored links whose name is a card on the roster: a link for a card
  *  that left the roster goes (#281). The same list when none goes. */
-export function linksOnRoster<T extends { name: string }>(list: readonly T[], titles: readonly string[]): readonly T[] {
+export function linksOnRoster<T extends { name: string }>(list: T[], titles: readonly string[]): T[] {
   const kept = list.filter(p => titles.includes(p.name))
   return kept.length === list.length ? list : kept
 }
