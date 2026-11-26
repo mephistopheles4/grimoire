@@ -19,7 +19,7 @@ _Avoid_: idle ping, heartbeat, poll
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
 or 3 Turbo. Only the owner sets it: by a
-press of the slider, there or in its footer popover, or with the `/brigade manual`, `/brigade auto` or `/brigade turbo` command.
+press of the slider, in the Brigade pane or in the popover its Desktop footer chip opens, or with the `/brigade manual`, `/brigade auto` or `/brigade turbo` command.
 _Avoid_: auto mode, autonomy switch
 
 **Decision log**:

@@ -231,7 +231,7 @@ need, without overwhelming me or showing me too much.
 | lead | the Desktop session the head chef runs in |
 | name-back | the list the head chef shows before an act that cannot be undone, naming exactly what it will touch |
 | permission warning (**Decided**) | the band above the prompt that says what the head chef's sessions put at risk, with an I understand button and a Don't show again box |
-| level | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo, set only by the owner: a press on the Brigade pane's slider or in its footer popover, or a `/brigade manual`, `/brigade auto` or `/brigade turbo` command |
+| level (*Proposed*) | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo, set only by the owner: a press on the Brigade pane's slider or in its footer popover, or a `/brigade manual`, `/brigade auto` or `/brigade turbo` command |
 | goal | the work a level-2 or level-3 lead runs toward, in the owner's words in the lead's chat or in a `/brigade auto` or `/brigade turbo` command |
 | waiting entry | a decision the lead logs for the owner, with no pick, shown in the Decisions tab as "Waits for you" |
 | idle notice | the one notice the message tool's `notify_when_idle` gives when a session next goes idle or exits |
@@ -305,7 +305,8 @@ the owner only through you.
 ### SKILL.md: Words
 
 Home: `SKILL.md`, the section "Words". Carries out: "Terms".
-**Confirmed**
+**Confirmed**, except the footer popover in "Level", *Proposed* (2.12.1,
+GRIM-71).
 
 - **Brigade:** the sessions one lead started, working on one or more efforts.
 - **Lead:** the Desktop session the head chef runs in.
