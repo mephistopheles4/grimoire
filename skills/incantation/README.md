@@ -35,7 +35,7 @@ your own typed `/incantation` starts the mic.
 | When you pause | `1.5 s` quiet (`0.3–3.0 s`) | Wait for silence + spinner word | Local CPU | Closes the turn and plays a short cue (`"One sec."`) right away |
 | If you sound unfinished | `+2.5 s` per hold (`3x` max) | Finish check (`Smart Turn v3.2`, `9 MB`, optional `uv`) | Local CPU | Checks the last `8 s` of audio; waits longer if mid-thought, never cuts sooner |
 | Once turn settles | Once per turn (`+2.0 s` joiner if no `. ? !`) | Speech to text (`Parakeet TDT 0.6b v2`, `660 MB`) | Local CPU | Turns audio into words and drops filler/echo fragments |
-| Thinking & acting | `90 s` progress beat, `20 s` OK nudge | Claude thinks & acts (via grimoire mod) | Cloud (text only) | Answers questions aloud, or gives a one-sentence say-back and waits for a clear yes |
+| Thinking & acting | `90 s` progress beat, `20 s` OK nudge | Claude thinks & acts (via grimoire mod) | Cloud (text only) | Answers questions aloud, or gives a one-sentence say-back and waits for a clear yes (an easily undone act goes on) |
 | Replying aloud | Per line (`3` max queued) | Speak reply (`Kokoro 1.0`, `393 MB` or `Phonon`, `104 MB`, `uv`) + `ffplay` | Local CPU | Speaks one short fact and loops speaker audio back to the echo canceller |
 | If you talk over Claude | `360 ms` voice (after `1.5 s` grace) | Barge-in detector | Local CPU | Stops playback at once, drops queued replies, opens your new turn |
 | Long silence | `30 min` quiet | Idle auto-stop | Local CPU | Closes the mic automatically (paused while the mic is muted) |
@@ -54,7 +54,14 @@ You:    No, fix the timeout check and run the suite again.
 Claude: So you want me to fix the timeout check in the gate tests and run the suite again. Shall I?
 You:    Go ahead.
 Claude runs it, then says: Fixed the check and all twelve tests passed.
+You:    File an issue to tidy the gate's timeouts later.
+Claude: I'll file that as a new issue now.
+Claude files it, then says: Filed. Say if you want it closed.
 ```
+
+Each spoken line also shows in chat as a block quote, so you can tell at a
+glance what was said aloud. Your own relayed turns already show as your
+messages and are not repeated.
 
 - **One fact per turn.** Spoken replies stay short and plain, with no markdown,
   file paths, or IDs read aloud; full details go into chat.
@@ -62,6 +69,13 @@ Claude runs it, then says: Fixed the check and all twelve tests passed.
   commands, merges, pushes, or installs is said back in one sentence (naming any
   cost) and acts only on a clear yes (`"yes"`, `"go ahead"`, `"do it"`, `"yeah"`,
   `"yep"`, with no pull-back words).
+- **Easily undone acts go on.** Filing an issue in your own private tracker,
+  messaging another of your sessions, or editing a scratch file or a roster card
+  is said back ("I'll file that now") and done in the same turn, with no wait
+  for a yes. Say "no" or "wait" while it is being said back to stop it; a quick
+  act like filing an issue is usually done by then, so ask for it put back. It
+  waits for a yes anyway, for example when the record is public, when it costs
+  anything, while the voice is muted, or when a rule of yours keeps it for you.
 - **Talk over it any time.** The mic stays open while Claude speaks. Talking over
   a reply stops playback immediately and drops any lines queued behind it.
 - **Instant feedback & nudges.** A heard turn gets a short spinner word right

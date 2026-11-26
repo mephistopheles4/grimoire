@@ -28,7 +28,8 @@ the owner only through you.
   words in the lead's chat or in a `/brigade auto` or `/brigade turbo` command.
 - **The owner's words:** what the owner types in the lead's chat, or a clear
   yes heard after a say-back that names the act and its cost, for that act
-  alone.
+  alone; or, for a filing that goes on after its say-back, the heard request
+  itself.
 - **Clear yes:** a yes the owner says aloud to the say-back you just gave. The
   owner's voice tool sends it into this chat as a `[voice]` message in the
   owner's own turn, between your turns, never as context added after a tool
@@ -549,7 +550,7 @@ The mod draws it. When there is no mod, or the warning's tool is missing or refu
 | Start a session | nothing: report the start right after, in the short form | the owner's ask, in any form and anywhere, or a goal that names the work |
 | Start a Desktop session in place of a background one | nothing: report the start right after, in the short form | the owner's words naming that route |
 | Archive or stop a session, and have a cleaner the owner's instructions name remove its worktree and branch | at level 2, what you will touch, unless the owner's confirmation already names each session; the list is each session's title and kind, folder and branch, and the cleaner named | the skill's stops list: at level 2 the owner's confirmation, in any form, naming each session or a yes to the list; at level 3, logged and flagged |
-| Merge, close, edit, delete or label something on GitHub or in the project's tracker, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's confirmation, in any form, naming that act; at level 3, a merge, or a close of a pull request another replaces, toward the goal as 3 Turbo says |
+| Merge, close, edit, delete or label something on GitHub or in the project's tracker, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's confirmation, in any form, naming that act, a filing that goes on as "A heard yes" says included; at level 3, a merge, or a close of a pull request another replaces, toward the goal as 3 Turbo says |
 
 **A heard yes.** Say the act back first, naming its cost when it has one
 (money, a paid run, usage), and end your turn on the say-back, so the yes
@@ -558,6 +559,17 @@ new request, said back again. A turn about a yes ("did you get my yes?") is not
 one: say the act back again and wait. A heard turn that sets or widens a goal is
 said back and holds only after a clear yes. A permission prompt on screen is
 still never answered by voice.
+
+One act goes on: filing an issue the owner asked for, in the project's tracker,
+when the record is not public. Say it back, naming the tracker, and file it in
+the same turn, with no wait for a yes, only after a say-back the owner heard
+whole (not while your voice is muted, not when the say-back did not play or was
+cut off), and without a label that hands it to an agent; otherwise it waits for
+a clear yes, or goes on after a repeated say-back the owner heard whole. A heard turn aimed at
+you before it is filed, other than a yes or a backchannel alone, halts it:
+answer that turn; room talk does not halt it and gets no answer. The report
+names the issue, so the owner can ask for it closed. A filing on a public
+record, or one you are unsure is not public, waits for a clear yes.
 
 Before a merge, read the pull request's head again, and say so when it moved since the owner's words or the review. Take a
 branch to delete only from the owner's words or a same-repository pull

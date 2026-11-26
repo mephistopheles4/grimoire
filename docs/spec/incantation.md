@@ -958,7 +958,8 @@ listener now holds a line that a kept turn overtook (S5.4 of 0001).
   aloud ("Got it, I'll check the test run, give me a moment") and then done,
   with no yes. A request that changes anything keeps the say-back and a yes;
   the say-back is its acknowledgement. This loosens the say-back for read-only
-  requests that S7.3 required.
+  requests that S7.3 required. (Superseded 2026-11-26 for easily undone acts,
+  by `0002-incantation-go-on-and-quote.md`: said back, then done with no yes.)
 - **T7. One fact per spoken turn,** then an offer of the next.
 - **T8. Barge-in.** The mic is not muted while Voicebox plays. 360 ms of voice
   over a playing reply cancels the generation Voicebox reports (`POST
