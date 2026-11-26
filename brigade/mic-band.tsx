@@ -1,9 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On, Timer } from 'claude-code'
 
-import { EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, advanceLine, colorAt, commandFile, fullWidth, homeFrom, labelOf, levelsFile, parseLevels, toggleFor, voiceFile, voiceToggleFor } from './mic-view.ts'
+import {
+  EASE_MS, EASE_STEPS, SLOW_EVERY, TICK_MS, WORDS, advanceLine, colorAt, commandFile, fullWidth, homeFrom, labelOf, levelsFile, parseLevels, toggleFor, voiceFile, voiceToggleFor,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './mic-view.ts'
 import type { Line, MicFrame, MicWord } from './mic-view.ts'
-import { orbSvg } from './mic-svg.ts'
+import {
+  orbSvg,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './mic-svg.ts'
 
 // The Incantation mic band: a row above the prompt that shows what the voice
 // listener is doing, a wave of what it hears, and a button that mutes and

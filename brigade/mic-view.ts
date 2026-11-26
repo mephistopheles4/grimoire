@@ -35,7 +35,7 @@ export function parseLevels(text: unknown, now: number): MicFrame | null {
   if (m === null) return null
   const stamp = Number(m[1])
   if (!Number.isFinite(now) || Math.abs(now - stamp) > FRESH_MS) return null
-  return { stamp, word: m[2] as MicWord, digits: m[3] }
+  return { stamp, word: m[2] as MicWord, digits: m[3]! }
 }
 
 const BLOCKS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '█']
