@@ -27,10 +27,16 @@ test('every refusal is its own text and says what to do', () => {
   for (const text of all) assert.match(text, /nothing was sent.*tell the owner/);
 });
 
-test('a name with one row or none passes on as sent', () => {
-  for (const rows of [[], [local()], [remote()], [local('a1', 'bg', 'other'), remote('b2', 'other')]]) {
+test('the only row on this machine is sent by its ref, with its Remote Control row unseen', () => {
+  const cut = page([local()], { notes: [{ kind: 'list_truncated', text: 'x' }] });
+  assert.deepEqual(resolveSend('build-1', [cut], false), { to: 'build-1 [aaa111]' });
+});
+
+test('no row, one row elsewhere, or one local row without a usable ref or a full list, passes on as sent', () => {
+  for (const rows of [[], [remote()], [{ name: 'build-1', ref: 'a] [b', type: 'bg' }], [local('a1', 'bg', 'other'), remote('b2', 'other')]]) {
     assert.deepEqual(resolve(rows), {});
   }
+  assert.deepEqual(resolve([local()], false), {});
 });
 
 test('a subagent or teammate of the name passes on, as the engine gives it the bare name', () => {
@@ -104,11 +110,21 @@ test('every page is read, and a page that fails or runs past the cap leaves the 
   assert.deepEqual([endless, reads], [{ deny: REFUSE_PARTIAL }, MAX_PAGES]);
 });
 
+test('a footer that only says to call again later is not followed, so a twin already read resolves', async () => {
+  const later = '(agents may be missing from this page \u2014 call again later with cursor="0e" for any that are)';
+  let reads = 0;
+  const found = await resolveListed('build-1', async () => {
+    reads++;
+    return page([local(), remote()], { listing: later });
+  });
+  assert.deepEqual([found, reads], [{ to: 'build-1 [aaa111]' }, 1]);
+});
+
 test('the next page is read from the listing\'s own footer line only', () => {
   const foot = '(… 3 more not shown — call again with cursor="0a1b2c3d" for the next page)';
   assert.equal(listedCursor({ listing: `Peer sessions (9):\n  x\n\n${foot}` }), '0a1b2c3d');
   const later = '(agents may be missing from this page \u2014 call again later with cursor="0e" for any that are)';
-  assert.equal(listedCursor({ listing: later }), '0e');
+  assert.equal(listedCursor({ listing: later }), undefined);
   assert.equal(listedCursor({ listing: `  ${foot}  ·  bg` }), undefined);
   assert.equal(listedCursor({ listing: 'Peer sessions (1):' }), undefined);
   assert.equal(listedCursor(undefined), undefined);

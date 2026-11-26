@@ -2,8 +2,11 @@
 // engine import, so tests/brigade-send.test.mjs runs it directly. A background
 // session with Remote Control is listed on this machine and as a Remote Control
 // row, under one name. This reads the message tool's own structured listing and
-// readdresses a send to the row on this machine; every other shared shape is
-// refused with fixed words.
+// readdresses a send to the one row on this machine; a shared shape it can see
+// that is not that twin is refused with fixed words. A plugin's listing may
+// hold no Remote Control row at all (the lead's own Remote Control off), so a
+// lone local row is addressed by its ref too, and a row the listing does not
+// hold cannot be refused.
 
 /** A row's `type` for a session on this machine, as the engine's own session
  *  files spell its kind, and for a Remote Control row. */
@@ -36,11 +39,12 @@ const list = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.ma
 
 /** The next page's cursor, from the listing's own footer line. The line starts
  *  the line it is on; a row's line is indented, so a session's name cannot
- *  pose as it. */
+ *  pose as it. A footer that only says to call again later is not followed:
+ *  the engine repeats it, with no further rows, while a source is failing. */
 export const listedCursor = (result: unknown): string | undefined => {
   const listing = record(result).listing
   if (typeof listing !== 'string') return undefined
-  return /^\([^\n]*call again(?: later)? with [^\n]*?cursor="([0-9a-f]{1,64})"/m.exec(listing)?.[1]
+  return /^\([^\n]*call again with [^\n]*?cursor="([0-9a-f]{1,64})" for the next page/m.exec(listing)?.[1]
 }
 
 export type Resolved = { to?: string; deny?: string }
@@ -66,17 +70,21 @@ export const resolveSend = (name: string, pages: readonly unknown[], unread: boo
       rows.push(...named)
     }
   }
-  if (rows.length < 2) return {}
+  const isLocal = (r: Record<string, unknown>) => typeof r.type === 'string' && LOCAL.has(r.type)
+  const byRef = (r: Record<string, unknown> | undefined): string | undefined =>
+    typeof r?.ref === 'string' && REF.test(r.ref) ? `${name} [${r.ref}]` : undefined
+  if (rows.length < 2) {
+    const to = !partial && rows[0] !== undefined && isLocal(rows[0]) ? byRef(rows[0]) : undefined
+    return to === undefined ? {} : { to }
+  }
   if (rows.length > 2) return { deny: REFUSE_MANY }
-  const local = rows.filter(r => typeof r.type === 'string' && LOCAL.has(r.type))
+  const local = rows.filter(isLocal)
   if (local.length === 2) return { deny: REFUSE_TWO_LOCAL }
   if (rows.every(r => typeof r.type === 'string' && AWAY.has(r.type))) return { deny: REFUSE_NO_LOCAL }
-  const ref = local[0]?.ref
-  if (local.length !== 1 || !rows.some(r => r.type === REMOTE) || typeof ref !== 'string' || !REF.test(ref)) {
-    return { deny: REFUSE_UNKNOWN }
-  }
+  const to = byRef(local[0])
+  if (local.length !== 1 || !rows.some(r => r.type === REMOTE) || to === undefined) return { deny: REFUSE_UNKNOWN }
   if (partial) return { deny: REFUSE_PARTIAL }
-  return { to: `${name} [${ref}]` }
+  return { to }
 }
 
 /** What to do with a send to `name`, from the listing read page by page.

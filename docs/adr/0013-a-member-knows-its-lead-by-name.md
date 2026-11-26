@@ -33,8 +33,9 @@ nothing and tells the owner.
 
 Amended by GRIM-41: the Brigade mod now carries out that rule in code, and the
 skill no longer states it. With the pane open, the mod reads the session list at
-a lead's send to a bare name and readdresses it to the row on this machine, or
-refuses the other shapes (`brigade/send.ts`).
+a lead's send to a bare name and readdresses it to the one row on this machine,
+or refuses a shared shape it can see that is not the twin (`brigade/send.ts`). A
+row the mod's listing does not hold cannot be refused.
 
 ## Options weighed
 
