@@ -1,4 +1,7 @@
-import { foldsCase, LINEAR_ID, oneLine, pathKey, REPO } from './roster.ts'
+import {
+  foldsCase, LINEAR_ID, oneLine, pathKey, REPO,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 
 // The background start tool's rules (issue 543, spec rev 4), as plain
 // TypeScript with no engine import, so tests/brigade-start.test.mjs runs them
@@ -266,7 +269,7 @@ export function originMatch(ran: unknown, repository: string): Checked<true> {
   const lines = ran.stdout.split(/\r?\n/)
   if (lines[lines.length - 1] === '') lines.pop()
   if (lines.length !== 1) return unreadable
-  const line = lines[0]
+  const line = lines[0]!
   if (line === '' || [...line].length > 300 || CONTROL.test(line)) return unreadable
   const m = /^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/i.exec(line)
   if (m === null || `${m[1]}/${m[2]}`.toLowerCase() !== repository.toLowerCase()) return { why: NOT_MAIN }
@@ -337,7 +340,7 @@ export function startAnswer(ran: unknown, input: Inputs, platform: Platform = 'w
   if (!isRecord(ran) || ran.exitCode !== 0 || ran.isStdoutTruncated !== false || typeof ran.stdout !== 'string') return NOT_STARTED
   const lines = ran.stdout.split(/\r?\n/)
   if (lines.filter(l => l.startsWith('backgrounded')).length !== 1) return NOT_STARTED
-  const m = /^backgrounded · ([0-9a-f]{8}) · (.+)$/.exec(lines[0])
+  const m = /^backgrounded · ([0-9a-f]{8}) · (.+)$/.exec(lines[0]!)
   if (m === null || m[2] !== input.name) return NOT_STARTED
   return `Started ${input.name}: job ${m[1]}. Folder: ${worktreeFolder(input.folder, input.name, platform)}. Branch: ${worktreeBranch(input.name)}. Write its card with set_roster; the tool wrote none.`
 }

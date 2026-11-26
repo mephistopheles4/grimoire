@@ -57,7 +57,7 @@ export const worthATurn = (out: string): boolean =>
 
 /** Turns that pile up go as one message, in order: two prompts sent back to back could lose the second. */
 export const joinPending = (items: readonly string[]): string =>
-  items.length === 1 ? items[0] : `${LABEL} ${items.map(t => t.replace(/^\[voice\] /, '')).join(' | then: ')}`
+  items.length === 1 ? items[0]! : `${LABEL} ${items.map(t => t.replace(/^\[voice\] /, '')).join(' | then: ')}`
 
 /** A delivery that is only `progress-due`: the one kind the mod may speak for. */
 export const onlyProgress = (out: string): boolean => {
@@ -352,7 +352,7 @@ export function registerRelay(on: On): void {
   // A typed /incantation arms the turn it opens. Only the person's own typing counts.
   for (const command of COMMANDS) {
     on('command.run', { command }, async ($, e, next) => {
-      const r: { text?: unknown } | undefined = await next(e)
+      const r = await next(e)
       if (e.origin?.kind === 'composer' && r !== undefined) armed = true
       return r
     }).catch(($, e, next) => next(e))
@@ -360,9 +360,9 @@ export function registerRelay(on: On): void {
 
   // The engine takes one unmatched hook per event from a module, and register.tsx's turn start and the
   // writer's turn end are taken: they call relayTurnStart and relayTurnEnd. The abort is ours.
-  on('turn.abort', async ($, e: { agentId?: string }, next) => {
-    const r = await next(e as never)
-    relayTurnEnd($, e)
+  on('turn.abort', async ($, e, next) => {
+    const r = await next(e)
+    relayTurnEnd($, e as typeof e & { agentId?: string })
     return r
   })
 

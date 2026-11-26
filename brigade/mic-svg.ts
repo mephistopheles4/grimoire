@@ -1,4 +1,7 @@
-import { HUES } from './mic-view.ts'
+import {
+  HUES,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './mic-view.ts'
 import type { MicWord } from './mic-view.ts'
 
 // The desktop's mic picture: an orb in the middle, the loudness flowing out of
