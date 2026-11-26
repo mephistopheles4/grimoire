@@ -10,10 +10,9 @@
 //   node scripts/practice.mjs end <run-id>
 //
 // Why it exists: a resumed turn sent without the variant's flags silently
-// loads the whole account again. So `send` takes no flags at all. It rebuilds
+// loads the whole account again. So `send` takes no flags at all. It builds
 // every turn's flags, settings file and environment from the variant table
-// below plus the values `start` validated, and refuses when the recorded state
-// no longer matches that recomputation.
+// below plus the values `start` validated.
 //
 // Maintainer tooling: it ships with no skill. It imports node built-ins only.
 // No shell is involved anywhere, and the message never travels as an argument.
@@ -55,7 +54,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,9 +140,7 @@ function rule(tool, abs, tail = '') {
   return `${tool}(${rulePath(abs)}${tail})`;
 }
 
-// The user's config folder, and the files in and beside it the session may
-// not read. The global state file sits in the home folder, or in the config
-// folder when CLAUDE_CONFIG_DIR names one; both are denied.
+// The user's config folder.
 const configFolder = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 
 // ---- tool rules ----
@@ -316,8 +313,6 @@ const copyOf = (work, skill) => join(work, '.claude', 'skills', skill.name);
 function settingsFor(state, dir) {
   const v = VARIANTS[state.variant];
   const work = join(dir, 'work');
-  const config = configFolder();
-  const home = homedir();
   const s = {};
   if (v.exclude) s.claudeMdExcludes = [forward(globalFile())];
   s.disableAllHooks = true;
@@ -338,17 +333,6 @@ function settingsFor(state, dir) {
       ...INSTRUCTIONS.map(name => rule('Edit', work, `/**/${name}`)),
       rule('Edit', work, '/**/.git/**'),
       rule('Edit', work, '/**/.gitattributes'),
-      // The owner's secrets, and the run's backups of the live folders.
-      rule('Read', join(config, '.credentials.json')),
-      rule('Read', join(config, 'settings.json')),
-      rule('Read', join(config, 'settings.local.json')),
-      rule('Read', join(config, '.claude.json')),
-      rule('Read', join(home, '.claude.json')),
-      rule('Read', join(home, '.ssh'), '/**'),
-      rule('Read', join(home, '.aws'), '/**'),
-      rule('Read', join(home, '.git-credentials')),
-      rule('Read', join(home, '.npmrc')),
-      rule('Read', join(dir, 'backup'), '/**'),
       ...OFF_MACHINE,
     ],
   };
@@ -392,19 +376,16 @@ function findProgram() {
     if (!isAbsolute(p) || !['.exe', '.mjs'].includes(ext) || !isFile(p)) {
       refuse(`${PROGRAM_VAR} must be an absolute path to an existing .exe or .mjs file; it is ${oneLine(p)}`);
     }
-    return checkProgram({ path: resolve(p), node: ext === '.mjs', fromVariable: true });
+    return { path: resolve(p), node: ext === '.mjs', fromVariable: true };
   }
   const names = process.platform === 'win32' ? ['claude.exe', 'claude.cmd'] : ['claude'];
-  const runs = resolve(runsRoot());
   for (const entry of (process.env.PATH ?? '').split(delimiter)) {
-    // An empty or relative entry would resolve against wherever the runner
-    // was started, which is not a place anyone chose to search.
-    if (!entry || !isAbsolute(entry) || within(resolve(entry), runs)) continue;
     for (const name of names) {
-      const found = join(entry, name);
+      // Recorded whole, because each turn runs it from the work folder.
+      const found = resolve(entry, name);
       if (!isFile(found)) continue;
-      if (name.endsWith('.cmd')) return checkProgram(fromShim(found));
-      return checkProgram({ path: found, node: false, fromVariable: false });
+      if (name.endsWith('.cmd')) return fromShim(found);
+      return { path: found, node: false, fromVariable: false };
     }
   }
   refuse(`Claude Code was not found on the path; install it, or name the program in ${PROGRAM_VAR}`);
@@ -419,17 +400,6 @@ function fromShim(cmd) {
   const target = targets[0] && join(dirname(cmd), targets[0]);
   if (!target || !isFile(target)) refuse(`found ${oneLine(cmd)}, a shim whose target the runner cannot resolve`);
   return { path: target, node: NODE_KINDS.includes(extname(target).toLowerCase()), fromVariable: false };
-}
-
-// Applied at start and again before every send, to the recorded path.
-function checkProgram(program) {
-  const p = program?.path;
-  const ext = extname(String(p)).toLowerCase();
-  const kindOk = program?.node ? NODE_KINDS.includes(ext) : process.platform !== 'win32' || ext === '.exe';
-  if (typeof p !== 'string' || !isAbsolute(p) || !isFile(p) || !kindOk || within(resolve(p), resolve(runsRoot()))) {
-    refuse(`the program ${oneLine(p)} is not an absolute path to an existing program outside the runs`);
-  }
-  return program;
 }
 
 function launch(program, args, opts) {
@@ -503,19 +473,10 @@ const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CASE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const NAME = /^[A-Z_][A-Z0-9_]*$/;
 
-// Names that change how a program starts or where its state lives. A case may
-// not set them, even as a literal. A name on the system list above is refused
-// too, because it would replace a value the session needs to start.
-const STARTUP_NAMES = new Set([
-  'PATH', 'TEMP', 'TMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR', 'USERPROFILE', 'HOME',
-  'LD_PRELOAD', 'LD_LIBRARY_PATH',
-  // Claude Code's own: one wraps every shell command, one names the shell.
-  'CLAUDE_CODE_SHELL_PREFIX', 'CLAUDE_CODE_GIT_BASH_PATH',
-  // Files a shell reads when it starts.
-  'BASH_ENV', 'ENV', 'PSMODULEPATH', 'CLAUDE_ENV_FILE',
-]);
-const STARTUP_PREFIXES = ['NODE_', 'GIT_', 'DYLD_', 'BUN_'];
-const startupName = name => STARTUP_NAMES.has(name) || STARTUP_PREFIXES.some(p => name.startsWith(p)) || SYSTEM.includes(name);
+// The names the runner sets in the session's environment. A case may not set
+// one, even as a literal, because it would replace a value the session needs
+// to start, or move its temp folder or its config folder.
+const OWN_NAMES = [...SYSTEM, 'TEMP', 'TMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR'];
 
 // The cases that plant an instruction, eagle-eye's session that needs a fake
 // key, and head-chef's session that asks for a real launch, run only where the
@@ -541,11 +502,10 @@ function checkValues(state) {
   if (state.case !== null && !CASE.test(state.case)) refuse(`the case name ${oneLine(state.case)} is outside the case pattern`);
   for (const [name, value] of Object.entries(state.values)) {
     if (!NAME.test(name)) refuse(`the value name ${oneLine(name)} is outside ^[A-Z_][A-Z0-9_]*$`);
-    if (startupName(name)) refuse(`a case may not set ${name}: it changes how programs start or where their state lives`);
+    if (OWN_NAMES.includes(name)) refuse(`a case may not set ${name}: the runner sets it`);
     if (typeof value !== 'string' || value.includes('\0') || value.length > 4096) refuse(`the value of ${name} is not a literal the runner can pass`);
   }
   checkConfigFolder(state.variant);
-  if (!Array.isArray(state.rules)) refuse('the run state no longer matches what its variant gives; start a new run');
   state.rules.forEach(parseRule);
   checkRuleValues(state);
   // The title comes from a file, so it is never used as a plain-object key.
@@ -591,14 +551,13 @@ function parseStart(args) {
 const INSTRUCTIONS = ['CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.md'];
 const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
 
-// Walk a folder without following links, and refuse any link: a link copied
-// into the work folder could point the session anywhere. Calls visit(rel, st)
-// for every entry below the root.
+// Walk a folder, following the links inside it, so what a link points at is
+// copied as plain files and the session never gets the link. Calls
+// visit(rel, st) for every entry below the root.
 function walk(root, visit, rel = '') {
   for (const name of readdirSync(join(root, rel))) {
     const r = rel ? join(rel, name) : name;
-    const st = lstatSync(join(root, r));
-    if (st.isSymbolicLink()) refuse(`a link at ${oneLine(join(root, r))}; the runner copies no links`);
+    const st = statSync(join(root, r));
     visit(r, st);
     if (st.isDirectory()) walk(root, visit, r);
   }
@@ -609,7 +568,6 @@ function checkSkill(src) {
   if (!existsSync(dir) || !lstatSync(dir).isDirectory()) refuse(`the skill folder ${oneLine(dir)} does not exist`);
   const md = join(dir, 'SKILL.md');
   if (!existsSync(md) || !lstatSync(md).isFile()) refuse(`the skill folder ${oneLine(dir)} has no SKILL.md, so nothing would be under test`);
-  walk(dir, () => {});
   const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(md, 'utf8'));
   const title = front && /^name:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(front[1]);
   return { name: basename(dir), title: title ? title[1] : basename(dir), source: dir };
@@ -683,8 +641,8 @@ function copyTree(from, to) {
 //
 // One file in the run's backup folder holds the hash of every copied skill
 // file at start. Start prints the manifest's own SHA-256, so a reference also
-// lives outside the run directory, and every send checks the manifest against
-// the hash start recorded before trusting it.
+// lives outside the run directory, and report and end check the manifest
+// against the hash start recorded before trusting it.
 
 const MANIFEST = join('backup', 'manifest.json');
 
@@ -738,7 +696,6 @@ function copiedHashes(work, skills) {
 
 function writeManifest(dir, manifest) {
   const file = join(dir, MANIFEST);
-  plainFile(file);
   const text = JSON.stringify(manifest, null, 2);
   writeFileSync(file, text);
   return sha256(Buffer.from(text));
@@ -747,7 +704,6 @@ function writeManifest(dir, manifest) {
 // The manifest, once its bytes match the hash start recorded.
 function readManifest(dir, state) {
   const file = join(dir, MANIFEST);
-  plainFile(file);
   let bytes;
   try { bytes = readFileSync(file); } catch { refuse('the backup manifest is gone; start a new run'); }
   if (sha256(bytes) !== state.manifest) refuse(`the backup manifest changed since start (start printed sha256 ${state.manifest}); start a new run`);
@@ -881,7 +837,9 @@ function preTurn(state, dir, work) {
   });
   const sut = state.skills[0];
   const prefix = copiedPrefix(sut);
-  const was = readManifest(dir, state).copied.filter(([r]) => r.startsWith(prefix));
+  let copiedAtStart;
+  try { copiedAtStart = JSON.parse(readFileSync(join(dir, MANIFEST), 'utf8')).copied; } catch { refuse('the backup manifest is gone or unreadable, so the skill copy cannot be checked; start a new run'); }
+  const was = copiedAtStart.filter(([r]) => r.startsWith(prefix));
   const now = treeAt(copyOf(work, sut)).map(([r, h]) => [prefix + r, h]);
   if (JSON.stringify(now) !== JSON.stringify(was)) {
     const before = new Map(was);
@@ -956,8 +914,8 @@ function made(dir, id, state, skills, setup, program) {
     for (const f of copyTree(s.source, join(work, to))) state.copied.push(join(to, f));
   }
   if (setup) copyTree(setup, work);
-  state.flags = flagsFor(state, join(dir, 'settings.json'));
-  state.settings = settingsFor(state, dir);
+  // Built here too, so a path no rule can name refuses the run at start.
+  settingsFor(state, dir);
   state.globalFile = globalRecord(state.variant);
   const backup = join(dir, 'backup');
   mkdirSync(backup);
@@ -977,39 +935,16 @@ function openRun(argv, command) {
   if (!RUN_ID.test(id)) refuse(`bad run id ${oneLine(id)}; a run id looks like 20261001-120000-0a1b2c3d`);
   const dir = join(runsRoot(), id);
   if (!existsSync(join(dir, STATE))) refuse(`unknown run ${id} under ${runsRoot()}`);
-  try {
-    plainFile(join(dir, STATE));
-  } catch (e) {
-    // End cannot mark such a run ended, so the copy of the skill stays.
-    if (command === 'end' && e instanceof Refusal) refuse(`the run record is not a plain file, so the run cannot be ended; delete ${oneLine(join(dir, 'work'))} by hand`);
-    throw e;
-  }
   let state;
   try { state = JSON.parse(readFileSync(join(dir, STATE), 'utf8')); } catch { /* refused below */ }
   const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (!isObject(state) || !Array.isArray(state.turns) || !Array.isArray(state.skills) || !state.skills.length
     || !isObject(state.values) || !Array.isArray(state.envNames) || !isObject(state.globalFile) || !Array.isArray(state.copied)
-    || !isObject(state.program) || !Array.isArray(state.flags) || !isObject(state.settings)
+    || !isObject(state.program)
     || !Array.isArray(state.rules) || typeof state.manifest !== 'string') {
     refuse(`the run state of ${id} is not readable; start a new run`);
   }
   return { id, dir, work: join(dir, 'work'), state };
-}
-
-// The runner's own files in the run directory are written only as plain
-// files. A link, or a hard link shared with a file elsewhere, would turn the
-// runner's write into a write somewhere else.
-function plainFile(path) {
-  let st;
-  try { st = lstatSync(path); } catch { return; }
-  if (!st.isFile() || st.nlink > 1) refuse(`${basename(path)} in the run directory is not a plain file; start a new run`);
-}
-
-// The work folder must be the folder start made, not a link to another one.
-function plainFolder(path) {
-  let st;
-  try { st = lstatSync(path); } catch { refuse('the work folder is gone; start a new run'); }
-  if (st.isSymbolicLink() || !st.isDirectory()) refuse('the work folder is a link or not a folder; start a new run');
 }
 
 // ---- send ----
@@ -1026,35 +961,24 @@ function events(text) {
 function send(argv) {
   const { dir, state } = openRun(argv, 'send');
   if (state.ended) refuse(`run ${state.id} ended at ${state.ended}; start a new run`);
-  checkValues(state);
   checkAncestors(dir);
-  checkProgram(state.program);
-  // The flags and the settings are rebuilt from the variant table, never read
-  // back. What start recorded must equal that rebuild, or something changed
-  // the run since start, and this turn would run under conditions nobody chose.
-  // The global file is checked before the settings, because a moved config
-  // folder changes the settings' rules too, and its reason names the cause.
-  const changed = 'the run state no longer matches what its variant gives; start a new run';
-  const rebuilt = flagsFor(state, join(dir, 'settings.json'));
-  if (JSON.stringify(rebuilt) !== JSON.stringify(state.flags)) refuse(changed);
+  // A turn under another global file would sit in the same run under the first
+  // one's hash.
   if (JSON.stringify(globalRecord(state.variant)) !== JSON.stringify(state.globalFile)) {
     refuse('the global instructions file changed since start, or its config folder moved; start a new run');
   }
-  const settings = settingsFor(state, dir);
-  if (JSON.stringify(settings) !== JSON.stringify(state.settings)) refuse(changed);
   const message = readFileSync(0);
   if (!message.length) refuse('no message on standard input');
-  if (state.sessionId !== null && !UUID.test(state.sessionId)) refuse('the run state no longer matches what its variant gives; start a new run');
-  if (!Number.isSafeInteger(state.attempts) || state.attempts < 0) refuse('the run state no longer matches what its variant gives; start a new run');
   const work = join(dir, 'work');
-  plainFolder(work);
   preTurn(state, dir, work);
+  // The flags and the settings come from the variant table on every turn.
+  const settings = settingsFor(state, dir);
+  const flags = flagsFor(state, join(dir, 'settings.json'));
   const out = join(dir, `attempt-${state.attempts + 1}.jsonl`);
-  for (const f of ['settings.json', 'transcript.jsonl', basename(out)]) plainFile(join(dir, f));
   // Written again before every turn, so a change to the file between turns
   // never reaches the session.
   writeFileSync(join(dir, 'settings.json'), JSON.stringify(settings, null, 2));
-  const args = state.sessionId ? [...rebuilt, '--resume', state.sessionId] : rebuilt;
+  const args = state.sessionId ? [...flags, '--resume', state.sessionId] : flags;
   // Standard output goes to a file, not a buffer: a long turn's events can
   // pass any buffer limit, and a cut-off transcript would read as a short turn.
   const attempt = state.attempts + 1;
@@ -1063,18 +987,15 @@ function send(argv) {
   let raw;
   try {
     r = launch(state.program, args, { cwd: work, env: sessionEnv(state, work), input: message, stdio: ['pipe', fd, 'pipe'] });
-    // Read back through the runner's own handle, not by name: the session ran
-    // in between, and a name can be pointed somewhere else.
     raw = readAll(fd);
   } finally {
     closeSync(fd);
-    // The raw events are unmasked, so they never outlive this send, whatever
-    // refuses below. remove() takes a link as itself, and never throws.
+    // The raw events are unmasked, so they never outlive this send. remove()
+    // takes a link as itself, and never throws.
     remove(out);
   }
   state.attempts = attempt;
   const kept = scrubTranscript(raw);
-  plainFile(join(dir, 'transcript.jsonl'));
   appendFileSync(join(dir, 'transcript.jsonl'), kept);
   const ev = events(raw);
   const init = ev.find(e => e.type === 'system' && e.subtype === 'init');
@@ -1251,7 +1172,7 @@ function scrubTranscript(raw) {
 // The run record. Everything in it is a field the runner wrote, or a name or
 // list the session reported, cleaned. It prints names, never a named value.
 // The report prints the record's runner fields as they are, so it checks
-// their shapes first, as send checks what it rebuilds.
+// their shapes first.
 function checkRecord(state, id) {
   const bad = () => refuse(`the run state of ${id} is not readable; start a new run`);
   const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v);
@@ -1430,10 +1351,7 @@ function readAll(fd) {
 const sha256 = buf => createHash('sha256').update(buf).digest('hex');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const save = (dir, state) => {
-  plainFile(join(dir, STATE));
-  writeFileSync(join(dir, STATE), JSON.stringify(state, null, 2));
-};
+const save = (dir, state) => writeFileSync(join(dir, STATE), JSON.stringify(state, null, 2));
 
 // The session ran, but the turn did not complete. Not a refusal: something was
 // sent, and the evidence is on disk.

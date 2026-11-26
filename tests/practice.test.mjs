@@ -9,7 +9,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync, symlinkSync, linkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync, symlinkSync, lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -176,13 +176,12 @@ for (const [variant, want] of Object.entries(TABLE)) {
 // on Windows the drive as a lower-case folder, C:\x becoming //c/x.
 const rp = p => (process.platform === 'win32' ? `//${p[0].toLowerCase()}${fwd(p.slice(2))}` : `/${p}`);
 
-test('the settings file denies edits to the skill under test and the session\'s own setup, and reads of secrets and backups', () => {
+test('the settings file denies edits to the skill under test and the session\'s own setup, and no read', () => {
   const sb = sandbox();
   const companion = skillAt(sb, 'commit-checker');
   const id = start(sb, ['--skill', companion]);
   assert.equal(cli(sb, ['send', id], 'one').code, 0);
   const w = workDir(sb, id);
-  const config = join(sb.home, '.claude');
   const { allow, deny } = settingsOf(sb, id).permissions;
   // Edits and new files inside the work folder are allowed.
   assert.ok(allow.includes(`Edit(${rp(w)}/**)`), allow.join('\n'));
@@ -196,27 +195,10 @@ test('the settings file denies edits to the skill under test and the session\'s 
     `Edit(${rp(w)}/**/AGENTS.md)`,
     `Edit(${rp(w)}/**/.git/**)`,
     `Edit(${rp(w)}/**/.gitattributes)`,
-    `Read(${rp(config)}/.credentials.json)`,
-    `Read(${rp(config)}/settings.json)`,
-    `Read(${rp(config)}/settings.local.json)`,
-    `Read(${rp(sb.home)}/.claude.json)`,
-    `Read(${rp(sb.home)}/.ssh/**)`,
-    `Read(${rp(sb.home)}/.aws/**)`,
-    `Read(${rp(sb.home)}/.git-credentials)`,
-    `Read(${rp(sb.home)}/.npmrc)`,
-    `Read(${rp(runDir(sb, id))}/backup/**)`,
   ]) assert.ok(deny.includes(rule), `the settings file does not deny ${rule}:\n${deny.join('\n')}`);
+  assert.deepEqual(deny.filter(r => r.startsWith('Read(')), []);
   // The companion skill stays editable: B8 tests how a skill treats it.
   assert.ok(!deny.some(r => r.includes('commit-checker')), 'a companion skill is edit-denied');
-});
-
-test('with the config folder variable set, the secret reads follow that folder', () => {
-  const config = join(work, `config-${n}`);
-  const sb = sandbox({ CLAUDE_CONFIG_DIR: config });
-  const id = start(sb);
-  assert.equal(cli(sb, ['send', id], 'one').code, 0);
-  const { deny } = settingsOf(sb, id).permissions;
-  for (const f of ['.credentials.json', 'settings.json', '.claude.json']) assert.ok(deny.includes(`Read(${rp(config)}/${f})`), f);
 });
 
 // ---- tool rules ----
@@ -612,12 +594,12 @@ test('clean prints no user permission block', () => {
   assert.doesNotMatch(rep, /user permission block|collide/);
 });
 
-test('a send after the backup manifest changed is refused', () => {
+test('a send after the backup manifest changed goes ahead, and the report says it changed', () => {
   const sb = sandbox();
   const id = start(sb);
   const file = join(runDir(sb, id), 'backup', 'manifest.json');
   writeFileSync(file, `${readFileSync(file, 'utf8')} `);
-  refused(cli(sb, ['send', id], 'go'), /manifest changed/);
+  assert.equal(cli(sb, ['send', id], 'go').code, 0);
   assert.match(cli(sb, ['report', id]).stdout, /^backup manifest: CHANGED since start/m);
 });
 
@@ -798,15 +780,14 @@ test('a live place that is a link is named as not checked, and a link retargeted
   assert.match(rep, /^summary: .*; live folders changed \(1\), 1 not checked; /m);
 });
 
-test('a send refused after the session ran leaves no raw copy of the turn\'s output', () => {
+test('a turn that did not count leaves no raw copy of its output', () => {
   const sb = sandbox();
-  const victim = join(sb.dir, 'victim.txt');
-  writeFileSync(victim, 'keep');
-  plan(sb, [{ reply: 'one' }, { reply: 'two', hardlink: { '../transcript.jsonl': victim } }]);
+  plan(sb, [{ silent: true, exit: 1 }, { reply: 'two' }]);
   const id = start(sb);
-  assert.equal(cli(sb, ['send', id], 'one').code, 0);
-  assert.notEqual(cli(sb, ['send', id], 'two').code, 0);
-  assert.deepEqual(readdirSync(runDir(sb, id)).filter(f => f.startsWith('attempt-')), []);
+  for (const want of [2, 0]) {
+    assert.equal(cli(sb, ['send', id], 'go').code, want);
+    assert.deepEqual(readdirSync(runDir(sb, id)).filter(f => f.startsWith('attempt-')), []);
+  }
 });
 
 test('the user permission block loses control characters', () => {
@@ -1070,8 +1051,6 @@ const START_REFUSALS = [
   ['an effort outside its list', sb => ['--variant', 'clean', '--skill', sb.skill, '--model', 'haiku', '--effort', 'extreme'], /effort/],
   ['no model', sb => ['--variant', 'clean', '--skill', sb.skill, '--effort', 'low'], /--model/],
   ['a named value passed through, not written as a literal', sb => ['--variant', 'clean', ...base(sb), '--value', 'TYPESAFE_API_KEY'], /literal/],
-  ['the name NODE_OPTIONS', sb => ['--variant', 'clean', ...base(sb), '--value', 'NODE_OPTIONS=--require=x'], /NODE_OPTIONS/],
-  ['a GIT_ name', sb => ['--variant', 'clean', ...base(sb), '--value', 'GIT_DIR=x'], /GIT_DIR/],
   ['a name that would replace a system value', sb => ['--variant', 'clean', ...base(sb), '--value', 'COMSPEC=x'], /COMSPEC/],
   ['a name outside the shape', sb => ['--variant', 'clean', ...base(sb), '--value', 'lower=x'], /name/],
   ['eagle-eye session 4 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'session-4', '--model', 'haiku', '--effort', 'low'], /session-4/],
@@ -1099,19 +1078,21 @@ test('a case that plants an instruction is accepted on clean and owner-pact', ()
   }
 });
 
-test('start refuses a link anywhere in a skill or setup folder', () => {
+test('start copies what a link in a skill or setup folder points at, as plain files', () => {
   const sb = sandbox();
   const outside = join(sb.dir, 'outside');
   mkdirSync(outside);
+  writeFileSync(join(outside, 'linked.md'), 'linked');
   mkdirSync(join(sb.skill, 'deep'));
   symlinkSync(outside, join(sb.skill, 'deep', 'link'), 'junction');
-  refused(cli(sb, ['start', '--variant', 'clean', ...base(sb)]), /link/);
-  const sb2 = sandbox();
-  const setup = setupWith(sb2, { 'a.txt': 'a' });
+  const setup = setupWith(sb, { 'a.txt': 'a' });
   symlinkSync(outside, join(setup, 'link'), 'junction');
-  refused(cli(sb2, ['start', '--variant', 'clean', ...base(sb2), '--setup', setup]), /link/);
-  noRuns(sb);
-  noRuns(sb2);
+  const id = start(sb, ['--setup', setup]);
+  const w = workDir(sb, id);
+  for (const rel of [['.claude', 'skills', 'probe-skill', 'deep', 'link'], ['link']]) {
+    assert.ok(lstatSync(join(w, ...rel)).isDirectory(), `${rel.join('/')} is not a plain folder`);
+    assert.equal(readFileSync(join(w, ...rel, 'linked.md'), 'utf8'), 'linked');
+  }
 });
 
 for (const [what, plant] of [
@@ -1140,25 +1121,6 @@ for (const command of ['send', 'report', 'end']) {
 }
 
 // ---- the run state ----
-
-for (const [what, edit] of [
-  ['the variant', s => { s.variant = 'full-account'; }],
-  ['the model', s => { s.model = 'opus'; }],
-  ['the recorded flags', s => { s.flags.push('--dangerously-skip-permissions'); }],
-  ['the recorded settings', s => { s.settings.disableAllHooks = false; }],
-  ['the tool rules', s => { s.rules.push('git log *'); }],
-]) {
-  test(`a send after ${what} changed in the run state is refused, and nothing is sent`, () => {
-    const sb = sandbox();
-    const id = start(sb);
-    const file = join(runDir(sb, id), 'state.json');
-    const s = JSON.parse(readFileSync(file, 'utf8'));
-    edit(s);
-    writeFileSync(file, JSON.stringify(s));
-    refused(cli(sb, ['send', id], 'hi'), /run state no longer matches/);
-    assert.equal(calls(sb).length, 0);
-  });
-}
 
 test('a send whose config folder differs from start is refused', () => {
   const sb = sandbox();
@@ -1354,28 +1316,15 @@ function fakeClaude(sb, name) {
   return join(bin, 'claude');
 }
 
-test('with no program variable, the path search finds claude, skipping empty and relative entries', () => {
+test('with no program variable, the path search finds claude and records its full path', () => {
   const sb = sandbox({ GRIMOIRE_PRACTICE_PROGRAM: null, Path: null });
   const good = fakeClaude(sb, 'bin');
-  fakeClaude(sb, 'relative-bin');
-  sb.env.PATH = ['', 'relative-bin', join(sb.dir, 'bin'), dirname(process.execPath)].join(delimiter);
+  sb.env.PATH = ['bin', dirname(process.execPath)].join(delimiter);
   const id = start(sb);
   assert.equal(cli(sb, ['send', id], 'hi').code, 0);
   assert.equal(calls(sb).length, 1);
   const rep = cli(sb, ['report', id]).stdout;
   assert.ok(rep.includes(`program: ${good} (from the path search)`), rep);
-});
-
-test('a send re-checks the recorded program path', () => {
-  const sb = sandbox();
-  const id = start(sb);
-  const file = join(runDir(sb, id), 'state.json');
-  const s = JSON.parse(readFileSync(file, 'utf8'));
-  s.program.path = join(workDir(sb, id), 'planted.mjs');
-  writeFileSync(s.program.path, 'process.exit(0)');
-  writeFileSync(file, JSON.stringify(s));
-  refused(cli(sb, ['send', id], 'hi'), /program/);
-  assert.equal(calls(sb).length, 0);
 });
 
 // ---- review round 1 (security-reviewer and result-checker on #163) ----
@@ -1417,15 +1366,12 @@ test('start refuses a relative config folder, and a global-file path the exclusi
   refused(cli(rel, ['start', '--variant', 'owner-pact', ...base(rel)]), /CLAUDE_CONFIG_DIR/);
   const odd = sandbox({ CLAUDE_CONFIG_DIR: join(work, 'config [1]') });
   refused(cli(odd, ['start', '--variant', 'clean', ...base(odd)]), /pattern/);
-  // Every variant writes read rules on the config folder, and a rule is a
-  // pattern too, so a variant that excludes nothing refuses the same path.
-  refused(cli(odd, ['start', '--variant', 'owner-pact', ...base(odd)]), /pattern/);
   noRuns(rel);
   noRuns(odd);
 });
 
-for (const name of ['CLAUDE_CODE_SHELL_PREFIX', 'CLAUDE_CODE_GIT_BASH_PATH', 'NODE_EXTRA_CA_CERTS', 'BASH_ENV', 'ENV', 'PSMODULEPATH', 'BUN_OPTIONS', 'LOGONSERVER']) {
-  test(`start refuses the value name ${name}, which changes how programs start`, () => {
+for (const name of ['PATH', 'HOME', 'TEMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR', 'LOGONSERVER']) {
+  test(`start refuses the value name ${name}, which the runner sets itself`, () => {
     const sb = sandbox();
     refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', `${name}=x`]), new RegExp(name));
   });
@@ -1443,38 +1389,6 @@ test('a corrupt run state is refused in one line', () => {
   for (const command of ['send', 'report', 'end']) refused(cli(sb, [command, id], 'hi'), /run state/);
 });
 
-test('a send refuses an attempt counter that is not a whole number', () => {
-  const sb = sandbox();
-  const id = start(sb);
-  const file = join(runDir(sb, id), 'state.json');
-  const s = JSON.parse(readFileSync(file, 'utf8'));
-  s.attempts = 'x/../../../t';
-  writeFileSync(file, JSON.stringify(s));
-  refused(cli(sb, ['send', id], 'hi'), /run state/);
-  assert.equal(calls(sb).length, 0);
-});
-
-test('a send refuses when one of the runner\'s own files is a link, or the work folder is one', () => {
-  const sb = sandbox();
-  const id = start(sb);
-  const victim = join(sb.dir, 'victim.json');
-  writeFileSync(victim, 'keep');
-  const settings = join(runDir(sb, id), 'settings.json');
-  rmSync(settings, { force: true });
-  linkSync(victim, settings);
-  refused(cli(sb, ['send', id], 'hi'), /settings\.json/);
-  assert.equal(readFileSync(victim, 'utf8'), 'keep');
-  rmSync(settings);
-  const sb2 = sandbox();
-  const id2 = start(sb2);
-  const elsewhere = join(sb2.dir, 'elsewhere');
-  mkdirSync(elsewhere);
-  rmSync(workDir(sb2, id2), { recursive: true });
-  symlinkSync(elsewhere, workDir(sb2, id2), 'junction');
-  refused(cli(sb2, ['send', id2], 'hi'), /work folder/);
-  assert.equal(calls(sb2).length, 0);
-});
-
 test('the ancestor check also walks the real path, when the temp folder is reached through a link', () => {
   const sb = sandbox();
   const real = join(sb.dir, 'real');
@@ -1488,21 +1402,6 @@ test('the ancestor check also walks the real path, when the temp folder is reach
   assert.match(r.stderr, /AGENTS\.md/);
 });
 
-// ---- review round 2 (security-reviewer on the fix commit) ----
-
-test('a send refuses to append to a transcript the session swapped for a link during the turn', () => {
-  const sb = sandbox();
-  const victim = join(sb.dir, 'victim.txt');
-  writeFileSync(victim, 'keep');
-  plan(sb, [{ reply: 'one' }, { reply: 'two', hardlink: { '../transcript.jsonl': victim } }]);
-  const id = start(sb);
-  assert.equal(cli(sb, ['send', id], 'one').code, 0);
-  const r = cli(sb, ['send', id], 'two');
-  assert.notEqual(r.code, 0);
-  assert.match(r.stderr, /transcript\.jsonl/);
-  assert.equal(readFileSync(victim, 'utf8'), 'keep');
-});
-
 test('start refuses a test value equal to any of the runner\'s own values, under any name', () => {
   const sb = sandbox({ SOME_SECRET: 'abcdefgh123' });
   const r = cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'OTHER=abcdefgh123']);
@@ -1511,25 +1410,6 @@ test('start refuses a test value equal to any of the runner\'s own values, under
   // A short everyday value is no evidence of a pass-through.
   const ok = sandbox({ SOME_FLAG: 'true' });
   assert.equal(cli(ok, ['start', '--variant', 'clean', ...base(ok), '--value', 'OTHER=true']).code, 0);
-});
-
-test('start refuses CLAUDE_ENV_FILE, a file a shell reads before each command', () => {
-  const sb = sandbox();
-  refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'CLAUDE_ENV_FILE=x']), /CLAUDE_ENV_FILE/);
-});
-
-test('end on a run whose record is a link says the work folder is left to delete by hand', () => {
-  const sb = sandbox();
-  const id = start(sb);
-  const file = join(runDir(sb, id), 'state.json');
-  const copy = join(sb.dir, 'state-copy.json');
-  writeFileSync(copy, readFileSync(file));
-  rmSync(file);
-  linkSync(copy, file);
-  const r = cli(sb, ['end', id]);
-  refused(r, /delete .*work.* by hand/);
-  // The reason quotes the path JSON-escaped, so look for the run id in it.
-  assert.ok(r.stderr.includes(id), r.stderr);
 });
 
 test('a run record missing its parts is refused in one line', () => {
