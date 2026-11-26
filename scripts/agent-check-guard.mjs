@@ -25,7 +25,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { delimiter, join, posix } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // The refusal. Fixed text: nothing from the command is echoed into it, so a
@@ -223,39 +223,23 @@ const LIMIT_MS = 5000;
 // exits 1), a missing program and a hang all mean athanor is missing, and the
 // host check is the only way to run the check.
 //
-// The child inherits the session's environment, so it must be athanor. On
-// Windows an npm install leaves a .cmd shim, which only a shell runs, so it
-// goes through cmd.exe by absolute path, from the system folder, with the
-// lookup in the current folder switched off: cmd would otherwise run a file of
-// that name found in the working folder before it searched PATH. Elsewhere a
-// PATH with an empty or relative entry means the same lookup, so it counts as
-// missing and nothing runs. On the limit the child and the tree under it die.
-export function probeAthanor({ env = process.env, platform = process.platform, limitMs = LIMIT_MS } = {}) {
+// The child inherits the session's environment. It goes through the shell,
+// because an npm install on Windows leaves a .cmd shim. cmd.exe would run a
+// file of that name found in the working folder, which here is the branch,
+// before it searched PATH: so the probe runs from a fixed folder, on Windows
+// the system folder with the lookup in the current folder switched off.
+// Elsewhere the shell searches an empty or relative PATH entry from the folder
+// it runs in, so that is the root. On the limit the child and the tree under it
+// die.
+export function probeAthanor({ env = process.env, limitMs = LIMIT_MS } = {}) {
   return new Promise(resolve => {
-    const win = platform === 'win32';
-    let file;
-    let args;
-    let cwd;
-    let childEnv;
-    let taskkill;
-    if (win) {
-      const named = Object.keys(env).find(k => k.toLowerCase() === 'systemroot');
-      const system = join(named ? env[named] : 'C:\\Windows', 'System32');
-      file = join(system, 'cmd.exe');
-      taskkill = join(system, 'taskkill.exe');
-      args = ['/d', '/s', '/c', 'athanor --version'];
-      cwd = system;
-      childEnv = { ...env, NoDefaultCurrentDirectoryInExePath: '1' };
-    } else {
-      if ((env.PATH ?? '').split(delimiter).some(d => d === '' || !posix.isAbsolute(d))) return resolve(false);
-      file = 'athanor';
-      args = ['--version'];
-      cwd = '/';
-      childEnv = env;
-    }
+    const win = process.platform === 'win32';
+    const named = Object.keys(env).find(k => k.toLowerCase() === 'systemroot');
+    const cwd = win ? join(named ? env[named] : 'C:\\Windows', 'System32') : '/';
+    const childEnv = win ? { ...env, NoDefaultCurrentDirectoryInExePath: '1' } : env;
     let child;
     try {
-      child = spawn(file, args, { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, detached: !win });
+      child = spawn('athanor --version', { shell: true, cwd, env: childEnv, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, detached: !win });
     } catch {
       return resolve(false);
     }
@@ -271,7 +255,8 @@ export function probeAthanor({ env = process.env, platform = process.platform, l
     };
     const timer = setTimeout(() => {
       try {
-        if (win) spawnSync(taskkill, ['/t', '/f', '/pid', String(child.pid)], { stdio: 'ignore', windowsHide: true });
+        // The same cwd, so no taskkill in the branch runs.
+        if (win) spawnSync('taskkill', ['/t', '/f', '/pid', String(child.pid)], { cwd, stdio: 'ignore', windowsHide: true });
         else process.kill(-child.pid, 'SIGKILL');
       } catch {
         // Nothing left to kill.
