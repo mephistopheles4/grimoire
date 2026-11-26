@@ -430,19 +430,22 @@ ignore in silence. Neither replaces the other. It is not a required check.
 **Three runs, named one by one.** The job validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
 fails at the end, so one red target cannot hide the next. What one run covers
-depends on the version: on 2.1.314, `.` reads the marketplace manifest, the
-plugin manifest and `hooks/hooks.json`, and not `skills/`.
+depends on the version: on 2.1.332, `.` reads the marketplace manifest, the
+plugin manifest and `hooks/hooks.json`, type-checks the mod, and does not
+check `skills/`.
 
-**The exit code is the gate.** On 2.1.314 a missing path, a mistyped path, an
+**The exit code is the gate.** On 2.1.332 a missing path, a mistyped path, an
 empty folder and a file that is not JSON all exit `1`, so no output is parsed.
 
 ### What it catches, and what it does not
 
-Measured on 2.1.314, in athanor's image with no network:
+Measured on 2.1.332, in athanor's image with no network:
 
 - **It catches** an unknown field in either manifest, and a manifest that is
   not valid JSON. The unknown field fails only under `--strict`: without the
   flag it is a warning and the run exits `0`.
+- **It catches** a type error in the mod, a `.ts` import path included, only
+  under `--strict`.
 - **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, a skill
   folder with no `SKILL.md` at all, or a
   `SKILL.md` whose frontmatter does not parse. `skills/` is a weak check. The
@@ -454,13 +457,13 @@ Measured on 2.1.314, in athanor's image with no network:
 
 ### The pin
 
-**Claude Code 2.1.314**, set on 2026-10-31. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in four places that move together:
+**Claude Code 2.1.332**, set on 2026-11-26. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in four places that move together:
 
-- the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.314`, written
+- the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.332`, written
   three times (the package in the fetch step, the tarball's file name below
-  it, and the string `2.1.314 (Claude Code)` the version step compares
+  it, and the string `2.1.332 (Claude Code)` the version step compares
   against);
-- the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.314`, written
+- the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.332`, written
   the same three times;
 - the `plugin-test-linux` job: the Linux package, written the same three
   times;
@@ -477,7 +480,7 @@ version fails before the gate can read as clean.
 The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
 `plugin-test-linux` job runs it on a Linux one. A failing test and a test file
 that does not load both exit `1`, so the exit code is the gate. It needs no
-sign-in and makes no model call, measured on 2.1.314 with an empty config
+sign-in and makes no model call, measured on 2.1.332 with an empty config
 folder and no API key. The tests' world follows its host: its paths are
 the host's, and the tests that build a junction run on Windows only, since
 Linux has none and their recorded answers come from Windows. Off Windows they
