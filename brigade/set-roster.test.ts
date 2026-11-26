@@ -10859,6 +10859,55 @@ test('532: the reminder is said once, and a refused set_roster does not clear th
   expect(reminders(w).length).toBe(1)
 })
 
+// --- a send to a twin name (GRIM-41) ---------------------------------------------
+
+// A world whose message tool records each call it receives and whose session
+// list holds `rows` under the name `session-a`.
+const twinWorld = (on: On, rows: { ref: string; type: string }[]) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, () => ({
+    result: { listing: '', sections: [{ kind: 'sessions', total: rows.length, rows: rows.map(r => ({ name: 'session-a', ...r })) }] },
+  }) as any)
+  return { w, sent }
+}
+const TWIN = [{ ref: 'rem222', type: 'remote_control' }, { ref: 'loc111', type: 'bg' }]
+
+test('GRIM-41: a message and an idle subscription to a twin name reach the local row', async ($, on) => {
+  const { sent } = twinWorld(on, TWIN)
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  await sendTo($, { notify_when_idle: true })
+  expect(sent.map(e => e.to)).toEqual(['session-a [loc111]', 'session-a [loc111]'])
+  expect(sent[0].message).toBe('go on')
+})
+
+test('GRIM-41: another shared shape is refused, nothing is sent and no reminder is owed', async ($, on) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }, { ref: 'loc333', type: 'interactive' }])
+  await start($)
+  await brigade($)
+  const r: any = await sendTo($, { message: 'go on' })
+  expect(String(r.deny)).toMatch(/nothing was sent.*Two sessions on this machine.*tell the owner/)
+  expect(sent).toEqual([])
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+})
+
+test("GRIM-41: with the pane closed, and from a subagent, a send goes on as sent", async ($, on) => {
+  const { sent } = twinWorld(on, TWIN)
+  await start($)
+  await sendTo($, { message: 'go on' })
+  await brigade($)
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  expect(sent.map(e => e.to)).toEqual(['session-a', 'session-a'])
+})
+
 // --- the usage read's breakdown ---------------------------------------------------
 //
 // Every usage read asks the engine for the local summary breakdown; the terminal

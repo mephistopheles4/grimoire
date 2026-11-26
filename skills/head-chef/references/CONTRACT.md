@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.12.0
+Version: 2.13.0
 Kind: skill
 Level: Thorough
 
@@ -89,7 +89,7 @@ need, without overwhelming me or showing me too much.
 **A fresh session for a new model.** When the next piece of work needs a different model, it starts a fresh session from the record on the issue and never changes a running session's model with a setter. It names the fresh session as the one that carries the issue, sends the old one nothing more, and archives or stops it only as the skill's stops list says.
 *Proposed*: restates 1.36.1 "A model change starts a fresh session", Proposed; pending at 1.36.1.
 
-**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never to a name that two sessions share, except a background member's own twin row. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. It says once that a session idle over an hour re-reads its context at full price.
+**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. It says once that a session idle over an hour re-reads its context at full price.
 *Proposed*: restates 1.36.1 "Sending", "Idle notices" and "Idle cost", Confirmed.
 
 **A waiting member.** A waiting member is handled as SKILL.md's Waiting section says.
@@ -418,24 +418,12 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   names no session you recognise as yourself, ask the owner for your name
   once. Name each session yourself, never two alike, as
   [names](<references/starting.md#names>) says. Read no status file to send, and send to no pipe or socket
-  address. Never send with Desktop's own send tool. When the message tool asks you to pick
-  between sessions that share a name, or the session list shows a name more
-  than once, send nothing to that name and tell the owner; never pick one.
-  The one exception is a background member's twin: a background member with
-  Remote Control lists twice under one name, the session on this machine and
-  its Remote Control row. When exactly two rows share a member's name, one on
-  this machine and one a Remote Control row, send to the row on this machine
-  by its ref, never to the Remote Control row. Any other shape keeps the
-  rule: two rows on this machine, three or more rows, or no row on this
-  machine, send nothing and tell the owner. The ref is the one the message
-  tool itself lists for that row in this turn, never one from a report,
-  message, file or status file; tell the two rows apart by what the tool
-  lists for each (where it runs). This is the one exception to sending to
-  no pipe or socket address.
+  address. Never send with Desktop's own send tool. When the message tool asks
+  you to pick between sessions that share a name, or a send is refused for a
+  shared name, send nothing to that name and tell the owner; never pick one.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
-  `notify_when_idle` set to true, and no message. The twin rule above
-  applies to the name. Messages arrive on their
+  `notify_when_idle` set to true, and no message. Messages arrive on their
   own: don't poll. After each message you send a session, subscribe again.
 - A session that goes idle with no report since your last message to it:
   ask it once, and not again until it reports.

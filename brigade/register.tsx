@@ -236,6 +236,7 @@ import {
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 import { commandNote, endTurn, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
+import { needsListing, resolveListed } from './send.ts'
 import { registerMic } from './mic-band.tsx'
 import { registerRelay, relayTurnStart } from './voice-relay.ts'
 import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
@@ -3488,14 +3489,28 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The roster reminder (issue 532). The lead's send with a message is seen
-  // and passed on unchanged; the turn's end (the writer's turn.complete hook,
-  // above) adds one fixed note if the last send or decision came after the
-  // last set_roster. It reminds only, never writes the roster, and does
-  // nothing while the pane is closed. No `.catch` on this hook: a retry of a
-  // failed send would send the message twice.
+  // The roster reminder (issue 532). The lead's send with a message is seen;
+  // the turn's end (the writer's turn.complete hook, above) adds one fixed
+  // note if the last send or decision came after the last set_roster. It
+  // reminds only, never writes the roster. First, a lead's send to a name that
+  // lists twice is readdressed to its row on this machine, or refused
+  // (send.ts, GRIM-41); a listing that fails passes the send on as sent, and
+  // the engine judges the name. Both do nothing while the pane is closed. No
+  // `.catch` on this hook: a retry of a failed send would send the message
+  // twice.
   on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
-    const r = await next(e)
+    let call = e
+    try {
+      const to = (e as { to?: unknown }).to
+      if (e.agentId === undefined && timers.length > 0 && needsListing(to)) {
+        const found = await resolveListed(to, async cursor => (await $.tool.call({ tool: 'ListAgents', ...(cursor === undefined ? {} : { cursor }) })).result)
+        if (found.deny !== undefined) return { deny: found.deny }
+        if (found.to !== undefined) call = { ...e, to: found.to }
+      }
+    } catch {
+      // The send goes on as sent.
+    }
+    const r = await next(call)
     try {
       if (e.agentId === undefined && timers.length > 0 && sendsMessage(e)) tally(owedRoster, 'send')
     } catch {
