@@ -173,7 +173,8 @@ stop.
   more characters. A secret the session reads in another form can reach a
   report.
 - **The checks are evidence, not proof.** They cover only the six places.
-  The backups sit where an allowed command could overwrite them.
+  The backups sit where an allowed command could overwrite them, the
+  manifest among them, and `send` reads its skill-copy hashes unchecked.
 - **The rules are only a rule check.** Claude Code has no operating-system
   sandbox on native Windows.
 

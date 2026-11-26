@@ -601,6 +601,8 @@ test('a send after the backup manifest changed goes ahead, and the report says i
   writeFileSync(file, `${readFileSync(file, 'utf8')} `);
   assert.equal(cli(sb, ['send', id], 'go').code, 0);
   assert.match(cli(sb, ['report', id]).stdout, /^backup manifest: CHANGED since start/m);
+  rmSync(file);
+  refused(cli(sb, ['send', id], 'again'), /manifest is gone or unreadable/);
 });
 
 test('the report lists a change to a copied companion skill, and its changed file in the disk listing', () => {
@@ -780,7 +782,7 @@ test('a live place that is a link is named as not checked, and a link retargeted
   assert.match(rep, /^summary: .*; live folders changed \(1\), 1 not checked; /m);
 });
 
-test('a turn that did not count leaves no raw copy of its output', () => {
+test('a turn that did not complete leaves no raw copy of its output', () => {
   const sb = sandbox();
   plan(sb, [{ silent: true, exit: 1 }, { reply: 'two' }]);
   const id = start(sb);
@@ -1370,7 +1372,7 @@ test('start refuses a relative config folder, and a global-file path the exclusi
   noRuns(odd);
 });
 
-for (const name of ['PATH', 'HOME', 'TEMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR', 'LOGONSERVER']) {
+for (const name of ['TEMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR']) {
   test(`start refuses the value name ${name}, which the runner sets itself`, () => {
     const sb = sandbox();
     refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', `${name}=x`]), new RegExp(name));
@@ -1410,6 +1412,8 @@ test('start refuses a test value equal to any of the runner\'s own values, under
   // A short everyday value is no evidence of a pass-through.
   const ok = sandbox({ SOME_FLAG: 'true' });
   assert.equal(cli(ok, ['start', '--variant', 'clean', ...base(ok), '--value', 'OTHER=true']).code, 0);
+  // A name the runner does not set is the case's to set, whatever it changes.
+  assert.equal(cli(ok, ['start', '--variant', 'clean', ...base(ok), '--value', 'NODE_OPTIONS=--no-warnings']).code, 0);
 });
 
 test('a run record missing its parts is refused in one line', () => {

@@ -837,6 +837,8 @@ function preTurn(state, dir, work) {
   });
   const sut = state.skills[0];
   const prefix = copiedPrefix(sut);
+  // Read with no check against start's hash: a changed manifest refuses no
+  // send, and report says it changed.
   let copiedAtStart;
   try { copiedAtStart = JSON.parse(readFileSync(join(dir, MANIFEST), 'utf8')).copied; } catch { refuse('the backup manifest is gone or unreadable, so the skill copy cannot be checked; start a new run'); }
   const was = copiedAtStart.filter(([r]) => r.startsWith(prefix));
