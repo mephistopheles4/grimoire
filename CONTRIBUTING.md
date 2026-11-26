@@ -175,13 +175,12 @@ make a skip visible, not to stop one: the refusal names it.
 - **Athanor works** when `athanor --version` exits 0 and prints a version
   within five seconds. A shim that dangles (mise says "athanor is not a valid
   shim"), a missing program and a hang all mean athanor is missing, so the
-  host check is allowed and nothing has to be done. On Windows the probe goes
-  through `cmd.exe`, because an npm install leaves a `.cmd` shim. It runs from
-  the system folder with the lookup in the current folder switched off. On
-  macOS and Linux a `PATH` with an empty or relative entry counts as athanor
-  missing, so the hook lets the host check through; on Windows a relative entry
-  is searched from the system folder. Like any program it starts, the probe
-  inherits the session's environment, and it finds the first `athanor` on `PATH`.
+  host check is allowed and nothing has to be done. The probe goes through the
+  shell, because an npm install on Windows leaves a `.cmd` shim. It runs from a
+  fixed folder (on Windows the system folder, with the lookup in the current
+  folder switched off), so a file named `athanor` in the branch is not run. Like
+  any program it starts, the probe inherits the session's environment, and it
+  finds the first `athanor` on `PATH`.
 - **Everything else passes in silence:** the hook prints nothing, so your
   permission rules decide, as they would without it. The same holds when it
   fails. A hook that cannot start because `node` or the script is missing makes
