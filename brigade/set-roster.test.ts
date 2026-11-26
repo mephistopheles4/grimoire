@@ -10859,6 +10859,94 @@ test('532: the reminder is said once, and a refused set_roster does not clear th
   expect(reminders(w).length).toBe(1)
 })
 
+// --- a send to a twin name (GRIM-41) ---------------------------------------------
+
+// A world whose message tool records each call it receives and whose session
+// list holds `rows` under the name `session-a`.
+const twinWorld = (on: On, rows: { ref: string; type: string }[]) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, () => ({
+    result: { listing: '', sections: [{ kind: 'sessions', total: rows.length, rows: rows.map(r => ({ name: 'session-a', ...r })) }] },
+  }) as any)
+  return { w, sent }
+}
+const TWIN = [{ ref: 'rem222', type: 'remote_control' }, { ref: 'loc111', type: 'bg' }]
+
+test('GRIM-41: a message and an idle subscription to a twin name reach the local row', async ($, on) => {
+  const { sent } = twinWorld(on, TWIN)
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  await sendTo($, { notify_when_idle: true })
+  expect(sent.map(e => e.to)).toEqual(['session-a [loc111]', 'session-a [loc111]'])
+  expect(sent[0].message).toBe('go on')
+  expect(sent[1].notify_when_idle).toBe(true)
+})
+
+test('GRIM-41: a twin split over two pages of the session list reaches the local row', async ($, on) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, ($, e: any) => {
+    const [row, listing] = e.cursor === '0a'
+      ? [TWIN[0], '']
+      : [TWIN[1], '(\u2026 1 more not shown \u2014 call again with cursor="0a" for the next page)']
+    return { result: { listing, sections: [{ kind: 'sessions', total: 2, rows: [{ name: 'session-a', ...row }] }] } } as any
+  })
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  expect(sent.map(e => e.to)).toEqual(['session-a [loc111]'])
+})
+
+test('GRIM-41: a session list that fails passes the send on as sent', async ($, on) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, () => {
+    throw new Error('no list')
+  })
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  expect(sent.map(e => e.to)).toEqual(['session-a'])
+})
+
+test('GRIM-41: another shared shape is refused, nothing is sent and no reminder is owed', async ($, on) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }, { ref: 'loc333', type: 'interactive' }])
+  await start($)
+  await brigade($)
+  const r: any = await sendTo($, { message: 'go on' })
+  expect(String(r.deny)).toMatch(/nothing was sent.*Two sessions on this machine.*tell the owner/)
+  expect(String(((await sendTo($, { notify_when_idle: true })) as any).deny)).toMatch(/nothing subscribed/)
+  expect(sent).toEqual([])
+  await turnEnd($)
+  expect(reminders(w)).toEqual([])
+})
+
+test("GRIM-41: with the pane closed, and from a subagent, a send goes on as sent", async ($, on) => {
+  const { sent } = twinWorld(on, TWIN)
+  await start($)
+  await sendTo($, { message: 'go on' })
+  await brigade($)
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  expect(sent.map(e => e.to)).toEqual(['session-a', 'session-a'])
+})
+
 // --- the usage read's breakdown ---------------------------------------------------
 //
 // Every usage read asks the engine for the local summary breakdown; the terminal
@@ -11298,4 +11386,135 @@ test('610 S4: the fixed text of every form is at most 900 characters, the fence 
   expect(LEVEL3_GOAL_FENCE.length).toBeLessThanOrEqual(120)
   expect(GOAL.length).toBeLessThanOrEqual(300)
   expect(COMMAND_NOTE).toBe(`${LEVEL3_COMMAND_NOTE}\n${LEVEL3_GOAL_FENCE}${GOAL}`)
+})
+
+// --- the waiting-member note (GRIM-76) --------------------------------------------
+//
+// A card the lead marked `waitsOnLead` is named in one note line at the start of
+// every lead turn, until the lead messages that member or a new roster drops the mark.
+
+const WAITS = 'Brigade (plugin note): waits on you'
+const waitNotes = (w: World) => w.notes.filter(n => n.startsWith(WAITS))
+const waiting = (title: string) => card(title, { status: 'idle', waitsOnLead: true })
+const roster = (...cards: unknown[]) => ({ cards, todos: [] })
+// A world whose sends reach their member.
+const sendingWorld = (on: On, answer: unknown = { result: { success: true } }) => {
+  // The owner's rules let the send run, so the answer below is what comes back.
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  on('tool.call', { tool: 'SendMessage' }, () => answer as any)
+  return w
+}
+
+test('GRIM-76: a marked card gets one line on every lead turn, and an unmarked one is not named', async ($, on) => {
+  const w = sendingWorld(on)
+  await start($)
+  await brigade($)
+  expect((await call($, roster(waiting('plan-a'), card('build-b', { status: 'idle' })))).ok).toBe(true)
+  await turn($)
+  await turn($)
+  expect(waitNotes(w).length).toBe(2)
+  expect(waitNotes(w)[0]).toContain('plan-a')
+  expect(waitNotes(w)[0]).not.toContain('build-b')
+  expect(waitNotes(w)[0]?.split('\n').length).toBe(1)
+})
+
+test('GRIM-76: two marked cards get one line each', async ($, on) => {
+  const w = sendingWorld(on)
+  await start($)
+  await brigade($)
+  await call($, roster(waiting('plan-a'), waiting('plan-b')))
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+  expect(waitNotes(w)[0]?.split('\n').length).toBe(2)
+})
+
+test('GRIM-76: no note when no card waits, and none on a subagent turn', async ($, on) => {
+  const w = sendingWorld(on)
+  await start($)
+  await brigade($)
+  await call($, GOOD)
+  const rows = w.notes.length
+  await turn($)
+  expect(w.notes.length).toBe(rows)
+  await call($, roster(waiting('plan-a')))
+  await turn($, { agentId: 'a1' })
+  expect(waitNotes(w)).toEqual([])
+  // Under another session id, and with the pane closed, the held mark says nothing.
+  const sid = w.sid
+  w.sid = '99999999-8888-7777-6666-555555555555'
+  await turn($)
+  expect(waitNotes(w)).toEqual([])
+  w.sid = sid
+  w.open = false
+  await w.clock.advance(5000)
+  await turn($)
+  expect(waitNotes(w)).toEqual([])
+})
+
+test("GRIM-76: the lead's message to that member ends its line; a subscription, another name and a subagent do not", async ($, on) => {
+  const w = sendingWorld(on)
+  await start($)
+  await brigade($)
+  await call($, roster(waiting('plan-a')))
+  await sendTo($, { to: 'plan-a', notify_when_idle: true })
+  await sendTo($, { to: 'plan-b', message: 'go on' })
+  await sendTo($, { to: 'plan-a', message: 'go on', agentId: 'a1' })
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+  await sendTo($, { to: 'plan-a [3fa9c1]', message: 'go on' })
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+  // A send to the card's job id ends it too, and so does one with the pane closed.
+  await call($, roster(card('plan-b', { status: 'idle', waitsOnLead: true, bgId: 'a1b2c3d4' })))
+  await sendTo($, { to: 'a1b2c3d4', message: 'go on' })
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+  await call($, roster(waiting('plan-c')))
+  w.open = false
+  await w.clock.advance(5000)
+  await sendTo($, { to: 'plan-c', message: 'go on' })
+  await brigade($)
+  await w.clock.settle()
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+})
+
+test('GRIM-76: a send that fails keeps the line', async ($, on) => {
+  const answer: Record<string, unknown> = {}
+  const w = sendingWorld(on, answer)
+  await start($)
+  await brigade($)
+  await call($, roster(waiting('plan-a')))
+  const failures = [{ result: { success: false } }, { result: 'no such session', isError: true }, { deny: 'refused' }]
+  for (const [i, failed] of failures.entries()) {
+    for (const k of Object.keys(answer)) delete answer[k]
+    Object.assign(answer, failed)
+    await sendTo($, { to: 'plan-a', message: 'go on' })
+    await turn($)
+    expect(waitNotes(w).length).toBe(i + 1)
+  }
+})
+
+test('GRIM-76: a new roster that drops the mark ends the line, and a refused one keeps it', async ($, on) => {
+  const w = sendingWorld(on)
+  await start($)
+  await brigade($)
+  await call($, roster(waiting('plan-a')))
+  expect((await call($, { cards: 'nope', todos: [] })).ok).toBe(false)
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+  await call($, roster(card('plan-a')))
+  await turn($)
+  expect(waitNotes(w).length).toBe(1)
+})
+
+test('GRIM-76: a mark on a card that is not idle is refused', async ($, on) => {
+  sendingWorld(on)
+  await start($)
+  await brigade($)
+  const r = await call($, roster(card('plan-a', { status: 'working', waitsOnLead: true })))
+  expect(r.ok).toBe(false)
+  expect(r.text).toContain('waitsOnLead')
+  expect((await call($, roster(card('plan-a', { status: 'idle', waitsOnLead: 'yes' })))).ok).toBe(false)
 })

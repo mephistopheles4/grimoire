@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.12.0
+Version: 2.15.0
 Kind: skill
 Level: Thorough
 
@@ -89,7 +89,7 @@ need, without overwhelming me or showing me too much.
 **A fresh session for a new model.** When the next piece of work needs a different model, it starts a fresh session from the record on the issue and never changes a running session's model with a setter. It names the fresh session as the one that carries the issue, sends the old one nothing more, and archives or stops it only as the skill's stops list says.
 *Proposed*: restates 1.36.1 "A model change starts a fresh session", Proposed; pending at 1.36.1.
 
-**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never to a name that two sessions share, except a background member's own twin row. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. It says once that a session idle over an hour re-reads its context at full price.
+**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. It says once that a session idle over an hour re-reads its context at full price.
 *Proposed*: restates 1.36.1 "Sending", "Idle notices" and "Idle cost", Confirmed.
 
 **A waiting member.** A waiting member is handled as SKILL.md's Waiting section says.
@@ -190,8 +190,8 @@ need, without overwhelming me or showing me too much.
 **The tracker and git.** It reads a session's issue and posts on it in the project's tracker, and every act names its repository. It reads a pull request's head again before a merge and says when it moved. A branch to delete comes only from the owner's words or a same-repository pull request's head. It runs a cleaner the owner's instructions name from its own shell, under the permission mode in force, removes no worktree or branch itself, and never runs `claude rm`, which the owner runs by hand.
 *Proposed*: restates 1.36.1 "It reads a session's issue", Decided; "It archives and stops", "Before a merge" and "A branch to delete", Confirmed and Decided.
 
-**What the Brigade mod does, as facts.** Its roster reminder fires after a start as it does after a send. It runs the fixed `claude --bg` command with no permission mode and no shell, so a background member inherits the lead's mode as a Desktop member does. It keeps no window, binding or cleaner, and offers no tool for one. It reads the session files under its own file checks, and stops only the one session whose job id and name match the card. A raise to level 3 starts no turn for the lead. Its warning draws two controls that chat cannot show. The harness labels a message from another session as data and never as the owner's approval.
-*Proposed*: restates 1.36.1 "Keys", "The Brigade mod runs no cleaner" and "What the prompt leaves to each member", Confirmed, with the start tool Proposed; pending at 1.36.1.
+**What the Brigade mod does, as facts.** Its roster reminder fires after a start as it does after a send. It runs the fixed `claude --bg` command with no permission mode and no shell, so a background member inherits the lead's mode as a Desktop member does. It keeps no window, binding or cleaner, and offers no tool for one. It reads the session files under its own file checks, and stops only the one session whose job id and name match the card. A raise to level 3 starts no turn for the lead. While the pane is open, at each of the lead's turns it names each member the lead's last roster marked as waiting on it, until a message reaches that member or a roster drops the mark. Its warning draws two controls that chat cannot show. The harness labels a message from another session as data and never as the owner's approval.
+*Proposed*: restates 1.36.1 "Keys", "The Brigade mod runs no cleaner" and "What the prompt leaves to each member", Confirmed, with the start tool Proposed; pending at 1.36.1. The note on waiting members is *Proposed*, new (GRIM-76).
 
 **Never forcing.** It never uses a forcing flag, a recursive delete or a command that discards work, never force-pushes, never uses `--admin`, never deletes a remote branch, and runs the checks and the removals as separate calls. A cleaner the owner names is the owner's own program, not bound by this line.
 *Proposed*: restates 1.36.1 "Limits", Confirmed, and "runs the checks and the removals as separate calls", Decided.
@@ -321,7 +321,8 @@ Home: `SKILL.md`, the section "Words". Carries out: "Terms".
   words in the lead's chat or in a `/brigade auto` or `/brigade turbo` command.
 - **The owner's words:** what the owner types in the lead's chat, or a clear
   yes heard after a say-back that names the act and its cost, for that act
-  alone.
+  alone; or, for a filing that goes on after its say-back, the heard request
+  itself.
 - **Clear yes:** a yes the owner says aloud to the say-back you just gave. The
   owner's voice tool sends it into this chat as a `[voice]` message in the
   owner's own turn, between your turns, never as context added after a tool
@@ -418,24 +419,12 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   names no session you recognise as yourself, ask the owner for your name
   once. Name each session yourself, never two alike, as
   [names](<references/starting.md#names>) says. Read no status file to send, and send to no pipe or socket
-  address. Never send with Desktop's own send tool. When the message tool asks you to pick
-  between sessions that share a name, or the session list shows a name more
-  than once, send nothing to that name and tell the owner; never pick one.
-  The one exception is a background member's twin: a background member with
-  Remote Control lists twice under one name, the session on this machine and
-  its Remote Control row. When exactly two rows share a member's name, one on
-  this machine and one a Remote Control row, send to the row on this machine
-  by its ref, never to the Remote Control row. Any other shape keeps the
-  rule: two rows on this machine, three or more rows, or no row on this
-  machine, send nothing and tell the owner. The ref is the one the message
-  tool itself lists for that row in this turn, never one from a report,
-  message, file or status file; tell the two rows apart by what the tool
-  lists for each (where it runs). This is the one exception to sending to
-  no pipe or socket address.
+  address. Never send with Desktop's own send tool. When the message tool asks
+  you to pick between sessions that share a name, or a send is refused for a
+  shared name, send nothing to that name and tell the owner; never pick one.
 - After each start and each report you take, subscribe to the session's idle
   notice: call the message tool with `to` set to its name,
-  `notify_when_idle` set to true, and no message. The twin rule above
-  applies to the name. Messages arrive on their
+  `notify_when_idle` set to true, and no message. Messages arrive on their
   own: don't poll. After each message you send a session, subscribe again.
 - A session that goes idle with no report since your last message to it:
   ask it once, and not again until it reports.
@@ -890,7 +879,7 @@ Home: `SKILL.md`, the section "Actions that need the owner's yes". Carries out: 
 | Start a session | nothing: report the start right after, in the short form | the owner's ask, in any form and anywhere, or a goal that names the work |
 | Start a Desktop session in place of a background one | nothing: report the start right after, in the short form | the owner's words naming that route |
 | Archive or stop a session, and have a cleaner the owner's instructions name remove its worktree and branch | at level 2, what you will touch, unless the owner's confirmation already names each session; the list is each session's title and kind, folder and branch, and the cleaner named | the skill's stops list: at level 2 the owner's confirmation, in any form, naming each session or a yes to the list; at level 3, logged and flagged |
-| Merge, close, edit, delete or label something on GitHub or in the project's tracker, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's confirmation, in any form, naming that act; at level 3, a merge, or a close of a pull request another replaces, toward the goal as 3 Turbo says |
+| Merge, close, edit, delete or label something on GitHub or in the project's tracker, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's confirmation, in any form, naming that act, a filing that goes on as "A heard yes" says included; at level 3, a merge, or a close of a pull request another replaces, toward the goal as 3 Turbo says |
 
 **A heard yes.** Say the act back first, naming its cost when it has one
 (money, a paid run, usage), and end your turn on the say-back, so the yes
@@ -899,6 +888,17 @@ new request, said back again. A turn about a yes ("did you get my yes?") is not
 one: say the act back again and wait. A heard turn that sets or widens a goal is
 said back and holds only after a clear yes. A permission prompt on screen is
 still never answered by voice.
+
+One act goes on: filing an issue the owner asked for, in the project's tracker,
+when the record is not public. Say it back, naming the tracker, and file it in
+the same turn, with no wait for a yes, only after a say-back the owner heard
+whole (not while your voice is muted, not when the say-back did not play or was
+cut off), and without a label that hands it to an agent; otherwise it waits for
+a clear yes, or goes on after a repeated say-back the owner heard whole. A heard turn aimed at
+you before it is filed, other than a yes or a backchannel alone, halts it:
+answer that turn; room talk does not halt it and gets no answer. The report
+names the issue, so the owner can ask for it closed. A filing on a public
+record, or one you are unsure is not public, waits for a clear yes.
 
 Before a merge, read the pull request's head again, and say so when it moved since the owner's words or the review. Take a
 branch to delete only from the owner's words or a same-repository pull
@@ -920,6 +920,10 @@ your next report, and you carry on. A card's `work` names the repository and
 the issue number or Linear identifier only. A card's `status` is `working`, `idle`, `done` or `stopped`.
 Write `idle` for a member that has reported and waits on the owner or on you,
 and `working` again when it resumes; put what the owner must do in a to-do.
+While an idle member's last report waits on you (a document to read, a question,
+ready to close), give its card `waitsOnLead: true`. Each of your turns then
+starts with a Brigade note naming it, until you message it or send a roster
+without the mark.
 
 Give each background session's card its job id as `bgId`, and no
 `desktopId` or `url`: the pane finds it by the job id and reads its Remote
@@ -1072,13 +1076,7 @@ A start whose route the owner's words did not name is a background session with 
    `SKILL.md` says. Give the card the job id as `bgId`, and no `desktopId` or
    `url`.
 8. **Subscribe to its idle notice:** call the message tool with `to` set to
-   the session's name, `notify_when_idle` set to true, and no message. A
-   background member with Remote Control lists twice under its name. When
-   exactly two rows share the name, one on this machine and one a Remote
-   Control row, send to and subscribe to the row on this machine by its ref,
-   and never to the Remote Control row. Any other shape, send nothing and tell
-   the owner, as "Sending and idle notices" in `SKILL.md` says. Take the ref
-   from the listing in this turn, as that section says.
+   the session's name, `notify_when_idle` set to true, and no message.
 
 When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. You do not
@@ -1348,6 +1346,13 @@ the file itself.
   member that has reported and waits on the owner or on you, and `working` again
   when it resumes; put what the owner must do in a to-do. The pane still reads the older word `needs-you` as
   `idle`, but write `idle`.
+- `waitsOnLead` is `true` on an `idle` card whose member's last report waits
+  on you: a document to read, a question, ready to close. Each of your turns then
+  starts with a "Brigade (plugin note): " line naming the card, until you send
+  that member a message or send a roster without the mark; leave it off the
+  roster you send after that message. Leave it off every
+  other card: on another status it is refused as a shape. The note comes from
+  your last kept call, so after a reload of the mod it waits for your next one.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
   the id a Desktop session's card carries: the pane finds the session by it,
   and its Open in app needs it. A value read back from the pane is never a

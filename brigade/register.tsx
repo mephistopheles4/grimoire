@@ -250,8 +250,13 @@ import {
 } from './writer.ts'
 import {
   commandNote, endTurn, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, SEND_TOOL, sendsMessage, tally,
+  onLeadMembers, onLeadNote, stillOnLead, type OnLead,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './reminder.ts'
+import {
+  needsListing, resolveListed,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './send.ts'
 import {
   registerMic,
 // @ts-expect-error TS5097: Node needs the extension.
@@ -1652,7 +1657,7 @@ async function pressQuick($: EngineInterface, surface: unknown, cards: readonly 
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment on it, with `#issuecomment-C` added; on a pull request also `#pullrequestreview-C` or `#discussion_rC`; nothing else), or both. At level 3 a new or changed to-do needs the id `w<n>` of an open waiting entry in your own decision log: log the wait first, never in parallel with this call. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `draft`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. An idle card whose session's last report waits on you (a document to read, a question, ready to close) carries `waitsOnLead: true`: each of your turns then starts with a note naming it, until you message it or send a roster without the mark. A to-do is one short line; it may carry `session` (a card's title, for its Open), `link` (an issue or pull request on github.com, as `https://github.com/owner/name/issues/N` or `.../pull/N`, or one comment on it, with `#issuecomment-C` added; on a pull request also `#pullrequestreview-C` or `#discussion_rC`; nothing else), or both. At level 3 a new or changed to-do needs the id `w<n>` of an open waiting entry in your own decision log: log the wait first, never in parallel with this call. Send no `since`: the pane stamps how long each card has been in its status from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -1678,6 +1683,7 @@ const SCHEMA = {
           pr: { type: 'string', pattern: PR_NUMBER.source },
           prState: { type: 'string', enum: [...PR_STATES] },
           repo: { type: 'string', pattern: REPO.source },
+          waitsOnLead: { type: 'boolean' },
         },
       },
     },
@@ -2056,6 +2062,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     }
     // Only now does the pane change: it redraws at once, and the 5 s poll
     // stays the reader for changes made elsewhere.
+    onLead = { sid: at.id, members: onLeadMembers(value.cards) }
     await update($, roster, () => value)
     await update($, rosterError, () => '')
     pruneWaitDismissed(value.cards, await movesOf($))
@@ -2781,6 +2788,19 @@ async function levelNoteTurn($: EngineInterface) {
   }
 }
 
+// The waiting-member note (GRIM-76), at a lead turn's start while the pane is
+// open: reminder.ts's line for each member the lead's own last kept
+// set_roster call marked, under that session's id alone. Module memory only, so
+// a reload holds none until the next set_roster; another plugin's state write or
+// a change to the roster file reaches nothing here.
+let onLead: { sid: string; members: OnLead[] } = { sid: '', members: [] }
+async function onLeadNoteTurn($: EngineInterface) {
+  if (timers.length === 0 || onLead.members.length === 0) return
+  if ((await levelSid($)) !== onLead.sid) return
+  const text = onLeadNote(onLead.members)
+  if (text !== undefined) await $.session.append({ message: { type: 'user' as const, content: [{ type: 'text' as const, text }] } })
+}
+
 // --- read_context (issue 492, spec v3 S2.1) ----------------------------------------
 //
 // Each roster card's context figure, for the lead's model, which cannot see
@@ -3202,6 +3222,11 @@ const LOG_CAUGHT = {
 // holds one boolean and no text from the turn.
 const owedRoster = { owed: false }
 const landed = (r: unknown) => !(typeof r === 'object' && r !== null && 'deny' in r)
+// A send that reached its member: not refused, no error and no `success: false`.
+const delivered = (r: unknown) => {
+  const a = r as { isError?: unknown; result?: { success?: unknown } } | undefined
+  return landed(r) && a?.isError !== true && a?.result?.success !== false
+}
 
 export const register: Register = on => {
   // Incantation's relay and permission nudge, bound to the session that ran its listener
@@ -3508,20 +3533,42 @@ export const register: Register = on => {
       } catch {
         // Nothing is shown or logged: the turn goes on as received.
       }
+      try {
+        await onLeadNoteTurn($)
+      } catch {
+        // As above: the next turn tries again.
+      }
     }
     return next(e)
   })
 
-  // The roster reminder (issue 532). The lead's send with a message is seen
-  // and passed on unchanged; the turn's end (the writer's turn.complete hook,
-  // above) adds one fixed note if the last send or decision came after the
-  // last set_roster. It reminds only, never writes the roster, and does
-  // nothing while the pane is closed. No `.catch` on this hook: a retry of a
-  // failed send would send the message twice.
+  // The roster reminder (issue 532). The lead's send with a message is seen;
+  // the turn's end (the writer's turn.complete hook, above) adds one fixed
+  // note if the last send or decision came after the last set_roster. It
+  // reminds only, never writes the roster. First, a lead's send to a name that
+  // lists twice is readdressed to its row on this machine, or refused
+  // (send.ts, GRIM-41); a listing that fails passes the send on as sent, and
+  // the engine judges the name. Both do nothing while the pane is closed. No
+  // `.catch` on this hook: a retry of a failed send would send the message
+  // twice.
   on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
-    const r = await next(e)
+    let call = e
     try {
-      if (e.agentId === undefined && timers.length > 0 && sendsMessage(e)) tally(owedRoster, 'send')
+      const to = (e as { to?: unknown }).to
+      if (e.agentId === undefined && timers.length > 0 && needsListing(to)) {
+        const found = await resolveListed(to, async cursor => (await $.tool.call({ tool: 'ListAgents', ...(cursor === undefined ? {} : { cursor }) })).result)
+        if (found.deny !== undefined) return { deny: found.deny }
+        if (found.to !== undefined) call = { ...e, to: found.to }
+      }
+    } catch {
+      // The send goes on as sent.
+    }
+    const r = await next(call)
+    try {
+      if (e.agentId === undefined && sendsMessage(e)) {
+        if (timers.length > 0) tally(owedRoster, 'send')
+        if (delivered(r)) onLead = { ...onLead, members: stillOnLead(onLead.members, e) }
+      }
     } catch {
       // The send goes on unchanged.
     }

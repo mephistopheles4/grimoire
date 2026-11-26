@@ -50,6 +50,13 @@ the file itself.
   member that has reported and waits on the owner or on you, and `working` again
   when it resumes; put what the owner must do in a to-do. The pane still reads the older word `needs-you` as
   `idle`, but write `idle`.
+- `waitsOnLead` is `true` on an `idle` card whose member's last report waits
+  on you: a document to read, a question, ready to close. Each of your turns then
+  starts with a "Brigade (plugin note): " line naming the card, until you send
+  that member a message or send a roster without the mark; leave it off the
+  roster you send after that message. Leave it off every
+  other card: on another status it is refused as a shape. The note comes from
+  your last kept call, so after a reload of the mod it waits for your next one.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
   the id a Desktop session's card carries: the pane finds the session by it,
   and its Open in app needs it. A value read back from the pane is never a
