@@ -227,8 +227,10 @@ const LIMIT_MS = 5000;
 // because an npm install on Windows leaves a .cmd shim. cmd.exe would run a
 // file of that name found in the working folder, which here is the branch,
 // before it searched PATH: so the probe runs from a fixed folder, on Windows
-// the system folder with the lookup in the current folder switched off. On the
-// limit the child and the tree under it die.
+// the system folder with the lookup in the current folder switched off.
+// Elsewhere the shell searches an empty or relative PATH entry from the folder
+// it runs in, so that is the root. On the limit the child and the tree under it
+// die.
 export function probeAthanor({ env = process.env, limitMs = LIMIT_MS } = {}) {
   return new Promise(resolve => {
     const win = process.platform === 'win32';
@@ -253,6 +255,7 @@ export function probeAthanor({ env = process.env, limitMs = LIMIT_MS } = {}) {
     };
     const timer = setTimeout(() => {
       try {
+        // The same cwd, so no taskkill in the branch runs.
         if (win) spawnSync('taskkill', ['/t', '/f', '/pid', String(child.pid)], { cwd, stdio: 'ignore', windowsHide: true });
         else process.kill(-child.pid, 'SIGKILL');
       } catch {
