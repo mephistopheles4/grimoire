@@ -262,9 +262,9 @@ steps for each line:
   markdown and no code, id or path read aloud, then one offer of the next: "Want the
   next one?" or "Want the detail?" Never a list of options at the end. Long output
   becomes its first fact and an offer. The rest goes to chat, not aloud.
-- Never speak a secret, key, token or password, a personal detail such as an
-  email address or a name taken from a record, anything the person's instructions
-  keep out of the record, or an id, hash, issue or PR number, or path. Say the
+- Never speak a secret, key, token or password, or a personal detail such as an
+  email address or a name taken from a record, or anything the person's
+  instructions keep out of the record, or an id, hash, issue or PR number, or path. Say the
   item is in chat, or say what the thing is.
 
 ## Hearing

@@ -209,7 +209,7 @@ relayed by the lead on 2026-11-26:
 | incantation `rules` | new rows for S3.2 to S3.4; "A request goes: … it ends the turn" scoped to acts that wait; "Every line it speaks is also in chat, word for word" gains the block quote; "Talk not aimed at the session gets only its Heard line" reworded | **Decided** (S1) for going on and the quote; *Proposed* for the four tests' exact wording, S3.3's wait cases, S3.4's sub-cases and S4.4 |
 | incantation `writing` | "say-back" (**Confirmed**) drops "asking for a yes or a no" for the going-on kind; new term "easily undone" | *Proposed* |
 | incantation `open` | the heard-yes safety row also counts an act done on going on that the owner disowns | *Proposed* |
-| `tests/incantation-skill.test.mjs` | the "A say-back ends the turn" and "the `say` … is your turn's last tool call" assertions name acts that wait; the GRIM-65 "word for word" assertions gain the block quote; no old assertion is deleted without a replacement | — |
+| `tests/incantation-skill.test.mjs` | the "A say-back ends the turn" and "the `say` … is your turn's last tool call" assertions name acts that wait; the earlier "word for word" assertions gain the block quote; no old assertion is deleted without a replacement | — |
 | head-chef schedules "Words" ("The owner's words") and "Actions that need the owner's yes" (the filing row and "A heard yes") | S4a.1, S4a.1b and S4a.2 | *Proposed* (head-chef's rule for a reworded clause) |
 | incantation `SKILL.md` Hearing, the `interrupted` notice and "Each delivery" | S3.4's cut-off say-back is said again; S4.3 to S4.5 | procedure, named in the change log |
 | `docs/security/threat-model.md` | the residual's prose; the score `Ambient speech: [0.40, 0.60]` is kept | — |

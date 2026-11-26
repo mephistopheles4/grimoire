@@ -60,8 +60,8 @@ Claude files it, then says: Filed. Say if you want it closed.
 ```
 
 Each spoken line also shows in chat as a block quote, so you can tell at a
-glance what was said aloud. Your own heard turns already show as your messages
-and are not repeated.
+glance what was said aloud. Your own relayed turns already show as your
+messages and are not repeated.
 
 - **One fact per turn.** Spoken replies stay short and plain, with no markdown,
   file paths, or IDs read aloud; full details go into chat.
@@ -73,9 +73,9 @@ and are not repeated.
   messaging another of your sessions, or editing a scratch file or a roster card
   is said back ("I'll file that now") and done in the same turn, with no wait
   for a yes. Say "no" or "wait" while it is being said back to stop it; a quick
-  act like filing an issue is usually done by then, so ask for it put back. It waits for
-  a yes anyway when the record is public, when it costs anything, while the
-  voice is muted, or when a rule of yours keeps it for you.
+  act like filing an issue is usually done by then, so ask for it put back. It
+  waits for a yes anyway, for example when the record is public, when it costs
+  anything, while the voice is muted, or when a rule of yours keeps it for you.
 - **Talk over it any time.** The mic stays open while Claude speaks. Talking over
   a reply stops playback immediately and drops any lines queued behind it.
 - **Instant feedback & nudges.** A heard turn gets a short spinner word right

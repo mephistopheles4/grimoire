@@ -225,7 +225,7 @@ rule's own case, stays open.
 **Procedure sections** (*Proposed*): the procedure sections of `SKILL.md`
 (Install, Start, Speaking, Hearing, Requests, Heard while working, When you
 speak unasked, Observe-only mode, Mute and unmute, Stop) are kept word for
-word, except where a decision above changed them, and the change log names
-each such edit. This contract has no `schedules` part yet, as a contract
+word, except where a decision above changed them or an edit keeps the
+`SKILL.md` body under 500 lines, and the change log names each such edit. This contract has no `schedules` part yet, as a contract
 written before that part existed may lack it; moving the procedure into
 schedules is open.
