@@ -81,8 +81,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
           cd "$RUNNER_TEMP/claude"
-          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
-          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.332"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.332.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
 
       # Checked, not assumed. A missing binary, a placeholder or a different
@@ -90,7 +90,7 @@ jobs:
       # this string and the two version strings above together.
       - name: Check the version
         run: |
-          expected="2.1.314 (Claude Code)"
+          expected="2.1.332 (Claude Code)"
           actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
           if [ "$actual" != "$expected" ]; then
             echo "expected: ${expected}"
@@ -103,13 +103,14 @@ jobs:
       #
       # **Three runs, every time.** What one run covers is a property of the
       # CLI version, not of the command: on 2.1.289 `.` read only the
-      # marketplace manifest, and on 2.1.314 it reads the plugin manifest and
-      # hooks/hooks.json too, and still not skills/. So each target is named.
+      # marketplace manifest, and on 2.1.332 it reads the plugin manifest and
+      # hooks/hooks.json too, type-checks the mod's module, and still does not
+      # check what skills/ holds. So each target is named.
       # Each status is recorded and the step fails at the end, so one red
       # target cannot hide the next.
       #
       # **The exit code is the gate.** A missing path, a mistyped one and an
-      # empty folder all exit 1 on 2.1.314, measured, so no output is parsed.
+      # empty folder all exit 1 on 2.1.332, measured, so no output is parsed.
       # `|| status=$?` records the status under `bash -e`; it is not
       # `|| true`, and nothing is allowed to fail quietly.
       - name: Validate the manifests and skills
@@ -143,7 +144,7 @@ jobs:
   # (#481). Two jobs and not a matrix, so this job's check keeps its name.
   #
   # **No credential.** The runner needs no sign-in and makes no model call:
-  # measured on 2.1.314 with an empty config folder and no API key.
+  # measured on 2.1.332 with an empty config folder and no API key.
   plugin-test:
     # Pinned, as validate is, because the fetch names a platform package:
     # windows, x64.
@@ -168,13 +169,13 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
           cd "$RUNNER_TEMP/claude"
-          npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.314"
-          tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.314.tgz"
+          npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.332"
+          tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.332.tgz"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
 
       - name: Check the version
         run: |
-          expected="2.1.314 (Claude Code)"
+          expected="2.1.332 (Claude Code)"
           actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
           if [ "$actual" != "$expected" ]; then
             echo "expected: ${expected}"
@@ -205,13 +206,13 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/claude"
           cd "$RUNNER_TEMP/claude"
-          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.314"
-          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.314.tgz" -C "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.332"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.332.tgz" -C "$RUNNER_TEMP/claude"
           echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
 
       - name: Check the version
         run: |
-          expected="2.1.314 (Claude Code)"
+          expected="2.1.332 (Claude Code)"
           actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
           if [ "$actual" != "$expected" ]; then
             echo "expected: ${expected}"

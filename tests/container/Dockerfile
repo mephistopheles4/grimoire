@@ -32,10 +32,10 @@ RUN apt-get update \
 # not reach (#477). A bump changes the hash with the version.
 RUN mkdir -p /opt/claude \
  && cd /opt/claude \
- && npm pack --ignore-scripts @anthropic-ai/claude-code-linux-x64@2.1.314 \
- && echo "620d1ae66a5d9060a52b4ae014cc5b096656df066daa03a16236c84802eac8be6d7c00c7857f4cb3a131034fde7df81227d31a59f1cc3e7b6bc9e386e8c93a1d  anthropic-ai-claude-code-linux-x64-2.1.314.tgz" | sha512sum -c - \
- && tar -xzf anthropic-ai-claude-code-linux-x64-2.1.314.tgz \
- && rm anthropic-ai-claude-code-linux-x64-2.1.314.tgz \
+ && npm pack --ignore-scripts @anthropic-ai/claude-code-linux-x64@2.1.332 \
+ && echo "7f8256873c18bad2481d2702eff75838f5fab36f2db7b6400e1b0e8bccf0387ab97c53c4b94782861d8d31f8a74a0d06ad472463169e79b0b88740ea88accb73  anthropic-ai-claude-code-linux-x64-2.1.332.tgz" | sha512sum -c - \
+ && tar -xzf anthropic-ai-claude-code-linux-x64-2.1.332.tgz \
+ && rm anthropic-ai-claude-code-linux-x64-2.1.332.tgz \
  && npm cache clean --force
 ENV PATH="$PATH:/opt/claude/package" \
     DISABLE_AUTOUPDATER=1 \
