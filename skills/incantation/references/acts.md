@@ -16,9 +16,10 @@ An act is easily undone when it passes all four tests:
 4. No rule you run under keeps it for the person's own confirmation, whether
    the person's, the session's configuration's or a repository's.
 
-Two more limits. A message to another session goes on only when it asks that
-session for nothing that would wait; one that asks it to change anything waits.
-An issue goes on only without a label that hands it to an agent.
+A message to another session that relays the person's own request goes on
+after its say-back, as any easily undone act; the session that gets it keeps
+its own rules for what it then does. An issue goes on only without a label that
+hands it to an agent.
 
 Easily undone: filing or editing an issue or a comment in the person's own,
 non-public tracker, a message to another of the person's sessions, editing a

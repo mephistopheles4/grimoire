@@ -427,6 +427,9 @@ test("0002 C10: head-chef's heard-yes paragraph lets a non-public filing the own
   assert.match(flat(readFileSync(join(ROOT, 'skills', 'head-chef', 'references', 'CONTRACT.md'), 'utf8')), line);
 });
 
-test('0002 C11: a message to another session goes on only when it asks for nothing that would wait', () => {
-  for (const [name, b] of acts()) assert.match(b, /A message to another session goes on only when it asks that session for nothing that would wait; one that asks it to change anything waits/, name);
+test('0002 C11: a message relaying the person\'s own request goes on, and the receiving session keeps its own rules', () => {
+  for (const [name, b] of acts()) {
+    assert.match(b, /A message to another session that relays the person's own request goes on after its say-back, as any easily undone act; the session that gets it keeps its own rules for what it then does/, name);
+    assert.doesNotMatch(b, /asks it to change anything waits/, name);
+  }
 });

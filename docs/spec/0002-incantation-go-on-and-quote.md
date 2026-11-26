@@ -56,10 +56,12 @@ And later in that session:
      confirmation, whether the person's, the session's configuration's or a
      repository's.
 
-  A message to another session goes on only when it asks that session for
-  nothing that would wait under these tests; one that asks it to change
-  anything waits. An issue goes on only without a label that hands it to an
-  agent. "The person's own tracker" includes the teammates and integrations it
+  A message to another session that relays the person's own request goes on
+  after its say-back, as any easily undone act; the session that gets it keeps
+  its own rules for what it then does (the owner, 2026-11-26: "If it's simple,
+  you just go ahead with it again. And if it's hard to revert, then you just
+  wait for me to confirm."). An issue goes on only without a label that hands
+  it to an agent. "The person's own tracker" includes the teammates and integrations it
   already notifies (the session's pick, S7).
 
   Examples: filing or editing an issue or a comment in the person's own,
@@ -246,8 +248,9 @@ Each claim holds in both `SKILL.md` and `CONTRACT.md` unless it says otherwise.
   asked for go on after a say-back heard whole, halts it on any other turn
   aimed at the lead, gives room talk no answer, counts the heard request as
   the owner's words for that filing, and keeps every other act's wait (S4a).
-- **C11.** A message to another session goes on only when it asks for nothing
-  that would wait (S3.2).
+- **C11.** A message to another session that relays the person's own request
+  goes on after its say-back, and the receiving session keeps its own rules
+  (S3.2).
 
 ## S7. Trade-offs
 
