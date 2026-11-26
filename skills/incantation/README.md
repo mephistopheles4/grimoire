@@ -70,9 +70,10 @@ and are not repeated.
   cost) and acts only on a clear yes (`"yes"`, `"go ahead"`, `"do it"`, `"yeah"`,
   `"yep"`, with no pull-back words).
 - **Easily undone acts go on.** Filing an issue in your own private tracker,
-  messaging another of your sessions, a scratch file or a roster card is said
-  back ("I'll file that now") and done in the same turn, with no wait for a yes.
-  Say "no" or "wait" to stop it, or ask for it put back afterwards. It waits for
+  messaging another of your sessions, or editing a scratch file or a roster card
+  is said back ("I'll file that now") and done in the same turn, with no wait
+  for a yes. Say "no" or "wait" while it is being said back to stop it; a quick
+  act like filing an issue is usually done by then, so ask for it put back. It waits for
   a yes anyway when the record is public, when it costs anything, while the
   voice is muted, or when a rule of yours keeps it for you.
 - **Talk over it any time.** The mic stays open while Claude speaks. Talking over

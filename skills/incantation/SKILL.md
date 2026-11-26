@@ -295,8 +295,8 @@ show the line, print `Stopped listening.` and print the README's line on the mod
   - `interrupted`: the person talked over your reply and it was cut. When that
     reply was a say-back, the turn that cut it is its answer: on a clear yes,
     act, with no second say-back. When it was an easily undone say-back and
-    the turn does not halt the act, say the say-back again, and go on after it
-    plays. Otherwise take their words as the next thing they said, and do not
+    the turn is neither a yes nor a halt, say the say-back again, and go on
+    after it plays. Otherwise take their words as the next thing they said, and do not
     speak the cut reply again unless they ask.
   - `mic-muted` and `mic-unmuted`: the person muted or unmuted the mic. Say so in
     chat only. While muted, nothing is heard; you still speak.
@@ -359,20 +359,20 @@ The flow for a request is: read-back, thinking, plan, working, report.
 - **An easily undone act**: the say-back says what you are doing now ("I'll file
   that as a new issue now."), asks nothing, and is not your turn's last tool
   call. Then run `listen.mjs idle`, so the line finishes playing, then
-  `listen.mjs working`, then act, in the same turn (`working` as its own call,
-  its result read first), then report. The act waits instead, as one that is not
-  easily undone, when the person may not have heard the say-back: the `say`
-  answered anything but `speaking`, `idle` answered `idle-timeout`, or your
-  voice is muted. Muted, give the say-back that asks from the start; otherwise
-  say in chat that it waits, give the say-back that asks (exempt from "make no
-  say straight after another"), and end the turn. Of a turn heard before the act
-  is done: a yes or a backchannel alone lets the act go on. Room talk neither
-  halts it nor gets an answer. A turn whose aim is unclear halts it, and the act
-  then waits for a clear yes. Any other turn aimed at you halts it before your
-  next tool call: read the turn and answer it. When part of the act was done,
-  say so and offer to put it back. For a one-step act, a turn begun after the
-  say-back usually lands after the act, so cutting in then means putting it
-  back.
+  `listen.mjs working`, then act, in the same turn (`working` its own call),
+  then report. The act waits instead, as one that is not easily undone, when the
+  person may not have heard the say-back: the `say` answered anything but
+  `speaking`, `idle` answered `idle-timeout`, or your voice is muted. Muted,
+  give the say-back that asks from the start; when it did not play or `idle`
+  timed out, say in chat that it waits, give the say-back that asks (exempt from
+  "make no say straight after another"), and end the turn. A turn heard before
+  the act is done: a yes or a backchannel alone lets the act go on. Room talk
+  neither halts it nor gets an answer. A turn whose aim is unclear halts it, and
+  the act then waits for a clear yes. Any other turn aimed at you halts it
+  before your next tool call: read the turn and answer it. When part of the act
+  was done, say so and offer to put it back. For a one-step act, a turn begun
+  after the say-back usually lands after the act, so cutting in then means
+  putting it back.
 - **Working.** `listen.mjs working` sets the status word to `working` until the
   next line is spoken or the next turn is heard. Run it when you start acting,
   not before. Against a listener started before this command existed it prints

@@ -100,7 +100,7 @@ And later in that session:
     acting, read the turn and answer it. When part of the act was already done,
     say so and offer to put it back.
   - A turn that cut the say-back off (`interrupted`) means the person did not
-    hear it whole: when the turn itself does not halt the act, say the
+    hear it whole: when the turn is neither a yes nor a halt, say the
     say-back again, and go on after it plays.
   - A heard "stop" said alone still ends voice mode, as the Stops say; a heard
     "wait" alone still halts and asks.
