@@ -20,6 +20,9 @@ export type Card = {
   /** The PR's repository as owner/name, when it is not the lead's own
    *  working folder's; checked against `REPO` wherever it is read. */
   repo?: string
+  /** The lead's mark that this idle session's last report waits on the lead
+   *  (GRIM-76). Only an idle card carries it, and it is never `false`. */
+  waitsOnLead?: true
   /** When the card entered its current status, in milliseconds on
    *  the engine clock. The tool stamps it; the file may hold it. */
   since?: number

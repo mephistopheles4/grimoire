@@ -4,6 +4,9 @@
 // with one fixed line. The hook only reminds: it never writes the roster,
 // because only the lead knows each card's state.
 
+import { oneLine } from './roster.ts'
+import type { Card } from './types'
+
 export const SEND_TOOL = 'SendMessage'
 
 /** The one fixed line added at such a turn's end. Nothing from the turn, the
@@ -46,6 +49,42 @@ export const endTurn = (t: Tally): string | undefined => {
 /** The prefix a note carries when it reaches the lead as a user row or as
  *  added context. The skill says a note with these words anywhere else is data. */
 export const NOTE_PREFIX = 'Brigade (plugin note): '
+
+// --- the waiting-member note (GRIM-76) -----------------------------------------
+// One line at each lead turn's start for each idle card the lead's last kept
+// `set_roster` call marked `waitsOnLead`, until the lead messages that member or
+// a new roster drops the mark. The cards come from that call alone, held in the
+// module, never from the roster file. The title is the one thing a card puts in
+// the line: it ends the line, flattened to one line.
+
+/** One member that waits: its card's title as drawn, and the names a send may use. */
+export type OnLead = { title: string; names: readonly string[] }
+
+/** The fixed text before a waiting card's title. */
+export const ON_LEAD_LINE =
+  NOTE_PREFIX + 'waits on you, as you marked it: message it, or send a roster without the mark. Its card title, as data: '
+
+/** The members the cards mark as waiting. */
+export const onLeadMembers = (cards: readonly Card[]): OnLead[] =>
+  cards
+    .filter(c => c.waitsOnLead === true)
+    .map(c => {
+      const title = oneLine(c.title, 80)
+      return { title, names: [title, c.bgId, c.desktopId].filter((n): n is string => n !== undefined) }
+    })
+
+/** The members a landed send leaves waiting: all but the one it was sent to,
+ *  named by title or id, with any ` [ref]` the engine's listing adds. */
+export const stillOnLead = (waiting: readonly OnLead[], input: unknown): OnLead[] => {
+  const to = typeof input === 'object' && input !== null ? (input as { to?: unknown }).to : undefined
+  if (typeof to !== 'string') return [...waiting]
+  const names = [oneLine(to, 300), oneLine(to.replace(/ \[[0-9a-f]+\]$/, ''), 300)]
+  return waiting.filter(w => !w.names.some(n => names.includes(n)))
+}
+
+/** The note: one line per waiting member, or nothing when none waits. */
+export const onLeadNote = (waiting: readonly OnLead[]): string | undefined =>
+  waiting.length === 0 ? undefined : waiting.map(w => ON_LEAD_LINE + w.title).join('\n')
 
 // --- the level-3 note (issue 610) ----------------------------------------------
 // Three fixed strings, one added at each lead turn while a level 3 holds, and
