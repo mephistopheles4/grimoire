@@ -10,14 +10,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WORDS, segment } from '../skills/incantation/scripts/statusline.mjs';
-import { secureState, statusPath, voicePath } from '../skills/incantation/scripts/lib.mjs';
+import { ensureState, statusPath, voicePath } from '../skills/incantation/scripts/lib.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../skills/incantation/scripts/statusline.mjs', import.meta.url));
 
 function home(t) {
   const h = mkdtempSync(join(tmpdir(), 'incantation-status-'));
   t.after(() => rmSync(h, { recursive: true, force: true }));
-  secureState(h);
+  ensureState(h);
   return h;
 }
 

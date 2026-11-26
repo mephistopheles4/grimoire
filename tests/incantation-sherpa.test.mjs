@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isEngine, loadEngine } from '../skills/incantation/scripts/engines/index.mjs';
 import { makeEngine } from '../skills/incantation/scripts/engines/sherpa.mjs';
-import { SETTINGS_DEFAULTS, parseSettings, secureState } from '../skills/incantation/scripts/lib.mjs';
+import { SETTINGS_DEFAULTS, parseSettings, ensureState } from '../skills/incantation/scripts/lib.mjs';
 import { platformKey, pythonExe, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 
 const KEY = platformKey(process.platform, process.arch);
@@ -65,7 +65,7 @@ function installFake(home, parts) {
 
 const fixture = () => {
   const home = mkdtempSync(join(tmpdir(), 'incantation-sherpa-'));
-  secureState(home);
+  ensureState(home);
   return { home, remove: () => rmSync(home, { recursive: true, force: true }) };
 };
 

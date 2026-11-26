@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
 import { ask, readChannel, say, startListener } from '../skills/incantation/scripts/listen.mjs';
-import { secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
+import { ensureState, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
 
 const RECORDER = process.platform === 'win32' ? 'C:\\fake\\bin\\ffmpeg.exe' : '/fake/bin/ffmpeg';
 const LISTINGS = {
@@ -35,8 +35,8 @@ const wait = home => ask(readChannel(home), 'wait', 5000);
 
 async function rig(t, { text = 'hello there', ...layers } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-wiring-'));
-  secureState(home);
-  writePrivate(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'p', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300 }));
+  ensureState(home);
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'p', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300 }));
   const feed = Object.assign(new EventEmitter(), { close() {} });
   const engine = {
     calls: 0,

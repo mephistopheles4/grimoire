@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, truncateSync, w
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
-import { deviceDigest, keyPath, parseSettings, readKey, secureState, settingsPath } from '../skills/incantation/scripts/lib.mjs';
+import { deviceDigest, keyPath, parseSettings, readKey, ensureState, settingsPath } from '../skills/incantation/scripts/lib.mjs';
 import { FILES } from '../skills/incantation/scripts/runtime/pins.mjs';
 import { PARTS, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 import { LINES, runSetup } from '../skills/incantation/scripts/setup.mjs';
@@ -15,7 +15,7 @@ import { LINES, runSetup } from '../skills/incantation/scripts/setup.mjs';
 const win = process.platform === 'win32';
 const BIN = win ? 'C:\\fake\\bin' : '/fake/bin';
 const RECORDER = win ? win32.join(BIN, 'ffmpeg.exe') : posix.join(BIN, 'ffmpeg');
-const fs = { isFile: p => p === RECORDER, realpath: p => p, lstat: () => ({ uid: 0, mode: 0o40755 }), uid: () => 1000 };
+const fs = { isFile: p => p === RECORDER, realpath: p => p };
 const LISTING = {
   win32: '[in#0 @ 0] "Desk Mic One" (audio)\n[in#0 @ 0] "Headset Mic Two" (audio)\n',
   darwin: '[AVFoundation indev @ 0x1] AVFoundation audio devices:\n[AVFoundation indev @ 0x1] [0] Desk Mic One\n[AVFoundation indev @ 0x1] [1] Headset Mic Two\n',
@@ -59,7 +59,6 @@ test('choose writes settings whose every key is in range, with the pinned record
   assert.deepEqual(s.device, { index: 1, stamp: STAMP, id: deviceDigest(key, DEVICES[1].id), name: deviceDigest(key, DEVICES[1].name) });
   assert.deepEqual({ ...s, device: null }, { engine: 'sherpa', port: 17493, endOfSpeechMs: 1500, profile: 'made-up-profile-1', device: null, recorder: RECORDER });
   assert.ok(!text.includes(DEVICES[1].name) && !text.includes(DEVICES[1].id), 'no device name or id is kept in the file');
-  if (process.platform !== 'win32') assert.equal(statSync(keyPath(r.home)).mode & 0o777, 0o600);
 });
 
 test('a second choose keeps the key, so the digests stay comparable', async t => {
@@ -130,8 +129,8 @@ const failingUv = async () => ({ code: 1, stdout: '' });
 // A file of the real table, at its pinned size and the wrong bytes.
 function put(home, rel, size) {
   const p = join(runtimeDir(home), ...rel.split('/'));
-  mkdirSync(join(p, '..'), { recursive: true, mode: 0o700 });
-  writeFileSync(p, '', { mode: 0o600 });
+  mkdirSync(join(p, '..'), { recursive: true });
+  writeFileSync(p, '');
   truncateSync(p, size);
 }
 const lay = (home, part) => {
@@ -195,7 +194,7 @@ test('runtime verify reports every part as not installed on an empty home, and f
   assert.deepEqual([empty.lines, empty.code], [PARTS.map(p => `${p} skipped not installed`), 0]);
   const home = mkdtempSync(join(tmpdir(), 'incantation-setup-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  secureState(home);
+  ensureState(home);
   lay(home, 'detector');
   const r = await runSetup(['runtime', 'verify'], { home, arch: ARCH });
   assert.equal(r.code, 1);
@@ -210,7 +209,7 @@ test('profiles with the sherpa engine lists only the voices whose part is instal
   assert.deepEqual([none.lines, none.code], [[LINES.voices], 1]);
   const home = mkdtempSync(join(tmpdir(), 'incantation-setup-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  secureState(home);
+  ensureState(home);
   lay(home, 'phonon');
   const r = await runSetup(['profiles'], { home, pathValue: BIN, startDir: home, fs });
   assert.deepEqual([r.lines, r.code], [['everly everly (phonon)'], 0]);

@@ -16,7 +16,7 @@ import { statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { observeDir, runDir, secureState, statusPath } from './lib.mjs';
+import { observeDir, runDir, ensureState, statusPath } from './lib.mjs';
 
 export const LINES = { nudge: 'I need your OK on screen.', progress: 'Still working on it.' };
 export const FRESH_MS = 10_000; // the status file is touched every 2 s while a listener runs
@@ -35,7 +35,7 @@ export function nudge(home, mode, speak, now = Date.now()) {
   } catch {
     return 'no-listener';
   }
-  secureState(home);
+  ensureState(home);
   if (mode === 'nudge') {
     // A nudge within the last few seconds is enough: the marker's mtime says when.
     const marker = join(runDir(home), MARKER);

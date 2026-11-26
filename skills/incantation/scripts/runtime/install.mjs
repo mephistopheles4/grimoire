@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { resolveRecorder } from '../capture/ffmpeg.mjs';
-import { secureFolder, stateDir, writePrivate } from '../lib.mjs';
+import { ensureFolder, stateDir, writeWhole } from '../lib.mjs';
 import { ARCHIVES, FILES, GAPS, HOSTS, LOCKS, PYTHON, PYTHON_FLOOR, SOURCES } from './pins.mjs';
 
 // The table a call reads; a test hands in a small one of its own.
@@ -448,12 +448,12 @@ export async function installRuntime(o) {
   const partial = partialDir(home);
   const transport = o.transport ?? makeTransport();
   try {
-    secureFolder(home, stateDir(home), { platform });
-    secureFolder(home, root, { platform });
+    ensureFolder(stateDir(home));
+    ensureFolder(root);
     rmSync(partial, { recursive: true, force: true });
-    secureFolder(home, partial, { platform });
+    ensureFolder(partial);
   } catch {
-    return { lines: ['install: the ~/.grimoire/incantation folder is not private or not a plain folder'], code: 1 };
+    return { lines: ['install: the ~/.grimoire/incantation folder cannot be used: something else stands where a folder belongs'], code: 1 };
   }
   let failed = false;
 
@@ -547,7 +547,7 @@ export async function installRuntime(o) {
     if (r.code !== 0) return 'failed wheels';
     const files = walkFiles(venv, venv, n => n === '__pycache__').sort();
     const manifest = { python: PYTHON.version, stamp: stampOf(), files: files.map(f => [f, statSync(join(venv, ...f.split('/'))).size, hashFile(join(venv, ...f.split('/')))]) };
-    writePrivate(join(root, MANIFEST), `${JSON.stringify(manifest)}\n`, { platform });
+    writeWhole(join(root, MANIFEST), `${JSON.stringify(manifest)}\n`);
     return 'ok';
   };
 

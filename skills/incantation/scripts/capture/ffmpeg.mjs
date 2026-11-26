@@ -5,7 +5,7 @@
 // Claude Code started in come in from the caller.
 
 import { createHash } from 'node:crypto';
-import { lstatSync, realpathSync, statSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
 import { cleanText } from '../lib.mjs';
 
@@ -138,8 +138,6 @@ const realFs = {
       return null;
     }
   },
-  lstat: p => lstatSync(p),
-  uid: () => (typeof process.getuid === 'function' ? process.getuid() : -1),
 };
 
 const inside = (paths, parent, child) => {
@@ -147,28 +145,11 @@ const inside = (paths, parent, child) => {
   return rel === '' || (!rel.startsWith('..') && !paths.isAbsolute(rel));
 };
 
-// On macOS and Linux, the recorder and every folder above it must be owned by
-// root or this account and writable by neither group nor others.
-function trustedPosix(real, fs) {
-  const me = fs.uid();
-  for (let p = real; ; p = posix.dirname(p)) {
-    let st;
-    try {
-      st = fs.lstat(p);
-    } catch {
-      return false;
-    }
-    if ((st.uid !== 0 && st.uid !== me) || (st.mode & 0o022) !== 0) return false;
-    if (p === posix.dirname(p)) return true;
-  }
-}
-
 // The recorder, by the platform's rule, as its real path, or null. Skipped on
 // every platform: an empty or relative PATH entry, the current folder, and
 // any entry inside the folder Claude Code started in. On Windows only fully
 // qualified drive folders count, and the real path must still be a drive
-// path (590's rule). On macOS and Linux only absolute entries count, and the
-// recorder must pass the ownership rule.
+// path (590's rule). On macOS and Linux only absolute entries count.
 export function resolveRecorder({ platform, pathValue, startDir, fs = realFs, name = recorderName(platform) }) {
   const paths = platform === 'win32' ? win32 : posix;
   const sep = platform === 'win32' ? ';' : ':';
@@ -182,11 +163,7 @@ export function resolveRecorder({ platform, pathValue, startDir, fs = realFs, na
     const real = fs.realpath(candidate);
     if (!real) continue;
     if (startDir && inside(paths, startDir, real)) continue;
-    if (platform === 'win32') {
-      if (DRIVE.test(real)) return real;
-      continue;
-    }
-    if (trustedPosix(real, fs)) return real;
+    if (platform !== 'win32' || DRIVE.test(real)) return real;
   }
   return null;
 }
