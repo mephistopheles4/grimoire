@@ -1,6 +1,9 @@
 import type { Card } from './types'
 import type { SessionRow } from './roster.ts'
-import { oneLine } from './roster.ts'
+import {
+  oneLine,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 
 // The stop tool's rules (issue 516; ADR 0016), as plain TypeScript with no
 // engine import, so tests/brigade-stop.test.mjs runs them directly. Brigade
@@ -37,13 +40,13 @@ export function stopTarget(title: string, cards: readonly Pick<Card, 'title' | '
   const named = cards.filter(c => oneLine(c.title, MAX_TITLE) === drawn)
   if (named.length === 0) return { why: 'session: no card on the roster has this title' }
   if (named.length > 1) return { why: 'session: more than one card has this title' }
-  const card = named[0]
+  const card = named[0]!
   if (card.bgId === undefined || card.desktopId !== undefined) return { why: 'session: the card is not a background session' }
   if (!sessions.complete || sessions.fileGone) return { why: 'session: the session files could not be read whole' }
   const own = sessions.rows.filter(r => r.jobId === card.bgId)
   if (own.length === 0) return { why: 'session: no session file carries its job id' }
   if (own.length > 1) return { why: 'session: two session files carry its job id' }
-  if (oneLine(own[0].name, MAX_TITLE) !== drawn) return { why: 'session: its name is not the card title' }
+  if (oneLine(own[0]!.name, MAX_TITLE) !== drawn) return { why: 'session: its name is not the card title' }
   return { jobId: card.bgId }
 }
 

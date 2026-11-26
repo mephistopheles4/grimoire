@@ -1,4 +1,7 @@
-import { AHEAD_MS, SESSION_ID, oneLine } from './roster.ts'
+import {
+  AHEAD_MS, SESSION_ID, oneLine,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 import type { SessionRow } from './roster.ts'
 
 // The decision log's rules (spec 402, S5.1 and S5.2): what a log_decision
@@ -451,7 +454,7 @@ export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): C
     const answered = new Set(kept.map(e => e.answers).filter(a => a !== ''))
     const sid = o.sid ?? ''
     for (let i = 0; i < kept.length - 1 && !fits(); ) {
-      const e = kept[i]
+      const e = kept[i]!
       const state = o.read.get(markKey(sid, e.id, e.at))
       // An answer stays while the waiting entry it answers does, so that
       // entry is never drawn as waiting again nor answered twice.
@@ -971,7 +974,7 @@ export const isLevelCommand = (args: unknown): boolean => typeof args === 'strin
 export function parseLevelCommand(args: string): { level: Level; goal?: string } | { refused: string } | undefined {
   const m = LEVEL_ARGS.exec(args.trim())
   if (m === null) return undefined
-  const word = m[1].toLowerCase()
+  const word = m[1]!.toLowerCase()
   if (word === 'level') return { refused: LEVEL_REPLIES.levelGone }
   const after = m[2] ?? ''
   if (word === 'manual') return after === '' ? { level: 1 } : { refused: LEVEL_REPLIES.usage }

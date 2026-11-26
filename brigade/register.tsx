@@ -62,9 +62,16 @@ import {
   probeHost,
   windowsEnv,
   rowMove,
+// @ts-expect-error TS5097: Node needs the extension.
 } from './roster.ts'
-import { ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget } from './stop.ts'
-import { CHANGED as QUICK_CHANGED, DRAFT as QUICK_DRAFT, FILL_FAILED as QUICK_FILL_FAILED, boxIsBlank, quickAction, quickDigest, quickPress, quickSurface } from './quick.ts'
+import {
+  ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './stop.ts'
+import {
+  CHANGED as QUICK_CHANGED, DRAFT as QUICK_DRAFT, FILL_FAILED as QUICK_FILL_FAILED, boxIsBlank, quickAction, quickDigest, quickPress, quickSurface,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './quick.ts'
 import {
   DESCRIPTION as START_DESCRIPTION,
   NOT_MAIN,
@@ -85,6 +92,7 @@ import {
   startArgv,
   worktreeBranch,
   worktreeFolder,
+// @ts-expect-error TS5097: Node needs the extension.
 } from './start.ts'
 import type { Inputs as StartInputs, Platform } from './start.ts'
 import type { GhPr, HostOs, LinkParts, Placed, SessionRow, StatAnswer } from './roster.ts'
@@ -144,6 +152,7 @@ import {
   leadFlagKeys,
   withLeadFlags,
   writerName,
+// @ts-expect-error TS5097: Node needs the extension.
 } from './decisions.ts'
 import type { DecisionEntry, DecisionLog, EntryInput, Level, MarkState, MarksFile, ReadLog, Row } from './decisions.ts'
 import {
@@ -232,13 +241,29 @@ import {
   warmthFrom,
   warmthLine,
   withoutSize,
+// @ts-expect-error TS5097: Node needs the extension.
 } from './view.ts'
 import type { ContextOutlook, Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
-import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { commandNote, endTurn, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, SEND_TOOL, sendsMessage, tally } from './reminder.ts'
-import { registerMic } from './mic-band.tsx'
-import { registerRelay, relayTurnStart } from './voice-relay.ts'
-import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
+import {
+  registerWriter, writerEpoch, writerSession,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './writer.ts'
+import {
+  commandNote, endTurn, LEVEL3_ENDED_NOTE, LEVEL3_PRESSED_NOTE, SEND_TOOL, sendsMessage, tally,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './reminder.ts'
+import {
+  registerMic,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './mic-band.tsx'
+import {
+  registerRelay, relayTurnStart,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './voice-relay.ts'
+import {
+  DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
 // three foldable groups (Waiting on you, Working, Done · stopped) behind a
@@ -719,9 +744,8 @@ async function readKind($: EngineInterface, at: Where, kind: Kind, sid: string):
   }
 }
 
-// One listing entry the reads may take: a plain file named by a session id.
-type Listed = { sid: string; size: number; mtimeMs: number }
-// One file the reads may take: its session id, size and time.
+// One listing entry the reads may take: a plain file named by a session id,
+// with its size and time.
 type Listed = { sid: string; size: number; mtimeMs: number }
 
 // This session's own file of a kind, as the path rule placed it, by its own
@@ -4111,7 +4135,7 @@ export const register: Register = on => {
         </Box>
       )
     }
-    const rows = (list: JSX.Element[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
+    const rows = (list: (JSX.Element | null)[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
 
     // The context outlook (issue 545, row 8; issue 581): the bar against the window with its
     // compaction tick and large-turn dots, `<used> of <window>` beside it, then

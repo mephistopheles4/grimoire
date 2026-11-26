@@ -1,8 +1,14 @@
 import { atom, read } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
-import { relayTurnEnd } from './voice-relay.ts'
+import {
+  relayTurnEnd,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './voice-relay.ts'
 
-import { dataPlace, placeSummary, statRejection } from './roster.ts'
+import {
+  dataPlace, placeSummary, statRejection,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './roster.ts'
 import type { StatAnswer } from './roster.ts'
 import {
   MAX_SUMMARY_BYTES,
@@ -15,6 +21,7 @@ import {
   stepCall,
   summaryFrom,
   writeDone,
+// @ts-expect-error TS5097: Node needs the extension.
 } from './view.ts'
 
 // The usage summary writer. Every session with the plugin keeps its own usage
