@@ -10886,6 +10886,44 @@ test('GRIM-41: a message and an idle subscription to a twin name reach the local
   await sendTo($, { notify_when_idle: true })
   expect(sent.map(e => e.to)).toEqual(['session-a [loc111]', 'session-a [loc111]'])
   expect(sent[0].message).toBe('go on')
+  expect(sent[1].notify_when_idle).toBe(true)
+})
+
+test('GRIM-41: a twin split over two pages of the session list reaches the local row', async ($, on) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, ($, e: any) => {
+    const [row, listing] = e.cursor === '0a'
+      ? [TWIN[0], '']
+      : [TWIN[1], '(\u2026 1 more not shown \u2014 call again with cursor="0a" for the next page)']
+    return { result: { listing, sections: [{ kind: 'sessions', total: 2, rows: [{ name: 'session-a', ...row }] }] } } as any
+  })
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  expect(sent.map(e => e.to)).toEqual(['session-a [loc111]'])
+})
+
+test('GRIM-41: a session list that fails passes the send on as sent', async ($, on) => {
+  const w = world(on)
+  w.verdict = { decision: 'allow' }
+  const sent: any[] = []
+  on('tool.call', { tool: 'SendMessage' }, ($, e) => {
+    sent.push(e)
+    return { result: 'sent' } as any
+  })
+  on('tool.call', { tool: 'ListAgents' }, () => {
+    throw new Error('no list')
+  })
+  await start($)
+  await brigade($)
+  await sendTo($, { message: 'go on' })
+  expect(sent.map(e => e.to)).toEqual(['session-a'])
 })
 
 test('GRIM-41: another shared shape is refused, nothing is sent and no reminder is owed', async ($, on) => {
@@ -10894,6 +10932,7 @@ test('GRIM-41: another shared shape is refused, nothing is sent and no reminder 
   await brigade($)
   const r: any = await sendTo($, { message: 'go on' })
   expect(String(r.deny)).toMatch(/nothing was sent.*Two sessions on this machine.*tell the owner/)
+  expect(String(((await sendTo($, { notify_when_idle: true })) as any).deny)).toMatch(/nothing subscribed/)
   expect(sent).toEqual([])
   await turnEnd($)
   expect(reminders(w)).toEqual([])

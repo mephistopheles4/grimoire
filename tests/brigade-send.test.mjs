@@ -15,8 +15,16 @@ test('a twin resolves to the local row by its ref, in either order and for each 
   }
 });
 
-test('a twin split over two pages resolves', () => {
-  assert.deepEqual(resolveSend('build-1', [page([local()]), page([remote()])], false), { to: 'build-1 [aaa111]' });
+test('other names in a subagent list and a cut-short account list leave a twin resolving', () => {
+  const p = page([local(), remote()], { notes: [{ kind: 'list_truncated', text: 'x' }] });
+  p.sections.push({ kind: 'subagents', total: 1, rows: [{ name: 'other', id: 'a1' }] });
+  assert.deepEqual(resolveSend('build-1', [p], false), { to: 'build-1 [aaa111]' });
+});
+
+test('every refusal is its own text and says what to do', () => {
+  const all = [REFUSE_MANY, REFUSE_NO_LOCAL, REFUSE_PARTIAL, REFUSE_TWO_LOCAL, REFUSE_UNKNOWN];
+  assert.equal(new Set(all).size, all.length);
+  for (const text of all) assert.match(text, /nothing was sent.*tell the owner/);
 });
 
 test('a name with one row or none passes on as sent', () => {
@@ -58,13 +66,11 @@ test('a local row beside anything but a Remote Control row, or with no usable re
 
 test('a twin in a listing that may be missing rows on this machine is refused', () => {
   assert.deepEqual(resolve([local(), remote()], false), { deny: REFUSE_PARTIAL });
-  for (const kind of ['local_list_failed', 'list_truncated']) {
-    const p = page([local(), remote()], { notes: [{ kind, text: 'x' }] });
-    assert.deepEqual(resolveSend('build-1', [p], false), { deny: REFUSE_PARTIAL });
-    const q = page([local(), remote()]);
-    q.sections[0].notes = [{ kind, text: 'x' }];
-    assert.deepEqual(resolveSend('build-1', [q], false), { deny: REFUSE_PARTIAL });
-  }
+  const notes = [{ kind: 'local_list_failed', text: 'x' }];
+  assert.deepEqual(resolveSend('build-1', [page([local(), remote()], { notes })], false), { deny: REFUSE_PARTIAL });
+  const q = page([local(), remote()]);
+  q.sections[0].notes = notes;
+  assert.deepEqual(resolveSend('build-1', [q], false), { deny: REFUSE_PARTIAL });
 });
 
 test('an answer with no rows to read passes on', () => {
@@ -101,6 +107,8 @@ test('every page is read, and a page that fails or runs past the cap leaves the 
 test('the next page is read from the listing\'s own footer line only', () => {
   const foot = '(… 3 more not shown — call again with cursor="0a1b2c3d" for the next page)';
   assert.equal(listedCursor({ listing: `Peer sessions (9):\n  x\n\n${foot}` }), '0a1b2c3d');
+  const later = '(agents may be missing from this page \u2014 call again later with cursor="0e" for any that are)';
+  assert.equal(listedCursor({ listing: later }), '0e');
   assert.equal(listedCursor({ listing: `  ${foot}  ·  bg` }), undefined);
   assert.equal(listedCursor({ listing: 'Peer sessions (1):' }), undefined);
   assert.equal(listedCursor(undefined), undefined);

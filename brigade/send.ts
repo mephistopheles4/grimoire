@@ -24,7 +24,8 @@ export const REFUSE_TWO_LOCAL = refusal('Two sessions on this machine have that 
 export const REFUSE_MANY = refusal('Three or more rows have that name.')
 export const REFUSE_NO_LOCAL = refusal('More than one row has that name and none is on this machine.')
 export const REFUSE_UNKNOWN = refusal('Two rows have that name and they are not one session on this machine with its Remote Control row.')
-export const REFUSE_PARTIAL = refusal('More than one row has that name and the session list is incomplete.')
+export const REFUSE_PARTIAL =
+  'Brigade: nothing was sent and nothing subscribed. Two rows have that name and the session list could not be read in full. Send nothing to that name by a ref; send again shortly, and if it is refused again, tell the owner the session list is incomplete.'
 
 /** Whether `to` is a bare session name: no ref, no address, not a fixed word. */
 export const needsListing = (to: unknown): to is string =>
@@ -54,7 +55,9 @@ export const resolveSend = (name: string, pages: readonly unknown[], unread: boo
     const p = record(page)
     const sections = list(p.sections)
     for (const s of [p, ...sections]) {
-      if (list(s.notes).some(n => n.kind === 'local_list_failed' || n.kind === 'list_truncated')) partial = true
+      // Only rows on this machine matter here: a cut-short account list
+      // (`list_truncated`) leaves the local row as it was.
+      if (list(s.notes).some(n => n.kind === 'local_list_failed')) partial = true
     }
     for (const s of sections) {
       const named = list(s.rows).filter(r => r.name === name)

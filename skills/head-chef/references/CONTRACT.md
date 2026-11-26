@@ -1060,13 +1060,7 @@ A start whose route the owner's words did not name is a background session with 
    `SKILL.md` says. Give the card the job id as `bgId`, and no `desktopId` or
    `url`.
 8. **Subscribe to its idle notice:** call the message tool with `to` set to
-   the session's name, `notify_when_idle` set to true, and no message. A
-   background member with Remote Control lists twice under its name. When
-   exactly two rows share the name, one on this machine and one a Remote
-   Control row, send to and subscribe to the row on this machine by its ref,
-   and never to the Remote Control row. Any other shape, send nothing and tell
-   the owner, as "Sending and idle notices" in `SKILL.md` says. Take the ref
-   from the listing in this turn, as that section says.
+   the session's name, `notify_when_idle` set to true, and no message.
 
 When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. You do not
