@@ -23,7 +23,7 @@ a removed control. A page's “Accepted class” line holds only what that class
 flowchart LR
   tracker["Tracker text, shared files, other sessions"]
   maintainer["Merge to main, GitHub acts"]
-  installer["Installs, plugins, CI, a branch's code"]
+  installer["Installs, the mod, CI, a branch's code"]
   leave["Audit send, Remote Control, sync"]
   agent(["An agent that obeys text"])
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ## Scope
 
-**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other outside tool, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI. The root of trust is the owner's GitHub account.
+**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other outside tool, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code is not one. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI. The root of trust is the owner's GitHub account.
 
 ## Residual risk
 
@@ -166,13 +166,13 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - R3: plain-prose instructions no scanner detects; fifteen scanner dependencies resolve fresh each run.
 - R4: the CI pins are not content pins, and no tarball hash is checked; git in the image is not hash-pinned.
 - R5: cleanup's authorization; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
-- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's hard-link gap.
+- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's and the usage summary's hard-link gap.
 - Remote Control: how long a member's transcript stays after it stops, and whether a device keeps a copy, are not checked.
 - R8: the script cannot stop the agent itself printing an environment variable.
 - R9: a home root joined from a separate string is not seen, and free text is not checked.
 - R10: the agent guard protects the merge, not the reader.
 - R12: the build runs before the check on an unread branch, with the registry login and proxy passwords; a non-local container engine gets the run's data and the registry login, in clear over plain TCP ([athanor#100](https://github.com/mephistopheles4/athanor/issues/100)).
-- Not accepted, from a branch's code or a steered session: planting or rewriting decision files, marks, hand-offs, summaries, session files or transcripts; link swaps; a written upstream ref under cleanup's delete; cleanup's indirect removal paths.
+- Not accepted, from a branch's code or a steered session: planting or rewriting decision files, marks, hand-offs, summaries, session files or transcripts; link swaps and races; a written upstream ref under cleanup's delete; cleanup's indirect removal paths.
 - Not accepted: another page opened from disk, or an extension, reading the saved interview answers; a session named like a card feeding it; the pill press has no rate limit; a skill's write scope and a contract's second-agent load are held by prose.
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.

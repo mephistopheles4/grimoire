@@ -339,8 +339,8 @@ let popoverGroup: string | undefined
 // The title of the card the popover opened on, kept with its group, so a card
 // that goes and another that takes its place closes it.
 let popoverTitle: string | undefined
-// Closing forgets the group and the title, so a stored value draws nothing
-// until a press opens one.
+// Closing forgets the group and the title, so a value an earlier load stored
+// draws nothing until a press opens one.
 async function closePopover($: EngineInterface) {
   popoverGroup = undefined
   popoverTitle = undefined
@@ -2249,7 +2249,7 @@ function levelTurn<T>(work: () => Promise<T>): Promise<T> {
 }
 
 // The last level set for a session, as plugin state holds it.
-async function levelSet($: EngineInterface, sid: string): Promise<Level> {
+async function storedLevelOf($: EngineInterface, sid: string): Promise<Level> {
   return storedLevel(await read($, autonomy), sid)
 }
 
@@ -2276,7 +2276,7 @@ async function commandNow($: EngineInterface, sid: string): Promise<{ at: number
 const inForceOf = (sid: string, set: Level): Level =>
   levelInForce({ pressed: set, pressAt: pressedAt.get(sid), waiting: paneWaits.has(sid) || resetWaits !== undefined })
 async function levelNow($: EngineInterface, sid: string): Promise<Level> {
-  return inForceOf(sid, await levelSet($, sid))
+  return inForceOf(sid, await storedLevelOf($, sid))
 }
 
 // Stores the level, keeping only this session's; any level but 3 clears the
@@ -2353,7 +2353,7 @@ async function levelTick($: EngineInterface) {
 async function levelPollNeeded($: EngineInterface): Promise<boolean> {
   if (resetWaits !== undefined) return true
   const sid = await levelSid($)
-  return sid !== undefined && (paneWaits.has(sid) || (await levelSet($, sid)) > 1)
+  return sid !== undefined && (paneWaits.has(sid) || (await storedLevelOf($, sid)) > 1)
 }
 
 // Starts the level poll when it has something to look at and is not running.
@@ -2408,7 +2408,7 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   const step = await levelTurn(async () => {
     const live = raising.get(sid)
     if (live !== undefined && live.turn === levelTurns && live.to === l) return { kind: 'none' as const }
-    const pressed = await levelSet($, sid)
+    const pressed = await storedLevelOf($, sid)
     const inForce = inForceOf(sid, pressed)
     if (l === inForce && l === pressed && !raising.has(sid)) {
       // A press of the 3 in force brings back the band's level-3 line it dismissed.
@@ -2484,7 +2484,7 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
   if (l === 2 && goal !== undefined && !clockTime(now)) return { line: LEVEL_REPLIES.failed, landed: false }
   const voided = commandsVoided
   const step = await levelTurn(async () => {
-    const pressed = await levelSet($, sid)
+    const pressed = await storedLevelOf($, sid)
     const inForce = inForceOf(sid, pressed)
     if (l !== 3 && goal === undefined && l === inForce && l === pressed && !raising.has(sid)) return { kind: 'none' as const }
     const turn = ++levelTurns
@@ -2576,7 +2576,7 @@ async function placedWithin($: EngineInterface, placed: () => Promise<boolean>):
 
 // A clear or a resume resets the level to 1, a press's or a command's, the same
 // id included (issue 504, S1): the level, its press time, any command 3 and the
-// stored copy go, and a raise still being logged never applies. No entry is
+// stored level go, and a raise still being logged never applies. No entry is
 // written: a reload is the only reason a Pane entry is still written; the
 // slider shows the reset.
 async function resetPressed($: EngineInterface) {
@@ -2741,6 +2741,7 @@ async function readAutonomy($: EngineInterface, e: Record<string, unknown>) {
 // awaited, so the row is stored before the turn's first request. A throw is
 // the caller's to catch.
 async function levelNoteTurn($: EngineInterface) {
+  // A press time is held only while a 3 is set.
   if (pressedAt.size === 0 && !levelNoted) return
   let held: { level: Level; command: string | undefined } = { level: 1, command: undefined }
   const sid = await levelSid($).catch(() => undefined)

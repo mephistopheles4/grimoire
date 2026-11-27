@@ -429,7 +429,7 @@ test('claim 11: a stored level other than the number 1, 2 or 3 reads as 1, and o
   for (const planted of [undefined, null, 'x', {}, { [SID]: 3 }, [null], [{ session: SID }]]) assert.equal(storedLevel(planted, SID), 1);
 });
 
-test('issue 504: the level in force is the last level set, 1 while a Pane entry waits or for a 3 with no press time; the stored copy is never compared', () => {
+test('issue 504: the level in force is the last level set, 1 while a Pane entry waits or for a 3 with no press time', () => {
   assert.equal(levelInForce({ pressed: 2, pressAt: undefined, waiting: false }), 2);
   assert.equal(levelInForce({ pressed: 3, pressAt: NOW, waiting: false }), 3);
   assert.equal(levelInForce({ pressed: 3, pressAt: undefined, waiting: false }), 1);

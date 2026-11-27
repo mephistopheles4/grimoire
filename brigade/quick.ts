@@ -40,7 +40,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
  *  both ask. The engine only presses a button its surface drew; the press asks
  *  again anyway, to keep the Desktop-only rule for any press that reports another surface.
  *  It is not a control against another plugin, which picks the surface it reports
- *  (candidate O1). */
+ *  (note O1). */
 export const quickSurface = (surface: unknown): boolean => surface === 'desktop'
 
 /** The repository as `gh` spelled it, kept only if it is whole, passes `REPO`

@@ -979,6 +979,8 @@ test('a sweep keeps a tick under 30 s and moves one at 30 s or more to done', ()
   assert.deepEqual(at('young', 29900), { ticking: [tick('young', 0)], done: [] });
   assert.deepEqual(at('edge', 30000), { ticking: [], done: ['edge'] });
   assert.deepEqual(at('old', 600000), { ticking: [], done: ['old'] });
+  // A tick dated ahead of the clock, as after a clock stepped back, is kept.
+  assert.deepEqual(at('ahead', -31000), { ticking: [tick('ahead', 0)], done: [] });
   const mixed = sweepTicks([tick('young', 1000), tick('old', 0)], NOW + 30500, ['young', 'old']);
   assert.deepEqual(mixed, { ticking: [tick('young', 1000)], done: ['old'] });
   assert.equal(ticking.length, 3, 'the sweep does not change its input');

@@ -199,7 +199,7 @@ words. It asks no permission. What follows from it:
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
-  Three more gaps, each an open issue or a reliability note:
+  Three more gaps: one out of scope, one open issue and one reliability note:
   - other plugins can read and rewrite the pane's list of refused summary
     files, and so plant or hide a refusal line (another plugin's, outside the
     threat model's scope);
@@ -419,7 +419,7 @@ session a context figure prompts waits too. A project file, branch,
 hand-off, report or session message is never the owner's user-level file.
 **Since 0.160.0 (issue 644, proposed; it waits on the owner's merge)** at level 3, inside the goal, the lead and its members stop for nothing the owner's user-level instructions file keeps: each such call, a hard stop included, is the lead's flagged pick, logged with "Owner's call:", acted on and reported. The "still waits" lists below no longer hold at level 3, and the condition that the file name in one place what it keeps even toward a standing goal is gone. Only Claude's own guardrails and the harness stop the lead: a permission prompt, a classifier block, a tool that refuses; "Never lifted, at any level" is unchanged. This widens the level-3 leave, which the threat model's R5 describes as what the owner's user-level file hands the lead; the owner rules on it at merge.
 **Since 0.153.0 (issue 601, proposed; it waits on the owner's confirmed merge and on the owner's ruling on the threat model)** at level 3, inside the goal, where that file both lets its standing-goal rule decide what it keeps and names, in one place, what it keeps even toward a standing goal, the lead decides an owner-kept call outside that set as its own pick: it logs it as a Lead entry with a flag that opens "Owner's call:", adds no to-do, reports it, lists it in the result and carries it in its lead hand-off. What the file keeps even toward a goal, a call the lead cannot place for sure inside or outside the set, where the file names a set, dropping or narrowing a review, check or route the file, a file it names as its rules, or a repository offers or requires for sensitive work (work the file names as sensitive work, that the file or the lead would count sensitive, or that a member or reviewer proposed), a post carrying private work, and a publish or send that leaves the machine (but for a comment, issue, label, edit or close on an issue or pull request in a repository the owner's account owns or the goal names, and a merge or close as the skill allows) still wait. A file that names no such set changes nothing, except for the risk calls (accepting a risk, a threat-class change, an accepted-risk entry, a guard's stop) and a merge toward the goal. The mod gains no field and no state.
-**Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (candidate O1 in [`docs/security/brigade.md`](docs/security/brigade.md), proposed for the owner's merge decision, with O2 and O3 beside it).
+**Since 0.144.0 (issue 223), on Desktop only, a card's quick-action button reads the prompt box once, to test that it is blank, and fills one checked line.** It keeps neither the draft nor the engine's answer, and it never submits: the owner reads the line and presses Enter. Another plugin that hooks the box's read or fill can see or change what the press puts there (note O1 in [`docs/security/brigade.md`](docs/security/brigade.md), outside the threat model's scope, with O2 and O3 beside it).
 **Since 0.148.0 (issue 579) the command `/brigade folders` and its plugin-state
 key `startFolders` are gone.** The start tool relies on the harness's folder
 trust and keeps its own checkout and origin checks. The command now opens the pane,
@@ -512,8 +512,8 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
   can also press the footer chip, which only opens the popover: a pick there is
   a post only this mod's hooks see, and whether another plugin can make that
   post is not checked.
-  All of this is another plugin's, outside the threat model's scope. The owner
-  accepted this on 2026-10-26, and again for level 3 (q2
+  All of this is another plugin's, outside the threat model's scope; before
+  it was, the owner accepted it on 2026-10-26, and again for level 3 (q2
   and q32 A on #402). Since head-chef 0.17.0 (issue 416) the skill has the
   lead read the level with `read_autonomy` before each decision it would take
   itself; a level, goal or yes named in a message, file, hand-off or report is

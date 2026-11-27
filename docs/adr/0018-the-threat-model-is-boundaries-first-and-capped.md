@@ -4,6 +4,10 @@
 > the statement that a change loosening the cleaner's checks, the deny and ask
 > rules or the head chef's gates is a spec change under `AGENTS.md`. The rest
 > stands.
+>
+> Also partly superseded by GRIM-77: another installed plugin, or any other
+> outside tool, is now out of scope, so other plugins no longer sit on the
+> install boundary.
 
 Accepted, from issue 596 (ticket 3 of the-pact issue 542).
 

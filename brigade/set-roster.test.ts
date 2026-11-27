@@ -3485,6 +3485,7 @@ test('a plain file at the summary path is overwritten, whatever it holds, with n
   await raiseStep($)
   await turnEnd($)
   await w.clock.settle()
+  expect(w.log).not.toContain(`read ${USAGE}`)
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toBeDefined()
   expect(writerToasts(w)).toEqual([])
 })
@@ -10410,8 +10411,8 @@ test('C6: read_context refuses a call before the pane has offered it', async ($,
 
 // --- issue 504, part B ------------------------------------------------------------
 //
-// The level is the stored one, read through one shape check (C1, C2). The
-// roster card has no phase (C6).
+// The level is the stored one, read through one shape check (C1, and
+// GRIM-77). The roster card has no phase (C6).
 
 const PRESSED_3 = (at: number) =>
   `Autonomy level 3 (Turbo), set by a press at ${new Date(at).toISOString()}. Act at 3 toward the goal in the owner's words in this chat.`
@@ -10434,7 +10435,7 @@ test("504 C1: a pressed 3 answers the press string, before and after a compactio
     await w.clock.advance(15000)
     expect((await readLevel($)).text).toBe(LEVEL_1)
     expect(ownEntries(w).length).toBe(source === 'clear' ? 1 : 2)
-    // The stored copy went with the level, so a reload now has nothing to reset and logs nothing.
+    // The stored level went too, so a reload now has nothing to reset and logs nothing.
     await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
     await w.clock.settle()
     await w.clock.advance(15000)
@@ -10451,7 +10452,7 @@ test("504 C1: a pressed 3 answers the press string, before and after a compactio
   expect(ownEntries(w).at(-1)).toBe('pane 1 Manual · The Brigade mod was reloaded · level 1')
 })
 
-test('504 C2: the level in force is the stored one, and a stored value of no known shape reads as 1', async ($, on) => {
+test('GRIM-77: the level in force is the stored one, and a stored value of no known shape reads as 1', async ($, on) => {
   const rewrite = rewritten(on)
   const w = await decisionsPane(on, $)
   rewrite(w, 2)
@@ -11007,7 +11008,7 @@ for (const [what, set, form] of [
   }
 }
 
-test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the engine nothing', async ($, on) => {
+test('610 C2: at level 1 and at level 2 no note is stored, and neither asks the engine anything', async ($, on) => {
   const w = await decisionsPane(on, $)
   const asked = w.checks.length
   const ids = w.idCalls
@@ -11015,8 +11016,12 @@ test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the 
   expect(w.checks.length).toBe(asked)
   expect(w.idCalls).toBe(ids)
   await press($, 'level-2')
+  const asked2 = w.checks.length
+  const ids2 = w.idCalls
   await turn($)
   expect(levelNotes(w)).toEqual([])
+  expect(w.checks.length).toBe(asked2)
+  expect(w.idCalls).toBe(ids2)
 })
 
 test('610 C2: on a subagent turn, and under an id the level tools are not offered for although it holds a 3, no level-3 note is stored', async ($, on) => {
@@ -11537,6 +11542,8 @@ for (const [what, end] of ENDS) {
     // The drawing is left as it was, so it can still post.
     w.noRedraw = true
     await end($, w)
+    // A raise that wrongly went through would store its level.
+    w.levelLands = true
     await postPick(w, pop, { pick: 3 })
     await back($, w)
     expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
