@@ -16,7 +16,7 @@ test('the real repository passes its own check', () => {
 });
 
 test('an untouched copy of the tree passes', () => {
-  assertPasses(tree());
+  assertPasses(tree({ renderers: true }));
 });
 
 test('a copy with no git history says the version check was skipped', () => {
@@ -69,7 +69,7 @@ test('a tree with no .gitignore says so rather than skipping in silence', () => 
 });
 
 test('a box file that does not validate fails the check by name', () => {
-  const dir = tree();
+  const dir = tree({ renderers: true });
   const box = join(dir, 'skills', 'eagle-eye', 'examples', 'eagle-eye-skill.box.json');
   const b = readJson(box);
   b.dims[0].opts[1].chosen = true;
