@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const { ENVELOPE, fromEngine, stopAnswer, stopTarget } = await import('../brigade/stop.ts');
+const { ENVELOPE, stopAnswer, stopTarget } = await import('../brigade/stop.ts');
 
 const JOB = '0123abcd';
 const cards = [
@@ -74,9 +74,7 @@ test('C2: stopAnswer is fixed words, and only an exit of 0 is a stop', () => {
   assert.doesNotMatch(stopped, /clean_up|\/brigade done/);
 });
 
-test('C2: only the engine\'s own dispatch is the model\'s call', () => {
-  assert.equal(fromEngine({ plugin: 'engine', tier: 'core' }), true);
-  for (const o of [undefined, null, 'engine', { plugin: 'other', tier: 'core' }, { plugin: 'engine', tier: 'plugin' }, [], { plugin: 'engine' }]) assert.equal(fromEngine(o), false);
+test('C2: the engine\'s own fields are left out of a tool\'s input', () => {
   assert.ok(ENVELOPE.includes('requestMeta') && ENVELOPE.includes('agentId'));
 });
 
@@ -90,15 +88,14 @@ const between = (from, to) => {
 // The statements of a slice: each line trimmed, comments and blank lines left out.
 const live = text => text.split('\n').map(l => l.trim()).filter(l => l !== '' && !l.startsWith('//'));
 
-test('C2: the stop tool refuses a subagent or another plugin, reads the files live, runs `claude stop` alone, and answers only through stopAnswer', () => {
+test('C2: the stop tool refuses a subagent, reads the files live, runs `claude stop` alone, and answers only through stopAnswer', () => {
   const stop = between('async function stopBackground', '// end stopBackground');
   // Every live line, in order, up to each refusal's fixed rule: no guard can be
   // commented out, no exit added, and nothing but stopAnswer answers after the run.
   const lines = live(stop).map(l => l.replace(/return refuseStop\(.*\)$/, 'return refuseStop(…)'));
   assert.deepEqual(lines, [
-    'async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {',
+    'async function stopBackground($: EngineInterface, e: Record<string, unknown>) {',
     'if (e.agentId !== undefined) return refuseStop(…)',
-    'if (!fromEngine(origin)) return refuseStop(…)',
     'const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))',
     'if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(…)',
     'if (!(await offered($))) return refuseStop(…)',
@@ -121,18 +118,17 @@ test('C2: the stop tool refuses a subagent or another plugin, reads the files li
   for (const l of live(stop)) if (l.includes('refuseStop(')) assert.match(l, /return refuseStop\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE|target\.why)\)$/, l);
   assert.ok(!/["'`]rm["'`]/.test(stop), 'no claude rm');
   const handler = between("on('tool.call', { tool: STOP_NAME }", "on('tool.call', { tool: CONTEXT_NAME }");
-  assert.match(handler, /return await stopBackground\(\$, e as unknown as Record<string, unknown>, next\.origin\)/);
+  assert.match(handler, /return await stopBackground\(\$, e as unknown as Record<string, unknown>\)/);
   assert.match(handler, /\}\)\.catch\(\(\) => \(\{ deny: 'stop_background_session refused: /);
 });
 
-test('543 C8: the start tool refuses a subagent or another plugin before anything, runs every other guard in its own turn', () => {
+test('543 C8: the start tool refuses a subagent before anything, runs every other guard in its own turn', () => {
   const start = between('async function startBackground', '// end startBackground');
   const lines = live(start.slice(0, start.indexOf('async function startRun'))).map(l => l.replace(/return refuseStart\(.*\)$/, 'return refuseStart(…)'));
-  // Every live line, in order: the two cheap refusals, then one queued turn that holds each guard.
+  // Every live line, in order: the cheap refusal, then one queued turn that holds each guard.
   assert.deepEqual(lines, [
-    'async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, signal: AbortSignal, progress: { ran: boolean }) {',
+    'async function startBackground($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: { ran: boolean }) {',
     'if (e.agentId !== undefined) return refuseStart(…)',
-    'if (!fromEngine(origin)) return refuseStart(…)',
     'const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))',
     'return startTurn(async () => {',
     'if (signal.aborted) return refuseStart(…)',
@@ -150,7 +146,7 @@ test('543 C8: the start tool refuses a subagent or another plugin before anythin
   ]);
   for (const l of live(start.slice(0, start.indexOf('async function startRun')))) if (l.includes('refuseStart(')) assert.match(l, /return refuseStart\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE|checked\.why)\)$/, l);
   const handler = between("on('tool.call', { tool: START_NAME }", "on('tool.call', { tool: CONTEXT_NAME }");
-  assert.match(handler, /startBackground\(\$, e as unknown as Record<string, unknown>, next\.origin, next\.signal, progress\)/, "the handler passes the call's own signal");
+  assert.match(handler, /startBackground\(\$, e as unknown as Record<string, unknown>, next\.signal, progress\)/, "the handler passes the call's own signal");
   // The run's steps, in the order of S2.2: the platform, the spelling, the folder, the name, the host, the programs, the origin, then the start.
   const run = start.slice(start.indexOf('async function startRun'));
   const order = ['hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'hostTold($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'progress.ran = true', 'startArgv(i, claude.value'];

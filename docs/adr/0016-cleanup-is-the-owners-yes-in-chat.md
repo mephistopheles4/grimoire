@@ -30,7 +30,8 @@ cleaner run.
 
 **The stop stays, with no window.** `stop_background_session` keeps its guards
 (no subagent, the engine's own dispatch, the owner's rules, offered, pane
-open). It now reads the session files at each call, whole, and stops a session
+open). (The GRIM-77 cuts later removed the engine's-own-dispatch guard, from
+this tool and the start: another plugin's call is accepted.) It now reads the session files at each call, whole, and stops a session
 only when exactly one roster card has the title, that card carries a job id
 and no Desktop id, and exactly one session file has that job id under the same
 name. A read that skipped or lost a file refuses. This keeps a name check

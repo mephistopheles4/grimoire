@@ -64,7 +64,7 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './roster.ts'
 import {
-  ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget,
+  ENVELOPE as STOP_ENVELOPE, stopAnswer, stopTarget,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './stop.ts'
 import {
@@ -2825,9 +2825,8 @@ const refuseStop = (rule: string) => ({ deny: `stop_background_session refused: 
 // The background stop: the model's own call on the main loop, for the one
 // background session its title names, read live from the session files at
 // each call. No output or error text of the run is shown.
-async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {
+async function stopBackground($: EngineInterface, e: Record<string, unknown>) {
   if (e.agentId !== undefined) return refuseStop("subagent: only the lead session's own turns stop a session")
-  if (!fromEngine(origin)) return refuseStop("caller: only the model's own call stops a session, never another plugin's")
   // The engine's keys as the stop rules list them, `requestMeta` included.
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(RULES_RULE)
@@ -2980,9 +2979,8 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
 }
 
 // The start. Every refusal is fixed words; nothing of a run is shown.
-async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, signal: AbortSignal, progress: { ran: boolean }) {
+async function startBackground($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: { ran: boolean }) {
   if (e.agentId !== undefined) return refuseStart("subagent: only the lead session's own turns start a session")
-  if (!fromEngine(origin)) return refuseStart("caller: only the model's own call starts a session, never another plugin's")
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
   // pane that comes while a start waits behind another one stops it.
@@ -3526,7 +3524,7 @@ export const register: Register = on => {
   // stop_background_session, answered here and nowhere beneath.
   on('tool.call', { tool: STOP_NAME }, async ($, e, next) => {
     try {
-      return await stopBackground($, e as unknown as Record<string, unknown>, next.origin)
+      return await stopBackground($, e as unknown as Record<string, unknown>)
     } catch {
       return refuseStop('error: the tool failed')
     }
@@ -3536,7 +3534,7 @@ export const register: Register = on => {
   on('tool.call', { tool: START_NAME }, async ($, e, next) => {
     const progress = { ran: false }
     try {
-      const r = await startBackground($, e as unknown as Record<string, unknown>, next.origin, next.signal, progress)
+      const r = await startBackground($, e as unknown as Record<string, unknown>, next.signal, progress)
       if (e.agentId === undefined && progress.ran) tally(owedRoster, 'start')
       return r
     } catch {

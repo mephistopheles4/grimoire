@@ -14,13 +14,6 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 const MAX_TITLE = 80
 
-/** Whether a dispatch came from the engine itself, the model's own call,
- *  rather than from another plugin's `$` call. The engine's types name
- *  `next.origin` as `{ plugin, tier }`, reading `{ plugin: "engine", tier:
- *  "core" }` for the engine; ADR 0012's A4 measured another plugin's name
- *  there. */
-export const fromEngine = (origin: unknown): boolean => isRecord(origin) && origin.plugin === 'engine' && origin.tier === 'core'
-
 // The engine's own fields on a tool call, by name. Everything else is the
 // model's input.
 export const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
