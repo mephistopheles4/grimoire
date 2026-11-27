@@ -11,9 +11,7 @@ import {
 } from './roster.ts'
 import type { StatAnswer } from './roster.ts'
 import {
-  MAX_SUMMARY_BYTES,
   askWrite,
-  isSummaryFile,
   newFlight,
   newUsageMemory,
   recordCall,
@@ -113,21 +111,18 @@ function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
   )
 }
 
-// The kinds of refusal, in fixed words: the toast names the kind and never
-// the engine's message or the file's text, either of which can hold a path.
-const REFUSED = {
-  path: 'the summary path failed its check',
-  file: 'the summary path holds a file that is not a summary file, so it is not overwritten',
-} as const
+// The refusal, in fixed words: the toast never carries the engine's message,
+// which can hold a path.
+const REFUSED = 'the summary path failed its check'
 
 // The first refusal stops every later write until the module reloads, and
 // its words are toasted once, by the caller; a later refusal has none. A
 // clear does not restart it. The caller makes the toast so `$` reaches no
 // helper here: the directory's checker refuses that.
-function refuse(kind: keyof typeof REFUSED): string | undefined {
+function refuse(): string | undefined {
   if (stopped) return undefined
   stopped = true
-  return `Brigade: the usage summary was not written, and will not be until the plugin reloads (a clear does not restart it): ${REFUSED[kind]}.`
+  return `Brigade: the usage summary was not written, and will not be until the plugin reloads (a clear does not restart it): ${REFUSED}.`
 }
 
 // A write is asked for; one starts when the throttle and the single flight
@@ -150,8 +145,8 @@ async function run($: EngineInterface) {
   }
 }
 
-// One write: place the file under the path rule, overwrite only a summary
-// file, take the newest numbers and write.
+// One write: place the file under the path rule, take the newest numbers and
+// write.
 async function writeOnce($: EngineInterface) {
   if (stopped) return
   // The session the memory belongs to when the write starts. A clear while
@@ -163,17 +158,9 @@ async function writeOnce($: EngineInterface) {
   if (at === undefined || (owner !== undefined && at.id !== owner)) return
   const placed = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path))
   if ('refused' in placed) {
-    const said = refuse('path')
+    const said = refuse()
     if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
     return
-  }
-  if (placed.existing !== undefined) {
-    const text = placed.existing.size <= MAX_SUMMARY_BYTES ? String(await $.fs.read(placed.file)) : undefined
-    if (!isSummaryFile(placed.existing.size, text)) {
-      const said = refuse('file')
-      if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
-      return
-    }
   }
   // The id again, just before the numbers are taken: a clear while the checks
   // waited moves it, and this write is skipped; the writer moves to the new

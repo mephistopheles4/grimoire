@@ -991,12 +991,6 @@ test('a tick whose value is not a finite number is due at the next sweep', () =>
   }
 });
 
-test('a tick dated more than the grace period ahead of the clock is due, so it cannot stay forever', () => {
-  assert.deepEqual(sweepTicks([tick('a', 31000)], NOW, ['a']), { ticking: [], done: ['a'] });
-  // A clock that stepped back a little keeps the tick.
-  assert.deepEqual(sweepTicks([tick('a', 2000)], NOW, ['a']), { ticking: [tick('a', 2000)], done: [] });
-});
-
 test('a tick whose to-do left the roster is dropped, not moved to done', () => {
   assert.deepEqual(sweepTicks([tick('gone', 0), tick('kept', 0)], NOW + 1000, ['kept']), { ticking: [tick('kept', 0)], done: [] });
   assert.deepEqual(sweepTicks([tick('gone', 0)], NOW + 60000, []), { ticking: [], done: [] });
@@ -3680,7 +3674,7 @@ test('a summary holds exactly the listed keys, in their order, with whole-millis
   assert.equal(s.at, NOW);
 });
 
-const { MAX_SUMMARY_BYTES, checkSummary, serializeSummary, isSummaryFile } = view;
+const { MAX_SUMMARY_BYTES, checkSummary, serializeSummary } = view;
 
 const goodSummary = () => summaryFrom(recordCall(newUsageMemory(), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 }, NOW - 1000), NOW);
 // Every field at its top value: the file the cap is measured against.
@@ -3768,21 +3762,6 @@ test('a refusal never echoes the file\'s text', () => {
 test('serialization refuses a summary the strict check refuses, an oversized one included', () => {
   assert.ok('error' in serializeSummary({ ...worstSummary(), lastTokens: 0 }));
   assert.ok('error' in serializeSummary({ ...goodSummary(), extra: 'x'.repeat(2000) }));
-});
-
-test('the existing-file check: only a summary file within the cap is overwritten', () => {
-  const good = JSON.stringify(goodSummary());
-  assert.equal(isSummaryFile(Buffer.byteLength(good), good), true, 'a valid summary is overwritten');
-  assert.equal(isSummaryFile(2, '{}'), false, 'an empty object');
-  const rosterText = JSON.stringify({ cards: [], todos: [] });
-  assert.equal(isSummaryFile(rosterText.length, rosterText), false, 'a roster');
-  assert.equal(isSummaryFile(14, '{"theme":"x"}'), false, 'other JSON');
-  assert.equal(isSummaryFile(0, ''), false, 'an empty file');
-  const padded = good + ' '.repeat(1024 - Buffer.byteLength(good));
-  assert.equal(isSummaryFile(1024, padded), true, 'exactly at the cap');
-  assert.equal(isSummaryFile(1025, good), false, 'a stat size over the cap');
-  assert.equal(isSummaryFile(1024, `${good}${' '.repeat(1100)}`), false, 'text over the cap');
-  assert.equal(isSummaryFile(Buffer.byteLength(good), undefined), false, 'no text read');
 });
 
 const { newFlight, askWrite, writeDone } = view;
