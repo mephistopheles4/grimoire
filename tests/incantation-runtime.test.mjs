@@ -13,7 +13,7 @@ import { join, posix, win32 } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { ARCHIVES, FILES, HOSTS, LOCKS, SOURCES } from '../skills/incantation/scripts/runtime/pins.mjs';
 import { checkRuntime, download, findUv, installRuntime, makeTransport, namedEnv, partState, partialDir, planRuntime, pythonExe, readTgz, runtimeDir, uvArgs, verifyRuntime } from '../skills/incantation/scripts/runtime/install.mjs';
-import { secureState } from '../skills/incantation/scripts/lib.mjs';
+import { ensureState } from '../skills/incantation/scripts/lib.mjs';
 
 const sha256 = b => createHash('sha256').update(b).digest('hex');
 const sha512 = b => createHash('sha512').update(b).digest('base64');
@@ -85,12 +85,12 @@ const fakeTransport = (map, log = []) => async (url, headers) => {
 const win = process.platform === 'win32';
 const BIN = win ? 'C:\\fake\\bin' : '/fake/bin';
 const UV = win ? win32.join(BIN, 'uv.exe') : posix.join(BIN, 'uv');
-const fakeFs = { isFile: p => p === UV, realpath: p => p, lstat: () => ({ uid: 0, mode: 0o40755 }), uid: () => 1000 };
+const fakeFs = { isFile: p => p === UV, realpath: p => p };
 const pathValue = BIN;
 
 function fixture() {
   const home = mkdtempSync(join(tmpdir(), 'incantation-runtime-'));
-  secureState(home);
+  ensureState(home);
   return { home, remove: () => rmSync(home, { recursive: true, force: true }) };
 }
 
@@ -294,7 +294,7 @@ test('claim 14: nothing in runtime.partial is run; uv runs from the runtime fold
 
 test('claim 14: uv from a relative PATH entry or the working folder is never run', () => {
   const start = win ? 'C:\\work' : '/work';
-  const fsAt = place => ({ isFile: p => p === place, realpath: p => p, lstat: () => ({ uid: 0, mode: 0o40755 }), uid: () => 1000 });
+  const fsAt = place => ({ isFile: p => p === place, realpath: p => p });
   const inWork = win ? win32.join(start, 'uv.exe') : posix.join(start, 'uv');
   assert.equal(findUv({ platform: process.platform, pathValue: `${start}${win ? ';' : ':'}.${win ? ';' : ':'}bin`, startDir: start, fs: fsAt(inWork) }), null);
   assert.equal(findUv({ platform: process.platform, pathValue: 'relative', startDir: start, fs: fsAt(win ? 'relative\\uv.exe' : 'relative/uv') }), null);

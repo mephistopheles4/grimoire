@@ -290,6 +290,12 @@ test('--check names a file that is not JSON by where it broke, and prints none o
 const SCRATCH = /^contract-interview-[0-9a-f]{16}$/;
 const posix = process.platform !== 'win32';
 const mode = p => statSync(p).mode & 0o777;
+/** The mode a folder gets here when nothing sets one. */
+const plainMode = () => {
+  const p = join(mkdtempSync(join(work, 'plain-')), 'folder');
+  mkdirSync(p);
+  return mode(p);
+};
 
 test('--new-folder makes a new folder with the name pattern inside a parent the person names, and prints its path', () => {
   const parent = join(work, 'parent');
@@ -300,7 +306,7 @@ test('--new-folder makes a new folder with the name pattern inside a parent the 
   assert.equal(join(made, '..'), parent);
   assert.match(made.split(sep).pop(), SCRATCH);
   assert.deepEqual(readdirSync(made), []);
-  if (posix) assert.equal(mode(made), 0o700);
+  if (posix) assert.equal(mode(made), plainMode(), 'no mode of its own');
   const again = run(contractRender, ['--new-folder', parent]).stdout.trim();
   assert.notEqual(again, made, 'each call makes a new folder');
 });
@@ -317,8 +323,8 @@ test('--new-folder with no parent uses the per-user temp folder on Windows and m
   assert.match(made.split(sep).pop(), SCRATCH);
   if (process.platform === 'linux') {
     assert.equal(join(made, '..'), join(home, '.cache', 'contract-interview'));
-    assert.equal(mode(join(made, '..')), 0o700);
-    assert.equal(mode(made), 0o700);
+    assert.equal(mode(join(made, '..')), plainMode(), 'no mode of its own');
+    assert.equal(mode(made), plainMode());
     const xdg = join(work, 'nf-xdg');
     const r2 = run(contractRender, ['--new-folder'], { env: { ...env, XDG_CACHE_HOME: xdg } });
     assert.equal(join(r2.stdout.trim(), '..'), join(xdg, 'contract-interview'));
@@ -382,23 +388,17 @@ test('--clean refuses a folder whose name is not the scratch pattern, and delete
   }
 });
 
-test('--check sets the draft to mode 600 inside a scratch folder and changes no mode outside one', { skip: !posix && 'POSIX modes' }, () => {
+test('--check and --answers change no file\'s mode, inside a scratch folder or outside one', { skip: !posix && 'POSIX modes' }, () => {
   const folder = scratchFolder();
   const inside = join(folder, 'draft.interview.json');
   writeFileSync(inside, readFileSync(measurementDraft));
   chmodSync(inside, 0o644);
   assert.equal(run(contractRender, [inside, '--check']).code, 0);
-  assert.equal(mode(inside), 0o600);
-  // The answers file too, read by --answers, even when its block is refused.
   const answersFile = join(folder, 'answers.json');
   writeFileSync(answersFile, '{}');
   chmodSync(answersFile, 0o644);
   assert.equal(run(contractRender, [inside, '--answers', answersFile]).code, 1);
-  assert.equal(mode(answersFile), 0o600);
-  const outside = derive(() => {});
-  chmodSync(outside, 0o644);
-  assert.equal(run(contractRender, [outside, '--check']).code, 0);
-  assert.equal(mode(outside), 0o644);
+  assert.deepEqual([mode(inside), mode(answersFile)], [0o644, 0o644]);
 });
 /* -- the answer block ------------------------------------------------------ */
 

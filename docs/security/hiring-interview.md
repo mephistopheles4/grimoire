@@ -11,7 +11,7 @@ block the person pastes. What it holds, where, and for how long:
 | Data | Where it sits | Who can read it | How long | What limits it |
 | --- | --- | --- | --- | --- |
 | Saved answers, and the light or dark choice | The browser's storage for pages opened from disk, under `contract-interview:<type>:<name>:<hash>` and `aviation-scheme`, unencrypted | Other pages opened from disk in the same browser, which can also write it; extensions with file access; programs running as the person; backups of the browser profile | Until the person presses Reset, which removes every key under the contract's prefix and leaves the light or dark choice; Reset holds what it cleared in the page's memory for ten seconds from the press, and Undo, offered only once the pointer or the focus has left the button and come back, writes it back; the browser may keep its own copy on disk for a while after | Reset, asked for at every hand-back; a restored answer or edit is marked, stays marked while it is typed in or its chip, skip or flag is tapped, goes to push-back, and is kept only by its own Keep; the published example (`--site`) keeps no answers, only the light or dark choice |
-| The draft, the page and the answers file | The scratch folder, `contract-interview-` and 16 hex digits: in the per-user temp folder on Windows and macOS, under the account's cache folder on Linux, or in a parent the person names, unencrypted | The person's account; on Windows, whoever the temp folder's own access lets in; the readers of a folder the person names, and its sync | Until `--clean` deletes the page and the answers file at the hand-back, and the draft on the person's yes | The folder is mode 700 and the files mode 600 on macOS and Linux; the page is mode 600 wherever it lands unless `--site`, and owner-only before it holds the draft; a parent inside a git work tree is refused |
+| The draft, the page and the answers file | The scratch folder, `contract-interview-` and 16 hex digits: in the per-user temp folder on Windows and macOS, under the account's cache folder on Linux, or in a parent the person names, unencrypted | Whoever the folder's access lets in: the temp folder's own on Windows, the account's default modes on macOS and Linux; the readers of a folder the person names, and its sync | Until `--clean` deletes the page and the answers file at the hand-back, and the draft on the person's yes | A parent inside a git work tree is refused; the script sets no file mode |
 | The page's title and location | The browser's history | The person's profile, and their browser account if history syncs | As the browser keeps history | The page's notice says so |
 | The PR records of claims 15 and 16 | The pull request, public | Anyone | As the repository keeps them | They name no one, hold no contact detail and no absolute path; claim 15 ran on head-chef's public contract |
 
@@ -42,8 +42,8 @@ page and answers file hold the same work unencrypted until they are deleted.
 The saved answers' copies on disk and in the browser are the machine's. A folder the person names, once synced or backed up, is the class “Data leaves the machine as the owner accepted”. Reset removes the saved answers from
 the page's store, though the browser may keep its own copy on disk for a
 while; the hand-back deletes the page and the answers file and offers to
-delete the draft; the folder is owner-only on macOS and Linux, and on
-Windows rests on the per-user temp folder's own access; a folder the person
+delete the draft; the script sets no file mode, so who else on the machine
+can read the folder rests on the machine's own defaults; a folder the person
 names instead is as private as that folder, and its files leave the machine
 if it syncs.
 

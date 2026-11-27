@@ -30,7 +30,7 @@ import { pathToFileURL } from 'node:url';
 import { captureArgs, fallbackName, listDevices, pickDevice, resolveRecorder } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
 import { Gate, HeardQueue, Joiner, KNOBS, frameBytes, heardLines, isFragment, isMuteWord, isStopWord, isUnmuteWord } from './gate.mjs';
-import { checkFile, cleanText, commandPath, deviceDigest, levelsPath, observeDir, readKey, readSettings, readText, runDir, secureState, statusPath, voicePath, writePrivate } from './lib.mjs';
+import { checkFile, cleanText, commandPath, deviceDigest, levelsPath, observeDir, readKey, readSettings, readText, runDir, ensureState, statusPath, voicePath, writeWhole } from './lib.mjs';
 import { METER, Meter, levelsLine } from './meter.mjs';
 import { findPlayer, makePlayer } from './player.mjs';
 import { RefFeed, isEcho, makeAec, makeLoopback, wavTo16k } from './echo.mjs';
@@ -52,9 +52,9 @@ export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'sett
 const listenFile = home => join(runDir(home), 'listen.json');
 
 // The channel's address, from listen.json, or null. Never printed.
-export function readChannel(home, options = {}) {
+export function readChannel(home) {
   try {
-    if (!checkFile(listenFile(home), options)) return null;
+    if (!checkFile(listenFile(home))) return null;
     const given = JSON.parse(readText(listenFile(home)));
     if (!Number.isInteger(given?.port) || given.port < 1 || given.port > 65535 || typeof given.token !== 'string' || !/^[0-9a-f]{64}$/.test(given.token)) return null;
     return given;
@@ -202,7 +202,6 @@ export async function startListener(options = {}) {
   const platform = options.platform ?? process.platform;
   const knobs = { ...KNOBS, ...options.knobs };
   const clock = options.clock ?? (() => performance.now());
-  const fsOptions = { platform };
   let finished = false;
   let finish = async () => {};
 
@@ -210,13 +209,13 @@ export async function startListener(options = {}) {
     if (typeof home !== 'string' || !home) stop('settings');
     let settings;
     try {
-      settings = readSettings(home, fsOptions);
+      settings = readSettings(home);
     } catch (e) {
       return stop(e.message === 'state' ? 'state' : 'settings');
     }
     if (!isEngine(settings.engine)) stop('engine');
     try {
-      secureState(home, fsOptions);
+      ensureState(home);
     } catch {
       stop('state');
     }
@@ -236,13 +235,13 @@ export async function startListener(options = {}) {
     // match nothing, and settings from before (no id or name) match by stamp and index.
     const listing = await listDevices({ recorder: recorder.path, platform, run: recorder.list });
     if (listing.row < 0) stop('device');
-    const key = readKey(home, fsOptions);
+    const key = readKey(home);
     const { device, how } = pickDevice(listing.devices, settings.device, text => (key ? deviceDigest(key, text) : ''));
     if (!device) stop('device');
     const micNotice = how === 'fallback' ? `mic-fallback "${fallbackName(device.name)}"` : null;
 
     // One listener at a time.
-    const live = readChannel(home, fsOptions);
+    const live = readChannel(home);
     if (live && (await ask(live, 'ping', 1000)) === 'alive\n') stop('busy');
 
     let engine;
@@ -381,12 +380,12 @@ export async function startListener(options = {}) {
       if (!force && word === lastState) return;
       lastState = word;
       try {
-        writePrivate(voicePath(home), voiceMuted ? 'muted\n' : 'on\n', fsOptions);
+        writeWhole(voicePath(home), voiceMuted ? 'muted\n' : 'on\n');
       } catch {
         // A convenience, like the status word.
       }
       try {
-        writePrivate(statusPath(home), `${word}\n`, fsOptions);
+        writeWhole(statusPath(home), `${word}\n`);
       } catch {
         // The status line is a convenience: a file that will not write never stops the listener.
       }
@@ -401,13 +400,13 @@ export async function startListener(options = {}) {
       if (!force && body === lastLevels) return;
       lastLevels = body;
       try {
-        writePrivate(levelsPath(home), levelsLine(Date.now(), stateWord(), meter.digits), fsOptions);
+        writeWhole(levelsPath(home), levelsLine(Date.now(), stateWord(), meter.digits));
         wroteLevels = true;
       } catch {
         // A convenience, like the status word.
       }
     }
-    // The band's click (T16): a file holding exactly `mute` or `unmute`, written to the private
+    // The band's click (T16): a file holding exactly `mute` or `unmute`, written to the
     // run folder, read once and removed. A link, a big file or a stale one is removed unread.
     const pollCommand = () => {
       const path = commandPath(home);
@@ -464,7 +463,7 @@ export async function startListener(options = {}) {
       }
       server?.close();
       server?.closeAllConnections?.();
-      const mine = readChannel(home, fsOptions);
+      const mine = readChannel(home);
       if (mine && mine.token === token.toString('hex')) rmSync(listenFile(home), { force: true });
       resolveDone(reason);
     };
@@ -926,7 +925,7 @@ export async function startListener(options = {}) {
       server.once('error', rej);
       server.listen(0, '127.0.0.1', res);
     });
-    writePrivate(listenFile(home), JSON.stringify({ port: server.address().port, token: token.toString('hex') }), fsOptions);
+    writeWhole(listenFile(home), JSON.stringify({ port: server.address().port, token: token.toString('hex') }));
 
     // The playback feed first: nothing is captured until it answers, so no
     // playback can begin unseen while the mic is open.

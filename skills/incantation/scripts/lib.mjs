@@ -1,9 +1,9 @@
 // Shared by the Incantation scripts. No dependencies: node built-ins only.
 // Nothing here reads the environment or the working folder: each caller hands
-// in the home folder, and the platform when it matters.
+// in the home folder.
 
 import { createHmac, randomBytes } from 'node:crypto';
-import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, renameSync, rmSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { join, relative, isAbsolute, sep } from 'node:path';
 
 // The state folder and the two inside it (docs/spec/incantation.md, S5.5, and
@@ -18,8 +18,6 @@ export const voicePath = home => join(runDir(home), 'voice'); // `muted` or `on`
 export const keyPath = home => join(stateDir(home), 'key'); // the key the mic digests are made with (S13.5)
 export const levelsPath = home => join(runDir(home), 'levels');
 export const commandPath = home => join(runDir(home), 'command');
-
-const posix = platform => platform !== 'win32';
 
 // A file larger than this is not one of ours. A read past it fails. A caller
 // reading a file it does not own (Claude Code's config) passes its own cap.
@@ -55,69 +53,17 @@ const inside = (parent, child) => {
   return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel));
 };
 
-// One folder of the state tree, made or checked (S5.5): never a link or a
-// junction, its real path inside the real home, and on macOS and Linux mode
-// 0700, made so before anything is written and refused when found looser.
-// Throws Error('state') on any failure.
-export function secureFolder(home, path, { platform = process.platform, create = true } = {}) {
-  const fail = () => {
-    throw new Error('state');
-  };
-  let st;
+// One folder of the state tree, made when it is missing. A link to a folder is
+// followed. Throws Error('state') when it cannot be made, when something else
+// stands in its place, or when it is missing and `create` is false.
+export function ensureFolder(path, { create = true } = {}) {
   try {
-    st = lstatSync(path);
-  } catch (e) {
-    if (e.code !== 'ENOENT' || !create) return fail();
-    try {
-      mkdirSync(path, { mode: 0o700 });
-      if (posix(platform)) chmodSync(path, 0o700);
-      st = lstatSync(path);
-    } catch {
-      return fail();
-    }
-  }
-  if (st.isSymbolicLink() || !st.isDirectory()) fail();
-  let realHome;
-  let real;
-  try {
-    realHome = realpathSync(home);
-    real = realpathSync(path);
+    if (create) mkdirSync(path, { recursive: true });
+    if (statSync(path).isDirectory()) return;
   } catch {
-    return fail();
+    // The one error below covers every way it can fail.
   }
-  if (!inside(realHome, real) || real === realHome) fail();
-  if (posix(platform) && (st.mode & 0o077) !== 0) fail();
-}
-
-// The grimoire folder, shared with the other skills that keep files there, so
-// it is held to less than ours: a plain folder, not a link or a junction, its
-// real path inside the real home. Its mode is left as its owner made it. Made
-// 0700 when it is missing. Throws Error('state') on any failure.
-export function plainGrimoire(home, { platform = process.platform, create = true } = {}) {
-  const fail = () => {
-    throw new Error('state');
-  };
-  const path = grimoireDir(home);
-  let st;
-  try {
-    st = lstatSync(path);
-  } catch (e) {
-    if (e.code !== 'ENOENT' || !create) return fail();
-    try {
-      mkdirSync(path, { mode: 0o700 });
-      if (posix(platform)) chmodSync(path, 0o700);
-      st = lstatSync(path);
-    } catch {
-      return fail();
-    }
-  }
-  if (st.isSymbolicLink() || !st.isDirectory()) fail();
-  try {
-    const real = realpathSync(path);
-    if (!inside(realpathSync(home), real) || real === realpathSync(home)) fail();
-  } catch {
-    fail();
-  }
+  throw new Error('state');
 }
 
 // The drafts before this one kept their files in ~/.incantation. The first run
@@ -138,7 +84,7 @@ export function migrateOldState(home, options = {}) {
     } catch (e) {
       if (e.code !== 'ENOENT') return false;
     }
-    plainGrimoire(home, options);
+    ensureFolder(grimoireDir(home), options);
     renameSync(old, stateDir(home));
     return true;
   } catch {
@@ -146,34 +92,32 @@ export function migrateOldState(home, options = {}) {
   }
 }
 
-// The whole state tree, in order, so no file is written before its folder holds.
-export function secureState(home, options = {}) {
+// The whole state tree, in order, so no file is written before its folder is
+// there.
+export function ensureState(home, options = {}) {
   migrateOldState(home, options);
-  plainGrimoire(home, options);
-  for (const p of [stateDir(home), runDir(home), observeDir(home)]) secureFolder(home, p, options);
+  for (const p of [stateDir(home), runDir(home), observeDir(home)]) ensureFolder(p, options);
 }
 
-// A file of the state tree, checked: a plain file, not a link, and on macOS and
-// Linux mode 0600.
-export function checkFile(path, { platform = process.platform } = {}) {
+// True when a file of the state tree is there, false when it is not. Anything
+// else in its place, or a file that cannot be asked about, is Error('state').
+export function checkFile(path) {
   let st;
   try {
-    st = lstatSync(path);
+    st = statSync(path);
   } catch (e) {
     if (e.code === 'ENOENT') return false;
     throw new Error('state');
   }
-  if (st.isSymbolicLink() || !st.isFile()) throw new Error('state');
-  if (posix(platform) && (st.mode & 0o077) !== 0) throw new Error('state');
+  if (!st.isFile()) throw new Error('state');
   return true;
 }
 
-// Written whole, through a temporary name, mode 0600.
-export function writePrivate(path, text, { platform = process.platform } = {}) {
+// Written whole, through a temporary name.
+export function writeWhole(path, text) {
   const tmp = `${path}.${process.pid}.tmp`;
   try {
-    writeFileSync(tmp, text, { mode: 0o600, flag: 'wx' });
-    if (posix(platform)) chmodSync(tmp, 0o600);
+    writeFileSync(tmp, text, { flag: 'wx' });
     renameSync(tmp, path);
   } catch (e) {
     rmSync(tmp, { force: true });
@@ -226,8 +170,8 @@ export function parseSettings(text) {
   return out;
 }
 
-// Error('state') when the folder or the file is a link, looser than private,
-// or outside home; Error('settings') when the file is missing or out of range.
+// Error('state') when something else stands where the folder or the file
+// belongs; Error('settings') when the file is missing or out of range.
 export function readSettings(home, options = {}) {
   let text;
   migrateOldState(home, options);
@@ -237,8 +181,8 @@ export function readSettings(home, options = {}) {
   } catch (e) {
     if (e?.code === 'ENOENT') throw new Error('settings');
   }
-  secureFolder(home, stateDir(home), { ...options, create: false });
-  if (!checkFile(settingsPath(home), options)) throw new Error('settings');
+  ensureFolder(stateDir(home), { create: false });
+  if (!checkFile(settingsPath(home))) throw new Error('settings');
   try {
     text = readText(settingsPath(home));
   } catch {
@@ -248,11 +192,11 @@ export function readSettings(home, options = {}) {
 }
 
 // The key the mic's id and name digests are made with (S13.5, D14): 32 random
-// bytes, made once by `setup.mjs choose`, kept private in the state folder, so a
+// bytes, made once by `setup.mjs choose`, kept in the state folder, so a
 // digest cannot be reversed by guessing device names. Null when there is none.
-export function readKey(home, options = {}) {
+export function readKey(home) {
   try {
-    if (!checkFile(keyPath(home), options)) return null;
+    if (!checkFile(keyPath(home))) return null;
     const text = (readText(keyPath(home), 256) ?? '').trim();
     return /^[0-9a-f]{64}$/.test(text) ? Buffer.from(text, 'hex') : null;
   } catch {
@@ -261,11 +205,11 @@ export function readKey(home, options = {}) {
 }
 
 // The key, made first when it is not there.
-export function ensureKey(home, options = {}) {
-  const have = readKey(home, options);
+export function ensureKey(home) {
+  const have = readKey(home);
   if (have) return have;
   const key = randomBytes(32);
-  writePrivate(keyPath(home), `${key.toString('hex')}\n`, options);
+  writeWhole(keyPath(home), `${key.toString('hex')}\n`);
   return key;
 }
 

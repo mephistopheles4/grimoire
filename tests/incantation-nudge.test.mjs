@@ -10,14 +10,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EVERY_MS, FRESH_MS, LINES, MARKER, nudge } from '../skills/incantation/scripts/nudge.mjs';
-import { observeDir, runDir, secureState, statusPath } from '../skills/incantation/scripts/lib.mjs';
+import { observeDir, runDir, ensureState, statusPath } from '../skills/incantation/scripts/lib.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../skills/incantation/scripts/nudge.mjs', import.meta.url));
 
 function home(t) {
   const h = mkdtempSync(join(tmpdir(), 'incantation-nudge-'));
   t.after(() => rmSync(h, { recursive: true, force: true }));
-  secureState(h);
+  ensureState(h);
   return h;
 }
 const fresh = (h, ago = 0) => {

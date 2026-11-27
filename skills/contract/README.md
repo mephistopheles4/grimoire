@@ -51,7 +51,8 @@ answers file in the interview's scratch folder hold the same answers,
 unencrypted, until the skill deletes them at the hand-back. The scratch
 folder is in your own temporary folder on Windows and macOS, and under
 `$XDG_CACHE_HOME/contract-interview/` or `~/.cache/contract-interview/` on
-Linux; on macOS and Linux only your account can open it. Once the page and
+Linux. The skill sets no file mode, so who else on the machine can open it
+follows the machine's own defaults. Once the page and
 the draft are gone, clearing your browser's stored data for pages opened
 from disk is the one way left to remove saved answers.
 
