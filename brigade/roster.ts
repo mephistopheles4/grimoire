@@ -504,19 +504,19 @@ export function rotate(repos: readonly string[], last: string | undefined, max: 
 // --- the roster path ---------------------------------------------------------
 //
 // Whether a roster path may be read or written, decided from `stat` answers
-// alone. The engine offers no write that refuses a link, and a write follows
-// one: through a broken file link it creates the link's target, and through a
-// hard link it replaces the other file's text. So before each write, and each
-// read, every folder from the config folder down is looked at, then the file.
+// alone. Before each write, and each read, every folder from the config folder
+// down must be a folder, and the file a plain file. A link is followed.
 //
 // The answers come from the caller, so the rule runs the same against the
 // engine and against recorded answers in a test. A `stat` the engine rejects
 // reaches a mod as a message alone, with no error code: a missing path's ends
 // "failed: ENOENT" (measured on 2.1.292), and only that one means missing.
 
-/** What `$.fs.stat(path, { resolve: true })` answered, as far as the rule
- *  reads it. `isLink` is the path's own; `kind` and `realPath` are where it
- *  leads, `realPath` absent when it leads nowhere. */
+/** What `$.fs.stat(path, { resolve: true })` answered. The path rule reads
+ *  `kind` and `size`; the transcript finder's and the session files' place
+ *  checks also read `isLink` and `realPath`. `isLink` is the path's own; `kind`
+ *  and `realPath` are where it leads, `realPath` absent when it leads
+ *  nowhere. */
 export type StatFound = { kind: 'file' | 'dir' | 'other'; size: number; isLink: boolean; realPath?: string }
 
 /** One `stat`: found, missing, or refused for any other reason. */

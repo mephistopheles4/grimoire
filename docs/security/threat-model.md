@@ -168,7 +168,7 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - R3: plain-prose instructions no scanner detects; fifteen scanner dependencies resolve fresh each run.
 - R4: the CI pins are not content pins, and no tarball hash is checked; git in the image is not hash-pinned.
 - R5: cleanup's authorization; the sender check is a consistency check; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
-- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's check-and-write race.
+- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's hard-link gap.
 - Remote Control: how long a member's transcript stays after it stops, and whether a device keeps a copy, are not checked.
 - R8: the script cannot stop the agent itself printing an environment variable.
 - R9: a home root joined from a separate string is not seen, and free text is not checked.

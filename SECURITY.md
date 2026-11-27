@@ -82,7 +82,8 @@ permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
 only once the owner runs `/brigade` or the head-chef skill loads, which offers it again when the pane is already open, or at the first turn that finds a pane the load left waiting shown, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, any input
-outside the roster's shape and size, and any link on the way to the file. It
+outside the roster's shape and size, and a path with the wrong kind of entry on
+the way to the file. It
 writes in every permission mode. It finds the Claude config folder from the install
 location, else from the session-start record it keeps in plugin state, else from
 Desktop's synced install folder. A deny rule for `mcp__grimoire__set_roster` removes it
@@ -321,9 +322,8 @@ own hash; it protects nothing secret. What follows from it:
   one of each per session id, and they outlast transcript cleanup and an
   uninstall that leaves the plugin's data folder. The owner can delete the
   `brigade/decisions/` and `brigade/marks/` folders by hand.
-- **The race and planted files:** the roster's check-and-write race recurs for
-  both writers, and a hard link between two files of one kind passes the
-  strict check. Anything that can write the data folder can plant a
+- **Links and planted files:** both writers follow a link, as the roster's does,
+  and a hard link between two files of one kind passes the strict check. Anything that can write the data folder can plant a
   well-formed log or marks file, current-dated marks that hide decisions
   included; the owner accepted this on 2026-10-26 (q19 A on #402).
 - **What a hijacked lead can log:** within the field rules and caps, false
@@ -394,8 +394,8 @@ foot of the Decisions tab. What follows from it:
   `read_lead_handoff` answer copies the hand-off it gives, another session's
   included, into the reading session's transcript, where it stays after the
   folder is deleted.
-- **The race and planted files:** the check-and-write race and the hard-link
-  gap of the other writers reach the hand-off writer too, and anything that
+- **Links and planted files:** the links and the hard-link gap of the other
+  writers reach the hand-off writer too, and anything that
   can write the data folder can plant a well-formed same-folder hand-off
   (q19 A on #402). A hijacked lead can write a false hand-off within its
   sections and cap, which the next lead in the same working folder is given
@@ -556,9 +556,10 @@ kind, folder and branch, and the cleaner the owner's instructions name. At
 level 3 the owner's user-level instructions file decides. The head chef then
 archives each Desktop session, and stops each background session with the
 mod's `stop_background_session`, which reads the session files at each call
-and stops only the session whose job id and name match the card. Neither tool
-refuses another plugin's call, so another plugin could start or stop a
-session. It runs a
+and stops only the session whose job id and name match the card. Neither
+`start_background_session` nor `stop_background_session` refuses another
+plugin's call, so another plugin could start or stop a session. The head chef
+runs a
 cleaner only if the owner's instructions state the program and how to run it,
 from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named,
 nothing is removed. Nothing in Brigade forces a removal, passes `-D`, runs

@@ -21,8 +21,8 @@ RUN apt-get update \
 # same way, with `npm pack` and `tar` and no install, so no package script runs.
 # The pins move together; docs/security/scanners.md says how to bump them. The
 # fetch is at build time: athanor runs the commands with no network. The mod's
-# tests that build a junction are not declared here, as on any host but
-# Windows, and the run prints their titles (#481). The folder goes last on PATH, so nothing in the package can stand in for the
+# case that builds a junction does not run here, as on any host but Windows
+# (#481). The folder goes last on PATH, so nothing in the package can stand in for the
 # image's own sh, node or git.
 #
 # The tarball is held to its sha512 before it is unpacked: the registry's

@@ -1099,8 +1099,9 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // The named answers, as the view reads them.
 const namedAnswers = (): ReadonlyMap<string, ReadonlyMap<number, GhPr>> => new Map([...ghNamed].map(([r, b]) => [r, b.answers]))
 
-// A program run by name (`gh`, `claude`, `git`) needs a host the pane can
-// tell. The host is worked out on each call, here and at Open in app, or is none.
+// `gh` and the stop's `claude` run by name, and a start looks its programs up;
+// each needs a host the pane can tell. The host is worked out on each call, here
+// and at Open in app, or is none.
 // The engine gives a mod no platform field. Windows is known first, by its
 // environment; then each probe in turn, as `probeHost` judges it. A read that
 // fails means no host, never unset. Each name is spelled at its call, so

@@ -1007,6 +1007,14 @@ for (const [name, setup, rule] of pathCases) {
   })
 }
 
+test("the pane's own read refuses a roster path with the wrong kind on the way, and says so", async ($, on) => {
+  const w = world(on, pathCases[0]![1])
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  expect(w.errors).toContain(`Roster not shown: ${pathCases[0]![2]}`)
+})
+
 for (const [name, text] of [
   ['a file that is not a roster', 'not json at all, a secret'],
   ['a file holding {} (a hard link to another file)', '{}'],

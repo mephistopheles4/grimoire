@@ -40,9 +40,8 @@ import {
 // and writes.
 //
 // It makes no session usage call, so no cost, rate limit or context breakdown
-// ever enters it. The first refusal of the summary path, before or after a
-// write, stops it until the module reloads, with one toast; a clear does not
-// restart it.
+// ever enters it. The first refusal of the summary path stops it until the
+// module reloads, with one toast; a clear does not restart it.
 
 // The engine's record of a session's start, the last one raised, which register.tsx's
 // `classic.SessionStart` hook keeps under the same key.

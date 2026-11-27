@@ -1773,7 +1773,7 @@ test('the place check: a link file, a folder, or a real path that is absent or e
   }
 });
 
-test('the place check compares as the roster path rule does: case folded on a Windows path, exact on a Linux one', async () => {
+test('the place check compares by pathKey: case folded on a Windows path, exact on a Linux one', async () => {
   const upper = fakeFs({ [pathOf(0)]: { ...transcript(), realPath: pathOf(0).toUpperCase() } });
   assert.equal((await find(upper, newFinder()))?.path, pathOf(0));
   const LINUX = '/home/u/.claude';

@@ -58,7 +58,8 @@ Brigade run whichever cleaner is configured and remove nothing when none is.
 **What stays.** The engine-origin check (`fromEngine`) stays on the typed
 commands and on the model's own `clean_up` call. Whether the model's own run
 can carry the typed stamp is not measured, so the check may still stop a
-fooled session.
+fooled session. (The GRIM-77 cuts removed
+`fromEngine`: no tool checks a call's origin now.)
 
 **Not measured.** Whether Desktop's environment finds a bare `node` as the
 terminal's does (ADR 0014's M1 was measured in a CLI session only); the Desktop
