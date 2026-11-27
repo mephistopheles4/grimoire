@@ -1173,7 +1173,7 @@ listener now holds a line that a kept turn overtook (S5.4 of 0001).
     the player, drops the queue and says `interrupted`; a failed player or
     synthesis says `say-failed` or `say-no-player`; the command refuses an
     argument and deletes its file; no value is printed; each is a test in
-    `tests/incantation-listen.test.mjs`, `-player` and `-voicebox`, and the skill's
+    `tests/incantation-listen.test.mjs`, `-listen-live`, `-player` and `-voicebox`, and the skill's
     wording is held by `tests/incantation-skill.test.mjs`.
 
 ## Open
