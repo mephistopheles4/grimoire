@@ -472,7 +472,7 @@ function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
 }
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
-// read only where the path rule allows it, so the pane follows no link either.
+// read only where the path rule allows it.
 async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   const at = await where($)
   if ('error' in at) {
@@ -488,9 +488,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   )
   try {
     const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
-    if ('refused' in placed) {
-      throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
-    }
+    if ('refused' in placed) throw new Error(placed.refused)
     if (placed.existing === undefined) {
       loadedCards = []
       await update($, roster, () => ({ cards: [], todos: [] }))
@@ -875,11 +873,6 @@ function marksTurn<T>(work: () => Promise<T>): Promise<T> {
   return run
 }
 
-// The fixed warnings after a write whose path then failed its check. They
-// name the file kind, never the path.
-const LOG_AFTER = 'Brigade: after a decision was logged, the decision log path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
-const MARKS_AFTER = 'Brigade: after a mark was saved, the marks path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
-
 // One mark for each row given, in this session's own marks file, in one write
 // in its queue. False when they could not be written; then nothing was changed.
 const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> =>
@@ -914,8 +907,6 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const text = serializeMarks(value)
     if ('error' in text) return false
     await $.fs.write(placed.file, text.value)
-    const after = await placeKind($, at, 'marks', at.id).catch(() => ({ refused: 'the check could not run' }))
-    if ('refused' in after || after.existing === undefined) $.ui.toast(MARKS_AFTER, { timeoutMs: 15000 })
     // The tab shows the mark at once; the next read finds the file again.
     held.delete(`marks ${at.id}`)
     tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
@@ -2049,19 +2040,6 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its write')
     progress.written = true
     await $.fs.write(placed.file, text.value)
-    // A link swapped in between the check and the write, at the file or at
-    // any folder above it, is caught here by the same path rule, after the
-    // fact, and said loudly. A hard link is not.
-    const after = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(err => ({
-      refused: `the check failed (${oneLine(String(err instanceof Error ? err.message : err), 200)})`,
-    }))
-    const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
-    if (why !== undefined) {
-      const warning = `Brigade: after the roster write, the roster path failed its check: ${why}. Something changed it between the check and the write; check ${placed.file} and where it leads.`
-      await update($, rosterError, () => warning)
-      $.ui.toast(warning, { timeoutMs: 15000 })
-      return failedAfterWrite(`the path then failed its check (${why}); the owner has been told`)
-    }
     // Only now does the pane change: it redraws at once, and the 5 s poll
     // stays the reader for changes made elsewhere.
     onLead = { sid: at.id, members: onLeadMembers(value.cards) }
@@ -2113,7 +2091,7 @@ const LOG_SCHEMA = {
 
 const refuseLog = (rule: string) => ({ deny: `log_decision refused: ${rule}. The decision log is unchanged; act at level 1.` })
 const failedAfterLog = () => ({
-  deny: 'log_decision failed after the write began: the decision log path then failed its check. The log may or may not hold the entry; act at level 1 and tell the owner.',
+  deny: 'log_decision failed after the write began. The log may or may not hold the entry; act at level 1 and tell the owner.',
 })
 
 // Refused until this module has offered the tools to this session id since its
@@ -2147,7 +2125,6 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
     const r = await appendToLog($, at, checked.value, { level: state.level, fixed: false, signal, progress })
     if ('refused' in r) return refuseLog(r.refused)
     if ('held' in r) return { deny: `log_decision refused: ${r.held}. ${SHAPE_TAIL}` }
-    if ('after' in r) return failedAfterLog()
     return { result: `Logged decision ${r.entry.id} at ${new Date(r.entry.at).toISOString()}, at level ${levelWords(state)}.` }
   })
 }
@@ -2170,9 +2147,8 @@ async function readOwnLog($: EngineInterface, at: Where): Promise<DecisionLog | 
 // tool's entry, or with `fixed` the pane's own Owner, Pane or alarm entry,
 // which skips the entry cap but never the byte cap: past it, the marks are
 // scanned and read entries drop, as for the tool's entry (#497). A
-// refusal is fixed words for log_decision to answer with; `after` means the
-// write began and the path then failed its check.
-type Appended = { entry: DecisionEntry } | { refused: string } | { held: string } | { after: true }
+// refusal is fixed words for log_decision to answer with.
+type Appended = { entry: DecisionEntry } | { refused: string } | { held: string }
 type AppendRun = { level: Level; fixed: boolean; signal?: AbortSignal; progress?: Progress }
 async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: AppendRun): Promise<Appended> {
   const placed = await placeKind($, at, 'decisions', at.id)
@@ -2199,13 +2175,6 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
   if (o.signal?.aborted === true) return { refused: 'abandoned: the call ran out of time or was interrupted before its write' }
   if (o.progress !== undefined) o.progress.written = true
   await $.fs.write(placed.file, text.value)
-  // A link swapped in between the check and the write is caught here,
-  // after the fact, and said loudly. A hard link is not.
-  const after = await placeKind($, at, 'decisions', at.id).catch(() => ({ refused: 'the check could not run' }))
-  if ('refused' in after || after.existing === undefined) {
-    $.ui.toast(LOG_AFTER, { timeoutMs: 15000 })
-    return { after: true }
-  }
   // The tab shows the entry at once; the next read finds the file again.
   held.delete(`decisions ${at.id}`)
   tabRead = { ...tabRead, logs: [...tabRead.logs.filter(l => l.sid !== at.id), { sid: at.id, writer: '', log: r.value.log }] }

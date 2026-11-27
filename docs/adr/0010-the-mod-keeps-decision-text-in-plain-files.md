@@ -48,9 +48,10 @@ last, but this repository is public, so a decision's text would be published.
   secrets, local paths, error text and personal detail the shapes miss, out
   of them (ticket 6 of spec 402). (Partly superseded by issue 486 on that
   sentence: the fields refuse control and hidden characters only.)
-- Every file is written only where the roster's link-refusing path rule
-  allows, one folder past `brigade`, and an existing file is overwritten only
-  when it passes the strict check of its own kind.
+- Every file is written only where the roster's path rule allows, one folder
+  past `brigade`, and an existing file is overwritten only when it passes the
+  strict check of its own kind. (The rule refused links until the GRIM-77 cuts;
+  it follows them now.)
 - The tool works only once the mod has offered it to this session since its
   last reload, and since 0.88.0 (spec 402 rev 6.2, #430) with the pane shown, behind
   another tab or closed alike; the pane reads the files only while it is open

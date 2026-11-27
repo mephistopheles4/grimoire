@@ -182,60 +182,22 @@ for (const [os, s] of Object.entries(shapes)) {
     assert.deepEqual(await place({ [s.config]: dir(s.config) }), { refused: 'path: the config folder has no plugins folder' });
   });
 
-  test(`${os}: a link at any folder is refused, whatever its kind`, async () => {
-    const shapesOf = os === 'windows' ? ['junction', 'broken-junction', 'dir-symlink'] : ['dir-symlink'];
-    for (const [name, path] of [['plugins', PLUGINS], ['data', DATA], [ID, IDDIR], ['brigade', BRIGADE]]) {
-      for (const shape of shapesOf) {
-        const r = await place(all({ [path]: recorded(shape, s.join(s.other, name)) }));
-        assert.deepEqual(r, { refused: `link: ${name} is a link` }, `${shape} at ${name}`);
-      }
-    }
-  });
-
-  test(`${os}: a folder that leads elsewhere with no link flag is refused by the real-path compare`, async () => {
-    // A mount point or a reparse kind `isLink` was never measured for.
-    for (const [name, path] of [['plugins', PLUGINS], ['brigade', BRIGADE]]) {
-      const r = await place(all({ [path]: dir(s.join(s.other, name)) }));
-      assert.deepEqual(r, { refused: `link: ${name} does not lead where its name says` });
-    }
-  });
-
-  test(`${os}: a folder with no real path, or not a folder, or a stat that fails, is refused`, async () => {
-    assert.match((await place(all({ [DATA]: { found: { kind: 'dir', size: 0, isLink: false } } }))).refused, /^link: data does not lead/);
+  test(`${os}: a folder that is not a folder, or a stat that fails, is refused`, async () => {
     assert.deepEqual(await place(all({ [DATA]: file(DATA) })), { refused: 'path: data is not a folder' });
     assert.match((await place(all({ [DATA]: { failed: 'EACCES' } }))).refused, /^path: data could not be read \(EACCES\)/);
   });
 
-  test(`${os}: the roster file refused as a link, broken or not, as a non-file, or landing elsewhere`, async () => {
-    const shapesOf = os === 'windows' ? ['file-symlink', 'broken-file-symlink', 'junction'] : ['file-symlink', 'broken-file-symlink'];
-    for (const shape of shapesOf) {
-      assert.deepEqual(await place(all({ [FILE]: recorded(shape, s.join(s.other, 'x.json')) })), { refused: 'link: the roster file is a link' }, shape);
-    }
+  test(`${os}: a roster path that is not a plain file, or a config folder that is no folder, is refused`, async () => {
     assert.deepEqual(await place(all({ [FILE]: dir(FILE) })), { refused: 'path: the roster path is not a plain file' });
-    assert.deepEqual(await place(all({ [FILE]: file(s.join(s.other, 'x.json')) })), { refused: 'link: the roster file does not lead where its name says' });
-    assert.deepEqual(await place(all({ [FILE]: { found: { kind: 'file', size: 1, isLink: false } } })), { refused: 'link: the roster file does not lead where its name says' });
     assert.match((await place(all({ [FILE]: { failed: 'EPERM' } }))).refused, /^path: the roster file could not be read/);
+    assert.deepEqual(await place(all({ [s.config]: file(s.config) })), { refused: 'path: the config folder does not resolve to a folder' });
   });
 
-  test(`${os}: a hard link keeps its own spelling and is not caught here; the writer's strict check is what stops it`, async () => {
-    const r = await place(all({ [FILE]: recorded('hard-link', FILE) }));
-    assert.deepEqual(r, { file: FILE, existing: { size: 0 } });
-  });
-
-  test(`${os}: a config folder that is itself a link is resolved, not refused`, async () => {
-    const real = s.join(s.other, 'real-config');
-    const sub = (...p) => s.join(real, ...p);
-    const t = {
-      [s.config]: recorded(os === 'windows' ? 'junction' : 'dir-symlink', real),
-      [PLUGINS]: dir(sub('plugins')),
-      [DATA]: dir(sub('plugins', 'data')),
-      [IDDIR]: dir(sub('plugins', 'data', ID)),
-      [BRIGADE]: dir(sub('plugins', 'data', ID, 'brigade')),
-    };
-    assert.deepEqual(await place(t), { file: FILE });
-    assert.deepEqual(await place({ ...t, [s.config]: { found: { kind: 'other', size: 0, isLink: true } } }), {
-      refused: 'path: the config folder does not resolve to a folder',
-    });
+  test(`${os}: a link is followed, so where it leads decides`, async () => {
+    const link = os === 'windows' ? 'junction' : 'dir-symlink';
+    assert.deepEqual(await place(all({ [BRIGADE]: recorded(link, s.join(s.other, 'brigade')) })), { file: FILE });
+    assert.deepEqual(await place(all({ [FILE]: recorded('file-symlink', s.join(s.other, 'x.json')) })), { file: FILE, existing: { size: 0 } });
+    assert.deepEqual(await place(all({ [BRIGADE]: recorded('broken-junction') })), { refused: 'path: brigade is not a folder' });
   });
 
   test(`${os}: a session id or data id out of shape is refused before any stat`, async () => {
@@ -248,37 +210,9 @@ for (const [os, s] of Object.entries(shapes)) {
   });
 }
 
-test('windows: the real-path compare ignores case and separators; posix: it does not ignore case', async () => {
-  const C = 'C:\\cfg\\.claude';
-  const ID = 'grimoire-inline';
-  const t = {
-    [C]: dir('c:/CFG/.Claude/'),
-    [`${C}\\plugins`]: dir('C:\\cfg\\.claude\\Plugins'),
-    [`${C}\\plugins\\data`]: dir('C:/cfg/.claude/plugins/DATA'),
-  };
-  assert.deepEqual(await placeRoster(C, ID, SID, statFrom(t)), { file: `${C}\\plugins\\data\\${ID}\\brigade\\${SID}.json` });
-  const P = '/srv/u/.claude';
-  const p = { [P]: dir(P), [`${P}/plugins`]: dir('/srv/u/.claude/Plugins') };
-  assert.deepEqual(await placeRoster(P, ID, SID, statFrom(p)), { refused: 'link: plugins does not lead where its name says' });
-});
-
 test('case is folded for Windows paths and macOS homes and volumes only', () => {
   for (const p of ['C:\\x', 'c:/x', '\\\\server\\share', '/Users/a/.claude', '/Volumes/d/x']) assert.equal(foldsCase(p), true, p);
   for (const p of ['/srv/u/.claude', '/home/u', 'relative']) assert.equal(foldsCase(p), false, p);
-});
-
-test('the recording covers every link kind the guard is tested against', () => {
-  for (const shape of ['folder', 'file', 'junction', 'broken-junction', 'dir-symlink', 'file-symlink', 'broken-file-symlink', 'hard-link']) {
-    assert.ok(RECORDED.stats[shape], shape);
-  }
-  // What the guard leans on: every link says so, a broken one has no real
-  // path, and a hard link does not look like a link at all.
-  for (const shape of ['junction', 'broken-junction', 'dir-symlink', 'file-symlink', 'broken-file-symlink']) {
-    assert.equal(RECORDED.stats[shape].isLink, true, shape);
-  }
-  assert.equal(RECORDED.stats['broken-junction'].realPath, 'none');
-  assert.equal(RECORDED.stats['broken-file-symlink'].realPath, 'none');
-  assert.equal(RECORDED.stats['hard-link'].isLink, false);
 });
 
 // --- Open in app: the route's pure rules -----------------------------------------
@@ -524,25 +458,9 @@ for (const [os, s] of Object.entries(shapes)) {
     }
   });
 
-  test(`${os}: a recorded junction or link at usage, or at any folder above it, is refused`, async () => {
-    const shapesOf = os === 'windows' ? ['junction', 'broken-junction', 'dir-symlink'] : ['dir-symlink'];
-    for (const [name, path] of [['plugins', PLUGINS], ['data', DATA], [ID, IDDIR], ['brigade', BRIGADE], ['usage', USAGE]]) {
-      for (const shape of shapesOf) {
-        assert.deepEqual(await place(all({ [path]: recorded(shape, s.join(s.other, name)) })), { refused: `link: ${name} is a link` }, `${shape} at ${name}`);
-      }
-    }
-    // A usage folder that leads elsewhere with no link flag: the real-path compare.
-    assert.deepEqual(await place(all({ [USAGE]: dir(s.join(s.other, 'usage')) })), { refused: 'link: usage does not lead where its name says' });
+  test(`${os}: usage or the summary path of the wrong kind, or one that cannot be read, is refused`, async () => {
     assert.deepEqual(await place(all({ [USAGE]: file(USAGE) })), { refused: 'path: usage is not a folder' });
-  });
-
-  test(`${os}: the summary file refused as a link, as a non-file, or landing elsewhere`, async () => {
-    const shapesOf = os === 'windows' ? ['file-symlink', 'broken-file-symlink', 'junction'] : ['file-symlink', 'broken-file-symlink'];
-    for (const shape of shapesOf) {
-      assert.deepEqual(await place(all({ [FILE]: recorded(shape, s.join(s.other, 'x.json')) })), { refused: 'link: the summary file is a link' }, shape);
-    }
     assert.deepEqual(await place(all({ [FILE]: dir(FILE) })), { refused: 'path: the summary path is not a plain file' });
-    assert.deepEqual(await place(all({ [FILE]: file(s.join(s.other, 'x.json')) })), { refused: 'link: the summary file does not lead where its name says' });
     assert.match((await place(all({ [FILE]: { failed: 'EPERM' } }))).refused, /^path: the summary file could not be read/);
   });
 
@@ -584,16 +502,7 @@ for (const [os, s] of Object.entries(shapes)) {
     test(`${os}: the ${kind} file sits in brigade/${folder}, under the roster's path rule`, async () => {
       assert.deepEqual(await place(all()), { file: FILE });
       assert.deepEqual(await place(all({ [FILE]: file(FILE, 300) })), { file: FILE, existing: { size: 300 } });
-      const shapesOf = os === 'windows' ? ['junction', 'broken-junction', 'dir-symlink'] : ['dir-symlink'];
-      for (const shape of shapesOf) {
-        assert.deepEqual(await place(all({ [FOLDER]: recorded(shape, s.join(s.other, folder)) })), { refused: `link: ${folder} is a link` }, shape);
-      }
-      assert.deepEqual(await place(all({ [FOLDER]: dir(s.join(s.other, folder)) })), { refused: `link: ${folder} does not lead where its name says` });
-      const fileShapes = os === 'windows' ? ['file-symlink', 'broken-file-symlink', 'junction'] : ['file-symlink', 'broken-file-symlink'];
-      for (const shape of fileShapes) {
-        assert.match((await place(all({ [FILE]: recorded(shape, s.join(s.other, 'x.json')) }))).refused, /^link: the .* file is a link$/, shape);
-      }
-      assert.match((await place(all({ [FILE]: file(s.join(s.other, 'x.json')) }))).refused, /^link: .* does not lead where its name says$/);
+      assert.deepEqual(await place(all({ [FOLDER]: file(FOLDER) })), { refused: `path: ${folder} is not a folder` });
       assert.match((await place({}, 'not-an-id')).refused, /^path: /);
     });
   }

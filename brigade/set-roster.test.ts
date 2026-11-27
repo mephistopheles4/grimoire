@@ -999,20 +999,12 @@ test("a call that outlasts the hook's budget is answered by the engine's .catch,
 
 // --- the path guard -----------------------------------------------------------
 
-const linkCases: [string, (w: World) => void, string][] = [
-  ['a junction at plugins', w => { w.dirs(`${ELSEWHERE}${SEP}plugins`); w.put(`${CONFIG}${SEP}plugins`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}plugins` }) }, 'link: plugins is a link'],
-  ['a junction at data', w => { w.dirs(`${CONFIG}${SEP}plugins`); w.dirs(`${ELSEWHERE}${SEP}data`); w.put(`${CONFIG}${SEP}plugins${SEP}data`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}data` }) }, 'link: data is a link'],
-  ['a junction at the data id', w => { w.dirs(`${CONFIG}${SEP}plugins${SEP}data`); w.dirs(`${ELSEWHERE}${SEP}id`); w.put(DATA, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}id` }) }, 'link: grimoire-inline is a link'],
-  ['a junction at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-  ['a broken junction at brigade', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}gone` }) }, 'link: brigade is a link'],
-  ['a directory symlink at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'dir-symlink', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-  ['a symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(`${ELSEWHERE}${SEP}settings.json`, { type: 'file', data: { text: '{"permissions":{}}' } }); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}settings.json` }) }, 'link: the roster file is a link'],
-  ['a broken symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}made.json` }) }, 'link: the roster file is a link'],
+const pathCases: [string, (w: World) => void, string][] = [
   ['a file where the brigade folder should be', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'file', data: { text: 'x' } }) }, 'path: brigade is not a folder'],
   ['a folder where the roster file should be', w => { w.dirs(FILE) }, 'path: the roster path is not a plain file'],
 ]
-for (const [name, setup, rule] of linkCases) {
-  ;(name.includes('junction') ? withJunction : test)(`${name} is refused, and nothing is created at any link target`, async ($, on) => {
+for (const [name, setup, rule] of pathCases) {
+  test(`${name} is refused, and nothing is created`, async ($, on) => {
     const w = world(on, setup)
     await start($)
     await brigade($)
@@ -1022,7 +1014,6 @@ for (const [name, setup, rule] of linkCases) {
     expect(r.text).toContain(rule)
     expect([...w.nodes.keys()].sort()).toEqual(before)
     expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
-    expect(w.text(`${ELSEWHERE}${SEP}settings.json`) ?? '{"permissions":{}}').toBe('{"permissions":{}}')
   })
 }
 
@@ -1057,45 +1048,6 @@ test('an existing roster is overwritten', async ($, on) => {
   await brigade($)
   expect((await call($, GOOD)).ok).toBe(true)
   expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
-})
-
-// The write lands, then the file or a folder above it is swapped for a link
-// before the check after it.
-for (const [name, swap, rule] of [
-  ['the file', (w: World) => { w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}x.json` }) }, 'link: the roster file is a link'],
-  ['the brigade folder', (w: World) => { w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-] as const) {
-  // The brigade folder's link is a junction.
-  ;(name === 'the brigade folder' ? withJunction : test)(`${name} becoming a link after the write is told to the owner loudly`, async ($, on) => {
-    const w = world(on)
-    await start($)
-    await brigade($)
-    const write = w.write
-    w.write = (p, t) => {
-      write(p, t)
-      swap(w)
-    }
-    const r = await call($, GOOD)
-    expect(r.ok).toBe(false)
-    expect(r.text).toContain(`set_roster failed after the write began: the path then failed its check (${rule})`)
-    expect(r.text).toContain('may or may not have been kept')
-    expect(w.toasts.some(t => t.includes(rule))).toBe(true)
-    expect(w.errors.some(e => e.includes(rule))).toBe(true)
-  })
-}
-
-withJunction("the pane's own read refuses a roster path through a link, and says so", async ($, on) => {
-  const w = world(on, w => {
-    w.dirs(DATA)
-    w.dirs(`${ELSEWHERE}${SEP}b`)
-    w.put(`${ELSEWHERE}${SEP}b${SEP}${SID}.json`, { type: 'file', data: { text: JSON.stringify(GOOD) } })
-    w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` })
-  })
-  await start($)
-  await brigade($)
-  expect(w.errors.some(e => e.includes('link: brigade is a link; the roster path must not pass through a link or junction'))).toBe(true)
-  // Nothing was read through the link into the pane.
-  expect(w.roster.some(r => JSON.stringify(r).includes('alpha'))).toBe(false)
 })
 
 test('a reload with the pane open offers the tool again; one with the pane closed does not', async ($, on) => {
@@ -3581,23 +3533,21 @@ test('a file other than a summary at the summary path stops every later write, w
   expect(writerToasts(w)[0]).not.toContain('cards')
 })
 
-withJunction('a junction at the usage folder is refused, stopping the writer with one toast', async ($, on) => {
+test('a file where the usage folder should be is refused, stopping the writer with one toast', async ($, on) => {
   const w = world(on)
   await begin($, w)
   w.dirs(BRIGADE)
-  w.dirs(ELSEWHERE)
-  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
+  w.put(USAGE_DIR, { type: 'file', data: { text: 'x' } })
   w.stepUsage = STEP_USAGE
   for (let round = 0; round < 2; round++) {
     await raiseStep($)
     await turnEnd($)
     await w.clock.settle()
   }
-  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeUndefined()
   expect(usageWrites(w)).toEqual([])
   expect(writerToasts(w).length).toBe(1)
   expect(writerToasts(w)[0]).toContain('the summary path failed its check')
-  expect(writerToasts(w)[0]).not.toContain('is a link')
+  expect(writerToasts(w)[0]).not.toContain('is not a folder')
   expect(writerToasts(w)[0]).not.toContain(CONFIG)
 })
 
@@ -3649,34 +3599,6 @@ test('an aborted turn\'s end writes the newest numbers too', async ($, on) => {
   await turnEnd($, { isAborted: true, reason: 'aborted' })
   await w.clock.settle()
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006, 151094])
-})
-
-withJunction('a link swapped in during the write is caught by the check after it: one toast, and no later write', async ($, on) => {
-  const w = world(on)
-  await begin($, w)
-  w.dirs(BRIGADE)
-  w.dirs(ELSEWHERE)
-  w.holdWrite = true
-  w.stepUsage = STEP_USAGE
-  await raiseStep($)
-  await w.clock.settle()
-  // The write is held; a junction now takes the usage folder's place.
-  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
-  w.holdWrite = false
-  w.release()
-  await w.clock.settle()
-  // The race itself is the accepted gap: the held write went through the link.
-  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeDefined()
-  expect(writerToasts(w).length).toBe(1)
-  expect(writerToasts(w)[0]).toContain('after the write')
-  const writes = w.log.filter(l => l.startsWith('write ')).length
-  for (let round = 0; round < 2; round++) {
-    await raiseStep($)
-    await turnEnd($)
-    await w.clock.settle()
-  }
-  expect(w.log.filter(l => l.startsWith('write ')).length).toBe(writes)
-  expect(writerToasts(w).length).toBe(1)
 })
 
 test('after a module reload, a clear still starts the series over: the module load names the session id', async ($, on) => {
@@ -6625,11 +6547,10 @@ test('claim 5: an own log that fails its strict check is never overwritten, and 
   expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
 })
 
-withJunction('claim 5: a decisions folder that is a link is refused, and nothing is written through it', async ($, on) => {
+test('claim 5: a file where the decisions folder should be is refused, and nothing is written', async ($, on) => {
   const w = world(on, w => {
     w.dirs(BRIGADE)
-    w.dirs(`${ELSEWHERE}${SEP}d`)
-    w.put(DECISIONS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}d` })
+    w.put(DECISIONS, { type: 'file', data: { text: 'x' } })
   })
   await start($)
   await brigade($)
@@ -6638,7 +6559,7 @@ withJunction('claim 5: a decisions folder that is a link is refused, and nothing
   expect(r.text).toMatch(/^log_decision refused: path: /)
   expect(r.text).not.toContain('\\')
   expect(r.text).not.toContain(CONFIG)
-  expect(w.text(`${ELSEWHERE}${SEP}d${SEP}${SID}.json`)).toBeUndefined()
+  expect(w.text(DECISIONS)).toBe('x')
 })
 
 test('claim 6: To review shows the oldest unread entry of this log, with n of N, the level, the id and the writer', async ($, on) => {
@@ -7173,15 +7094,14 @@ test('claim 6: the card draws the entry\'s own level and id', async ($, on) => {
   expect(await shows(/^1 of 1$/)).toBe(true)
 })
 
-withJunction('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
+test('claim 5: a file where the marks folder should be is refused: the press writes nothing and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200)]))
     w.drop(MARKS)
-    w.dirs(`${ELSEWHERE}${SEP}m`)
-    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}m` })
+    w.put(MARKS, { type: 'file', data: { text: 'x' } })
   })
   await press($, 'dnext-1-200')
-  expect(w.text(`${ELSEWHERE}${SEP}m${SEP}${SID}.json`)).toBeUndefined()
+  expect(w.text(MARKS)).toBe('x')
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
 })
 

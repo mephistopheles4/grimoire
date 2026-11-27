@@ -543,8 +543,8 @@ const FOLDERS = (plugin: string, place: Place) =>
   place === 'roster' ? ['plugins', 'data', plugin, 'brigade'] : ['plugins', 'data', plugin, 'brigade', place === 'summary' ? 'usage' : place]
 
 /** A path as the real-path compare reads it: one separator, no trailing one,
- *  and case folded where the file system ignores it. The roster path rule and
- *  the transcript finder's place check both compare by it. */
+ *  and case folded where the file system ignores it. The transcript finder's
+ *  and the session files' place checks compare by it. */
 export const pathKey = (path: string, fold: boolean): string => {
   const flat = path.replace(/[\\/]+/g, '/').replace(/(.)\/$/, '$1')
   return fold ? flat.toLowerCase() : flat
@@ -562,14 +562,11 @@ export function foldsCase(path: string): boolean {
  *  then of the file.
  *
  *  Refused: a session id or data id not of their shape; a config folder that
- *  does not resolve; `plugins` missing; any folder that is a link, broken or
- *  not, or is not a folder; any `stat` that fails other than as missing, or
- *  finds a path with no real path; any folder whose real path is not the
- *  config folder's real path joined with the same names, which is the
- *  decisive control, since only junctions and file links were measured for
- *  `isLink`; and a file that is a link, is not a plain file, or lands
- *  anywhere but in the checked folder. A missing folder below `plugins` ends
- *  the walk: the write creates it and everything below it. */
+ *  does not resolve to a folder; `plugins` missing; anything on the way that
+ *  is not a folder; any `stat` that fails other than as missing; and a file
+ *  that is not a plain file. A link is followed: where it leads decides. A
+ *  missing folder below `plugins` ends the walk: the write creates it and
+ *  everything below it. */
 export function placeRoster(
   config: string,
   plugin: string,
@@ -615,39 +612,27 @@ async function placeFile(
   if (!SESSION_ID.test(sessionId)) return { refused: 'path: the session id is not the engine\'s shape' }
   if (!/^[A-Za-z0-9_-]{1,200}$/.test(plugin)) return { refused: 'path: the plugin\'s data id is not of its shape' }
   const sep = sepOf(config)
-  const fold = foldsCase(config)
   const top = await stat(config)
-  if (!('found' in top) || top.found.kind !== 'dir' || top.found.realPath === undefined) {
+  if (!('found' in top) || top.found.kind !== 'dir') {
     return { refused: 'path: the config folder does not resolve to a folder' }
   }
-  const real = pathKey(top.found.realPath, fold)
   let at = config
-  let expected = real
   const folders = FOLDERS(plugin, place)
   for (const name of folders) {
     at = `${at}${sep}${name}`
-    expected = `${expected}/${fold ? name.toLowerCase() : name}`
     const s = await stat(at)
     if ('missing' in s) {
       if (name === 'plugins') return { refused: 'path: the config folder has no plugins folder' }
       return { file: `${config}${sep}${folders.join(sep)}${sep}${leaf}` }
     }
     if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
-    if (s.found.isLink) return { refused: `link: ${name} is a link` }
     if (s.found.kind !== 'dir') return { refused: `path: ${name} is not a folder` }
-    if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== expected) {
-      return { refused: `link: ${name} does not lead where its name says` }
-    }
   }
   const file = `${at}${sep}${leaf}`
   const s = await stat(file)
   if ('missing' in s) return { file }
   if ('failed' in s) return { refused: `path: the ${place} file could not be read (${s.failed})` }
-  if (s.found.isLink) return { refused: `link: the ${place} file is a link` }
   if (s.found.kind !== 'file') return { refused: `path: the ${place} path is not a plain file` }
-  if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? leaf.toLowerCase() : leaf}`) {
-    return { refused: `link: the ${place} file does not lead where its name says` }
-  }
   return { file, existing: { size: s.found.size } }
 }
 
