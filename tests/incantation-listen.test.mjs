@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { ask, readChannel, say, waitLines } from '../skills/incantation/scripts/listen.mjs';
 import { observeDir, runDir, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
-import { LISTEN, RECORDER, LOOPBACK_ONLY, makeHome, fakeEngine, fakePlayer, fakeRecorder, rig, wait, tick, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
+import { LISTEN, RECORDER, LOOPBACK_ONLY, makeHome, fakeEngine, fakePlayer, fakeRecorder, rig, wait, tick, within, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
 
 test('a turn goes through the engine and a waiter is told what was heard, with the timing and the ready line', async t => {
   const r = rig();
@@ -38,7 +38,7 @@ test('T5: a turn the engine hears as a lone "you" or "Thank you." never reaches 
     await tick();
     r.turn();
     const pending = wait(r.home);
-    const out = await Promise.race([pending, tick(300).then(() => 'still waiting')]);
+    const out = await within(pending, 300, 'still waiting');
     assert.equal(out, 'still waiting', `${text}: a dropped fragment costs the session no turn (T14)`);
     assert.equal(r.engine.calls, 1, 'it was transcribed, then dropped');
     await l.stop();
@@ -329,7 +329,7 @@ test('with no wait connected within the relay time of ready it ends with the fix
   const kept = rig({ knobs: { relayWaitMs: 150 } });
   const k = await kept.start();
   assert.match(await wait(kept.home), /^ready /m);
-  const state = await Promise.race([k.done, tick(500).then(() => 'still up')]);
+  const state = await within(k.done, 500, 'still up');
   assert.equal(state, 'still up');
   await k.stop('stopped');
   kept.cleanup();
@@ -468,7 +468,7 @@ test('T14: a wait ends only on a real heard turn, the first ready line, a stop o
   await cli(r.home, 'mute');
   await cli(r.home, 'unmute');
   const pending = wait(r.home);
-  const early = await Promise.race([pending, tick(350).then(() => 'still waiting')]);
+  const early = await within(pending, 350, 'still waiting');
   assert.equal(early, 'still waiting', 'neither a mute notice nor 350 ms of quiet ends a wait');
   r.turn();
   const out = await pending;

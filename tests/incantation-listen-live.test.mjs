@@ -13,12 +13,12 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { SPINNERS, ask, leadSilence, pickSpinner, readChannel, say, stopRecorder, waitLines } from '../skills/incantation/scripts/listen.mjs';
 import { deviceDigest, ensureKey, observeDir, runDir, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
-import { LISTEN, RECORDER, PARSED, makeHome, rig, wait, tick, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
+import { LISTEN, RECORDER, PARSED, makeHome, rig, wait, tick, within, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
 
 // ---- GRIM-36 ticket 2 (S5.1 to S5.7): the listener the prototype proved ----
 
 const voiceOf = home => readFileSync(join(runDir(home), 'voice'), 'utf8').trim();
-const raced = (promise, ms = 300) => Promise.race([promise, tick(ms).then(() => 'still waiting')]);
+const raced = (promise, ms = 300) => within(promise, ms, 'still waiting');
 const live = async (t, options) => {
   const r = rig(options);
   t.after(r.cleanup);
@@ -479,7 +479,7 @@ test('GRIM-51: a person who stops right at the cut still gets one spinner word, 
     r.push(1000, 60);
     await tick(100);
     assert.equal(r.player.spinners.length, 1, click ? 'after a click' : 'after silence');
-    assert.match(await Promise.race([wait(r.home), tick(2000).then(() => 'never')]), /^Heard: "a lone part with no rest"$/m);
+    assert.match(await within(wait(r.home), 2000, 'never'), /^Heard: "a lone part with no rest"$/m);
   }
 });
 
@@ -500,7 +500,7 @@ test('bug a: a cut turn that ends on no sentence mark still waits for its rest, 
   let calls = 0;
   const r = await live(t, { engineOptions: { text: () => (calls++ === 0 ? 'first part with no end' : null) } });
   longTurn(r);
-  const out = await Promise.race([wait(r.home), tick(2000).then(() => 'never')]);
+  const out = await within(wait(r.home), 2000, 'never');
   assert.match(out, /^Heard: "first part with no end"$/m, 'the part we have is delivered, not held for ever');
   assert.match(out, /^stt-dropped$/m, 'and the loss is named in the same delivery, which ended the wait');
 });
@@ -508,12 +508,12 @@ test('bug a: a cut turn that ends on no sentence mark still waits for its rest, 
 test('bug a: a cut turn whose rest is a fragment delivers the first part at once, and one with no rest at all is not held for the long bound', async t => {
   const r = await live(t, { engineOptions: { text: texts('only the first part', 'you') } });
   longTurn(r);
-  assert.match(await Promise.race([wait(r.home), tick(2000).then(() => 'never')]), /^Heard: "only the first part"$/m);
+  assert.match(await within(wait(r.home), 2000, 'never'), /^Heard: "only the first part"$/m);
   const lone = await live(t, { engineOptions: { text: 'a lone part with no rest' } });
   lone.push(1000, 34);
   lone.push(3163, 1000); // exactly the limit, then silence: nothing continues it
   lone.push(1000, 20);
-  const out = await Promise.race([wait(lone.home), tick(2000).then(() => 'never')]);
+  const out = await within(wait(lone.home), 2000, 'never');
   assert.match(out, /^Heard: "a lone part with no rest"$/m, 'the gate said no rest came');
 });
 

@@ -148,6 +148,20 @@ export function rig(options = {}) {
 export const wait = home => ask(readChannel(home), 'wait', 5000);
 export const tick = (ms = 30) => new Promise(r => setTimeout(r, ms));
 
+// The promise's value, or `late` once `ms` has passed. The limit's timer is
+// cleared when the race settles, so it keeps no test file alive.
+export async function within(promise, ms, late) {
+  let timer;
+  const limit = new Promise(r => {
+    timer = setTimeout(() => r(late), ms);
+  });
+  try {
+    return await Promise.race([promise, limit]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const statusOf = home => readFileSync(join(runDir(home), 'status'), 'utf8').trim();
 export const texts = (...list) => () => list.shift() ?? 'hello there';
 export const cli = (home, command) => ask(readChannel(home), command, 3000);
