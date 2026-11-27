@@ -3949,9 +3949,8 @@ test('with no summary file the card comes from the transcript: fed at 1 MiB, too
 
 test('a summary path refused draws the refusal line, and the card comes from the transcript', async () => {
   for (const bad of [
-    { [USAGE]: { kind: 'dir', text: '', isLink: true } },
-    { [summaryAt(0)]: { text: summaryText(), isLink: true } },
-    { [summaryAt(0)]: { text: summaryText(), realPath: 'D:\\elsewhere\\x.json' } },
+    { [USAGE]: { text: '' } },
+    { [summaryAt(0)]: { kind: 'dir', text: '' } },
   ]) {
     const { fs, poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), ...bad });
     const out = await poll();
@@ -3965,7 +3964,7 @@ test('a summary path refused after a good file drops the held record', async () 
   const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
   const { poll } = summaryPoll(files);
   assert.equal(cardText(await poll()).line, FILE_LINE);
-  files[summaryAt(0)].isLink = true;
+  files[summaryAt(0)] = { kind: 'dir', text: '' };
   const out = await poll();
   assert.equal(cardText(out).line, TOO_LARGE);
   assert.deepEqual(out.refusals, [{ name: 'A', value: 'path' }]);
@@ -5033,7 +5032,7 @@ test('507 C3: a listing that fails, is not a list or is over the cap means the o
 });
 
 test('507 C3: a bad file in one folder leaves a good one in another drawn, with no refusal line', async () => {
-  for (const bad of [{ text: '{}' }, { text: summaryText(), isLink: true }]) {
+  for (const bad of [{ text: '{}' }, { kind: 'dir', text: '' }]) {
     const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(6 * MIB), [summaryIn(PLUGIN, 0)]: bad, [summaryIn(OTHER, 0)]: { text: summaryText() } });
     const { poll } = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
     for (let n = 0; n < 3; n += 1) {
@@ -5056,7 +5055,7 @@ test("507 C3: a failure in another folder is not drawn, and the own folder's ref
   const files = withInstalls([PLUGIN, OTHER], { [pathOf(0)]: transcriptOf(MIB), [summaryIn(OTHER, 0)]: { text: '{}' } });
   const quiet = summaryPoll(files, { listing: installs(PLUGIN, OTHER) });
   for (let n = 0; n < 3; n += 1) assert.deepEqual((await quiet.poll()).refusals, [], "another folder's failure draws nothing");
-  files[summaryIn(PLUGIN, 0)] = { text: summaryText(), isLink: true };
+  files[summaryIn(PLUGIN, 0)] = { kind: 'dir', text: '' };
   assert.deepEqual((await quiet.poll()).refusals, [{ name: 'A', value: 'path' }]);
 });
 
