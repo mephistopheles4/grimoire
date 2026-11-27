@@ -556,7 +556,9 @@ kind, folder and branch, and the cleaner the owner's instructions name. At
 level 3 the owner's user-level instructions file decides. The head chef then
 archives each Desktop session, and stops each background session with the
 mod's `stop_background_session`, which reads the session files at each call
-and stops only the session whose job id and name match the card. It runs a
+and stops only the session whose job id and name match the card. Neither tool
+refuses another plugin's call, so another plugin could start or stop a
+session. It runs a
 cleaner only if the owner's instructions state the program and how to run it,
 from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named,
 nothing is removed. Nothing in Brigade forces a removal, passes `-D`, runs
