@@ -1,6 +1,6 @@
-// Tests of engines/sherpa.mjs and the engine table (docs/spec/0001, S5.10,
-// S13.10; claims 16 and 17), with a fake addon and a fake worker. No model, no
-// Python, no real runtime.
+// Tests of engines/sherpa.mjs and the engine table
+// (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md), with a fake addon
+// and a fake worker. No model, no Python, no real runtime.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,23 +11,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isEngine, loadEngine } from '../skills/incantation/scripts/engines/index.mjs';
 import { makeEngine } from '../skills/incantation/scripts/engines/sherpa.mjs';
-import { SETTINGS_DEFAULTS, parseSettings, ensureState } from '../skills/incantation/scripts/lib.mjs';
-import { platformKey, pythonExe, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
+import { SETTINGS_DEFAULTS, isProfile, parseSettings, ensureState } from '../skills/incantation/scripts/lib.mjs';
+import { PARTS, platformKey, pythonExe, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 
 const KEY = platformKey(process.platform, process.arch);
 
 // A fake addon that records what it is asked, and returns fixed answers.
 function fakeAddon(log) {
   return {
-    OfflineTts: class {
-      constructor(cfg) {
-        log.push(['tts', cfg]);
-      }
-      generate(args) {
-        log.push(['generate', args]);
-        return { samples: Float32Array.from([0, 0.5, -0.5]), sampleRate: 24000 };
-      }
-    },
     OfflineRecognizer: class {
       constructor(cfg) {
         log.push(['asr', cfg]);
@@ -45,22 +36,42 @@ function fakeAddon(log) {
   };
 }
 
+function fakeSpawn(calls = []) {
+  return (file, args, opts) => {
+    calls.push({ file, args, opts });
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stdin = new PassThrough();
+    child.exitCode = null;
+    child.kill = () => {};
+    const pcm = Buffer.alloc(4);
+    child.stdin.on('data', () => child.stdout.write(`${JSON.stringify({ ok: true, rate: 24000, pcm: pcm.toString('base64') })}\n`));
+    setImmediate(() => child.stdout.write(`${JSON.stringify({ ready: true, rate: 24000 })}\n`));
+    return child;
+  };
+}
+
 // A small table of the same shape as the real one: each part has one file, so
 // a fixture can write every file at its pinned size.
 const PINS = {
   ARCHIVES: [{ name: 'win', url: '/w', platform: KEY, dest: 'node_modules/w', size: 1, sha256: '0'.repeat(64), sha512: '', files: [['a.node', 3, '0'.repeat(64)]] }],
-  FILES: ['hearing', 'speaking', 'detector', 'turn', 'phonon'].map(part => ({ part, src: 'hf', base: '/o/r/resolve/abc/', dest: `${part}/`, files: [['f.bin', 4, '0'.repeat(64)]] })),
-  LOCKS: {},
+  FILES: ['hearing', 'detector', 'turn', 'phonon'].map(part => ({ part, src: 'hf', base: '/o/r/resolve/abc/', dest: `${part}/`, files: [['f.bin', 4, '0'.repeat(64)]] })),
+  LOCKS: { [KEY]: 'lock-test.txt' },
 };
 
-function installFake(home, parts) {
+function installFake(home, parts, platform = process.platform) {
   const put = (rel, size) => {
     const p = join(runtimeDir(home), ...rel.split('/'));
     mkdirSync(join(p, '..'), { recursive: true });
     writeFileSync(p, Buffer.alloc(size));
   };
   if (parts.includes('addon')) put('node_modules/w/a.node', 3);
-  for (const part of parts.filter(p => p !== 'addon')) put(`${part}/f.bin`, 4);
+  if (parts.includes('python')) {
+    const py = platform === 'win32' ? 'Scripts/python.exe' : 'bin/python';
+    put(`py/${py}`, 0);
+    writeFileSync(join(runtimeDir(home), 'py.manifest.json'), JSON.stringify({ files: [[py, 0]] }));
+  }
+  for (const part of parts.filter(p => p !== 'addon' && p !== 'python')) put(`${part}/f.bin`, 4);
 }
 
 const fixture = () => {
@@ -69,22 +80,22 @@ const fixture = () => {
   return { home, remove: () => rmSync(home, { recursive: true, force: true }) };
 };
 
-test('claim 16: warm loads and runs each model once; transcribe and synthesize return text and a WAV', async () => {
+test('claim 16: warm loads Parakeet and the Phonon worker once; transcribe and synthesize return text and a WAV', async () => {
   const f = fixture();
   try {
     const log = [];
-    const engine = makeEngine({ port: 17493, profile: 'bella', home: f.home, load: () => fakeAddon(log) });
+    const calls = [];
+    const engine = makeEngine({ profile: 'everly', home: f.home, load: () => fakeAddon(log), spawn: fakeSpawn(calls) });
     const ms = await engine.warm();
     assert.ok(Number.isInteger(ms));
-    assert.equal(log.filter(l => l[0] === 'tts').length, 1);
     assert.equal(log.filter(l => l[0] === 'asr').length, 1);
-    assert.equal(log.filter(l => l[0] === 'generate').length, 1);
     assert.equal(log.filter(l => l[0] === 'decode').length, 1);
+    assert.equal(calls.length, 1);
     assert.equal(await engine.transcribe(Buffer.alloc(3200)), 'hello there');
     const wav = await engine.synthesize('Okay.');
     assert.equal(wav.toString('latin1', 0, 4), 'RIFF');
     assert.equal(wav.readUInt32LE(24), 24000);
-    assert.equal(log.filter(l => l[0] === 'tts').length, 1, 'the model was loaded once');
+    assert.equal(calls.length, 1, 'the worker was started once');
     assert.equal(await engine.synthesize(''), null);
   } finally {
     f.remove();
@@ -96,46 +107,12 @@ test('claim 16: no provider but cpu is ever passed, and no PATH is changed', asy
   const before = process.env.PATH;
   try {
     const log = [];
-    const engine = makeEngine({ port: 17493, profile: 'bella', home: f.home, load: () => fakeAddon(log) });
+    const engine = makeEngine({ profile: 'everly', home: f.home, load: () => fakeAddon(log), spawn: fakeSpawn() });
     await engine.warm();
-    const providers = JSON.stringify(log.filter(l => l[0] === 'tts' || l[0] === 'asr'), (k, v) => v);
-    assert.deepEqual([...providers.matchAll(/"provider":"([a-z]+)"/g)].map(m => m[1]), ['cpu', 'cpu']);
+    const providers = JSON.stringify(log.filter(l => l[0] === 'asr'), (k, v) => v);
+    assert.deepEqual([...providers.matchAll(/"provider":"([a-z]+)"/g)].map(m => m[1]), ['cpu']);
     assert.equal(process.env.PATH, before);
     for (const name of ['cuda', 'CUDA', 'Ollama']) assert.ok(!providers.includes(name));
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 16: profiles lists bella only when Kokoro is installed, and everly only when Phonon is (issue 674)', async () => {
-  const f = fixture();
-  try {
-    const engine = () => makeEngine({ port: 17493, home: f.home, pins: PINS });
-    assert.deepEqual((await engine().profiles()).map(p => p.id), [], 'nothing installed, nothing to pick');
-    installFake(f.home, ['phonon']);
-    assert.deepEqual((await engine().profiles()).map(p => p.id), ['everly'], 'a Phonon-only install offers no Kokoro voice');
-    installFake(f.home, ['speaking']);
-    assert.deepEqual((await engine().profiles()).map(p => p.id), ['bella', 'everly']);
-    rmSync(join(runtimeDir(f.home), 'phonon'), { recursive: true });
-    assert.deepEqual((await engine().profiles()).map(p => p.id), ['bella'], 'a Kokoro-only install offers no Phonon voice');
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 16: profiles names each voice and its engine, and a damaged part offers no voice of its engine (issue 674)', async () => {
-  const f = fixture();
-  try {
-    const profiles = () => makeEngine({ port: 17493, home: f.home, pins: PINS }).profiles();
-    const BELLA = { id: 'bella', name: 'bella', engine: 'kokoro' };
-    const EVERLY = { id: 'everly', name: 'everly', engine: 'phonon' };
-    installFake(f.home, ['speaking', 'phonon']);
-    assert.deepEqual(await profiles(), [BELLA, EVERLY]);
-    writeFileSync(join(runtimeDir(f.home), 'speaking', 'f.bin'), 'x');
-    assert.deepEqual(await profiles(), [EVERLY], 'a short Kokoro file offers no Kokoro voice');
-    installFake(f.home, ['speaking']);
-    writeFileSync(join(runtimeDir(f.home), 'phonon', 'f.bin'), 'x');
-    assert.deepEqual(await profiles(), [BELLA], 'a short Phonon file offers no Phonon voice');
   } finally {
     f.remove();
   }
@@ -145,20 +122,8 @@ test('claim 16: a Phonon voice runs in a worker started with no shell, -I, the r
   const f = fixture();
   try {
     const calls = [];
-    const spawn = (file, args, opts) => {
-      calls.push({ file, args, opts });
-      const child = new EventEmitter();
-      child.stdout = new PassThrough();
-      child.stdin = new PassThrough();
-      child.exitCode = null;
-      child.kill = () => {};
-      const pcm = Buffer.alloc(4);
-      child.stdin.on('data', () => child.stdout.write(`${JSON.stringify({ ok: true, rate: 24000, pcm: pcm.toString('base64') })}\n`));
-      setImmediate(() => child.stdout.write(`${JSON.stringify({ ready: true, rate: 24000 })}\n`));
-      return child;
-    };
     const env = { PATH: 'p', HF_TOKEN: 'secret', UV_INDEX_URL: 'x', SystemRoot: 'r' };
-    const engine = makeEngine({ port: 17493, profile: 'everly', home: f.home, load: () => fakeAddon([]), spawn, env, platform: 'win32', pins: PINS });
+    const engine = makeEngine({ profile: 'everly', home: f.home, load: () => fakeAddon([]), spawn: fakeSpawn(calls), env, platform: 'win32', pins: PINS });
     await engine.warm();
     const wav = await engine.synthesize('Hello.');
     assert.equal(wav.toString('latin1', 0, 4), 'RIFF');
@@ -177,59 +142,50 @@ test('claim 16: a Phonon voice runs in a worker started with no shell, -I, the r
   }
 });
 
-test('claim 16: health is false until every core part is installed with its pinned sizes, then true', async () => {
+test('claim 16: health and profiles require all six runtime parts and the runtime interpreter', async () => {
   const f = fixture();
   try {
-    const engine = () => makeEngine({ port: 17493, profile: 'bella', home: f.home, pins: PINS });
+    const engine = (exists = () => true) => makeEngine({ profile: 'everly', home: f.home, pins: PINS, exists });
     assert.equal(await engine().health(), false);
-    installFake(f.home, ['addon', 'hearing', 'speaking']);
-    assert.equal(await engine().health(), false, 'the speech detector is still missing');
-    installFake(f.home, ['detector']);
+    assert.deepEqual(await engine().profiles(), []);
+    installFake(f.home, ['addon', 'hearing', 'detector', 'python', 'turn']);
+    assert.equal(await engine().health(), false, 'phonon is still missing');
+    assert.deepEqual(await engine().profiles(), []);
+    installFake(f.home, ['phonon']);
     assert.equal(await engine().health(), true);
+    assert.equal(await engine(() => false).health(), false, 'requires the runtime interpreter');
+    assert.deepEqual(await engine().profiles(), [{ id: 'everly', name: 'everly', engine: 'phonon' }]);
+    assert.deepEqual(await engine(() => false).profiles(), []);
     writeFileSync(join(runtimeDir(f.home), 'hearing', 'f.bin'), 'x');
-    assert.equal(await engine().health(), false, 'a short file');
+    assert.equal(await engine().health(), false, 'a short file fails health');
+    assert.deepEqual(await engine().profiles(), [], 'a short file hides profiles');
   } finally {
     f.remove();
   }
 });
 
-test('claim 16: a Phonon voice is healthy with no Kokoro on disk, and a Kokoro voice is not (issue 674)', async () => {
-  const f = fixture();
-  try {
-    const engine = (profile, exists = () => true) => makeEngine({ port: 17493, profile, home: f.home, pins: PINS, exists });
-    installFake(f.home, ['addon', 'hearing', 'detector', 'phonon']);
-    assert.equal(await engine('everly').health(), true, 'Phonon never loads Kokoro');
-    assert.equal(await engine('bella').health(), false, 'a Kokoro voice still needs the Kokoro part');
-    assert.equal(await engine('everly', () => false).health(), false, 'a Phonon voice still needs the runtime interpreter');
-    rmSync(join(runtimeDir(f.home), 'phonon'), { recursive: true });
-    assert.equal(await engine('everly').health(), false, 'a Phonon voice needs Phonon itself');
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 16: a Phonon voice is not healthy without the addon, the hearing model or the speech detector (issue 674)', async () => {
-  for (const missing of ['addon', 'hearing', 'detector']) {
+test('claim 16: missing any single runtime part fails health', async () => {
+  for (const missing of PARTS) {
     const f = fixture();
     try {
-      installFake(f.home, ['addon', 'hearing', 'detector', 'phonon'].filter(p => p !== missing));
-      const engine = makeEngine({ port: 17493, profile: 'everly', home: f.home, pins: PINS, exists: () => true });
-      assert.equal(await engine.health(), false, `a Phonon voice needs ${missing}`);
+      installFake(f.home, PARTS.filter(p => p !== missing));
+      const engine = makeEngine({ profile: 'everly', home: f.home, pins: PINS, exists: () => true });
+      assert.equal(await engine.health(), false, `runtime needs ${missing}`);
     } finally {
       f.remove();
     }
   }
 });
 
-test('claim 16: a Phonon voice\'s health asks for the runtime interpreter of the platform it runs on (issue 674)', async () => {
+test('claim 16: health asks for the runtime interpreter of the platform it runs on', async () => {
   const f = fixture();
   try {
-    // The other platform's interpreter path differs, so a path built for the host fails.
     const other = process.platform === 'win32' ? 'linux' : 'win32';
-    const pins = { ...PINS, ARCHIVES: PINS.ARCHIVES.map(a => ({ ...a, platform: platformKey(other, process.arch) })) };
-    installFake(f.home, ['addon', 'hearing', 'detector', 'phonon']);
+    const key = platformKey(other, process.arch);
+    const pins = { ...PINS, ARCHIVES: PINS.ARCHIVES.map(a => ({ ...a, platform: key })), LOCKS: { [key]: 'lock-test.txt' } };
+    installFake(f.home, PARTS, other);
     const asked = [];
-    const engine = makeEngine({ port: 17493, profile: 'everly', home: f.home, platform: other, pins, exists: p => (asked.push(p), true) });
+    const engine = makeEngine({ profile: 'everly', home: f.home, platform: other, pins, exists: p => (asked.push(p), true) });
     assert.equal(await engine.health(), true);
     assert.deepEqual(asked, [pythonExe(f.home, other)]);
   } finally {
@@ -237,36 +193,42 @@ test('claim 16: a Phonon voice\'s health asks for the runtime interpreter of the
   }
 });
 
-test('claim 16: a profile that is a key of every object is spoken as a Kokoro voice, never by a Phonon worker', async () => {
+test('claim 16: retired or prototype profiles (bella, toString) never load or synthesize', async () => {
   const f = fixture();
   try {
-    const log = [];
-    const spawned = [];
-    const engine = makeEngine({ port: 17493, profile: 'toString', home: f.home, pins: PINS, load: () => fakeAddon(log), spawn: (...a) => spawned.push(a), exists: () => false });
-    assert.equal(await engine.health(), false, 'nothing installed');
-    installFake(f.home, ['addon', 'hearing', 'speaking', 'detector']);
-    assert.equal(await engine.health(), true, 'the Kokoro parts serve it, with no interpreter asked for');
-    await engine.warm();
-    assert.equal(spawned.length, 0);
-    assert.equal(log.filter(l => l[0] === 'tts').length, 1);
-    assert.equal(log.find(l => l[0] === 'generate')[1].sid, 2);
+    assert.equal(isProfile('everly'), true);
+    assert.equal(isProfile('bella'), false);
+    assert.equal(isProfile('toString'), false);
+    for (const profile of ['bella', 'toString', undefined]) {
+      const spawned = [];
+      const engine = makeEngine({ profile, home: f.home, load: () => fakeAddon([]), spawn: (...a) => spawned.push(a) });
+      await assert.rejects(engine.warm(), /profile/);
+      assert.equal(await engine.synthesize('Okay.'), null);
+      assert.equal(spawned.length, 0);
+    }
   } finally {
     f.remove();
   }
 });
 
-test('claim 17: the engine table holds sherpa and voicebox and nothing else', async () => {
-  assert.ok(isEngine('sherpa') && isEngine('voicebox'));
-  assert.ok(!isEngine('whisper') && !isEngine('__proto__') && !isEngine(undefined));
-  const e = await loadEngine('sherpa', { port: 17493, profile: 'bella' });
+test('claim 17: the engine table holds sherpa and nothing else', async () => {
+  assert.ok(isEngine('sherpa'));
+  assert.ok(!isEngine('voicebox') && !isEngine('whisper') && !isEngine('__proto__') && !isEngine(undefined));
+  const e = await loadEngine('sherpa', { profile: 'everly' });
   assert.equal(e.name, 'sherpa');
-  await assert.rejects(loadEngine('whisper', {}), /engine/);
+  assert.equal(e.port, undefined);
+  assert.equal(e.playback, undefined);
+  await assert.rejects(loadEngine('voicebox', {}), /engine/);
 });
 
-test('claim 17: a settings file with no engine key reads as voicebox; sherpa is read when written; an old file still passes', () => {
-  assert.equal(SETTINGS_DEFAULTS.engine, 'voicebox');
-  const base = { profile: 'p', device: { index: 0, stamp: '0123456789abcdef' }, recorder: process.platform === 'win32' ? 'C:\\bin\\ffmpeg.exe' : '/bin/ffmpeg' };
-  assert.equal(parseSettings(JSON.stringify(base)).engine, 'voicebox');
-  assert.equal(parseSettings(JSON.stringify({ ...base, engine: 'sherpa' })).engine, 'sherpa');
-  assert.equal(parseSettings(JSON.stringify({ ...base, engine: 'voicebox', port: 17493 })).port, 17493);
+test('claim 17: parseSettings requires engine, profile (Phonon), device, and recorder, and refuses pre-retirement Voicebox/Kokoro settings', () => {
+  assert.deepEqual(SETTINGS_DEFAULTS, { endOfSpeechMs: 1500 });
+  const rec = process.platform === 'win32' ? 'C:\\bin\\ffmpeg.exe' : '/bin/ffmpeg';
+  const base = { engine: 'sherpa', profile: 'everly', device: { index: 0, stamp: '0123456789abcdef' }, recorder: rec };
+  assert.equal(parseSettings(JSON.stringify(base)).engine, 'sherpa');
+  // Pre-retirement files: missing engine, unknown key port, Kokoro profile bella.
+  assert.throws(() => parseSettings(JSON.stringify({ profile: 'everly', device: base.device, recorder: rec })), /settings/);
+  assert.throws(() => parseSettings(JSON.stringify({ ...base, port: 17493 })), /settings/);
+  assert.throws(() => parseSettings(JSON.stringify({ ...base, profile: 'bella' })), /settings/);
+  assert.equal(parseSettings(JSON.stringify({ ...base, engine: 'voicebox' })).engine, 'voicebox');
 });

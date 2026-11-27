@@ -1,6 +1,6 @@
 # Contract: incantation
 
-Version: 0.3.0
+Version: 0.4.0
 Kind: skill
 Level: Thorough
 
@@ -39,8 +39,7 @@ who wants to work with Claude Code hands-free.
 - **Near-miss** (**Confirmed**): a pasted or heard line that asks to start
   voice mode.
 
-**Description for the built file** (**Decided**: the engine is the person's
-choice at install, so the description names none):
+**Description for the built file** (**Decided**: names no speech model):
 
 > Pairs on code by voice, for a person who wants to work with Claude Code
 > hands-free. It hears the person through its own listener, speaks short plain
@@ -61,7 +60,7 @@ choice at install, so the description names none):
 **Example** (**Confirmed**), the winner of three drafted samples, sample A:
 
 > You: Update grimoire from the local folder.
-> Incantation: So you want grimoire updated from the voicebox folder, then a
+> Incantation: So you want grimoire updated from the local folder, then a
 > restart. Shall I?
 > You: Go ahead.
 > Incantation runs it, then says: Updated to 158. Restart to load it.
@@ -131,8 +130,8 @@ wanted.
 
 **Limits:**
 
-- It speaks only through its own listener, never through Voicebox's own
-  tools. **Decided**. The earlier limit on reading its own settings file is
+- It speaks only through its own listener: nothing else touches the speaker or
+  the mic. **Decided**. The earlier limit on reading its own settings file is
   removed.
 - It never speaks a secret, key, token, password, or a personal detail taken
   from a record, and never an id, hash, issue or PR number, or path; it says the item is in
@@ -145,16 +144,16 @@ wanted.
 | make an easily undone change, as `writing` defines it | the request, said back in one sentence that says it is doing it now and asks nothing | none: an easily undone act goes on after its say-back, with no yes, once the say-back has played; it waits as any other change when the person may not have heard the say-back | **Decided**: "I don't want to completely skip the sayback. When it's easily reversible, you simply continue and not wait for a confirmation after the sayback", 2026-11-26; the four tests and the wait cases are *Proposed* |
 | make any other change: an edit, a write, a command with effects, a push, a merge, a delete, an install or a settings change | the request, said back in one sentence, with its cost when it has one | a clear yes after the say-back stands in for the typing any checkpoint would ask for, including one the session's rules hold for the person's own confirmation; voice replaces the typing only: the checkpoint and its say-back stay, and every other rule the session runs under holds unchanged | **Decided**: "Hands-free is the point", for the reason under `good`; the owner's decision on the head chef's gates, 2026-11-22 |
 | confirm or answer by voice anything typing could (a choice, the microphone number, the voice id); only the first typed `/incantation` or `/incantation install` stays typed, since no mic is open before it | the say-back | a clear yes after the say-back | **Decided**: 643, "nothing typed" |
-| download and install the speech runtime, in `/incantation install` | the voice engine the person picked first, then the plan for that engine, said back with its size as the cost; the voice files of the other engine are not downloaded | a clear yes after the say-back, typed on a first install, since no mic is open then; a heard turn alone never starts it | **Decided**: "I want everything in the prototype to be shipped right now" (the whole engine ships); the engine pick before the plan, issue 674 |
+| download and install the speech runtime, in `/incantation install` | the plan for the shared runtime (speech addon, speech models, and `uv`-managed Python layer), said back with its size as the cost | a clear yes after the say-back, typed on a first install, since no mic is open then; a heard turn alone never starts it | **Decided**: "I want everything in the prototype to be shipped right now" (the whole runtime ships); `uv` is required and no engine pick is needed (spec 0003) |
 | mute or unmute the mic, or incantation's own voice, for the person | nothing | "mute" or "unmute" said alone, which the listener catches at once; a natural spoken ask to mute or unmute, which the session acts on; or the typed `/incantation mute`, `unmute`, `mute-voice` or `unmute-voice`; a muted voice behaves as unmuted but makes and plays no audio, and a spoken yes still counts | **Decided** |
 
 **Record** (**Confirmed**): in observe mode only, each thing it would have
 said unasked, with its kind, urgency, score, words and whether it would have
 spoken. It is kept in its own observe log on this machine, and never posted.
 
-**Runtime** (**Confirmed**): Node, a microphone, an audio player, and a speech
-engine on this machine: the local runtime that `/incantation install` fetches,
-or Voicebox running (**Decided**: the owner, 646 trial, and by voice, 2026-11-22).
+**Runtime** (**Confirmed**): Node, a microphone, an audio player, `uv`, and the
+local speech runtime that `/incantation install` fetches (**Decided**: the
+owner, 646 trial, and spec 0003).
 
 ## rules
 

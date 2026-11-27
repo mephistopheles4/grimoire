@@ -1,4 +1,4 @@
-// The listening indicator (docs/spec/incantation.md, trial amendment T9). A
+// The listening indicator (docs/spec/0001, trial amendment T9). A
 // status line command for Claude Code: it prints one short segment that says
 // whether the mic is open and what it is doing, or nothing when no listener is
 // running. Node built-ins only; it reads one file and never writes.

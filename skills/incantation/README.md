@@ -12,36 +12,32 @@ time), listens at all times, says any request that changes anything back before 
 acts, and speaks unasked only when something needs you. Talk over it at any
 time and it stops.
 
-By default, hearing and speaking run locally on your CPU inside the listener's
-own process (Parakeet hears, Kokoro or Phonon speaks, nothing opens a port), and
-only transcribed text reaches Claude. [Voicebox](https://voicebox.sh) stays as a
-second local engine on `127.0.0.1:17493`. Incantation is a skill of the
-`grimoire` plugin (`grimoire@mephistopheles4`), whose mod carries each heard turn
-into chat, nudges you at permission prompts, and draws the mic band. If you
+Hearing and speaking run locally on your CPU inside the listener's own
+processes (`Parakeet` hears, `Phonon` speaks, nothing opens a port), and only
+transcribed text reaches Claude. Incantation is a skill of the `grimoire`
+plugin (`grimoire@mephistopheles4`), whose mod carries each heard turn into
+chat, nudges you at permission prompts, and draws the mic band. If you
 installed the earlier `incantation@mephistopheles4` plugin, uninstall it. Only
 your own typed `/incantation` starts the mic.
 
 ## How a turn works
 
 <p align="center">
-  <img src="../../docs/brand/incantation-timeline.svg" width="100%" alt="One voice turn — timing and model timeline: 0.6 s pre-roll, every 30 ms frame through WebRTC AEC3, Silero VAD and energy gate, 1.5 s silence wait, optional 2.5 s Smart Turn hold, Parakeet STT, Claude in the cloud, local Kokoro or Phonon TTS, plus barge-in and startup/idle timelines">
+  <img src="../../docs/brand/incantation-timeline.svg" width="100%" alt="One voice turn — timing and model timeline: 0.6 s pre-roll, every 30 ms frame through WebRTC AEC3, Silero VAD and energy gate, 1.5 s silence wait, 2.5 s Smart Turn hold, Parakeet STT, Claude in the cloud, local Phonon TTS, plus barge-in and startup/idle timelines">
 </p>
 
 | When | Duration | Model / stage | Runs on | What it does |
 |---|---|---|---|---|
 | Startup | `1 s` floor, `<= 60 s` warm-up | Room calibration + model warm-up (`ffmpeg` + local models) | Local CPU | Measures room noise floor, loads models, pre-caches 10 spinner words |
 | Before you speak | `0.6 s` (`20 frames`) | Pre-roll buffer | Local CPU | Keeps audio right before speech triggers so your first word is not clipped |
-| While you speak | Every `30 ms` (`120 ms` min, `25–30 s` split) | Echo canceller (`WebRTC AEC3`, optional `uv`) + Speech detector (`Silero VAD`, `0.6 MB`) + Loudness gate | Local CPU | Strips speaker echo, filters clicks/typing, splits marathon turns cleanly |
+| While you speak | Every `30 ms` (`120 ms` min, `25–30 s` split) | Echo canceller (`WebRTC AEC3`, `uv`) + Speech detector (`Silero VAD`, `0.6 MB`) + Loudness gate | Local CPU | Strips speaker echo, filters clicks/typing, splits marathon turns cleanly |
 | When you pause | `1.5 s` quiet (`0.3–3.0 s`) | Wait for silence + spinner word | Local CPU | Closes the turn and plays a short cue (`"One sec."`) right away |
-| If you sound unfinished | `+2.5 s` per hold (`3x` max) | Finish check (`Smart Turn v3.2`, `9 MB`, optional `uv`) | Local CPU | Checks the last `8 s` of audio; waits longer if mid-thought, never cuts sooner |
+| If you sound unfinished | `+2.5 s` per hold (`3x` max) | Finish check (`Smart Turn v3.2`, `9 MB`, `uv`) | Local CPU | Checks the last `8 s` of audio; waits longer if mid-thought, never cuts sooner |
 | Once turn settles | Once per turn (`+2.0 s` joiner if no `. ? !`) | Speech to text (`Parakeet TDT 0.6b v2`, `660 MB`) | Local CPU | Turns audio into words and drops filler/echo fragments |
 | Thinking & acting | `90 s` progress beat, `20 s` OK nudge | Claude thinks & acts (via grimoire mod) | Cloud (text only) | Answers questions aloud, or gives a one-sentence say-back and waits for a clear yes (an easily undone act goes on) |
-| Replying aloud | Per line (`3` max queued) | Speak reply (`Kokoro 1.0`, `393 MB` or `Phonon`, `104 MB`, `uv`) + `ffplay` | Local CPU | Speaks one short fact and loops speaker audio back to the echo canceller |
+| Replying aloud | Per line (`3` max queued) | Speak reply (`Phonon`, `104 MB`, `uv`) + `ffplay` | Local CPU | Speaks one short fact and loops speaker audio back to the echo canceller |
 | If you talk over Claude | `360 ms` voice (after `1.5 s` grace) | Barge-in detector | Local CPU | Stops playback at once, drops queued replies, opens your new turn |
 | Long silence | `30 min` quiet | Idle auto-stop | Local CPU | Closes the mic automatically (paused while the mic is muted) |
-
-`Voicebox` swaps `Parakeet` + `Kokoro`/`Phonon` for a local HTTP server on
-`127.0.0.1:17493`.
 
 ## What a session feels like
 
@@ -89,7 +85,7 @@ messages and are not repeated.
 | Command or phrase | What it does |
 |---|---|
 | `/incantation` | Checks setup, warms the local models, greets you, and listens continuously |
-| `/incantation install` | Downloads your chosen voice runtime (`kokoro` or `phonon`), picks mic & voice, runs guard |
+| `/incantation install` | Downloads the six-part speech runtime (`uv` required), picks mic & voice, runs guard |
 | `/incantation observe` | Runs live while logging unspoken speak-gate candidates for tuning instead of speaking unasked |
 | `/incantation mute` / `unmute` | Mutes or unmutes the mic (or say `"mute"` / `"unmute"` alone aloud) |
 | `/incantation mute-voice` / `unmute-voice` | Silences spoken audio while keeping transcript turns and chat replies active |
@@ -97,17 +93,16 @@ messages and are not repeated.
 
 ## Quick start
 
-1. **Prerequisites.** Install **Node 24 or later** and **ffmpeg** (with
-   `ffplay` in the same folder, on your PATH). Install
-   [`uv`](https://docs.astral.sh/uv/) if you want echo cancellation (`WebRTC AEC3`),
-   end-of-turn hold (`Smart Turn`), and the `Phonon` voice. Grant your terminal
-   or desktop app OS microphone permission. (If using Voicebox instead of the
-   local runtime, install Voicebox 0.5.0+ and start it on `127.0.0.1:17493`.)
+1. **Prerequisites.** Install **Node 24 or later**, **ffmpeg** (with
+   `ffplay` in the same folder, on your PATH), and [`uv`](https://docs.astral.sh/uv/)
+   (required for echo cancellation `WebRTC AEC3`, end-of-turn hold `Smart Turn`,
+   and the `Phonon` voice). Grant your terminal or desktop app OS microphone
+   permission.
 2. **Install.** Install the `grimoire@mephistopheles4` plugin (required for the
    mod that relays `[voice]` messages into chat and draws the mic band), then
-   type `/incantation install` in a session. Choose `kokoro` (fast default) or
-   `phonon` (requires `uv`), confirm the download plan, pick your mic number and
-   voice ID, and optionally enable the terminal status line.
+   type `/incantation install` in a session. Confirm the download plan, pick your
+   mic number and voice ID (`everly`), and optionally enable the terminal status
+   line.
 3. **Start.** Type `/incantation` in any Claude Code session (including a
    brigade lead).
 
@@ -124,13 +119,12 @@ messages and are not repeated.
 | Platform | What you get | Status |
 |---|---|---|
 | Windows 11 | the whole runtime, with `uv` for the Python layer | Tested with a real mic and a headset: the owner's trial. |
-| Windows 11 without `uv` | the core: hearing, speaking, the speech detector, the steady player, the loopback reference and the text echo guard; no echo canceller (so use a headset), no end-of-turn hold, no Phonon voice | Same trial, core only. |
 | Linux x64 and Linux on ARM (64-bit) | the whole runtime, with `uv` for the Python layer, which needs glibc 2.28 or later (the onnxruntime and livekit wheels are `manylinux_2_28`) | Installed, verified and each part started once by the `incantation-platforms` workflow; no real-mic run. |
 | macOS 14 or later, Apple Silicon | the whole runtime, with `uv` for the Python layer | The same workflow, and a Phonon run on an Apple Silicon Mac; no real-mic run. |
 | macOS 13 or later, Intel | the whole runtime, with `uv` for the Python layer. Intel Macs run an older onnxruntime, 1.23.2, because later releases publish no Intel Mac wheel; elsewhere it is 1.32.0. 1.23.2 gets no upstream security fixes, and is safe here only because every model it loads is pinned by hash | The same workflow; no real-mic run. |
-| macOS 13 on Apple Silicon, macOS 12 on Intel | the core only: onnxruntime's wheel needs macOS 14 on Apple Silicon and macOS 13 on Intel, and `setup.mjs runtime plan` says so | |
-| Windows on ARM | no pinned addon: `sherpa-onnx-node` 1.13.8 publishes no Windows on ARM build, and the plan says so; choose Voicebox | |
-| Any other platform | no pinned addon: the plan names the platform; choose Voicebox | |
+| macOS 13 on Apple Silicon, macOS 12 on Intel | unsupported: onnxruntime's wheel needs macOS 14 on Apple Silicon and macOS 13 on Intel, and `setup.mjs runtime plan` says so | |
+| Windows on ARM | unsupported: `sherpa-onnx-node` 1.13.8 publishes no Windows on ARM build, and the plan says so | |
+| Any other platform | unsupported: the plan names the platform and stops | |
 
 The runtime is CPU only, on every machine. The code is the same everywhere;
 these places differ by platform:
@@ -151,11 +145,6 @@ these places differ by platform:
   in call-quality audio, so replies sound thinner than music does. If you want
   full-quality playback in the headset, pick the Mac's own mic as the input
   instead.
-- **Voicebox guard.** If you choose Voicebox 0.5.0+ (on Linux, build from source
-  as its README says), start it and keep it on `127.0.0.1` only. At each start,
-  Incantation's guard refuses to go on when Voicebox answers on any of the
-  machine's other addresses at that moment; a network that comes up later is not
-  checked until the next start.
 
 </details>
 
@@ -163,29 +152,23 @@ these places differ by platform:
 <summary><strong>Runtime downloads, licences &amp; verification</strong></summary>
 
 Incantation declares no dependency in the repository. `/incantation install`
-runs `setup.mjs runtime plan <engine>` (`kokoro` or `phonon`) to list every
-part, whether it is already installed, its download size, whether `uv` was
+runs `setup.mjs runtime plan` (which requires `uv` on PATH) to list all six
+parts, whether each is already installed, its download size, whether `uv` was
 found, total size, peak disk use (download plus unpacked), time at 10 MB/s, and
 every host it will contact, and downloads only on your clear yes.
 
-The engine choice skips the other voice engine's files so you download one voice
-engine and not both (with no engine named, the plan covers every part). `setup.mjs
-runtime install <engine>` runs as a background command printing one line per
+`setup.mjs runtime install` runs as a background command printing one line per
 file and one result per part (`ok`, `skipped <why>`, `failed <file>`), and
-refuses to start when free space on your home drive is short. `setup.mjs runtime
-verify` re-hashes every installed file; at each start the guard checks only that
-each file is present at its pinned size. With a Phonon voice (`Everly`) chosen,
-the guard asks for Phonon in place of Kokoro, so Kokoro files need not be on
-disk; Phonon requires `uv`, and the install fails without it (choose `kokoro`
-then). The runtime lives under `~/.grimoire/incantation/runtime/` and nowhere
-else.
+refuses to start without `uv`, on an unsupported platform, or when free space on
+your home drive is short. `setup.mjs runtime verify` re-hashes every installed
+file; at each start the guard checks that all six parts are present at their
+pinned sizes. The runtime lives under `~/.grimoire/incantation/runtime/` and
+nowhere else.
 
 | Part | About | Licence |
 |---|---|---|
 | The addon: `sherpa-onnx-node` 1.13.8 and its platform package, CPU build | 30 MB order | Apache-2.0 |
 | Hearing: Parakeet TDT 0.6b v2, int8 | 660 MB | CC-BY-4.0, see below |
-| Speaking: Kokoro 1.0 multi-lang, fp32, with its lexicon | 393 MB | Apache-2.0 |
-| Speaking: `espeak-ng-data/`, and the espeak-ng code the addon carries | with Kokoro | GPL-3.0-or-later |
 | The speech detector: Silero VAD | 0.6 MB | MIT |
 | The Python layer, one venv from `uv` (CPython 3.12): `livekit`, `onnxruntime`, `numpy`, `ptts` and their dependencies | 190 MB | Apache-2.0, MIT, BSD |
 | End of turn: Smart Turn v3.2 (CPU) | 9 MB | BSD-2-Clause |
@@ -222,12 +205,11 @@ never moved, and neither is a folder when the new one already exists.
 <summary><strong>Player, echo layers, long turns &amp; say-back rules</strong></summary>
 
 - **Player for replies (`ffplay` and fallbacks).** Nothing is registered in
-  Claude Code. The listener synthesizes each reply as audio (locally, or via
-  Voicebox's `/generate/stream` without playing — Voicebox's own speaking and
-  MCP tools are not used) and plays it itself so it knows when playback starts
-  and ends and can kill it on barge-in. With the local engine, the player is one
-  `ffplay` started once the mic is open and kept for the session, fed silence
-  between lines so speaker delay stays constant for AEC3. `ffplay` is resolved
+  Claude Code. The listener synthesizes each reply locally with Phonon (through
+  the runtime's Python worker) and plays it itself so it knows when playback starts
+  and ends and can kill it on barge-in. The primary player is one `ffplay` started
+  once the mic is open and kept for the session, fed silence between lines so
+  speaker delay stays constant for AEC3. `ffplay` is resolved
   only beside the pinned `ffmpeg`, never by searching PATH. Without `ffplay`,
   the listener falls back to `afplay` (macOS), `paplay`/`aplay` (Linux), or
   Windows PowerShell's sound player, writing one private temporary file for the
@@ -252,7 +234,7 @@ never moved, and neither is a folder when the new one already exists.
   spawns nothing. A second session gets `listener error busy`.
 - **Use a headset & echo layers.** A mic near speakers picks up the session's
   voice, and sound from other programs (browsers, calls, media) can still be
-  heard as speech. Each echo layer runs when installed and is skipped when not:
+  heard as speech. The echo stack runs together:
   WebRTC AEC3 (from `uv`) subtracting speaker playback from the mic; a Windows
   loopback reference of everything the default speaker plays; the steady
   `ffplay` stream; Silero VAD (`0.6 MB`) so typing or coughs make no turn;
@@ -361,18 +343,16 @@ settings or eval set without prompting you. Never add an allow rule for
   HMAC-SHA-256 digests of your chosen mic's ID and name using a random key in
   `~/.grimoire/incantation/key` — so do not have a session read `key` or
   `settings.json` without need. Microphone and voice names also appear in chat
-  during `/incantation install`, reaching the model provider. Settings with no
-  `engine` key default to `voicebox`; fresh installs write `sherpa`.
+  during `/incantation install`, reaching the model provider. Settings written
+  before this retirement (`sherpa` without `profile`, or a retired engine or
+  profile) are refused: re-run `/incantation install` to update them.
 - **Loopback & Python worker isolation.** On Windows, while the listener runs
   (even muted), speaker output — including calls — is read into RAM for AEC3:
   at most `100 ms` is kept, and none is written or sent. Python workers read
   audio from pipes only, run from the runtime's own interpreter with no shell,
   start in the state folder rather than your repo, and open no network
   connections.
-- **Voicebox & observe logs.** If using Voicebox, Voicebox may keep reply text
-  and audio in its History and dictation transcripts in plain files in your
-  profile folder (clear them from Voicebox's History and Captures tabs); the
-  local runtime keeps nothing of the kind. In `/incantation observe`, candidate
+- **Observe logs.** In `/incantation observe`, candidate
   files under `~/.grimoire/incantation/observe/` are pruned after 30 days
   (unlogged inbox files after 1 day); frozen samples stay until deleted.
 
@@ -383,8 +363,9 @@ settings or eval set without prompting you. Never add an allow rule for
 
 - **Stopping & uninstalling.** Run `node <skill base>/scripts/listen.mjs stop`
   first, then delete `~/.grimoire/incantation/` (holds the runtime, models, and
-  HMAC key). To also clear `uv`'s own cache and CPython, run `uv cache clean`
-  and `uv python uninstall`. Incantation changes none of Voicebox's settings.
+  HMAC key). If upgrading from an earlier release, you can also delete any
+  leftover `~/.grimoire/incantation/runtime/kokoro/` directory. To also clear
+  `uv`'s own cache and CPython, run `uv cache clean` and `uv python uninstall`.
 - **Tuning.** Speak-gate thresholds, urgency weights, pause threshold, and
   backchannel lists live in `skills/incantation/references/tuning.md` (edit and
   start a new session). Listener timing constants live at the top of

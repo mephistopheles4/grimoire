@@ -40,14 +40,12 @@ const frame = amp => {
 export function makeHome(overrides = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-home-'));
   ensureState(home);
-  const settings = { engine: 'voicebox', port: 17493, profile: 'made-up-profile', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300, ...overrides };
+  const settings = { engine: 'sherpa', profile: 'everly', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300, ...overrides };
   writeWhole(settingsPath(home), JSON.stringify(settings));
   return home;
 }
 
 export function fakeEngine({ text = 'hello there', warm = async () => 42, health = true, synth } = {}) {
-  const feed = new EventEmitter();
-  feed.close = () => {};
   const engine = {
     calls: 0,
     synthesized: [],
@@ -58,7 +56,6 @@ export function fakeEngine({ text = 'hello there', warm = async () => 42, health
       engine.synthesized.push(text);
       return synth === undefined ? engine.wav : typeof synth === 'function' ? synth(text) : synth;
     },
-    feed,
     tailMs: 300,
     health: async () => health,
     warm,
@@ -66,7 +63,6 @@ export function fakeEngine({ text = 'hello there', warm = async () => 42, health
       engine.calls++;
       return typeof text === 'function' ? text() : text;
     },
-    playback: () => (setImmediate(() => feed.emit('open')), feed),
   };
   return engine;
 }

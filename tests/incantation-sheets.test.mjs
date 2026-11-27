@@ -69,7 +69,6 @@ test('the timeline shows plain-English roles, searchable model names, and live t
     'Smart Turn',
     'Parakeet',
     'Claude',
-    'Kokoro',
     'Phonon',
   ]) {
     assert.equal(svg.includes(needle), true, `missing ${needle}`);

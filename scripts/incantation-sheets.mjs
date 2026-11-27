@@ -158,7 +158,7 @@ export function timelineSheet() {
 
   const legend = [
     [1040, 74, { fill: PAPER, stroke: INK, sw: 2 }, 'CORE LOCAL ML (CPU)'],
-    [1040, 106, { fill: PAPER, stroke: INK, sw: 1.5, dash: '5 3' }, 'OPTIONAL (uv PYTHON)'],
+    [1040, 106, { fill: PAPER, stroke: INK, sw: 1.5, dash: '5 3' }, 'uv PYTHON (REQUIRED)'],
     [1300, 74, { fill: INK, stroke: INK, sw: 1.5 }, 'CLOUD LLM (CLAUDE)'],
     [1300, 106, { fill: PAPER, stroke: INK, sw: 1 }, 'DSP / RULES'],
   ];
@@ -247,13 +247,13 @@ export function timelineSheet() {
   g.push(centerText(1198, barY + 122, 'Waits for clear yes', 11.5, { fill: PAPER }));
   g.push(centerText(1198, barY + 144, '[voice] user prompt', 11, { fill: 'rgba(250,250,247,0.8)' }));
 
-  // Block 7: Speak reply (Kokoro / Phonon)
+  // Block 7: Speak reply (Phonon)
   g.push(R(1314, barY, 206, barH, { fill: PAPER, stroke: INK, sw: 2 }));
   g.push(centerText(1417, barY + 34, 'SPEAK REPLY', 13.5, { w: 600, ls: 0.6 }));
-  g.push(centerText(1417, barY + 60, 'Kokoro / Phonon', 11.5, { fill: ink(0.7) }));
+  g.push(centerText(1417, barY + 60, 'Phonon (uv Python)', 11.5, { fill: ink(0.7) }));
   g.push(centerText(1417, barY + 96, 'Words -> voice', 12.5, { w: 500 }));
   g.push(centerText(1417, barY + 122, 'Feeds echo canceller', 11.5, { fill: ink(0.8) }));
-  g.push(centerText(1417, barY + 144, '393 MB / 104 MB', 11, { fill: ink(0.7) }));
+  g.push(centerText(1417, barY + 144, '104 MB', 11, { fill: ink(0.7) }));
 
   // Flow arrows between blocks
   for (const ax of [176, 450, 634, 854, 1306]) {
@@ -343,12 +343,12 @@ export function timelineSheet() {
   g.push(T(col4 + 14, ty + 48, 'SIZE & WHERE', 11, { fill: ink(0.7), ls: 1.2 }));
 
   const rows = [
-    ['Echo canceller', 'WebRTC AEC3', `Every ${frameMs} ms`, 'Optional uv (CPU)'],
+    ['Echo canceller', 'WebRTC AEC3', `Every ${frameMs} ms`, 'uv Python (CPU)'],
     ['Speech detector', 'Silero VAD', `Every ${frameMs} ms`, '0.6 MB (CPU)'],
-    ['Finish check', 'Smart Turn v3.2', `On ${silenceDefaultS} s silence`, '9 MB · optional uv'],
+    ['Finish check', 'Smart Turn v3.2', `On ${silenceDefaultS} s silence`, '9 MB · uv Python (CPU)'],
     ['Speech to text', 'Parakeet TDT 0.6b', 'Once turn settles', '660 MB int8 (CPU)'],
     ['Thinking & acting', 'Claude', 'On [voice] text', 'Cloud (text only)'],
-    ['Speak reply', 'Kokoro / Phonon', 'Per spoken line', '393 / 104 MB (CPU)'],
+    ['Speak reply', 'Phonon', 'Per spoken line', '104 MB (uv Python · CPU)'],
   ];
 
   let ry = ty + 56;
@@ -361,7 +361,6 @@ export function timelineSheet() {
     ry += 27;
   }
   g.push(L(col2, ty + 32, col2, ry), L(col3, ty + 32, col3, ry), L(col4, ty + 32, col4, ry), R(80, ty, tw, ry - ty, { sw: 2 }));
-  g.push(T(80, ry + 20, 'Voicebox option: swaps Parakeet + Kokoro/Phonon for a local HTTP server on 127.0.0.1:17493.', 11.5, { fill: ink(0.75) }));
 
   // Right column: Privacy boundary box + Grimoire title block
   g.push(R(1016, 736, 504, 84, { fill: PAPER, sw: 2 }));

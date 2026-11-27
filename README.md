@@ -113,8 +113,8 @@ with your session while your hands are on something else, and let it speak up
 only when something needs you.
 
 You talk with your session. It says a change back before it makes one and acts
-on your yes. Voicebox, on your own machine, does the speaking and the
-transcribing.
+on your yes. Local speech models (`Parakeet` and `Phonon`), running on your own
+machine, do the transcribing and speaking.
 
 Setup and details: [`skills/incantation/README.md`](skills/incantation). It
 comes with grimoire; if you installed the earlier `incantation@mephistopheles4`
@@ -244,9 +244,10 @@ Everything the plugin runs, sends or writes beyond reading and writing the
 files you ask for:
 
 - **incantation**, only after you type `/incantation`, opens your microphone
-  through ffmpeg and sends what it hears to Voicebox, which runs on your own
-  machine (127.0.0.1, port 17493). It keeps its settings and state under
-  `~/.grimoire/incantation`. Nothing it hears goes anywhere else.
+  through ffmpeg and processes what it hears locally on your own machine with
+  Parakeet and Phonon (`uv` Python). It keeps its runtime, settings, and state
+  under `~/.grimoire/incantation`. Nothing it hears leaves your machine until
+  the listener hands transcribed words to Claude.
 - **eagle-eye's optional audit** (`audit.mjs`) sends the box's text to
   TypeSafe, or to OpenRouter, which passes it on to TypeSafe. It runs only
   when you set `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`, and the skill does

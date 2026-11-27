@@ -1,7 +1,8 @@
-// Tests of the incantation skill's text (docs/spec/incantation.md, claims 1
-// and 15, and the amendments from the prototype's trial). This file holds the
-// lines that must be there, and the ones that must not. The two "0001" tests
-// are the first two claims of the change that brought the prototype in.
+// Tests of the incantation skill's text (docs/spec/0001-incantation-from-the-prototype.md,
+// docs/spec/0003-incantation-retire-voicebox-and-kokoro.md, claims 1 and 15, and
+// the amendments from the prototype's trial). This file holds the lines that
+// must be there, and the ones that must not. The two "0001" tests are the
+// first two claims of the change that brought the prototype in.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,11 +22,16 @@ const prose = () => [['SKILL.md', text], ...filesUnder(join(SKILL, 'references')
 const section = (from, to) => text.slice(text.indexOf(from), to ? text.indexOf(to) : undefined);
 
 // Claim 1: what no shipped file may name.
-const BANNED = /voice-?mode|\bconverse\b|\bWSL\b|\bparec\b|\bpactl\b|\bproxy\.mjs\b|\blaunch\.mjs\b/i;
+const BANNED = /voice-?mode|\bconverse\b|\bWSL\b|\bparec\b|\bpactl\b|\bproxy\.mjs\b|\blaunch\.mjs\b|\bvoicebox\b|\bkokoro\b|\bbella\b|\bespeak(?:-ng-data)?\b/i;
 export const claim1 = (name, body) => (BANNED.test(body) ? [`${name} names ${BANNED.exec(body)[0]}`] : []);
 
-test('claim 1: no file under skills/incantation/ or evals/incantation/, and no manifest, names VoiceMode, converse, WSL, parec, pactl or the old proxy', () => {
-  for (const dir of [SKILL, EVALS].filter(existsSync)) for (const f of filesUnder(dir)) assert.deepEqual(claim1(f.slice(ROOT.length), readFileSync(f, 'utf8')), []);
+test('claim 1: no shipped file under skills/incantation/ or evals/incantation/, and no manifest, names VoiceMode, converse, WSL, parec, pactl, the old proxy, or retired Voicebox/Kokoro terms', () => {
+  for (const dir of [SKILL, EVALS].filter(existsSync)) for (const f of filesUnder(dir)) {
+    if (f.endsWith('contract.changelog.md')) continue;
+    let body = readFileSync(f, 'utf8').replaceAll('0003-incantation-retire-voicebox-and-kokoro.md', '');
+    if (f.endsWith('README.md')) body = body.replace(/^.*runtime\/kokoro.*$/gm, '');
+    assert.deepEqual(claim1(f.slice(ROOT.length), body), []);
+  }
   const manifest = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
   const market = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'marketplace.json'), 'utf8'));
   assert.equal(market.plugins.find(p => p.name === 'incantation'), undefined, 'incantation is a skill of grimoire, not a second plugin');
@@ -36,7 +42,7 @@ test('claim 1: no file under skills/incantation/ or evals/incantation/, and no m
 });
 
 test('claim 1: the check fails on each name it forbids', () => {
-  for (const bad of ['VoiceMode', 'voicemode', 'the converse tool', 'on WSL 2', 'parec', 'pactl', 'proxy.mjs', 'launch.mjs']) assert.equal(claim1('x', bad).length, 1, bad);
+  for (const bad of ['VoiceMode', 'voicemode', 'the converse tool', 'on WSL 2', 'parec', 'pactl', 'proxy.mjs', 'launch.mjs', 'Voicebox', 'kokoro', 'bella', 'espeak', 'espeak-ng-data']) assert.equal(claim1('x', bad).length, 1, bad);
   assert.equal(claim1('x', 'reads no proxy setting').length, 0);
 });
 
@@ -49,8 +55,7 @@ const ALLOWED = [
   /^observe\.mjs add <8 hex>$/,
   /^observe\.mjs freeze <n>$/,
   /^setup\.mjs (devices|profiles)$/,
-  /^setup\.mjs runtime verify$/,
-  /^setup\.mjs runtime (plan|install) <engine>$/,
+  /^setup\.mjs runtime (plan|install|verify)$/,
   /^setup\.mjs choose <index> <stamp> <profile id>$/,
   /^statusline\.mjs$/,
 ];
@@ -63,12 +68,15 @@ export function claim15(name, body) {
     const command = `${script}${rest.replace(/[`.,].*$/, '')}`.trim();
     if (!ALLOWED.some(r => r.test(command))) out.push(`${name} builds a command the skill may not run: ${command}`);
   }
-  if (/\b(kokoro|whisper|qwen|chatterbox|luxtts)\b/i.test(body) && name !== 'SKILL.md') out.push(`${name} names a speech engine`);
+  if (/\b(kokoro|whisper|qwen|chatterbox|luxtts)\b/i.test(body)) out.push(`${name} names a speech engine`);
   return out;
 }
 
 test('claim 15: the skill runs only its own commands, under the skill base, with no heard text or spoken line', () => {
-  for (const [name, body] of prose()) assert.deepEqual(claim15(name, body), [], name);
+  for (const [name, body] of prose()) {
+    if (name.endsWith('contract.changelog.md')) continue;
+    assert.deepEqual(claim15(name, body), [], name);
+  }
 });
 
 test('claim 15: the check fails on each thing it forbids', () => {
@@ -88,10 +96,11 @@ test('claim 15: the check fails on each thing it forbids', () => {
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs working`').length, 0);
   assert.equal(claim15('x', '`node <skill base>/scripts/listen.mjs mute-voice`').length, 0);
   assert.equal(claim15('x', '`node <skill base>/scripts/observe.mjs add <8 hex>`').length, 0);
-  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime plan <engine>`').length, 0);
+  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime plan`').length, 0);
+  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime install`').length, 0);
   assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime verify`').length, 0);
-  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime plan`').length, 1, 'issue 674: the skill plans for the engine the person picked, never every part');
-  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime install`').length, 1);
+  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime plan <engine>`').length, 1);
+  assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime install <engine>`').length, 1);
   assert.equal(claim15('x', '`node <skill base>/scripts/setup.mjs runtime verify <engine>`').length, 1, 'verify takes no engine');
 });
 
@@ -101,18 +110,15 @@ test('setup.mjs is run in the Install section and nowhere else', () => {
   assert.match(install, /scripts\/setup\.mjs profiles/);
   assert.match(install, /scripts\/setup\.mjs choose <index> <stamp> <profile id>/);
   assert.equal(/setup\.mjs/.test(text.replace(install, '').replace(/Run `setup\.mjs` only in\s+`\/incantation install`\./, '')), false);
-  assert.match(install, /setup\.mjs runtime plan <engine>`/);
-  assert.match(install, /runtime install <engine>`/);
-  assert.ok(install.indexOf('voice engine') < install.indexOf('runtime plan'), 'the engine is chosen before the plan');
-  // Issue 674: step 3 recommends kokoro and falls back to it, and step 5 lists
-  // the voices of the engines installed.
+  assert.match(install, /setup\.mjs runtime plan`/);
+  assert.match(install, /runtime install`/);
   const runtime = flat(section('3. **Runtime.**', '4. **Microphone.**'));
-  assert.match(runtime, /Recommend `kokoro`/);
-  assert.match(runtime, /If the plan says the `phonon` engine is unavailable, go back and offer `kokoro`/);
+  assert.match(runtime, /uv` is required/);
+  assert.match(runtime, /six runtime parts/);
   const voice = flat(section('5. **Voice.**', '6. **Save.**'));
-  assert.match(voice, /The list holds the voices of each engine installed/);
+  assert.match(voice, /`everly` is the built-in Phonon voice/);
   assert.match(voice, /If it prints a `setup:` line, show it and stop/);
-  assert.match(install, /A heard turn alone never starts the\s+download/);
+  assert.match(install, /A heard turn alone never\s+starts\s+the\s+download/);
   assert.ok(install.indexOf('runtime plan') < install.indexOf('setup.mjs devices'), 'the runtime step comes before the microphone');
   assert.match(install, /On a first install no mic is open, so the number is\s+typed/);
   assert.match(install, /typed on a first install/);
@@ -133,7 +139,7 @@ test('T18: the session speaks through the listener, the line in a file it wrote 
   assert.match(speaking, /write the one line to a new file,\s+`~\/\.grimoire\/incantation\/observe\/say-<8 hex>\.txt`/);
   assert.match(speaking, /`node <skill base>\/scripts\/listen\.mjs say <8 hex>`/);
   for (const reply of ['speaking', 'say-refused', 'say-busy', 'say-failed', 'say-held', 'say-no-player']) assert.ok(speaking.includes(`\`${reply}\``), reply);
-  assert.match(speaking, /Never speak through Voicebox's own tools/);
+  assert.match(speaking, /Speak only through the listener: nothing else touches the speaker or\s+the mic/);
   assert.match(speaking, /\*\*A held line\.\*\* `say-held` means the listener kept a turn you have not read,\s+and it played nothing/, 'GRIM-53: what to do with a held line');
   assert.match(speaking, /Read the turn when it reaches you, then decide again/);
   assert.match(speaking, /A held line is not a\s+play/);

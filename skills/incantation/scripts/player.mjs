@@ -1,4 +1,4 @@
-// The player the listener owns (docs/spec/incantation.md, T18). Node built-ins
+// The player the listener owns (docs/spec/0001, T18). Node built-ins
 // only. The listener asks the speech engine for a WAV and plays it here, so it
 // knows when a reply starts and ends and can kill it the moment the person
 // talks over it.

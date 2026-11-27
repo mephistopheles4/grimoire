@@ -1,4 +1,4 @@
-// The observe-only log (docs/spec/incantation.md, S7.4). A Node script with no
+// The observe-only log (docs/spec/0001, S7.4). A Node script with no
 // dependencies.
 //
 //   node observe.mjs add <8 hex>  reads ~/.grimoire/incantation/observe/inbox-<8 hex>.json,

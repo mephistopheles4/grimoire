@@ -6,8 +6,8 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { join, relative, isAbsolute, sep } from 'node:path';
 
-// The state folder and the two inside it (docs/spec/incantation.md, S5.5, and
-// its trial amendments). It sits beside eagle-eye's, in the grimoire folder.
+// The state folder and the two inside it (docs/spec/0001, S5.5, and its
+// amendments). It sits beside eagle-eye's, in the grimoire folder.
 export const grimoireDir = home => join(home, '.grimoire');
 export const stateDir = home => join(grimoireDir(home), 'incantation');
 export const runDir = home => join(stateDir(home), 'run');
@@ -125,12 +125,15 @@ export function writeWhole(path, text) {
   }
 }
 
-// The settings file's keys (S5.5). Each check returns true for a value in range.
-const PROFILE = /^[A-Za-z0-9-]{1,64}$/;
+// Phonon voices offered by the single local runtime. Kept in lib.mjs so
+// settings validation and setup never create a cycle with engines/ or runtime/.
+export const VOICES = Object.freeze({ everly: 'Everly' });
+export const isProfile = name => typeof name === 'string' && Object.hasOwn(VOICES, name);
+
+// The settings file's keys. Each check returns true for a value in range.
 export const SETTINGS_KEYS = {
   engine: v => typeof v === 'string' && /^[a-z]{1,32}$/.test(v),
-  port: v => Number.isInteger(v) && v >= 1024 && v <= 65535,
-  profile: v => typeof v === 'string' && PROFILE.test(v),
+  profile: isProfile,
   // The mic's id and name are kept as keyed digests, never as text (S13.5): #208's rule that no device name or id is in a file holds.
   device: v =>
     v !== null &&
@@ -146,10 +149,10 @@ export const SETTINGS_KEYS = {
   recorder: v => typeof v === 'string' && v.length <= 1024 && isAbsolute(v) && !v.includes('\0'),
   endOfSpeechMs: v => Number.isInteger(v) && v >= 300 && v <= 3000,
 };
-export const SETTINGS_DEFAULTS = { engine: 'voicebox', port: 17493, endOfSpeechMs: 1500 };
+export const SETTINGS_DEFAULTS = { endOfSpeechMs: 1500 };
 
 // The settings, checked whole, or Error('settings'). Every key must be known
-// and in range; profile, device and recorder must be there (setup writes them).
+// and in range; engine, profile, device and recorder must be there (setup writes them).
 export function parseSettings(text) {
   const fail = () => {
     throw new Error('settings');
@@ -166,7 +169,7 @@ export function parseSettings(text) {
     if (!Object.hasOwn(SETTINGS_KEYS, k) || !SETTINGS_KEYS[k](v)) fail();
     out[k] = v;
   }
-  for (const k of ['profile', 'device', 'recorder']) if (!(k in given)) fail();
+  for (const k of ['engine', 'profile', 'device', 'recorder']) if (!(k in given)) fail();
   return out;
 }
 

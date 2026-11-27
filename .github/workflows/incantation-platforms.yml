@@ -80,12 +80,12 @@ jobs:
       - name: Plan
         run: |
           node skills/incantation/scripts/setup.mjs runtime plan | tee plan.txt
-          test "$(grep -cE '^(addon|hearing|speaking|detector|python|turn|phonon) missing [0-9]+ MB$' plan.txt)" = 7
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) missing [0-9]+ MB$' plan.txt)" = 6
           grep -qx 'uv found' plan.txt
       - name: Install
         run: |
           node skills/incantation/scripts/setup.mjs runtime install | tee install.txt
-          test "$(grep -cE '^(addon|hearing|speaking|detector|python|turn|phonon) ok$' install.txt)" = 7
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) ok$' install.txt)" = 6
       - name: Verify
         run: node skills/incantation/scripts/setup.mjs runtime verify
       # Each worker writes its ready mark and exits when its stdin closes.

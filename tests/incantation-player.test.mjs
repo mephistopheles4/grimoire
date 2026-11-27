@@ -1,4 +1,4 @@
-// Tests of scripts/player.mjs (docs/spec/incantation.md, T18): the player the
+// Tests of scripts/player.mjs (docs/spec/0001, T18): the player the
 // listener owns. Everything runs on a fake spawn and made-up paths; nothing here
 // opens an audio device or plays a sound. The same tests run on every platform.
 

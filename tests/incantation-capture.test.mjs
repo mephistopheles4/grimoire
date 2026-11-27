@@ -1,4 +1,4 @@
-// Tests of capture/ffmpeg.mjs (docs/spec/incantation.md, S5.4; claim 13). Each
+// Tests of capture/ffmpeg.mjs (docs/spec/0001, S5.4; claim 13). Each
 // platform's row is picked by a passed-in platform value, so every row runs on
 // every runner. Every listing here is made up: invented names and ids, no real
 // device, no path.

@@ -1,5 +1,5 @@
-// Tests of setup.mjs (docs/spec/incantation.md, S5.5; claim 16), with a fake
-// engine, a made-up listing and a fake recorder file system.
+// Tests of setup.mjs (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md),
+// with a fake engine, a made-up listing and a fake recorder file system.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
 import { deviceDigest, parseSettings, readKey, ensureState, settingsPath } from '../skills/incantation/scripts/lib.mjs';
-import { FILES } from '../skills/incantation/scripts/runtime/pins.mjs';
-import { PARTS, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
+import { ARCHIVES, FILES } from '../skills/incantation/scripts/runtime/pins.mjs';
+import { PARTS, platformKey, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 import { LINES, runSetup } from '../skills/incantation/scripts/setup.mjs';
 
 const win = process.platform === 'win32';
@@ -26,7 +26,7 @@ const DEVICES = {
   darwin: [{ name: 'Desk Mic One', id: ':0' }, { name: 'Headset Mic Two', id: ':1' }],
 }[process.platform] ?? [{ name: 'Desk Mic One', id: 'made_up.one' }, { name: 'Headset Mic Two', id: 'made_up.two' }];
 const STAMP = stampOf(DEVICES);
-const engine = { profiles: async () => [{ id: 'made-up-profile-1', name: 'Calm Voice', engine: 'kokoro' }, { id: 'bad id!', name: 'x', engine: '' }] };
+const engine = { profiles: async () => [{ id: 'everly', name: 'Everly', engine: 'phonon' }, { id: 'bad id!', name: 'x', engine: '' }] };
 
 function setup(argv, over = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-setup-'));
@@ -45,11 +45,11 @@ test('devices prints only the stamp and index-and-name lines, never an id or a p
 test('profiles prints id, name and engine, and leaves out an id outside the settings range', async t => {
   const r = await setup(['profiles']);
   t.after(r.remove);
-  assert.deepEqual(r.lines, ['made-up-profile-1 Calm Voice (kokoro)']);
+  assert.deepEqual(r.lines, ['everly Everly (phonon)']);
 });
 
 test('choose writes settings whose every key is in range, with the pinned recorder and the mic as keyed digests (S13.5)', async t => {
-  const r = await setup(['choose', '1', STAMP, 'made-up-profile-1']);
+  const r = await setup(['choose', '1', STAMP, 'everly']);
   t.after(r.remove);
   assert.deepEqual(r.lines, [LINES.saved]);
   const text = readFileSync(settingsPath(r.home), 'utf8');
@@ -57,21 +57,21 @@ test('choose writes settings whose every key is in range, with the pinned record
   const key = readKey(r.home);
   assert.ok(key, 'the key is made at the first choose');
   assert.deepEqual(s.device, { index: 1, stamp: STAMP, id: deviceDigest(key, DEVICES[1].id), name: deviceDigest(key, DEVICES[1].name) });
-  assert.deepEqual({ ...s, device: null }, { engine: 'sherpa', port: 17493, endOfSpeechMs: 1500, profile: 'made-up-profile-1', device: null, recorder: RECORDER });
+  assert.deepEqual({ ...s, device: null }, { engine: 'sherpa', endOfSpeechMs: 1500, profile: 'everly', device: null, recorder: RECORDER });
   assert.ok(!text.includes(DEVICES[1].name) && !text.includes(DEVICES[1].id), 'no device name or id is kept in the file');
 });
 
 test('a second choose keeps the key, so the digests stay comparable', async t => {
-  const r = await setup(['choose', '1', STAMP, 'made-up-profile-1']);
+  const r = await setup(['choose', '1', STAMP, 'everly']);
   t.after(r.remove);
   const first = readKey(r.home);
-  const again = await runSetup(['choose', '0', STAMP, 'made-up-profile-1'], { home: r.home, pathValue: BIN, startDir: r.home, fs, list: async () => LISTING, engine });
+  const again = await runSetup(['choose', '0', STAMP, 'everly'], { home: r.home, pathValue: BIN, startDir: r.home, fs, list: async () => LISTING, engine });
   assert.deepEqual(again.lines, [LINES.saved]);
   assert.deepEqual(readKey(r.home), first);
 });
 
 test('settings with a mic id or name that is not a digest, or an extra key, are refused', () => {
-  const base = { profile: 'p', recorder: RECORDER };
+  const base = { engine: 'sherpa', profile: 'everly', recorder: RECORDER };
   const device = d => JSON.stringify({ ...base, device: d });
   assert.doesNotThrow(() => parseSettings(device({ index: 0, stamp: STAMP })), 'settings from before');
   assert.doesNotThrow(() => parseSettings(device({ index: 0, stamp: STAMP, id: 'a'.repeat(64), name: 'b'.repeat(64) })));
@@ -80,18 +80,16 @@ test('settings with a mic id or name that is not a digest, or an extra key, are 
 
 test('choose refuses a stale stamp, an out-of-range index, an unknown profile and a malformed call, writing nothing', async t => {
   const cases = [
-    [['choose', '0', '0123456789abcdef', 'made-up-profile-1'], LINES.stale],
-    [['choose', '7', STAMP, 'made-up-profile-1'], LINES.index],
+    [['choose', '0', '0123456789abcdef', 'everly'], LINES.stale],
+    [['choose', '7', STAMP, 'everly'], LINES.index],
     [['choose', '0', STAMP, 'not-a-profile'], LINES.profile],
     [['choose', '0', STAMP, '../x'], LINES.profile],
     [['choose', '0', STAMP], LINES.usage],
-    [['choose', '-1', STAMP, 'made-up-profile-1'], LINES.usage],
-    [['runtime', 'plan', 'whisper'], LINES.usage],
-    [['runtime', 'install', 'kokoro', 'phonon'], LINES.usage],
+    [['choose', '-1', STAMP, 'everly'], LINES.usage],
+    [['runtime', 'plan', 'phonon'], LINES.usage],
+    [['runtime', 'install', 'phonon'], LINES.usage],
     [['runtime', 'verify', 'phonon'], LINES.usage],
     [['runtime'], LINES.usage],
-    [['runtime', 'plan', 'toString'], LINES.usage],
-    [['runtime', 'install', '__proto__'], LINES.usage],
     [['runtime', 'plan', ''], LINES.usage],
   ];
   for (const [argv, line] of cases) {
@@ -103,22 +101,19 @@ test('choose refuses a stale stamp, an out-of-range index, an unknown profile an
   }
 });
 
-test('no trusted recorder, no microphone, or no Voicebox each give a fixed line', async t => {
+test('no trusted recorder, no microphone, or no installed voice each give a fixed line', async t => {
   for (const [argv, over, line] of [
     [['devices'], { pathValue: '' }, LINES.recorder],
     [['devices'], { list: async () => 'nothing here\n' }, LINES.devices],
-    [['profiles'], { engine: { profiles: async () => null } }, LINES.voicebox],
+    [['profiles'], { engine: { profiles: async () => [] } }, LINES.voices],
   ]) {
     const r = await setup(argv, over);
     assert.deepEqual(r.lines, [line]);
     r.remove();
   }
+  assert.equal(LINES.voicebox, undefined);
 });
 
-// The runtime command against the real pin table (docs/spec/0001, S5.9; issue
-// 674). setup.mjs hands in no table of its own, so no install here can pass a
-// pin: the fake transport answers 404 and logs what was asked, which shows the
-// parts each engine fetches. Nothing goes to the network.
 const UV = win ? win32.join(BIN, 'uv.exe') : posix.join(BIN, 'uv');
 const fsUv = { ...fs, isFile: p => p === RECORDER || p === UV };
 const ARCH = 'x64';
@@ -126,7 +121,6 @@ const basesOf = part => FILES.filter(g => g.part === part).map(g => g.base);
 const notFound = log => async url => (log.push(url.pathname), { status: 404, headers: {}, body: (async function* () {})() });
 const failingUv = async () => ({ code: 1, stdout: '' });
 
-// A file of the real table, at its pinned size and the wrong bytes.
 function put(home, rel, size) {
   const p = join(runtimeDir(home), ...rel.split('/'));
   mkdirSync(join(p, '..'), { recursive: true });
@@ -134,58 +128,54 @@ function put(home, rel, size) {
   truncateSync(p, size);
 }
 const lay = (home, part) => {
+  if (part === 'addon') {
+    const key = platformKey(process.platform, process.arch);
+    for (const a of ARCHIVES.filter(a => a.platform === null || a.platform === key)) for (const [f, size] of a.files) put(home, `${a.dest}/${f}`, size);
+    return;
+  }
+  if (part === 'python') {
+    const py = win ? 'Scripts/python.exe' : 'bin/python';
+    put(home, `py/${py}`, 0);
+    writeFileSync(join(runtimeDir(home), 'py.manifest.json'), JSON.stringify({ files: [[py, 0]] }));
+    return;
+  }
   for (const g of FILES.filter(g => g.part === part)) for (const [f, size] of g.files) put(home, `${g.dest}${f}`, size);
 };
 
-test('runtime plan for an engine skips the speaking part the other engine alone needs; with none named it plans every part', async () => {
-  const skipped = r => r.lines.filter(l => l.includes('skipped not needed'));
+test('runtime plan checks all six unified parts and exits 1 without uv', async () => {
   const bare = await setup(['runtime', 'plan'], { fs: fsUv, arch: ARCH });
   bare.remove();
   assert.equal(bare.code, 0);
-  assert.deepEqual(skipped(bare), []);
   assert.ok(bare.lines.includes('uv found'), bare.lines.join('\n'));
-  for (const part of PARTS) assert.ok(bare.lines.some(l => l.startsWith(`${part} `)), part);
-  for (const [engine, other, kept] of [['kokoro', 'phonon', 'speaking'], ['phonon', 'speaking', 'phonon']]) {
-    const r = await setup(['runtime', 'plan', engine], { fs: fsUv, arch: ARCH });
-    r.remove();
-    assert.equal(r.code, 0, engine);
-    assert.deepEqual(skipped(r), [`${other} skipped not needed by the ${engine} engine`], engine);
-    assert.ok(r.lines.some(l => l.startsWith(`${kept} `) && !l.includes('skipped')), `${engine} plans ${kept}`);
-  }
-  const noUv = await setup(['runtime', 'plan', 'phonon'], { fs: fsUv, arch: ARCH, pathValue: '' });
+  for (const part of PARTS) assert.ok(bare.lines.some(l => l.startsWith(`${part} `) && !l.includes('skipped')), part);
+  const noUv = await setup(['runtime', 'plan'], { fs: fsUv, arch: ARCH, pathValue: '' });
   noUv.remove();
-  assert.ok(noUv.lines.includes('phonon engine unavailable without uv; choose the kokoro engine'), noUv.lines.join('\n'));
+  assert.equal(noUv.code, 1);
+  assert.ok(noUv.lines.includes('uv not found') && noUv.lines.includes('uv is required to install and run incantation'), noUv.lines.join('\n'));
 });
 
-test("runtime install for an engine leaves out the other engine's speaking part and keeps the disk check; Phonon with no uv says so (issue 674)", async () => {
-  const install = async (engine, over = {}) => {
+test('runtime install fetches all shared parts with uv and refuses early without uv or disk', async () => {
+  const install = async (over = {}) => {
     const log = [];
-    const r = await setup(['runtime', 'install', engine], { fs: fsUv, arch: ARCH, transport: notFound(log), runUv: failingUv, free: () => Infinity, env: {}, ...over });
+    const r = await setup(['runtime', 'install'], { fs: fsUv, arch: ARCH, transport: notFound(log), runUv: failingUv, free: () => Infinity, env: {}, ...over });
     r.remove();
     return { ...r, log };
   };
   const asked = (log, part) => log.some(p => basesOf(part).some(b => p.startsWith(b)));
 
-  const kokoro = await install('kokoro');
-  assert.ok(kokoro.lines.includes('phonon skipped not needed by the kokoro engine'), kokoro.lines.join('\n'));
-  assert.ok(asked(kokoro.log, 'speaking'), 'the kokoro engine fetches Kokoro');
-  assert.equal(asked(kokoro.log, 'phonon'), false);
-  assert.equal(kokoro.code, 1, 'every fetch is refused');
+  const withUv = await install();
+  assert.ok(asked(withUv.log, 'hearing') && asked(withUv.log, 'detector'));
+  assert.equal(withUv.code, 1, 'fake 404 transport refuses downloads');
 
-  const phonon = await install('phonon');
-  assert.ok(phonon.lines.includes('speaking skipped not needed by the phonon engine'), phonon.lines.join('\n'));
-  assert.ok(asked(phonon.log, 'hearing'), 'the phonon engine still fetches the shared parts');
-  assert.equal(asked(phonon.log, 'speaking'), false, 'the phonon engine never asks for Kokoro');
-
-  // Exit 1 here comes from the refused fetches as well: the runtime test, on a
-  // table of its own, shows that no uv alone fails the Phonon install.
-  const noUv = await install('phonon', { pathValue: '' });
+  const noUv = await install({ pathValue: '' });
   assert.equal(noUv.code, 1);
-  assert.ok(noUv.lines.includes('phonon skipped no uv'), noUv.lines.join('\n'));
+  assert.deepEqual(noUv.lines, ['python failed no uv']);
+  assert.deepEqual(noUv.log, [], 'nothing is fetched when uv is missing');
 
-  const full = await install('kokoro', { free: () => 0 });
+  const full = await install({ free: () => 0 });
+  assert.equal(full.code, 1);
   assert.deepEqual(full.lines, ['install: not enough free disk space on the home drive']);
-  assert.deepEqual(full.log, [], 'nothing is fetched');
+  assert.deepEqual(full.log, [], 'nothing is fetched when disk is full');
 });
 
 test('runtime verify reports every part as not installed on an empty home, and fails on a file whose bytes are not the pinned ones', async t => {
@@ -202,15 +192,15 @@ test('runtime verify reports every part as not installed on an empty home, and f
   assert.ok(r.lines.includes(`detector failed ${file}`), r.lines.join('\n'));
 });
 
-// profiles with the real sherpa engine, on the home it is handed (issue 674).
-test('profiles with the sherpa engine lists only the voices whose part is installed, and says so when none is', async t => {
+// profiles with the real sherpa engine, on the home it is handed.
+test('profiles with the sherpa engine lists everly when all six runtime parts are present, and says so when not', async t => {
   const none = await setup(['profiles'], { engine: undefined });
   none.remove();
   assert.deepEqual([none.lines, none.code], [[LINES.voices], 1]);
   const home = mkdtempSync(join(tmpdir(), 'incantation-setup-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   ensureState(home);
-  lay(home, 'phonon');
+  for (const part of PARTS) lay(home, part);
   const r = await runSetup(['profiles'], { home, pathValue: BIN, startDir: home, fs });
   assert.deepEqual([r.lines, r.code], [['everly everly (phonon)'], 0]);
 });

@@ -1,4 +1,4 @@
-// Tests of listen.mjs (docs/spec/incantation.md, S6; S6's claims 4, 6, 8, 10,
+// Tests of listen.mjs (docs/spec/0001, S6; S6's claims 4, 6, 8, 10,
 // 11 and 12) against the shared rig's fakes. The same tests run on every
 // platform. incantation-listen-live.test.mjs holds the rest, so the two run
 // side by side. A new test goes in whichever file keeps their run times close.
@@ -25,7 +25,7 @@ test('a turn goes through the engine and a waiter is told what was heard, with t
   const out = await wait(r.home);
   assert.match(out, /^Heard: "hello there"$/m);
   assert.match(out, /^timing: wait 300 stt \d+$/m);
-  assert.match(out, /^ready 42 voice made-up-profile$/m);
+  assert.match(out, /^ready 42 voice everly$/m);
   assert.equal(r.engine.calls, 1);
   assert.deepEqual(r.recorder.spawned[0].file, RECORDER);
 });
@@ -199,16 +199,6 @@ test('T13: a second wait while one is live says a wait is already running, and d
   assert.equal(await cli(r.home, 'ping'), 'alive\n');
   await l.stop();
   await first;
-});
-
-test('a feed that fails ends the listener with playback, capturing nothing more', async t => {
-  const r = rig();
-  t.after(r.cleanup);
-  const l = await r.start();
-  r.engine.feed.emit('error', new Error('x'));
-  assert.equal(await l.done, 'playback');
-  assert.equal(r.recorder.killed, true);
-  assert.deepEqual(r.recorder.signals, [process.platform === 'darwin' ? 'SIGINT' : 'SIGTERM'], 'the listener stops its recorder through stopRecorder, with the signal for its platform');
 });
 
 test('three seconds of all-zero frames at start end it with mic', async t => {
@@ -439,7 +429,7 @@ test('wait prints only lines in the listener grammar, so a stray server on the p
   for (const stray of ['HTTP/1.1 200 OK', 'Heard: "a" and more', 'Heard: "open', 'ready 1 voice ../x', 'listener error made-up', 'plays many', 'Run rm -rf now', ' mic-muted', 'muted', 'quiet', 'quiet many']) assert.equal(waitLines(stray), '', stray);
 });
 
-test('each delivery says how many playbacks began since the last one: the listener\'s own, and any another caller makes through Voicebox itself', async t => {
+test('each delivery says how many playbacks began since the last one: the listener\'s own replies', async t => {
   const r = rig();
   t.after(r.cleanup);
   const l = await r.start();
@@ -456,21 +446,10 @@ test('each delivery says how many playbacks began since the last one: the listen
   assert.match(await wait(r.home), /^plays 1$/m);
   await play('Two.');
   await play('Three.');
-  r.engine.feed.emit('start', { at: 0, id: 'someone-else' });
-  assert.notEqual(statusOf(r.home), 'speaking', 'another caller\'s reply starts and ends on the feed within a second, so it is counted and never shown as playing');
   r.turn();
-  assert.match(await wait(r.home), /^plays 3$/m);
+  assert.match(await wait(r.home), /^plays 2$/m);
   r.turn();
   assert.match(await wait(r.home), /^plays 0$/m);
-});
-
-test('the mic stays closed until the playback feed answers, and a feed that never answers ends it with playback', async t => {
-  const engine = fakeEngine();
-  engine.playback = () => engine.feed; // never opens
-  const r = rig({ engine, knobs: { feedOpenMs: 100 } });
-  t.after(r.cleanup);
-  await assert.rejects(r.start(), { reason: 'playback' });
-  assert.equal(r.recorder.spawned.length, 0);
 });
 
 test('it starts with a link or junction in place of the state folder, and keeps its files behind it', async t => {

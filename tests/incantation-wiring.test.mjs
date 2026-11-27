@@ -36,17 +36,14 @@ const wait = home => ask(readChannel(home), 'wait', 5000);
 async function rig(t, { text = 'hello there', ...layers } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-wiring-'));
   ensureState(home);
-  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'p', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300 }));
-  const feed = Object.assign(new EventEmitter(), { close() {} });
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'sherpa', profile: 'everly', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300 }));
   const engine = {
     calls: 0,
-    feed,
     tailMs: 300,
     health: async () => true,
     warm: async () => 42,
     synthesize: async () => Buffer.from('RIFF-made-up-audio'),
     transcribe: async () => (engine.calls++, typeof text === 'function' ? text(engine.calls) : text),
-    playback: () => (setImmediate(() => feed.emit('open')), feed),
   };
   const child = new EventEmitter();
   child.stdout = new PassThrough();

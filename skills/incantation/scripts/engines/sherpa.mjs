@@ -1,11 +1,10 @@
-// The sherpa-onnx engine (docs/spec/0001, S5.10). Parakeet TDT 0.6b v2 hears,
-// Kokoro 1.0 or Phonon speaks. The addon and the models come from the runtime
-// folder (runtime/install.mjs fetches and checks them); nothing here downloads,
-// opens a port or changes PATH. The provider is `cpu` everywhere (O6). The
-// models load once, in the listener's own process, and stay warm; Phonon runs
-// in its own worker, from the runtime's own interpreter.
+// The sherpa-onnx engine (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md).
+// Parakeet TDT 0.6b v2 hears, Phonon speaks. The addon and the models come from
+// the runtime folder (runtime/install.mjs fetches and checks them); nothing here
+// downloads, opens a port or changes PATH. The provider is `cpu` everywhere (O6).
+// Parakeet loads once in the listener's own process; Phonon runs in its own
+// worker, from the runtime's own interpreter.
 
-import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
@@ -13,14 +12,12 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { spawn as nodeSpawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { stateDir } from '../lib.mjs';
+import { VOICES, isProfile, stateDir } from '../lib.mjs';
 import { checkRuntime, platformKey, pythonExe, runtimeDir, workerEnv } from '../runtime/install.mjs';
 
+export { VOICES, isProfile };
+
 const RATE = 16_000;
-// Kokoro 1.0 speaker ids for the voices offered here.
-const VOICES = Object.freeze({ bella: 2 });
-// Phonon voices, spoken by phonon-worker.py, kept loaded in its own process.
-const PHONON = Object.freeze({ everly: 'Everly' });
 const PHONON_WORKER = fileURLToPath(new URL('./phonon-worker.py', import.meta.url));
 const PROVIDER = 'cpu';
 
@@ -97,40 +94,20 @@ function wav16(samples, rate) {
 
 // `load` loads the addon, `spawn` starts a worker, `exists` checks a file: all
 // replaceable by a test. Everything else comes from the settings and the home.
-export function makeEngine({ port, profile, home = homedir(), platform = process.platform, arch = process.arch, env = process.env, load, spawn = nodeSpawn, exists = existsSync, pins } = {}) {
+export function makeEngine({ profile, home = homedir(), platform = process.platform, arch = process.arch, env = process.env, load, spawn = nodeSpawn, exists = existsSync, pins } = {}) {
   let sherpa = null;
-  let tts = null;
   let asr = null;
   const key = platformKey(platform, arch);
   const root = runtimeDir(home);
-  const sid = Object.hasOwn(VOICES, profile) ? VOICES[profile] : VOICES.bella;
-  const phononVoice = Object.hasOwn(PHONON, profile) ? PHONON[profile] : undefined;
+  const phononVoice = isProfile(profile) ? VOICES[profile] : undefined;
   let phonon = null;
 
   const loadAddon = load ?? (() => createRequire(import.meta.url)(join(root, 'node_modules', 'sherpa-onnx-node')));
   const loadModels = () => {
     if (sherpa) return;
+    if (!phononVoice) throw new Error('profile');
     sherpa = loadAddon();
-    if (phononVoice) phonon = phononWorker(phononVoice, { python: pythonExe(home, platform), home, spawn, env, platform });
-    const k = join(root, 'kokoro');
-    if (!phonon) {
-      tts = new sherpa.OfflineTts({
-        model: {
-          kokoro: {
-            model: join(k, 'model.onnx'),
-            voices: join(k, 'voices.bin'),
-            tokens: join(k, 'tokens.txt'),
-            dataDir: join(k, 'espeak-ng-data'),
-            dictDir: join(k, 'dict'),
-            lexicon: join(k, 'lexicon-us-en.txt'),
-          },
-          numThreads: 4,
-          provider: PROVIDER,
-          debug: false,
-        },
-        maxNumSentences: 1,
-      });
-    }
+    phonon = phononWorker(phononVoice, { python: pythonExe(home, platform), home, spawn, env, platform });
     const p = join(root, 'parakeet');
     asr = new sherpa.OfflineRecognizer({
       featConfig: { sampleRate: RATE, featureDim: 80 },
@@ -166,30 +143,25 @@ export function makeEngine({ port, profile, home = homedir(), platform = process
   return {
     name: 'sherpa',
     host: '127.0.0.1',
-    port,
     capture: 'ffmpeg',
     tailMs: VALUES.tailMs.value,
-    // Cheap: the core files are there. Loading is warm()'s job, off the guard's clock.
+    // Cheap: all six runtime parts and the worker interpreter are present.
     async health() {
-      if (!checkRuntime(home, key, pins, phononVoice ? 'phonon' : 'kokoro').core) return false;
-      return phononVoice ? exists(pythonExe(home, platform)) : true;
+      if (!checkRuntime(home, key, pins).ok) return false;
+      return exists(pythonExe(home, platform));
     },
     transcribe,
-    // A voice is offered only when its engine's part is installed: a voice the
-    // guard would refuse is not one to pick.
+    // A voice is offered only when the full runtime and its worker interpreter
+    // are present: a voice the guard would refuse is not one to pick.
     async profiles() {
-      const { states } = checkRuntime(home, key, pins);
-      return [
-        ...(states.speaking === 'ok' ? Object.keys(VOICES).map(id => ({ id, name: id, engine: 'kokoro' })) : []),
-        ...(states.phonon === 'ok' ? Object.keys(PHONON).map(id => ({ id, name: id, engine: 'phonon' })) : []),
-      ];
+      const rt = checkRuntime(home, key, pins);
+      return rt.ok && exists(pythonExe(home, platform)) ? Object.keys(VOICES).map(id => ({ id, name: id, engine: 'phonon' })) : [];
     },
-    // Loads both models and runs each once, so the first real line is warm.
+    // Loads Parakeet and the Phonon worker and runs each once, so the first real line is warm.
     async warm() {
       const began = performance.now();
       loadModels();
-      if (phonon) await phonon.ready;
-      else tts.generate({ text: 'Okay.', sid, speed: 1.0 });
+      await phonon.ready;
       if ((await transcribe(Buffer.alloc(RATE * 2))) === null) throw new Error('warm');
       return Math.round(performance.now() - began);
     },
@@ -197,26 +169,15 @@ export function makeEngine({ port, profile, home = homedir(), platform = process
       if (typeof text !== 'string' || !text) return null;
       try {
         loadModels();
-        if (phonon) {
-          const r = await phonon.say(text);
-          if (!r) return null;
-          const pcm = Buffer.from(r.pcm, 'base64');
-          const samples = new Float32Array(pcm.length / 2);
-          for (let i = 0; i < samples.length; i++) samples[i] = pcm.readInt16LE(i * 2) / 32768;
-          return wav16(samples, r.rate);
-        }
-        const audio = tts.generate({ text, sid, speed: 1.0 });
-        return wav16(audio.samples, audio.sampleRate);
+        const r = await phonon.say(text);
+        if (!r) return null;
+        const pcm = Buffer.from(r.pcm, 'base64');
+        const samples = new Float32Array(pcm.length / 2);
+        for (let i = 0; i < samples.length; i++) samples[i] = pcm.readInt16LE(i * 2) / 32768;
+        return wav16(samples, r.rate);
       } catch {
         return null;
       }
-    },
-    // No other caller speaks through this engine, so the feed only opens.
-    playback() {
-      const feed = new EventEmitter();
-      feed.close = () => {};
-      setImmediate(() => feed.emit('open'));
-      return feed;
     },
   };
 }
