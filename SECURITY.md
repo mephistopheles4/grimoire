@@ -195,7 +195,8 @@ words. It asks no permission. What follows from it:
   check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; the threat model leaves this to the machine: a forged file from a program
   running as the owner is the machine's, as is one from another plugin; from a
-  branch's code or a steered session it is an open issue. A step the transcript would not count restarts the
+  branch's code, a steered session or a tool fed outside input it is an open
+  issue. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
@@ -452,8 +453,8 @@ keep waiting still waits: an install, a post carrying
 private work, a merge that changes the threat model's scope or accepted classes,
 and an edit to its scope, its naming line, or an accepted class that widens the level-3 leave. The control is the
 log and the flag, which the owner reviews after the fact; the log rests on
-the decision files, whose planting by a branch's code or a steered session is
-still an open issue of the threat model. A 3 it sets, or a 2 with a goal, carries its goal, which is
+the decision files, whose planting by a branch's code, a steered session or a tool fed
+outside input is still an open issue of the threat model. A 3 it sets, or a 2 with a goal, carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another mode command, a

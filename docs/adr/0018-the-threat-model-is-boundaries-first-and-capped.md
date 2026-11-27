@@ -6,8 +6,8 @@
 > stands.
 >
 > Also partly superseded by GRIM-77: another installed plugin, or any other
-> outside tool, is now out of scope, so other plugins no longer sit on the
-> install boundary.
+> tool on the machine, is now out of scope, so other plugins no longer sit on
+> the install boundary.
 
 Accepted, from issue 596 (ticket 3 of the-pact issue 542).
 
