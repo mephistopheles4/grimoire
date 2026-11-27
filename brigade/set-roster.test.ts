@@ -182,8 +182,8 @@ const PROBES = [MAC_PROBE, LINUX_PROBE]
 const asProbe = (path: string) => PROBES.find(p => p === path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/'))
 const OPENERS = ['explorer.exe', '/usr/bin/open', '/usr/bin/xdg-open']
 // A probe's answer: a stat as the engine gives it, or a rejection's message.
-type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean; realPath?: string } | { reject: string }
-const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 0, isLink: false, ...(realPath === undefined ? {} : { realPath }) })
+type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean } | { reject: string }
+const A_FILE: Probe = { kind: 'file', size: 1, mtimeMs: 0, isLink: false }
 
 // The world's host is read from this file's address; the engine's own `cwd`
 // on a classic event is a second witness. If the two disagreed, the junction
@@ -424,19 +424,17 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   w.clock = mock.clock(on)
   on('fs.stat', async ($, e: any) => {
     if (w.holdStat) await new Promise<void>(res => { const before = w.releaseStat; w.releaseStat = () => { before(); res() } })
-    // The host probes are answered from `w.probes`, with the real path exactly
-    // as written, before the Windows-shaped file system. On Windows the engine
-    // hands the hook an absolute Unix path resolved under the current drive's
-    // root (`C:\System\…`), so a probe is known by its path with the drive
-    // letter dropped and its separators made `/`.
+    // The host probes are answered from `w.probes`, before the Windows-shaped
+    // file system. On Windows the engine hands the hook an absolute Unix path
+    // resolved under the current drive's root, so a probe is known by its path
+    // with the drive letter dropped and its separators made `/`.
     const probe = asProbe(e.path)
     if (probe !== undefined) {
       w.probed.push(probe)
       const p = w.probes[probe]
       if (p === undefined) return { deny: ENOENT }
       if ('reject' in p) return { deny: p.reject }
-      // As the engine: a real path only when the caller asked to resolve.
-      return { value: e.resolve ? p : { ...p, realPath: undefined } }
+      return { value: p }
     }
     w.log.push(`stat ${e.path}`)
     const s = w.stat(e.path)
@@ -1409,12 +1407,12 @@ async function background(on: On, $: any) {
 }
 const macos = (w: World) => {
   w.env = {}
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+  w.probes = { [MAC_PROBE]: A_FILE }
 }
 // The macOS probe file is missing, so it rejects with ENOENT.
 const linux = (w: World) => {
   w.env = {}
-  w.probes = { [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  w.probes = { [LINUX_PROBE]: A_FILE }
 }
 
 test('on macOS, a press on a background card with a Remote Control link runs /usr/bin/open with that link and nothing else', async ($, on) => {
@@ -1446,56 +1444,21 @@ test('on a system the pane cannot identify, a press runs nothing and says there 
   expect(w.toasts.at(-1)).toBe(NO_OPENER)
 })
 
-test('on Windows, planted probe files are never looked at, and the press runs explorer.exe', async ($, on) => {
-  const w = await background(on, $)
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await act(mounted, 'desktop', 'open-2-gamma')
-  expect(w.probed).toEqual([])
-  expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
-})
-
 for (const env of [{ SystemRoot: 'C:\\Windows' }, { windir: 'C:\\Windows' }, { OS: 'Windows_NT' }]) {
   test(`Windows is known from ${Object.keys(env)[0]} alone, before any probe`, async ($, on) => {
     const w = await background(on, $)
     w.env = env
-    w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+    w.probes = { [MAC_PROBE]: A_FILE }
     await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([])
     expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
   })
 }
 
-// All three variables unset on Windows: the probes resolve under the drive's
-// root, where anyone can plant them, so their real paths are not Unix ones.
-for (const [name, mac, lin] of [
-  ['drive-letter', 'C:\\System\\Library\\CoreServices\\SystemVersion.plist', 'C:\\usr\\bin\\xdg-open'],
-  ['drive-letter with forward slashes', 'C:/System/Library/CoreServices/SystemVersion.plist', 'C:/usr/bin/xdg-open'],
-  ['backslash share-rooted', '\\\\server\\share\\System\\Library\\CoreServices\\SystemVersion.plist', '\\\\server\\share\\usr\\bin\\xdg-open'],
-  ['forward-slash share-rooted', '//server/share/System/Library/CoreServices/SystemVersion.plist', '//server/share/usr/bin/xdg-open'],
-] as const) {
-  test(`probe files with ${name} real paths and no Windows variable run nothing and say there is no opener`, async ($, on) => {
-    const w = await background(on, $)
-    w.env = {}
-    w.probes = { [MAC_PROBE]: fileAt(mac), [LINUX_PROBE]: fileAt(lin) }
-    await act(mounted, 'desktop', 'open-2-gamma')
-    expect(openers(w)).toEqual([])
-    expect(w.toasts.at(-1)).toBe(NO_OPENER)
-  })
-}
-
-test('a planted macOS probe with a bad real path stops there: the Linux probe is not asked', async ($, on) => {
-  const w = await background(on, $)
-  w.env = {}
-  w.probes = { [MAC_PROBE]: fileAt('C:\\System\\Library\\CoreServices\\SystemVersion.plist'), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await act(mounted, 'desktop', 'open-2-gamma')
-  expect(w.probed).toEqual([MAC_PROBE])
-  expect(openers(w)).toEqual([])
-})
-
 test('an environment read that rejects means no host: no probe, no process, and the no-opener toast', async ($, on) => {
   const w = await background(on, $)
   w.failEnv = true
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+  w.probes = { [MAC_PROBE]: A_FILE }
   await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([])
   expect(openers(w)).toEqual([])
@@ -1505,7 +1468,7 @@ test('an environment read that rejects means no host: no probe, no process, and 
 test('a probe that rejects other than as missing means no host, and the next probe is not asked', async ($, on) => {
   const w = await background(on, $)
   w.env = {}
-  w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: A_FILE }
   await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE])
   expect(openers(w)).toEqual([])
@@ -1513,14 +1476,13 @@ test('a probe that rejects other than as missing means no host, and the next pro
 })
 
 for (const [name, probe] of [
-  ['no real path', fileAt()],
-  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
-  ['something other than a file', { kind: 'other', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false }],
+  ['something other than a file', { kind: 'other', size: 0, mtimeMs: 0, isLink: false }],
 ] as const) {
   test(`a probe that answers with ${name} means no host`, async ($, on) => {
     const w = await background(on, $)
     w.env = {}
-    w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+    w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: A_FILE }
     await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([MAC_PROBE])
     expect(openers(w)).toEqual([])
@@ -1588,11 +1550,7 @@ test('a press on another link runs while one link is in flight', async ($, on) =
 // Spec v4, decision 1: the Linux probe is held to the same checks as the
 // macOS one, reached when the macOS probe file is missing.
 for (const [name, probe] of [
-  ['a drive-letter real path', fileAt('C:\\usr\\bin\\xdg-open')],
-  ['a backslash share-rooted real path', fileAt('\\\\server\\share\\usr\\bin\\xdg-open')],
-  ['a forward-slash share-rooted real path', fileAt('//server/share/usr/bin/xdg-open')],
-  ['no real path', fileAt()],
-  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: LINUX_PROBE }],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false }],
   ['a rejection other than missing', { reject: 'EACCES: permission denied' }],
 ] as const) {
   test(`with the macOS probe missing, a Linux probe that answers with ${name} means no host`, async ($, on) => {
@@ -9928,7 +9886,7 @@ async function startWorld(on: On, $: any, planted: unknown = undefined, offer = 
     liveRows(w, [{ name: LEAD_NAME, status: 'idle', sessionId: SID, cwd: 'C:\\work' }])
   })
   w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: 'C:\\src' } : { PATH: BIN, HOME: '/src' }
-  if (!ON_WINDOWS) w.probes = { [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  if (!ON_WINDOWS) w.probes = { [LINUX_PROBE]: A_FILE }
   const out: Out = { origin: asRun(ORIGIN_OK), start: argv => asRun(`backgrounded · ab12cd34 · ${argv[3]}\n  claude agents\n  attach ab12cd34\n`) }
   w.procHook = async (e: any) => {
     if (e.argv[0] === exe('git')) return out.origin
@@ -9987,7 +9945,7 @@ test('543 C8: with a program missing, in the folder or only a .cmd shim, or a ho
     w.env = { PATH: BIN }
     w.probes = {}
     expect((await startTool($)).text).toBe(refusedStart('host: the host could not be told, so no program is looked up'))
-    w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+    w.probes = { [MAC_PROBE]: A_FILE }
   }
   w.drop(exe('claude'))
   expect((await startTool($)).text).toBe(refusedStart('program: not found on PATH'))

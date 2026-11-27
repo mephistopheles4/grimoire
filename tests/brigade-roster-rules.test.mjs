@@ -252,10 +252,10 @@ test('appLink is unchanged: a checked Desktop id, else a Remote Control link, el
 });
 
 // Spec v4 on #220, decisions 1 and 4. The link route's program by host, and
-// the real-path shape a Unix answer needs. The host reads themselves are held
-// by brigade/set-roster.test.ts under the engine's runner.
+// what a probe's answer says. The host reads themselves are held by
+// brigade/set-roster.test.ts under the engine's runner.
 
-const { HOST_PROBES, openerArgv, probeHost, unixRealPath, windowsEnv } = roster;
+const { HOST_PROBES, openerArgv, probeHost, windowsEnv } = roster;
 
 test('openerArgv gives the one program for each host and the link, as two entries', () => {
   for (const link of ['claude://claude.ai/epitaxy/' + LOCAL, 'claude://claude.ai/code/session_ABC123']) {
@@ -263,26 +263,6 @@ test('openerArgv gives the one program for each host and the link, as two entrie
     assert.deepEqual(openerArgv('macos', link), ['/usr/bin/open', link]);
     assert.deepEqual(openerArgv('linux', link), ['/usr/bin/xdg-open', link]);
     for (const os of ['windows', 'macos', 'linux']) assert.equal(openerArgv(os, link).length, 2);
-  }
-});
-
-test('a Unix answer needs a raw real path with one leading / then a non-separator, and no \\ anywhere', () => {
-  for (const p of ['/System/Library/CoreServices/SystemVersion.plist', '/usr/bin/xdg-open', '/x']) {
-    assert.equal(unixRealPath(p), true, p);
-  }
-  for (const p of [
-    'C:\\System\\Library\\CoreServices\\SystemVersion.plist',
-    'C:/System/Library/CoreServices/SystemVersion.plist',
-    '\\\\server\\share\\System\\Library\\CoreServices\\SystemVersion.plist',
-    '//server/share/System/Library/CoreServices/SystemVersion.plist',
-    '/\\server\\share',
-    '/usr\\bin\\xdg-open',
-    '\\usr\\bin\\xdg-open',
-    'usr/bin/xdg-open',
-    '/',
-    '',
-  ]) {
-    assert.equal(unixRealPath(p), false, p);
   }
 });
 
@@ -304,17 +284,14 @@ test('the probes are macOS then Linux, at their fixed paths', () => {
   ]);
 });
 
-test('a probe names its host only for a file with a Unix real path; missing asks the next; anything else is no host', () => {
-  const file = (realPath) => ({ found: { kind: 'file', size: 1, isLink: false, realPath } });
-  assert.equal(probeHost('macos', file('/System/Library/CoreServices/SystemVersion.plist')), 'macos');
-  assert.equal(probeHost('linux', file('/usr/bin/xdg-open')), 'linux');
+test('a probe names its host for a file; missing asks the next; anything else is no host', () => {
+  const answer = (kind) => ({ found: { kind, size: 1, isLink: false } });
+  assert.equal(probeHost('macos', answer('file')), 'macos');
+  assert.equal(probeHost('linux', answer('file')), 'linux');
   assert.equal(probeHost('macos', { missing: true }), 'next');
   assert.equal(probeHost('macos', { failed: 'EACCES' }), undefined);
-  assert.equal(probeHost('linux', { found: { kind: 'dir', size: 1, isLink: false, realPath: '/usr/bin/xdg-open' } }), undefined);
-  assert.equal(probeHost('linux', { found: { kind: 'other', size: 1, isLink: false, realPath: '/usr/bin/xdg-open' } }), undefined);
-  assert.equal(probeHost('linux', file(undefined)), undefined);
-  assert.equal(probeHost('macos', file('C:\\System\\Library\\CoreServices\\SystemVersion.plist')), undefined);
-  assert.equal(probeHost('macos', file('\\\\server\\share\\SystemVersion.plist')), undefined);
+  assert.equal(probeHost('linux', answer('dir')), undefined);
+  assert.equal(probeHost('linux', answer('other')), undefined);
 });
 
 test('the tool is listed only under its exact name, in a list', () => {
