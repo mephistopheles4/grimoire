@@ -3,11 +3,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, truncateSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { stampOf } from '../skills/incantation/scripts/capture/ffmpeg.mjs';
-import { deviceDigest, keyPath, parseSettings, readKey, ensureState, settingsPath } from '../skills/incantation/scripts/lib.mjs';
+import { deviceDigest, parseSettings, readKey, ensureState, settingsPath } from '../skills/incantation/scripts/lib.mjs';
 import { FILES } from '../skills/incantation/scripts/runtime/pins.mjs';
 import { PARTS, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 import { LINES, runSetup } from '../skills/incantation/scripts/setup.mjs';

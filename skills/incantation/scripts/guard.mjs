@@ -20,11 +20,11 @@ export const LINES = {
   node: 'guard: Node 24 or later is needed. See README step 1.',
   settings: 'guard: the settings are missing or out of range. Run /incantation install.',
   engine: 'guard: the speech engine in the settings is not one Incantation knows. Run /incantation install.',
-  state: 'guard: the ~/.grimoire/incantation folder cannot be used: a folder is missing, or something else stands where one belongs. Run /incantation install.',
+  state: "guard: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. Run /incantation install.",
   health: 'guard: Voicebox is not answering on this machine. Start it: README step 1.',
   runtime: 'guard: the speech runtime is not installed, or a file of it is missing or the wrong size. Run /incantation install.',
   reach: 'guard: Voicebox answers on an address other than this machine. See README step 2.',
-  recorder: 'guard: ffmpeg is not where setup found it, or is not trusted. Run /incantation install.',
+  recorder: 'guard: ffmpeg is not where setup found it. Run /incantation install.',
   late: 'guard: the check took too long. See README step 1.',
 };
 

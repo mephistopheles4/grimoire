@@ -453,7 +453,7 @@ export async function installRuntime(o) {
     rmSync(partial, { recursive: true, force: true });
     ensureFolder(partial);
   } catch {
-    return { lines: ['install: the ~/.grimoire/incantation folder cannot be used: something else stands where a folder belongs'], code: 1 };
+    return { lines: ["install: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place."], code: 1 };
   }
   let failed = false;
 

@@ -17,14 +17,14 @@ import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, deviceDigest, ensureKey, r
 
 export const LINES = {
   usage: 'usage: setup.mjs devices | profiles | choose <index> <stamp> <profile id> | runtime plan [kokoro | phonon] | install [kokoro | phonon] | verify',
-  recorder: 'setup: ffmpeg was not found in a trusted folder on PATH. See README step 1.',
+  recorder: 'setup: ffmpeg was not found on an absolute PATH entry outside this folder. See README step 1.',
   devices: 'setup: ffmpeg listed no microphone. See README step 4.',
   stale: 'setup: the microphone list changed since you listed it. Run setup.mjs devices again.',
   index: 'setup: there is no microphone with that index.',
   voicebox: 'setup: Voicebox is not answering on this machine. Start it: README step 1.',
   profile: 'setup: Voicebox has no profile with that id. Run setup.mjs profiles.',
   voices: 'setup: no voice is installed. Run setup.mjs runtime install first.',
-  state: 'setup: the ~/.grimoire/incantation folder cannot be used: something else stands where a folder or file belongs. See README step 3.',
+  state: "setup: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. See README step 3.",
   failed: 'setup: could not save the settings.',
   saved: 'setup: saved. Run /incantation in a session.',
 };

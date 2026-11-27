@@ -195,15 +195,17 @@ test('--out refuses a draft its check refuses, and writes no page', () => {
   assert.ok(!existsSync(target));
 });
 
-test('--out sets no mode: an earlier page of its own keeps the mode it has, and so does the draft', { skip: !posix && 'POSIX modes' }, () => {
+test('--out sets no mode: a new page takes the default, and an earlier page keeps the mode it has', { skip: !posix && 'POSIX modes' }, () => {
   const dir = scratch();
   const draft = derive(example, null, dir, 'draft.interview.json');
-  chmodSync(draft, 0o644);
   const target = join(dir, 'interview.html');
   render(draft, target);
+  const plain = join(dir, 'plain.txt');
+  writeFileSync(plain, 'x');
+  assert.equal(statSync(target).mode & 0o777, statSync(plain).mode & 0o777, 'a new page');
   chmodSync(target, 0o640);
   render(draft, target);
-  assert.deepEqual([statSync(target).mode & 0o777, statSync(draft).mode & 0o777], [0o640, 0o644]);
+  assert.equal(statSync(target).mode & 0o777, 0o640, 'an earlier page');
 });
 
 /* -- claim 5: what a question shows before a pick ---------------------------- */

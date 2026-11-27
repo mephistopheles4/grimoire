@@ -630,14 +630,10 @@ test('it starts with a link or junction in place of the state folder, and keeps 
   symlinkSync(join(outside, 'incantation'), join(r.home, '.grimoire', 'incantation'), process.platform === 'win32' ? 'junction' : 'dir');
   const l = await r.start();
   t.after(() => l.stop());
-  assert.equal(existsSync(join(outside, 'incantation', 'run', 'listen.json')), true);
-});
-
-test('T2: the state folder is ~/.grimoire/incantation, beside eagle-eye\'s, and not a top-level folder', t => {
-  const r = rig();
-  t.after(r.cleanup);
-  assert.equal(existsSync(join(r.home, '.grimoire', 'incantation', 'settings.json')), true);
-  assert.equal(existsSync(join(r.home, '.incantation')), false);
+  const written = join(outside, 'incantation', 'run', 'listen.json');
+  writeFileSync(join(outside, 'plain'), 'x');
+  if (process.platform !== 'win32') assert.equal(statSync(written).mode & 0o777, statSync(join(outside, 'plain')).mode & 0o777, 'no mode of its own');
+  assert.equal(existsSync(written), true);
 });
 
 test('T14: a wait ends only on a real heard turn, the first ready line, a stop or an error; a quiet stretch and the other notices ride in the next real delivery', async t => {

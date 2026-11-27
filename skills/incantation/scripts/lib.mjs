@@ -1,6 +1,6 @@
 // Shared by the Incantation scripts. No dependencies: node built-ins only.
 // Nothing here reads the environment or the working folder: each caller hands
-// in the home folder, and the platform when it matters.
+// in the home folder.
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync, renameSync, rmSync } from 'node:fs';
