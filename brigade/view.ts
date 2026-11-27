@@ -112,10 +112,9 @@ export function snapshotFrom(reading: unknown): UsageSnapshot {
   return out
 }
 
-/** A stored snapshot checked again before it is drawn, by the same rules.
- *  Only `snapshotFrom` writes it, but plugin state is the engine's, and the
- *  engine lets another plugin rewrite a value as it is set: a value of the
- *  wrong shape draws as far as it checks, and never throws. */
+/** A stored snapshot checked again before it is drawn, by the same rules: it
+ *  may be an older version's, so a value of the wrong shape draws as far as it
+ *  checks, and never throws. */
 export function storedSnapshot(stored: unknown): UsageSnapshot {
   if (!isRecord(stored)) return { limits: [], context: {} }
   const out: UsageSnapshot = { limits: limitsFrom(stored.limits, 'percent'), context: contextFrom(stored.context) }
@@ -615,8 +614,8 @@ const MAX_TICKS = 50
 
 /** The stored ticks, checked again: a list of pairs whose name is text within
  *  the stored cap, the first of a repeated name kept, at most 50. A value
- *  that is not text is kept as an empty value, which the sweep counts as due.
- *  Plugin state is the engine's, and another plugin may rewrite it. */
+ *  that is not text is kept as an empty value, which the sweep counts as
+ *  due. */
 export function ticksFrom(stored: unknown): Pair[] {
   const out: Pair[] = []
   if (!Array.isArray(stored)) return out
@@ -631,8 +630,7 @@ export function ticksFrom(stored: unknown): Pair[] {
 }
 
 /** The stored done list, checked again: the text entries of a list, and
- *  nothing from any other shape, so a value another plugin wrote cannot make
- *  the render throw. */
+ *  nothing from any other shape. */
 export function idsFrom(stored: unknown): string[] {
   return Array.isArray(stored) ? stored.filter((v): v is string => typeof v === 'string') : []
 }
@@ -643,12 +641,10 @@ export function toggleTick(stored: unknown, id: string, now: number): Pair[] {
   return ticking.some(p => p.name === id) ? ticking.filter(p => p.name !== id) : [...ticking, { name: id, value: String(now) }]
 }
 
-// Due: the grace period has passed, the time is not a number, or the time is
-// more than a grace period ahead of the clock, so a planted far-future time
-// cannot keep a to-do crossed out for good.
+// Due: the grace period has passed, or the time is not a number.
 const isDue = (p: Pair, now: number) => {
   const age = now - Number(p.value)
-  return !Number.isFinite(age) || age >= GRACE_MS || age <= -GRACE_MS
+  return !Number.isFinite(age) || age >= GRACE_MS
 }
 
 /** The sweep: a tick whose to-do is no longer in the roster is dropped, a due
@@ -708,10 +704,10 @@ export async function settleTicks(
 // The cards sit in two groups by the status the head chef wrote: Working
 // (working and idle) and Done · stopped. Any group folds on a press, and
 // STARTS_FOLDED in register.tsx says which start folded. The stored
-// roster is drawn as stored, and another plugin can rewrite it, so a status is
-// read only through the fixed Map below: one outside the four words, or one
-// that names a prototype key, has no look and counts nowhere. No key, class or
-// text is ever built from the status text.
+// roster is drawn as stored, so a status is read only through the fixed Map
+// below: one outside the four words, or one that names a prototype key, has no
+// look and counts nowhere. No key, class or text is ever built from the status
+// text.
 
 /** How a status draws: its glyph, word, theme colour key, SVG class and
  *  group. Colour is never the only signal: the glyph and word go with it. */
@@ -805,9 +801,9 @@ function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves, wait
 
 // --- views, folds, selection and the redesigned pane -----------------------------
 //
-// The pane's own values are plugin state another plugin can rewrite, so each is
-// read through a fixed set or a fixed shape and a length cap, and a value that
-// fails reads as empty.
+// The pane's own values may be an older version's, so each is read through a
+// fixed set or a fixed shape and a length cap, and a value that fails reads as
+// empty.
 
 /** The groups that fold, in the order the pane draws them: the Sessions
  *  view's three, the Pull requests view's three and the Decisions tab's
@@ -1573,9 +1569,8 @@ export function liveFrom(stored: unknown): Live[] {
   return out
 }
 
-/** The stored warmth records, checked again: plugin state is the engine's,
- *  and another plugin may rewrite it. A record of the wrong shape goes, a
- *  repeated name keeps the first, and at most 50 stay. */
+/** The stored warmth records, checked again: a record of the wrong shape
+ *  goes, a repeated name keeps the first, and at most 50 stay. */
 export function warmthFrom(stored: unknown): Warmth[] {
   const out: Warmth[] = []
   if (!Array.isArray(stored)) return out
@@ -1757,9 +1752,8 @@ function seriesFrom(v: unknown, exact: boolean): number[] | undefined {
   return out
 }
 
-/** The stored meters, checked again before they are drawn: plugin state is
- *  the engine's, and another plugin may rewrite it. A record goes unless its
- *  name is text of 1 to 300 characters not seen before, `at` a finite
+/** The stored meters, checked again before they are drawn. A record goes
+ *  unless its name is text of 1 to 300 characters not seen before, `at` a finite
  *  number, `window` absent or exactly 200,000 or 1,000,000, `burn` absent or
  *  exactly 30 whole numbers from 0 to 30,000,000, and `context` absent or at
  *  most 30 such numbers. At most 50 stay, each copied field by field into a
@@ -2431,13 +2425,12 @@ const REFUSAL_LINES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   ['file', 'not a summary file'],
 ])
 const MAX_REFUSALS = 50
-// At most this many stored entries are looked at, kept or not, so a list
-// another plugin rewrote costs a bounded walk.
+// At most this many stored entries are looked at, kept or not, so a long list
+// costs a bounded walk.
 const MAX_REFUSALS_LOOKED = 200
 
-/** The stored refusal pairs, checked again: plugin state is the engine's, and
- *  another plugin may rewrite it. A pair goes unless its name is text of 1 to
- *  300 characters not seen before and its value one of the two kind words;
+/** The stored refusal pairs, checked again. A pair goes unless its name is
+ *  text of 1 to 300 characters not seen before and its value one of the two kind words;
  *  at most 50 stay, each copied into a new pair, and at most the first 200
  *  entries are looked at. */
 export function refusalsFrom(stored: unknown): Pair[] {
@@ -3144,17 +3137,6 @@ export function serializeSummary(s: Summary): { value: string } | { error: strin
   if (bytes > MAX_SUMMARY_BYTES) return { error: `the summary is ${bytes} bytes, over the cap of ${MAX_SUMMARY_BYTES}` }
   const checked = checkSummary(text)
   return 'error' in checked ? checked : { value: text }
-}
-
-/** Whether a file already at the summary place may be overwritten: only when
- *  its stat size and its text are both within the cap and the text passes
- *  `checkSummary`. An empty object, a roster or any other JSON is refused,
- *  which stops a planted hard link to another file. `text` is undefined when
- *  the writer read nothing, as for a stat size over the cap. */
-export function isSummaryFile(size: number, text: string | undefined): boolean {
-  if (!(size <= MAX_SUMMARY_BYTES) || text === undefined) return false
-  if (new TextEncoder().encode(text).length > MAX_SUMMARY_BYTES) return false
-  return 'value' in checkSummary(text)
 }
 
 /** The throttle: while a turn runs, a write starts at most this often. */

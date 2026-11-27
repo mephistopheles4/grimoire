@@ -824,10 +824,9 @@ export function sourceLabel(e: DecisionEntry, writer: string, mine = false): str
 
 // --- the autonomy level (S5.1, S5.2 and S5.4) ------------------------------------
 //
-// The level a lead reads, set only by a press on the Decisions tab's slider or
-// the owner's mode command. register.tsx keeps the last level set and a 3's
-// press time in its own module memory; these rules read them. A copy in plugin
-// state, which other plugins can rewrite, serves a reload alone (issue 504).
+// The level a lead reads, set by a press on the Decisions tab's slider or the
+// owner's mode command. register.tsx keeps the last level set in plugin state
+// and a 3's press time in its own module memory; these rules read them.
 // The pane's own log entries, Owner, Pane and alarm, each have one fixed
 // shape, built and checked from the same words, so an entry in any other
 // shape is skipped. The pane no longer writes an alarm; an old log's stays
@@ -868,7 +867,7 @@ export const clockTime = (t: unknown): t is number => typeof t === 'number' && N
 
 /** The level in force: the last level set, and 1 while a reset's Pane entry
  *  waits to be logged or a reset waits to land, and for a 3 with no live press
- *  time. The stored copy in plugin state is never compared (issue 504). */
+ *  time. */
 export function levelInForce(o: { pressed: Level; pressAt: number | undefined; waiting: boolean }): Level {
   if (o.waiting) return 1
   if (o.pressed === 3 && o.pressAt === undefined) return 1

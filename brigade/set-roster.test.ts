@@ -265,6 +265,9 @@ type World = ReturnType<typeof makeFs> & {
   plant?: (key: string, value: any) => any
   /** While set, no state write lands, so no drawing is drawn again. */
   noRedraw?: boolean
+  /** With `noRedraw`, the level's own write still lands, for a test that reads
+   *  the level a late pick set. */
+  levelLands?: boolean
   /** Every value the pane set, by key, as JSON. */
   states: [string, string][]
   /** How many times the pane listed a folder other than the sessions folder,
@@ -522,7 +525,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
   on('state.set', ($, e: any, next: any) => {
-    if (w.noRedraw) return { value: { isSet: true, version: 1 } } as any
+    if (w.noRedraw && !(w.levelLands && e.key === 'autonomy')) return { value: { isSet: true, version: 1 } } as any
     if (w.plant !== undefined) e = { ...e, value: w.plant(e.key, e.value) }
     w.states.push([String(e.key), JSON.stringify(e.value) ?? ''])
     if (e.key === 'roster') {
@@ -3473,22 +3476,18 @@ test('the step waits on no engine call: with the clock, the session id and the f
   expect((await turnEnd($)).text).toBe('done')
 })
 
-test('a file other than a summary at the summary path stops every later write, with exactly one toast', async ($, on) => {
+test('a plain file at the summary path is overwritten, whatever it holds, with no toast', async ($, on) => {
   const w = world(on)
   await begin($, w)
   w.dirs(USAGE_DIR)
-  const planted = JSON.stringify({ cards: [], todos: [] })
-  w.put(USAGE, { type: 'file', data: { text: planted } })
+  w.put(USAGE, { type: 'file', data: { text: 'half a wri' } })
   w.stepUsage = STEP_USAGE
-  for (let round = 0; round < 3; round++) {
-    await raiseStep($)
-    await turnEnd($)
-    await w.clock.settle()
-  }
-  expect(w.text(USAGE)).toBe(planted)
-  expect(usageWrites(w)).toEqual([])
-  expect(writerToasts(w).length).toBe(1)
-  expect(writerToasts(w)[0]).not.toContain('cards')
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(w.log).not.toContain(`read ${USAGE}`)
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toBeDefined()
+  expect(writerToasts(w)).toEqual([])
 })
 
 test('a file where the usage folder should be is refused, stopping the writer with one toast', async ($, on) => {
@@ -7302,10 +7301,8 @@ const toolAnswer = async ($: any, tool: string, input: Record<string, unknown>):
 //
 // read_autonomy, the slider at the foot of the Decisions tab, the level drawn
 // on every tab, the Owner, Pane and alarm entries, and the reset rules. A
-// change not from a press is planted the way row 15 names: another plugin
-// rewriting the pane's state as it is set. A module reload is raised as the
-// harness raises one, with session.start. Each test names the claim of spec
-// 402 (S7) it backs.
+// module reload is raised as the harness raises one, with session.start. Each
+// test names the claim of spec 402 (S7) it backs.
 
 const AUTONOMY_TOOL = 'mcp__grimoire__read_autonomy'
 const readLevel = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, AUTONOMY_TOOL, input)
@@ -7325,14 +7322,6 @@ const LEVEL_2_LINE =
   'Auto: the lead decides and logs each decision, a checkpoint your user-level instructions file makes the lead\'s flagged pick included; what the file or the skill says waits for you waits as a to-do.'
 // The pane's own entries, as the log keeps them, by source, pick, why and level.
 const ownEntries = (w: World): string[] => (parsed(w, LOG)?.entries ?? []).map((e: any) => `${e.source} ${e.pick} · ${e.why} · level ${e.level}`)
-// The next time the pane sets the stored level, another plugin writes this in its place, once.
-const plantOnce = (w: World, value: unknown) => {
-  w.plant = (key, v) => {
-    if (key !== 'autonomy') return v
-    w.plant = undefined
-    return [{ session: SID, level: value }]
-  }
-}
 
 test('read_autonomy is offered wherever set_roster is, and not before the pane opens', async ($, on) => {
   const w = world(on)
@@ -8037,8 +8026,8 @@ const compactStart = ($: any) => $.classic.SessionStart({ source: 'compact', ses
 const COMPACTED = "pane 1 Manual · The lead's context was compacted · level 1"
 // Three minutes and a second on, so the band's HH:MM is not the clock's start.
 const LATER = 3 * MINUTE + 1000
-// Another plugin writes the stored level, with no press: it reads back as
-// written until the pane next sets it.
+// Writes the stored level with no press: it reads back as written until the
+// pane next sets it.
 const rewritten = (on: On) => {
   const box = { value: undefined as unknown }
   on('state.get', ($: any, e: any, next: any) => (box.value !== undefined && e.key === 'autonomy' ? { value: { value: box.value, version: 1 } } : next(e)))
@@ -10422,8 +10411,8 @@ test('C6: read_context refuses a call before the pane has offered it', async ($,
 
 // --- issue 504, part B ------------------------------------------------------------
 //
-// The level is the last press, held in the module; a rewritten stored value
-// changes nothing (C1, C2). The roster card has no phase (C6).
+// The level is the stored one, read through one shape check (C1, and
+// GRIM-77). The roster card has no phase (C6).
 
 const PRESSED_3 = (at: number) =>
   `Autonomy level 3 (Turbo), set by a press at ${new Date(at).toISOString()}. Act at 3 toward the goal in the owner's words in this chat.`
@@ -10446,7 +10435,7 @@ test("504 C1: a pressed 3 answers the press string, before and after a compactio
     await w.clock.advance(15000)
     expect((await readLevel($)).text).toBe(LEVEL_1)
     expect(ownEntries(w).length).toBe(source === 'clear' ? 1 : 2)
-    // The stored copy went with the level, so a reload now has nothing to reset and logs nothing.
+    // The stored level went too, so a reload now has nothing to reset and logs nothing.
     await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
     await w.clock.settle()
     await w.clock.advance(15000)
@@ -10463,9 +10452,19 @@ test("504 C1: a pressed 3 answers the press string, before and after a compactio
   expect(ownEntries(w).at(-1)).toBe('pane 1 Manual · The Brigade mod was reloaded · level 1')
 })
 
-test('504 C2: a rewritten stored value changes neither the answer nor the draw and writes no alarm; an alarm entry in an old log loads and draws', async ($, on) => {
+test('GRIM-77: the level in force is the stored one, and a stored value of no known shape reads as 1', async ($, on) => {
   const rewrite = rewritten(on)
-  const w = await decisionsPane(on, $, 'desktop', w => {
+  const w = await decisionsPane(on, $)
+  rewrite(w, 2)
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  for (const odd of [4, 0, '2', null]) {
+    rewrite(w, odd)
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+  }
+})
+
+test('504 C2: an alarm entry in an old log loads and draws', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([
       kept(1, 300, {
         source: 'alarm', work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Turbo'],
@@ -10473,43 +10472,8 @@ test('504 C2: a rewritten stored value changes neither the answer nor the draw a
       }),
     ]))
   })
-  await press($, 'level-2')
-  rewrite(w, 3)
-  expect((await readLevel($)).text).toBe(LEVEL_2)
-  await w.clock.advance(30000)
-  expect((await readLevel($)).text).toBe(LEVEL_2)
-  expect((await mounted.find({ key: 'level-2' }))?.props.variant).toBe('primary')
-  expect(ownEntries(w)).toEqual(['alarm 3 Turbo · Changed, not from a press · level 1', 'owner 2 Auto · Moved in the pane · level 1'])
-  expect(await shows(/^Autonomy changed without a press/)).toBe(false)
   await press($, 'grp-d-history')
   expect(await shows(/^Not from a press$/)).toBe(true)
-})
-
-test("504 C2: a rewritten stored value leaves the band's level-3 line as it was", async ($, on) => {
-  const rewrite = rewritten(on)
-  const w = await decisionsPane(on, $)
-  await w.clock.advance(1000)
-  const at = w.clock.now()
-  await press($, 'level-3')
-  rewrite(w, 1)
-  const b = await band($)
-  expect(await bandTexts(b)).toEqual([BAND_3(at)])
-  await w.clock.advance(15000)
-  expect(await bandTexts(b)).toEqual([BAND_3(at)])
-  expect((await readLevel($)).text).toBe(PRESSED_3(at))
-})
-
-// The positive control for the two tests above: the rewrite reaches the pane's
-// read. At level 1 a stored 3 is something only the rewrite can put there, and
-// a reload, the one job the stored copy still has, resets it with a Pane entry.
-test('504 C2: the rewrite reaches the pane: a reload finds a rewritten stored 3 and logs its Pane entry', async ($, on) => {
-  const rewrite = rewritten(on)
-  const w = await decisionsPane(on, $)
-  rewrite(w, 3)
-  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
-  await w.clock.settle()
-  await w.clock.advance(15000)
-  expect(ownEntries(w)).toEqual(['pane 1 Manual · The Brigade mod was reloaded · level 1'])
 })
 
 test('504 C6: a roster file holding phase loads without it; a tool call holding it is refused in words that say so; since moves on status only', async ($, on) => {
@@ -11044,7 +11008,7 @@ for (const [what, set, form] of [
   }
 }
 
-test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the engine nothing', async ($, on) => {
+test('610 C2: at level 1 and at level 2 no note is stored, and neither asks the engine anything', async ($, on) => {
   const w = await decisionsPane(on, $)
   const asked = w.checks.length
   const ids = w.idCalls
@@ -11052,8 +11016,12 @@ test('610 C2: at level 1 and at level 2 no note is stored, and level 1 asks the 
   expect(w.checks.length).toBe(asked)
   expect(w.idCalls).toBe(ids)
   await press($, 'level-2')
+  const asked2 = w.checks.length
+  const ids2 = w.idCalls
   await turn($)
   expect(levelNotes(w)).toEqual([])
+  expect(w.checks.length).toBe(asked2)
+  expect(w.idCalls).toBe(ids2)
 })
 
 test('610 C2: on a subagent turn, and under an id the level tools are not offered for although it holds a 3, no level-3 note is stored', async ($, on) => {
@@ -11069,9 +11037,9 @@ test('610 C2: on a subagent turn, and under an id the level tools are not offere
   expect(levelNotes(w)).toEqual([])
   expect(w.checks.filter(c => c === AUTONOMY_TOOL)).toEqual([])
 })
-// A reset that waits leaves the level in force at 1 and the pressed level at 1 too (a reset sets 1
-// before it waits), so no state holds a pressed 3 while a reset waits: the note's gate on the pressed
-// level stops it first, and levelNow's waiting branch is not reachable from a turn.
+// A reset that waits leaves the level in force at 1 and the stored level at 1 too (a reset sets 1
+// before it waits), so no state holds a 3 while a reset waits: the note's gate on the press time
+// stops it first, and levelNow's waiting branch is not reachable from a turn.
 
 for (const [what, verdict] of [
   ['a deny verdict', { decision: 'deny', reason: 'SECRET managed policy' }],
@@ -11506,6 +11474,7 @@ test('GRIM-71 C5: a pick raises only while the popover is open; one from a popov
   expect(await popClient(pop)).toBeDefined()
   // Closed, but the drawing is not yet drawn again, so it can still post.
   w.noRedraw = true
+  w.levelLands = true
   await open()
   await postPick(w, pop, { pick: 3 })
   expect((await readLevel($)).text).toBe(LEVEL_2)
@@ -11573,6 +11542,8 @@ for (const [what, end] of ENDS) {
     // The drawing is left as it was, so it can still post.
     w.noRedraw = true
     await end($, w)
+    // A raise that wrongly went through would store its level.
+    w.levelLands = true
     await postPick(w, pop, { pick: 3 })
     await back($, w)
     expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
@@ -11585,6 +11556,7 @@ test('GRIM-71 C5: after the pane is dropped, a late lowering still acts', async 
   await press($, 'level-2')
   await open()
   w.noRedraw = true
+  w.levelLands = true
   w.open = false
   await w.clock.advance(5000)
   await postPick(w, pop, { pick: 1 })

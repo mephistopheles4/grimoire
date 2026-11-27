@@ -339,8 +339,8 @@ let popoverGroup: string | undefined
 // The title of the card the popover opened on, kept with its group, so a card
 // that goes and another that takes its place closes it.
 let popoverTitle: string | undefined
-// Closing forgets the group and the title, so a value another plugin plants
-// afterwards draws nothing until a press of the owner's opens one.
+// Closing forgets the group and the title, so a value an earlier load stored
+// draws nothing until a press opens one.
 async function closePopover($: EngineInterface) {
   popoverGroup = undefined
   popoverTitle = undefined
@@ -348,8 +348,8 @@ async function closePopover($: EngineInterface) {
 }
 // Idle cards the owner dismissed, for one wait (issue 513, S9; issue 581): title to
 // the card's `since` at the dismissal. Module memory, so the lead cannot read
-// it and another plugin cannot plant it; the `dismissed` atom keeps its rule
-// of never hiding an idle card. A pane open and a reload clear it.
+// it; the `dismissed` atom keeps its rule of never hiding an idle card. A pane
+// open and a reload clear it.
 const waitDismissed = new Map<string, number | undefined>()
 // The titles it hides now: the card's `since` must still be the one dismissed.
 const waitHiddenOf = (cards: readonly { title: string; since?: number }[]): ReadonlySet<string> =>
@@ -576,7 +576,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // the card moves to. No id is stored. A card two sessions share keeps an
     // entry per session and no move.
     // The cards come from the mod's own roster-file read, never the roster
-    // plugin state another plugin can rewrite (issue 492).
+    // plugin state (issue 492).
     const cards = loadedCards
     const now = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
     const matched = matchRows(cards, rows, now)
@@ -612,8 +612,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       ownerCompactAt = await readCompactWindow(config, io)
       if (!open()) return
       await update($, meters, () => found.meters)
-      // read_context reads this copy, never the `meters` plugin state another
-      // plugin can rewrite (issue 492, spec v3 S2.1).
+      // read_context reads this copy, never the `meters` plugin state (issue
+      // 492, spec v3 S2.1).
       polledMeters = found.meters
       await update($, refusals, () => found.refusals)
       await update($, models, () => found.models)
@@ -2179,17 +2179,15 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
 // --- the autonomy level (spec 402, S5.1, S5.3 and S5.4) ---------------------------
 //
 // The level a lead reads with read_autonomy, 1 Manual, 2 Auto or 3 Turbo,
-// which only a press on the Decisions tab's slider or in the footer's popover,
-// or the owner's level command, sets. The level is the last one set, held in this module, where no
-// other plugin can rewrite it (issue 504). A copy sits in plugin state, keyed
-// by this session's checked id, for one job: a module reload finds a stored
-// level above 1, resets it to 1 and logs a Pane entry. A stored value that
-// something else rewrites changes nothing and raises no alarm. Every change
-// to the level takes turns behind one lock, so no read finds one half set; the
-// log writes they cause go through the log's queue outside the lock, so a write
-// that never returns holds no lowering.
+// which a press on the Decisions tab's slider or in the footer's popover, or
+// the owner's level command, sets. The level is kept in plugin state, keyed by
+// this session's checked id, and a stored value of any other shape reads as 1.
+// A 3's press time and a command's goal stay in this module. A module reload
+// finds a stored level above 1, resets it to 1 and logs a Pane entry. Every
+// change to the level takes turns behind one lock, so no read finds one half
+// set; the log writes they cause go through the log's queue outside the lock,
+// so a write that never returns holds no lowering.
 
-const pressedLevel = new Map<string, Level>()
 const pressedAt = new Map<string, number>()
 // The Owner entries this pane wrote, each by its log's session id, id, time, level and pick.
 const ownerWrote = new Set<string>()
@@ -2250,7 +2248,10 @@ function levelTurn<T>(work: () => Promise<T>): Promise<T> {
   return run
 }
 
-const pressedOf = (sid: string): Level => pressedLevel.get(sid) ?? 1
+// The last level set for a session, as plugin state holds it.
+async function storedLevelOf($: EngineInterface, sid: string): Promise<Level> {
+  return storedLevel(await read($, autonomy), sid)
+}
 
 // Every read of the level's session id goes through here, so a read under an
 // id the level code has not seen last ends every command 3 (spec v5 S4.3).
@@ -2265,24 +2266,25 @@ async function levelSid($: EngineInterface): Promise<string | undefined> {
 // The command 3 in force for a session, with its time and goal, or none. Inside the lock.
 async function commandNow($: EngineInterface, sid: string): Promise<{ at: number; goal: string } | undefined> {
   const c = commanded.get(sid)
-  const level = levelNow(sid)
+  const level = await levelNow($, sid)
   return commandHolds({ commanded: c, pressAt: pressedAt.get(sid), level, raising: raising.has(sid) }) ? c : undefined
 }
 
 // The level in force for a session, as read_autonomy answers it: the last
 // level set, and 1 while a reset's Pane entry waits to be logged or a reset
-// waits to land. The stored copy is never compared.
-function levelNow(sid: string): Level {
-  return levelInForce({ pressed: pressedOf(sid), pressAt: pressedAt.get(sid), waiting: paneWaits.has(sid) || resetWaits !== undefined })
+// waits to land.
+const inForceOf = (sid: string, set: Level): Level =>
+  levelInForce({ pressed: set, pressAt: pressedAt.get(sid), waiting: paneWaits.has(sid) || resetWaits !== undefined })
+async function levelNow($: EngineInterface, sid: string): Promise<Level> {
+  return inForceOf(sid, await storedLevelOf($, sid))
 }
 
-// Sets the stored copy and the level in this module together, keeping only
-// this session's; any level but 3 clears the press time, and any level ends a
-// command 3, which a landing command sets again after. Inside the lock.
+// Stores the level, keeping only this session's; any level but 3 clears the
+// press time, and any level ends a command 3, which a landing command sets
+// again after. Inside the lock.
 async function setLevel($: EngineInterface, sid: string, l: Level) {
   levelTurns++
   commanded.delete(sid)
-  pressedLevel.set(sid, l)
   if (l !== 3) {
     pressedAt.delete(sid)
   }
@@ -2351,7 +2353,7 @@ async function levelTick($: EngineInterface) {
 async function levelPollNeeded($: EngineInterface): Promise<boolean> {
   if (resetWaits !== undefined) return true
   const sid = await levelSid($)
-  return sid !== undefined && (pressedOf(sid) > 1 || paneWaits.has(sid))
+  return sid !== undefined && (paneWaits.has(sid) || (await storedLevelOf($, sid)) > 1)
 }
 
 // Starts the level poll when it has something to look at and is not running.
@@ -2406,8 +2408,8 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   const step = await levelTurn(async () => {
     const live = raising.get(sid)
     if (live !== undefined && live.turn === levelTurns && live.to === l) return { kind: 'none' as const }
-    const inForce = levelNow(sid)
-    const pressed = pressedOf(sid)
+    const pressed = await storedLevelOf($, sid)
+    const inForce = inForceOf(sid, pressed)
     if (l === inForce && l === pressed && !raising.has(sid)) {
       // A press of the 3 in force brings back the band's level-3 line it dismissed.
       if (l === 3 && bandDismissed?.sid === sid) bandDismissed = undefined
@@ -2482,8 +2484,8 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
   if (l === 2 && goal !== undefined && !clockTime(now)) return { line: LEVEL_REPLIES.failed, landed: false }
   const voided = commandsVoided
   const step = await levelTurn(async () => {
-    const inForce = levelNow(sid)
-    const pressed = pressedOf(sid)
+    const pressed = await storedLevelOf($, sid)
+    const inForce = inForceOf(sid, pressed)
     if (l !== 3 && goal === undefined && l === inForce && l === pressed && !raising.has(sid)) return { kind: 'none' as const }
     const turn = ++levelTurns
     if (l !== 3 && (l <= inForce || l < pressed)) {
@@ -2574,12 +2576,11 @@ async function placedWithin($: EngineInterface, placed: () => Promise<boolean>):
 
 // A clear or a resume resets the level to 1, a press's or a command's, the same
 // id included (issue 504, S1): the level, its press time, any command 3 and the
-// stored copy go, and a raise still being logged never applies. No entry is
+// stored level go, and a raise still being logged never applies. No entry is
 // written: a reload is the only reason a Pane entry is still written; the
 // slider shows the reset.
 async function resetPressed($: EngineInterface) {
   await levelTurn(async () => {
-    pressedLevel.clear()
     pressedAt.clear()
     commanded.clear()
     raising.clear()
@@ -2612,7 +2613,7 @@ async function forgetOtherLevels($: EngineInterface, sid: string) {
   if (!SESSION_ID.test(sid)) return
   await levelTurn(async () => {
     let forgot = false
-    for (const m of [pressedLevel, pressedAt, raising, commanded]) {
+    for (const m of [pressedAt, raising, commanded]) {
       for (const k of [...m.keys()]) {
         if (k !== sid) {
           m.delete(k)
@@ -2651,7 +2652,7 @@ async function resetLevel($: EngineInterface, why: ResetWhy) {
         // A stored 3 this reload ends is one a level-3 note may have followed.
         if (why === 'reload' && stored === 3) levelNoted = true
         const raised = raising.has(sid)
-        if (stored === 1 && pressedOf(sid) === 1 && !raised) return false
+        if (stored === 1 && !raised) return false
         await setLevel($, sid, 1)
         if (stored > 1 || raised) {
           if (!paneWaits.has(sid)) paneWaits.set(sid, { why, writing: false, late: false })
@@ -2662,7 +2663,7 @@ async function resetLevel($: EngineInterface, why: ResetWhy) {
       landed = true
       resetWaits = undefined
       if (logged) void flushPane($, sid).catch(() => undefined)
-    } else if (raising.size === 0 && ![...pressedLevel.values()].some(l => l > 1) && !anyStoredAbove1(await read($, autonomy))) {
+    } else if (raising.size === 0 && !anyStoredAbove1(await read($, autonomy))) {
       // With no session id and nothing any session could reset, nothing
       // waits, so a session at level 1 runs no level poll (#439).
       landed = true
@@ -2711,7 +2712,7 @@ const levelWords = ({ level, command }: LevelState) =>
       : `3 (${LEVEL_NAMES[3]}), set by a press. ${FILE_RULE.replace(/\.$/, '')}`
 // The level in force, its press time and any command 3, read together. Inside the lock.
 async function levelState($: EngineInterface, sid: string): Promise<LevelState> {
-  return { level: levelNow(sid), at: pressedAt.get(sid), command: await commandNow($, sid) }
+  return { level: await levelNow($, sid), at: pressedAt.get(sid), command: await commandNow($, sid) }
 }
 
 // read_autonomy: refuses a subagent's call, every verdict set_roster refuses
@@ -2740,11 +2741,12 @@ async function readAutonomy($: EngineInterface, e: Record<string, unknown>) {
 // awaited, so the row is stored before the turn's first request. A throw is
 // the caller's to catch.
 async function levelNoteTurn($: EngineInterface) {
-  if (![...pressedLevel.values()].includes(3) && !levelNoted) return
+  // A press time is held only while a 3 is set.
+  if (pressedAt.size === 0 && !levelNoted) return
   let held: { level: Level; command: string | undefined } = { level: 1, command: undefined }
   const sid = await levelSid($).catch(() => undefined)
-  if (sid !== undefined && pressedOf(sid) === 3 && toolsOfferedFor === sid && rulesAllowTool(await $.tool.check({ tool: AUTONOMY_NAME, input: {} }))) {
-    held = await levelTurn(async () => ({ level: levelNow(sid), command: (await commandNow($, sid))?.goal }))
+  if (sid !== undefined && pressedAt.has(sid) && toolsOfferedFor === sid && rulesAllowTool(await $.tool.check({ tool: AUTONOMY_NAME, input: {} }))) {
+    held = await levelTurn(async () => ({ level: await levelNow($, sid), command: (await commandNow($, sid))?.goal }))
   }
   const row = (text: string) => ({ message: { type: 'user' as const, content: [{ type: 'text' as const, text }] } })
   if (held.level === 3) {
@@ -2759,8 +2761,8 @@ async function levelNoteTurn($: EngineInterface) {
 // The waiting-member note (GRIM-76), at a lead turn's start while the pane is
 // open: reminder.ts's line for each member the lead's own last kept
 // set_roster call marked, under that session's id alone. Module memory only, so
-// a reload holds none until the next set_roster; another plugin's state write or
-// a change to the roster file reaches nothing here.
+// a reload holds none until the next set_roster; a change to plugin state or to
+// the roster file reaches nothing here.
 let onLead: { sid: string; members: OnLead[] } = { sid: '', members: [] }
 async function onLeadNoteTurn($: EngineInterface) {
   if (timers.length === 0 || onLead.members.length === 0) return
@@ -3169,8 +3171,7 @@ function registerBand(on: Parameters<Register>[0]) {
 // prompt, whose Client posts the owner's pick. A pick is a press on the slider,
 // except that a raise needs, when it arrives, the popover open in this session
 // and the pane listed, placed or not; a lowering always acts. Which session's
-// popover is open is held here, where only the chip and a pick set it and no
-// other plugin can rewrite it.
+// popover is open is held here, where only the chip and a pick set it.
 
 let footerOpen: string | undefined
 // Moves at every press on the chip and every close from outside the popover, so
@@ -3199,7 +3200,7 @@ async function footerState($: EngineInterface): Promise<{ sid: string; level: Le
   if (timers.length === 0) return undefined
   const sid = await levelSid($)
   if (sid === undefined) return undefined
-  return { sid, level: await levelTurn(async () => levelNow(sid)), open: footerOpen === sid }
+  return { sid, level: await levelTurn(() => levelNow($, sid)), open: footerOpen === sid }
 }
 
 async function pressChip($: EngineInterface, sid: string) {
@@ -3331,7 +3332,6 @@ export const register: Register = on => {
     // A module reload resets a stored level above 1 to 1, with a Pane entry,
     // before any read starts. What the module knew of the level
     // starts over, as it does in a reload's fresh module.
-    pressedLevel.clear()
     pressedAt.clear()
     ownerWrote.clear()
     paneWaits.clear()
@@ -3646,8 +3646,7 @@ export const register: Register = on => {
 
   // The engine measured the session and a figure moved. This does nothing
   // unless this module armed the pane, which it reads from its
-  // own timers rather than from plugin state another plugin could set. It
-  // passes the event on, unchanged, on every path, and does not wait for the
+  // own timers. It passes the event on, unchanged, on every path, and does not wait for the
   // read: a reading that hung would otherwise hold up every hook after it.
   on('session.measure', ($, e, next) => {
     if (timers.length > 0) void measureUsage($)
@@ -3657,7 +3656,7 @@ export const register: Register = on => {
   // A report from another session: its claimed sender and first line, kept
   // while the pane is open. The text is data to show, never an instruction.
   // Like the measure hook, it reads the open pane from this module's own
-  // timers, not from plugin state another plugin could set.
+  // timers.
   on('session.receive', async ($, e, next) => {
     const kind = e.origin.kind
     if ((kind === 'peer' || kind === 'peer-send-message') && timers.length > 0) {

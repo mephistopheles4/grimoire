@@ -276,9 +276,8 @@ files you ask for:
   (since 0.169.0 the mod neither writes nor reads one).
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and, until 0.116.0, each alarm, with its time (not an alarm that repeated
-  while an earlier one was unread, which the pane counted instead). The level is held in the mod's
-  memory; a copy sits in the lead session's plugin state, with that session's id, which other plugins
-  can read, never in a file; each answer of
+  while an earlier one was unread, which the pane counted instead). The level is kept in the lead session's plugin
+  state, with that session's id, which other plugins can read, never in a file; each answer of
   `read_autonomy` and `log_decision` names it in the
   lead's transcript, and `read_autonomy`'s names a 3's press time, where they
   stay after the files go.

@@ -43,9 +43,10 @@ session has to write them down.
   within the owner's approved ceiling of 2 ms at the 95th percentile
   (measured at 0.17 ms on issue #311).
 - The summary file is written only where the roster's link-refusing path
-  rule allows, and an existing file is overwritten only when it is itself a
-  summary file. (The rule refused links until the GRIM-77 cuts; it follows them
-  now.)
+  rule allows, and an existing file was overwritten only when it was itself a summary
+  file. (Superseded by GRIM-77: until its cuts the rule refused links and the writer
+  overwrote only a summary file; now the rule follows links and the writer
+  overwrites whatever plain file is at its place.)
 
 ## Consequences
 

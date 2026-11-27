@@ -23,7 +23,7 @@ a removed control. A page's “Accepted class” line holds only what that class
 flowchart LR
   tracker["Tracker text, shared files, other sessions"]
   maintainer["Merge to main, GitHub acts"]
-  installer["Installs, plugins, CI, a branch's code"]
+  installer["Installs, the mod, CI, a branch's code"]
   leave["Audit send, Remote Control, sync"]
   agent(["An agent that obeys text"])
 
@@ -61,14 +61,14 @@ flowchart LR
 - Installed by the pact: deny rules on raw worktree and branch removal and `claude rm`, and on `claude stop`, `kill`, `daemon stop` and `respawn`, the stop rules off unless their switch is on, the removal rules on only while the cleaner is on; an ask rule on the cleaner, passed under `bypassPermissions`. Speed bumps, not gates.
 - R1: each skill says the material is data; groundtrack tells the reader a request-like line, says AI drew the page, and stamps it authored; traces are literals a reader can check.
 - R2: renderers escape control and invisible characters, cut strings, put no author text in an attribute, fill pages in one pass, and refuse hostile shapes at measured limits. Answers bind to their draft by SHA-256; the hiring page has a content security policy. The contract skill never writes a hook, a settings file or a permission list, asks before an installing write, and takes an action drafted from a file only on the person's own words. [Detail](rendering.md), [hiring-interview.md](hiring-interview.md).
-- R5: the head chef's sender check (status file, `from-session` and `from` pairing), fixed-form start prompt, sends only to a local address, reports as data, the owner's yes for starts, cleanup and each GitHub act, or at levels 2 and 3 what the owner's user-level file hands the lead, and no force push, no remote branch delete. A background start refuses a bad name, repository, permission mode or prompt; a Desktop start needs the owner's words. Cleanup runs a cleaner the owner's instructions name, only for a folder it knows, never on a main working tree or a worktree another session is in; a failed run is told and left. At level 3 the lead decides what the owner's user-level file hands it; an install, a post carrying private work, and an edit to this model's scope, its classes or its AGENTS.md line are checkpoints, logged and flagged. [Detail](brigade.md#row-16).
+- R5: the head chef's fixed-form start prompt, sends only to a local address, reports as data, the owner's yes for starts, cleanup and each GitHub act, or at levels 2 and 3 what the owner's user-level file hands the lead, and no force push, no remote branch delete. A background start refuses a bad name, repository, permission mode or prompt; a Desktop start needs the owner's words. Cleanup runs a cleaner the owner's instructions name, only for a folder it knows, never on a main working tree or a worktree another session is in; a failed run is told and left. At level 3 the lead decides what the owner's user-level file hands it; an install, a post carrying private work, and an edit to this model's scope, its classes or its AGENTS.md line are checkpoints, logged and flagged. [Detail](brigade.md#row-16).
 - R11: a skill under test runs in don't-ask mode with hooks off, settings edits and off-machine reach denied, reads open, the environment built from a named list, and backups of the owner's live places. Hygiene, not a boundary (ADR 0006).
 
 **Residual:** Text steers a session; Renderer output carries author text; A forged or misled session can speak for the lead; A steered lead can start a session in any trusted folder; Box text can move an audit edge. The rules they rest on, each a control: only the owner's words in the lead's chat count as the owner's, a clear yes heard by Incantation's relay after a say-back included, and a head chef's non-public filing's heard request; installs stay the owner's; reports and relays are data.
 
 ### Code that runs
 
-**Crosses:** the Brigade mod and other plugins loaded beside it; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build.
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build.
 
 **Controls:**
 
@@ -76,12 +76,12 @@ flowchart LR
 - GitHub: secret scanning with push protection (known credential shapes only), Dependabot security updates and version updates on Actions only, and CodeQL default setup (Actions, JavaScript, TypeScript; default queries).
 - R4: every action pinned to a commit SHA, with zizmor's `ref-version-mismatch`; `persist-credentials: false` and per-job permissions; the validator package pinned, unpacked and never installed; `npm pack` run outside the checkout, and rule 6 refusing `.npmrc` and `.yarnrc.yml`.
 - R6: the mod asks the engine for its verdict first; its pane waits for `/brigade` or a head-chef load; the model never names a path, and a path rule runs before each write; writes are strict-checked, one at a time, capped; each call's bounds, `gh` argument lists and Open in app routes are fixed. [Detail](brigade.md#row-15).
-- R7: plugin state is read through checks and caps and drawn as text; the autonomy level changes only by a slider press, in pane or footer popover, or the owner's mode command, none of which asks for a confirmation in chat, and a stored copy another plugin rewrites changes nothing; a plugin can still press a control.
+- R7: plugin state is read through shape checks and caps and drawn as text; the autonomy level is set by a slider press, in pane or footer popover, or the owner's mode command, none of which asks for a confirmation in chat, and a stored level of no known shape reads as 1.
 - R10: rule 6d holds the tracked settings file to the one agent-guard entry; `CONTRIBUTING.md`'s agent guard says to read a branch's `.claude/` and `scripts/` first, or open with hooks off.
 - Incantation: sources and redirect hosts fixed in code; each downloaded file pinned by size and sha256, checked before it is kept or run; wheels by hash only; uv's CPython checked by uv alone. Silero VAD and the non-LFS Hugging Face files are trust-on-first-use pins. The Windows loopback reference lives in memory for the echo canceller. [Detail](../spec/0001-incantation-from-the-prototype.md).
 - R12: the local check run has no network; its build folder is held to `tests/container/`; the base image is pinned by digest and Claude Code by sha512; athanor refuses an engine not on this machine unless `allowRemoteDocker` is set.
 
-**Residual:** Other plugins share the mod's trust; The mod's tools run with no permission prompt; A tracked hook runs a branch's code when a session opens; The local test image trusts Debian's archive at build time.
+**Residual:** The mod's tools run with no permission prompt; A tracked hook runs a branch's code when a session opens; The local test image trusts Debian's archive at build time.
 
 ### Merges and acts
 
@@ -109,7 +109,7 @@ flowchart LR
 
 ## Scope
 
-**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI. The root of trust is the owner's GitHub account.
+**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other tool on the machine, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code and a tool fed outside input are not. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI. The root of trust is the owner's GitHub account.
 
 ## Residual risk
 
@@ -126,7 +126,6 @@ quadrantChart
   Start in any trusted folder: [0.22, 0.45]
   Scanner gaps: [0.30, 0.95]
   Author text in output: [0.38, 0.75]
-  Other plugins: [0.31, 0.53]
   Forged session: [0.22, 0.70]
   GitHub acts: [0.35, 0.80]
   Mod tools no prompt: [0.30, 0.55]
@@ -148,7 +147,6 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - **Text steers a session.** The host agent is the last guard against text read as instruction; no injection detector is built, closing a gap in a check aside, so a well-worded injection steers a session and breaks rules held only by prose.
 - **Review is the guard for scanner gaps.** Baseline allowances cover whole files or rules, some files are read in part and an edit to one passes the deeper pass that gave up there ([Detail](scanners.md)), nothing is signed, and a skill is dangerous by its nature (ADR 0006).
 - **Renderer output carries author text.** An escaped one-line name can still read like a path or a reason; refusal lines are bounded each, not in count; deep nesting stops a renderer with one line.
-- **Other plugins share the mod's trust.** An installed plugin can read the mod's plugin state (not the report store, Remote Control link or old folder key), rewrite the usage record, plant the warning's dismissal, and rewrite or press the autonomy level, forging a 3's confirmation.
 - **A forged or misled session can speak for the lead.** A message under the lead's shown name or a relay counted as a decision can move the lead; a steered lead or an unasked skill load can write false log entries and lead hand-offs.
 - **GitHub acts on the owner's word are irreversible and public.** The head is not pinned between review and merge, a broad word covers acts it did not name, deletes are permanent, and history keeps text; at a confirmed level 3 the lead's own picks reach a merge.
 - **A steered lead can start a session in any trusted folder.** The start binds a folder to no repository the owner chose, and its reads run before the trust gate, so a refusal shows whether a path exists, is a main checkout, or belongs to a repository.
@@ -167,14 +165,14 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - R2: the attribute rule is held by review, not by a parse of the page.
 - R3: plain-prose instructions no scanner detects; fifteen scanner dependencies resolve fresh each run.
 - R4: the CI pins are not content pins, and no tarball hash is checked; git in the image is not hash-pinned.
-- R5: cleanup's authorization; the sender check is a consistency check; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
-- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's hard-link gap.
+- R5: cleanup's authorization; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
+- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's and the usage summary's hard-link gap.
 - Remote Control: how long a member's transcript stays after it stops, and whether a device keeps a copy, are not checked.
 - R8: the script cannot stop the agent itself printing an environment variable.
 - R9: a home root joined from a separate string is not seen, and free text is not checked.
 - R10: the agent guard protects the merge, not the reader.
 - R12: the build runs before the check on an unread branch, with the registry login and proxy passwords; a non-local container engine gets the run's data and the registry login, in clear over plain TCP ([athanor#100](https://github.com/mephistopheles4/athanor/issues/100)).
-- Plugin-side gaps, not accepted: another plugin planting or rewriting decision files, marks, hand-offs, summaries or refusal lines, reading the report store or a Remote Control link, pressing against cleanup's yes, or seeing tool calls through the mod's hook; link swaps, planted session files or transcripts, and a written upstream ref under cleanup's delete, by another plugin, a branch's code, a steered session or any outside tool; cleanup's indirect removal paths.
+- Not accepted, from a branch's code, a steered session or a tool fed outside input: planting or rewriting decision files, marks, hand-offs, summaries, session files or transcripts; link swaps and races; a written upstream ref under cleanup's delete; cleanup's indirect removal paths.
 - Not accepted: another page opened from disk, or an extension, reading the saved interview answers; a session named like a card feeding it; the pill press has no rate limit; a skill's write scope and a contract's second-agent load are held by prose.
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.
