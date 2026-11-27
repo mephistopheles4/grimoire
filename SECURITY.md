@@ -137,8 +137,9 @@ from `GH_HOST` or its own default; only github.com answers are drawn.
 `gh` is the owner's own GitHub command line tool: the call sends the owner's
 GitHub credential to GitHub, and it inherits the session's environment, keys
 and tokens included. On Windows the engine was measured to run the real `gh`
-from the system path, not a stub in the working folder. On macOS and Linux the
-pane runs nothing when the inherited PATH has an empty or relative entry. The
+from the system path, not a stub in the working folder. On macOS and Linux an
+empty or relative entry on the inherited PATH is not refused, so one can let a
+file in the project folder run in `gh`'s place. The
 environment and the working folder's git remotes choose the repository for
 the cards that name none, and the pane pins the first answer's repository for
 the session. A named repository's answer counts only when every pull request

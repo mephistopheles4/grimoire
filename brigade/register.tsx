@@ -1100,19 +1100,15 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // The named answers, as the view reads them.
 const namedAnswers = (): ReadonlyMap<string, ReadonlyMap<number, GhPr>> => new Map([...ghNamed].map(([r, b]) => [r, b.answers]))
 
-// On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
-// an empty or relative entry could let a file in the project folder run in its
-// place, with the session's environment. Such a host runs nothing then. Windows
-// is measured: the engine runs the real `gh` there (brigade.md, R6).
-//
-// The host is worked out on each call, here and at Open in app, or is none.
+// A program run by name (`gh`, `claude`, `git`) needs a host the pane can
+// tell. The host is worked out on each call, here and at Open in app, or is none.
 // The engine gives a mod no platform field. Windows is known first, by its
 // environment; then each probe in turn, as `probeHost` judges it. A read that
 // fails means no host, never unset. Each name is spelled at its call, so
 // `claude plugin validate` lists what the pane reads, and the reads stay in
 // these two callers because the directory's checker refuses `$` passed to a
 // helper that reads the host.
-async function ghFindable($: EngineInterface): Promise<boolean> {
+async function hostTold($: EngineInterface): Promise<boolean> {
   try {
     if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) return true
     let os: HostOs | 'next' | undefined = 'next'
@@ -1120,9 +1116,7 @@ async function ghFindable($: EngineInterface): Promise<boolean> {
       os = probeHost(probe, await statPath($, file))
       if (os !== 'next') break
     }
-    if (os === 'next' || os === undefined) return false
-    const path = await $.env.get('PATH')
-    return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
+    return os !== 'next' && os !== undefined
   } catch {
     return false
   }
@@ -1148,7 +1142,7 @@ async function runGh($: EngineInterface, repo?: string): Promise<ReadonlyMap<num
 // `tick` is the timer's own call, which always runs; the call at arm waits out
 // a minute since the last one, so a quick reopen asks once. One run goes at a
 // time: the base run first, then the named repositories whose turn it is, each
-// after its own PATH check. A minute whose runs overrun finds `asking` set and
+// after its own host check. A minute whose runs overrun finds `asking` set and
 // waits for the next.
 async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
   if (asking) return
@@ -1167,7 +1161,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
     if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
     ghAt = now
     const due = rotate(namedWanted, ghLast, NAMED_RUNS)
-    // A failed PATH check stops the minute: every repository still due counts
+    // A failed host check stops the minute: every repository still due counts
     // as down, and the turn moves past them.
     const stop = (from: number) => {
       if (!open()) return
@@ -1175,7 +1169,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
       if (due.length > 0) ghLast = due[due.length - 1]
     }
     if (baseWanted) {
-      if (!(await ghFindable($))) {
+      if (!(await hostTold($))) {
         if (open()) ghDown = true
         stop(0)
         return
@@ -1185,7 +1179,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
       takeBase(found, base)
     }
     for (const [i, r] of due.entries()) {
-      if (!(await ghFindable($))) {
+      if (!(await hostTold($))) {
         stop(i)
         return
       }
@@ -1534,7 +1528,7 @@ async function hostOpen($: EngineInterface, app: string, words: OpenerWords) {
 
 // A pill press (issue 513, S2): `gh pr view <number> --web`, built by
 // `ghViewRun` from the card's number and the repository `gh` answered with,
-// after the same PATH check the poll takes. The card is found again by place
+// after the same host check the poll takes. The card is found again by place
 // and title; one that moved, or has no answer, does nothing. Any failure shows
 // the one fixed toast, with none of `gh`'s text.
 const PILL_FAILED = 'Could not open the pull request'
@@ -1544,7 +1538,7 @@ async function openPill($: EngineInterface, c: Card) {
   if (number === undefined || answer === undefined) return
   const run = ghViewRun(number, answer.repo)
   try {
-    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    if (run === undefined || !(await hostTold($))) throw new Error('no run')
     const ran = await $.process.run([...run.argv], run.init)
     if (ran.exitCode !== 0) throw new Error('failed')
   } catch {
@@ -1555,7 +1549,7 @@ async function openPill($: EngineInterface, c: Card) {
 // A to-do's pull request link press on Desktop (issues 560 and the-pact#580): the pill's
 // route, `gh pr view <number> --web`, built by `ghViewRun` from the link's
 // parse, with the repository behind a constant github.com host, after the same
-// PATH check. No `gh` run opens an issue: an issue link is the engine's Link,
+// host check. No `gh` run opens an issue: an issue link is the engine's Link,
 // with no press. One press per to-do at a time (the pill has no such guard;
 // this one is keyed on the to-do's id). Failure is a refused or failed start, a
 // non-zero exit or a timeout, and shows the one fixed toast.
@@ -1566,7 +1560,7 @@ async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
   visiting.add(id)
   try {
     const run = ghViewRun(parts.number, parts.repo, parts.kind)
-    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    if (run === undefined || !(await hostTold($))) throw new Error('no run')
     const ran = await $.process.run([...run.argv], run.init)
     if (ran.exitCode !== 0) throw new Error('failed')
   } catch {
@@ -2849,8 +2843,8 @@ async function stopBackground($: EngineInterface, e: Record<string, unknown>, or
   if (sessions === undefined) return refuseStop('session: the session files could not be read')
   const target = stopTarget(oneLine(title, 80), cards, sessions)
   if ('why' in target) return refuseStop(target.why)
-  // The pane's host and PATH rule, as for `gh` and `git`. On Windows it checks no PATH.
-  if (!(await ghFindable($))) return { result: stopAnswer(undefined) }
+  // The pane's host rule, as for `gh`.
+  if (!(await hostTold($))) return { result: stopAnswer(undefined) }
   const ran = await $.process.run(['claude', 'stop', target.jobId], { timeoutMs: 15000 }).catch(() => undefined)
   return { result: stopAnswer(ran) }
 }
@@ -3045,8 +3039,8 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
     const named = noteNames(i.note, [...cards.map(c => c.title), ...(sessions?.rows.map(r => r.name) ?? [])], [i.name, i.lead])
     if ('why' in named) return refuseStart(named.why)
   }
-  // (4) the pane's host and PATH rule
-  if (!(await ghFindable($))) return refuseStart('host: the host or its PATH could not be trusted to look programs up')
+  // (4) the pane's host rule
+  if (!(await hostTold($))) return refuseStart('host: the host could not be told, so no program is looked up')
   // (5) the programs, by absolute path
   const git = await programPath($, 'git', platform, i.folder)
   if ('why' in git) return refuseStart(git.why)

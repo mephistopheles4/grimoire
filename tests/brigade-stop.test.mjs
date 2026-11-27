@@ -112,7 +112,7 @@ test('C2: the stop tool refuses a subagent or another plugin, reads the files li
     'if (sessions === undefined) return refuseStop(…)',
     'const target = stopTarget(oneLine(title, 80), cards, sessions)',
     "if ('why' in target) return refuseStop(…)",
-    'if (!(await ghFindable($))) return { result: stopAnswer(undefined) }',
+    'if (!(await hostTold($))) return { result: stopAnswer(undefined) }',
     "const ran = await $.process.run(['claude', 'stop', target.jobId], { timeoutMs: 15000 }).catch(() => undefined)",
     'return { result: stopAnswer(ran) }',
     '}',
@@ -153,7 +153,7 @@ test('543 C8: the start tool refuses a subagent or another plugin before anythin
   assert.match(handler, /startBackground\(\$, e as unknown as Record<string, unknown>, next\.origin, next\.signal, progress\)/, "the handler passes the call's own signal");
   // The run's steps, in the order of S2.2: the platform, the spelling, the folder, the name, the host, the programs, the origin, then the start.
   const run = start.slice(start.indexOf('async function startRun'));
-  const order = ['hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'ghFindable($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'progress.ran = true', 'startArgv(i, claude.value'];
+  const order = ['hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'hostTold($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'progress.ran = true', 'startArgv(i, claude.value'];
   assert.match(run, /originArgv\(git\.value[\s\S]*if \(signal\.aborted\) return refuseStart\('abandoned: the call ran out of time or was interrupted before its run'\)\n\s*attempted\.add\(/, 'a call abandoned before its run is refused before the name is held');
   const at = order.map(s => run.indexOf(s));
   assert.ok(at.every(n => n >= 0), `a step is missing: ${order.filter((s, k) => at[k] < 0)}`);

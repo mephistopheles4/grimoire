@@ -4599,7 +4599,7 @@ test('desktop, C12: a failed gh pr view shows the fixed toast and none of its ou
   expect(w.toasts).toEqual(['Could not open the pull request'])
 })
 
-test('desktop, C1: a failed PATH check runs nothing and shows the fixed toast', async ($, on) => {
+test('desktop, C1: a failed host check runs nothing and shows the fixed toast', async ($, on) => {
   const w = await prPane(on, $)
   const m = await mountOn($, 'desktop')
   // A host the pane cannot prove has no gh to find.
@@ -4654,7 +4654,7 @@ test('#560, the-pact#580 desktop: pressing a pull request link runs exactly gh p
   expect(w.procs.filter(p => p[0] !== 'gh')).toEqual([])
 })
 
-test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed PATH check runs nothing', async ($, on) => {
+test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed host check runs nothing', async ($, on) => {
   const w = await grouped(on, $, LINKED)
   const m = await mountOn($, 'desktop')
   await nodes(m)
@@ -5434,33 +5434,18 @@ test('an answer naming another repository than the first one is no answer', asyn
   expect(text.includes('PR details unavailable')).toBe(true)
 })
 
-test('on macOS a PATH with an empty or relative entry runs no gh, and an absolute PATH does', async ($, on) => {
-  const bad = world(on, w => {
+test('on macOS gh runs whatever the PATH holds, an empty or relative entry included', async ($, on) => {
+  const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
     macos(w)
-    w.env = { PATH: '/usr/bin::/bin' }
+    w.env = { PATH: '/usr/bin::bin' }
   })
   on('session.receive', (_: any, e: any) => e)
   await start($)
   await brigade($)
-  await bad.clock.settle()
-  await bad.clock.advance(120000)
-  expect(asked(bad)).toBe(0)
-})
-
-test('on macOS an absolute PATH lets gh run', async ($, on) => {
-  const good = world(on, w => {
-    w.dirs(BRIGADE)
-    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
-    macos(w)
-    w.env = { PATH: '/usr/bin:/bin' }
-  })
-  on('session.receive', (_: any, e: any) => e)
-  await start($)
-  await brigade($)
-  await good.clock.settle()
-  expect(asked(good)).toBe(1)
+  await w.clock.settle()
+  expect(asked(w)).toBe(1)
 })
 
 for (const surface of SURFACES) {
@@ -8774,16 +8759,15 @@ test('claim 17: one run at a time, and a minute whose runs overrun waits for the
   expect(w.ghInits.slice(5).map((_, i) => repoOf(w, i + 5))).toEqual(['r6/p', 'r7/p', 'r1/p', 'r2/p', 'r3/p'])
 })
 
-test('claim 17: each named run passes the host and PATH check: a PATH that turns relative mid-minute runs no more', async ($, on) => {
+test('claim 17: each named run passes the host check: a host the pane cannot tell mid-minute runs no more', async ($, on) => {
   const w = await namedPane(on, $, SEVEN.slice(0, 3), w => {
     macos(w)
-    w.env = { PATH: '/usr/bin:/bin' }
     w.holdGh = true
     // r1 answers for its own #1, so only the repositories the check stops count.
     w.ghOutBy['r1/p'] = JSON.stringify([ghPr(1, { url: 'https://github.com/r1/p/pull/1' })])
   })
   expect(asked(w)).toBe(1)
-  w.env = { PATH: '/usr/bin::/bin' }
+  w.probes = {}
   w.holdGh = false
   w.releaseGh()
   await w.clock.settle()
@@ -8792,15 +8776,14 @@ test('claim 17: each named run passes the host and PATH check: a PATH that turns
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'view-prs' })
   expect((await textOf(m)).includes('PR details unavailable for 2 repositories')).toBe(true)
-  w.env = { PATH: '/usr/bin:/bin' }
+  macos(w)
   await w.clock.advance(60000)
   expect(w.ghInits.slice(1).map((_, i) => repoOf(w, i + 1))).toEqual(['r1/p', 'r2/p', 'r3/p'])
 })
 
-test('claim 17: a failed PATH check before the base run counts the base and every named repository due', async ($, on) => {
+test('claim 17: a failed host check before the base run counts the base and every named repository due', async ($, on) => {
   const w = await namedPane(on, $, [ALPHA, ...SEVEN.slice(0, 2)], w => {
-    macos(w)
-    w.env = { PATH: '/usr/bin::/bin' }
+    w.env = {}
   })
   expect(asked(w)).toBe(0)
   const m = await mountOn($, 'desktop')
@@ -10005,13 +9988,14 @@ test('543 C8: each guard refuses in fixed words with nothing run, in the stop to
   expect(runs()).toEqual([])
 })
 
-test('543 C8: with the host or PATH not to be trusted, or a program missing, in the folder or only a .cmd shim, nothing runs', async ($, on) => {
+test('543 C8: with a program missing, in the folder or only a .cmd shim, or a host the pane cannot tell, nothing runs', async ($, on) => {
   const { w, runs } = await startWorld(on, $)
   if (!ON_WINDOWS) {
-    // A POSIX host whose PATH holds a relative entry is not looked in.
-    w.env = { PATH: `bin:${BIN}` }
-    expect((await startTool($)).text).toBe(refusedStart('host: the host or its PATH could not be trusted to look programs up'))
+    // No Windows variable and no probe file: the host cannot be told.
     w.env = { PATH: BIN }
+    w.probes = {}
+    expect((await startTool($)).text).toBe(refusedStart('host: the host could not be told, so no program is looked up'))
+    w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
   }
   w.drop(exe('claude'))
   expect((await startTool($)).text).toBe(refusedStart('program: not found on PATH'))
