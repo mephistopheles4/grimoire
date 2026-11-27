@@ -112,6 +112,8 @@ test('claim 4: a kept turn plays one spinner word within 100 ms, never the same 
     assert.equal(r.player.spinners.length, i + 1, `turn ${i}: one word, within the pause`);
     seen.push(r.player.spinners[i].word);
   }
+  await tick(70); // proves absence of a late extra word: keep the wait
+  assert.equal(r.player.spinners.length, 50, 'one word for each turn');
   for (let i = 1; i < seen.length; i++) assert.notEqual(seen[i], seen[i - 1], 'never the same twice running');
   assert.equal(new Set(seen).size > 5, true, 'a spread of the ten words');
   assert.ok(seen.every(w => SPINNERS.includes(w)));
@@ -129,6 +131,7 @@ test('follow-up 1: the spinner word plays when the gate hears the end of speech,
   assert.equal(r.engine.calls, 1, 'and the engine is still working on the turn');
   const pending = wait(r.home);
   assert.equal(await raced(pending, 100), 'still waiting', 'nothing delivered yet');
+  assert.equal(r.player.spinners.length, 1, 'and no second word in that time');
   assert.match(await pending, /^Heard: "Run the tests\."$/m);
 });
 
@@ -175,7 +178,7 @@ test('follow-up 1: a quick turn inside the echo window still gets a cue, and our
   assert.equal(r.player.spinners.length, 1);
   r.push(3163, 12); // the mic hears the spinner word's own tail, within echoHoldMs of its end
   r.push(1000, 15);
-  await tick(150); // proves absence: keep the wait
+  await tick(150); // proves absence of the echoed turn in the delivery: keep the wait
   assert.ok(r.player.spinners.length >= 1, 'the first cue played');
   const out = await wait(r.home);
   assert.match(out, /^Heard: "Run the tests."$/m);
@@ -448,7 +451,7 @@ const longTurn = r => {
 test('bug a: a turn cut at 30 s and its rest reach the session as one turn, in order, with nothing lost', async t => {
   const r = await live(t, { engineOptions: { text: texts('This is the first part of a long turn.', 'And this is the rest of it.') } });
   longTurn(r);
-  await tick(150); // proves absence: keep the wait
+  await tick(150); // proves absence of a second word: keep the wait
   const out = await wait(r.home);
   assert.match(out, /^Heard: "This is the first part of a long turn\. And this is the rest of it\."$/m);
   assert.equal(r.engine.calls, 2);
@@ -466,7 +469,7 @@ test('GRIM-51: no spinner word plays at a cut for length; one plays when the per
   await tick(100); // proves absence: keep the wait
   assert.equal(r.player.spinners.length, 0, 'nothing while they talk');
   r.push(1000, 15);
-  await tick(100); // proves absence: keep the wait
+  await tick(100); // proves absence of a second word: keep the wait
   assert.equal(r.player.spinners.length, 1, 'one at the end');
 });
 
@@ -480,7 +483,7 @@ test('GRIM-51: a person who stops right at the cut still gets one spinner word, 
     assert.equal(r.player.spinners.length, 0, 'none at the cut itself');
     if (click) r.push(3163, 2); // too short to be a turn
     r.push(1000, 60);
-    await tick(100); // proves absence: keep the wait
+    await tick(100); // proves absence of a second word: keep the wait
     assert.equal(r.player.spinners.length, 1, click ? 'after a click' : 'after silence');
     assert.match(await within(wait(r.home), 2000, 'never'), /^Heard: "a lone part with no rest"$/m);
   }
