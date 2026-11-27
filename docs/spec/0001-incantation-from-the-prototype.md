@@ -1,5 +1,13 @@
 # Incantation from the prototype
 
+> **On 2026-11-26 the guards against other accounts on the same machine were
+> cut.** The recorder and `uv` are no longer held to an owner or a mode.
+> The state folder and its files take the system's default modes, and a link
+> in place of a folder is followed. Three places keep guards of their own: the
+> observe log refuses a link and sets the folders it writes to 700, the runtime
+> installer makes its own folders 700, and the player's temporary file is 600.
+> Where a section below says otherwise, this holds.
+
 Status: Draft: in force only when the owner merges it.
 
 This spec turns the incantation prototype, a dev mod the owner tried live by

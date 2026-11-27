@@ -13,18 +13,18 @@ import { execFile } from 'node:child_process';
 import { findUv, installRuntime, OMITTED, planRuntime, verifyRuntime } from './runtime/install.mjs';
 import { listDevices, listingLines, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { loadEngine } from './engines/index.mjs';
-import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, deviceDigest, ensureKey, runDir, secureState, settingsPath, writePrivate } from './lib.mjs';
+import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, deviceDigest, ensureKey, runDir, ensureState, settingsPath, writeWhole } from './lib.mjs';
 
 export const LINES = {
   usage: 'usage: setup.mjs devices | profiles | choose <index> <stamp> <profile id> | runtime plan [kokoro | phonon] | install [kokoro | phonon] | verify',
-  recorder: 'setup: ffmpeg was not found in a trusted folder on PATH. See README step 1.',
+  recorder: 'setup: ffmpeg was not found on an absolute PATH entry outside this folder. See README step 1.',
   devices: 'setup: ffmpeg listed no microphone. See README step 4.',
   stale: 'setup: the microphone list changed since you listed it. Run setup.mjs devices again.',
   index: 'setup: there is no microphone with that index.',
   voicebox: 'setup: Voicebox is not answering on this machine. Start it: README step 1.',
   profile: 'setup: Voicebox has no profile with that id. Run setup.mjs profiles.',
   voices: 'setup: no voice is installed. Run setup.mjs runtime install first.',
-  state: 'setup: the ~/.grimoire/incantation folder is not private or not a plain folder. See README step 3.',
+  state: "setup: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. See README step 3.",
   failed: 'setup: could not save the settings.',
   saved: 'setup: saved. Run /incantation in a session.',
 };
@@ -77,7 +77,7 @@ export async function runSetup(argv, o) {
   const [command, ...args] = argv;
   if (!['devices', 'profiles', 'choose', 'runtime'].includes(command)) return { lines: [LINES.usage], code: 2 };
   try {
-    secureState(o.home, { platform });
+    ensureState(o.home);
   } catch {
     return { lines: [LINES.state], code: 1 };
   }
@@ -108,10 +108,10 @@ export async function runSetup(argv, o) {
   if (!profiles.some(p => p.id === args[2])) return { lines: [LINES.profile], code: 1 };
   // The mic is kept as keyed digests of its id and name, never as text (S13.5);
   // the key is made at the first choose and stays, so older digests keep matching.
-  const key = ensureKey(o.home, { platform });
+  const key = ensureKey(o.home);
   const settings = { ...SETTINGS_DEFAULTS, engine: FRESH_ENGINE, profile: args[2], device: { index, stamp: args[1], id: deviceDigest(key, devices[index].id), name: deviceDigest(key, devices[index].name) }, recorder };
   for (const [k, v] of Object.entries(settings)) if (!SETTINGS_KEYS[k](v)) return { lines: [LINES.usage], code: 2 };
-  writePrivate(settingsPath(o.home), `${JSON.stringify(settings, null, 2)}\n`, { platform });
+  writeWhole(settingsPath(o.home), `${JSON.stringify(settings, null, 2)}\n`);
   return { lines: [LINES.saved], code: 0 };
 }
 

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { SPINNERS, ask, leadSilence, pickSpinner, readChannel, runListing, say, startListener, stopRecorder, waitLines } from '../skills/incantation/scripts/listen.mjs';
 
 const LISTEN = fileURLToPath(new URL('../skills/incantation/scripts/listen.mjs', import.meta.url));
-import { deviceDigest, ensureKey, observeDir, runDir, secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
+import { deviceDigest, ensureKey, observeDir, runDir, ensureState, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
 
 const RECORDER = process.platform === 'win32' ? 'C:\\fake\\bin\\ffmpeg.exe' : '/fake/bin/ffmpeg';
 // A made-up listing in the Windows format; the Linux and macOS rows read their own.
@@ -44,9 +44,9 @@ const frame = amp => {
 
 function makeHome(overrides = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-home-'));
-  secureState(home);
+  ensureState(home);
   const settings = { engine: 'voicebox', port: 17493, profile: 'made-up-profile', device: { index: 0, stamp: STAMP }, recorder: RECORDER, endOfSpeechMs: 300, ...overrides };
-  writePrivate(settingsPath(home), JSON.stringify(settings));
+  writeWhole(settingsPath(home), JSON.stringify(settings));
   return home;
 }
 
@@ -287,7 +287,6 @@ test('T9: the status file holds one word, listening, hearing, speaking or muted,
   r.player.plays[0].end();
   await tick(30);
   assert.notEqual(statusOf(r.home), 'speaking', 'and not a moment past its real end');
-  if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'status')).mode & 0o777, 0o600);
   await l.stop();
   assert.equal(existsSync(join(runDir(r.home), 'status')), false);
 });
@@ -393,7 +392,6 @@ test('the channel binds 127.0.0.1 only and listen.json holds no more than the po
     });
     assert.equal(refused, true, 'not reachable on a non-loopback address');
   } else t.diagnostic('no non-loopback IPv4 address on this runner');
-  if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'listen.json')).mode & 0o777, 0o600);
 });
 
 test('no token, a wrong token, or none within the handshake is closed and holds no slot; a second waiter is busy', async t => {
@@ -512,7 +510,7 @@ test('it refuses to start, with a fixed reason, on a changed recorder, no usable
     r.cleanup();
   }
   const r = rig();
-  writePrivate(settingsPath(r.home), '{"engine": "voicebox", "port": ');
+  writeWhole(settingsPath(r.home), '{"engine": "voicebox", "port": ');
   await assert.rejects(r.start(), { reason: 'settings' });
   r.cleanup();
 });
@@ -565,7 +563,7 @@ test('wait and stop with no listener, and an unparsable listen.json, print fixed
   const cli = command => new Promise(res => execFile(process.execPath, [LISTEN, command], { env, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res(stdout)));
   assert.equal(await cli('wait'), 'listener error ended\n');
   assert.equal(await cli('stop'), 'listener: not running\n');
-  writePrivate(join(runDir(home), 'listen.json'), '{"port": 1, "token": "planted-key-sk-123');
+  writeWhole(join(runDir(home), 'listen.json'), '{"port": 1, "token": "planted-key-sk-123');
   assert.equal(await cli('wait'), 'listener error ended\n');
 });
 
@@ -623,38 +621,19 @@ test('the mic stays closed until the playback feed answers, and a feed that neve
   assert.equal(r.recorder.spawned.length, 0);
 });
 
-test('it refuses to start with state when a link or junction stands in place of the state folder', async t => {
+test('it starts with a link or junction in place of the state folder, and keeps its files behind it', async t => {
   const r = rig();
   t.after(r.cleanup);
   const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   renameSync(join(r.home, '.grimoire', 'incantation'), join(outside, 'incantation'));
   symlinkSync(join(outside, 'incantation'), join(r.home, '.grimoire', 'incantation'), process.platform === 'win32' ? 'junction' : 'dir');
-  await assert.rejects(r.start(), { reason: 'state' });
-  assert.equal(r.recorder.spawned.length, 0);
-});
-
-test('T2: the state folder is ~/.grimoire/incantation, beside eagle-eye\'s; a link in place of .grimoire is refused; one the owner made looser is left alone', async t => {
-  const r = rig();
-  t.after(r.cleanup);
-  assert.equal(existsSync(join(r.home, '.grimoire', 'incantation', 'settings.json')), true);
-  assert.equal(existsSync(join(r.home, '.incantation')), false, 'no top-level folder');
-  const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
-  t.after(() => rmSync(outside, { recursive: true, force: true }));
-  renameSync(join(r.home, '.grimoire'), join(outside, 'grimoire'));
-  symlinkSync(join(outside, 'grimoire'), join(r.home, '.grimoire'), process.platform === 'win32' ? 'junction' : 'dir');
-  await assert.rejects(r.start(), { reason: 'state' });
-  assert.equal(r.recorder.spawned.length, 0);
-});
-
-test('T2: the grimoire folder may already hold other skills\' files, at a mode its owner chose', async t => {
-  const home = mkdtempSync(join(tmpdir(), 'incantation-home-'));
-  t.after(() => rmSync(home, { recursive: true, force: true }));
-  mkdirSync(join(home, '.grimoire', 'eagle-eye'), { recursive: true, mode: 0o755 });
-  writeFileSync(join(home, '.grimoire', 'eagle-eye', 'log.jsonl'), 'x');
-  secureState(home);
-  assert.equal(readFileSync(join(home, '.grimoire', 'eagle-eye', 'log.jsonl'), 'utf8'), 'x', 'left as it was');
-  if (process.platform !== 'win32') assert.equal(statSync(join(home, '.grimoire')).mode & 0o777, 0o755, 'its mode is not ours to change');
+  const l = await r.start();
+  t.after(() => l.stop());
+  const written = join(outside, 'incantation', 'run', 'listen.json');
+  writeFileSync(join(outside, 'plain'), 'x');
+  if (process.platform !== 'win32') assert.equal(statSync(written).mode & 0o777, statSync(join(outside, 'plain')).mode & 0o777, 'no mode of its own');
+  assert.equal(existsSync(written), true);
 });
 
 test('T14: a wait ends only on a real heard turn, the first ready line, a stop or an error; a quiet stretch and the other notices ride in the next real delivery', async t => {
@@ -693,7 +672,6 @@ test('T16: the levels file holds the stamp, the state word and 24 digits, number
   assert.equal(m[2], 'hearing');
   assert.match(m[3].slice(-4), /[1-8]/, 'the last buckets are loud');
   assert.ok(Math.abs(Number(m[1]) - Date.now()) < 5000, 'the stamp is the wall clock in ms');
-  if (process.platform !== 'win32') assert.equal(statSync(join(runDir(r.home), 'levels')).mode & 0o777, 0o600);
   await l.stop();
   assert.equal(existsSync(join(runDir(r.home), 'levels')), false);
 });
@@ -1003,7 +981,7 @@ test('claim 3: a listener older than a command closes the connection, and the cl
   });
   await new Promise(res => server.listen(0, '127.0.0.1', res));
   t.after(() => server.close());
-  writePrivate(join(runDir(home), 'listen.json'), JSON.stringify({ port: server.address().port, token }));
+  writeWhole(join(runDir(home), 'listen.json'), JSON.stringify({ port: server.address().port, token }));
   const run = (h, command) =>
     new Promise(res => execFile(process.execPath, [LISTEN, command], { env: { ...process.env, HOME: h, USERPROFILE: h }, encoding: 'utf8', timeout: 15_000 }, (e, stdout) => res(stdout)));
   for (const command of ['working', 'mute-voice', 'unmute-voice']) assert.equal(await run(home, command), 'listener: restart needed for this command\n', command);
@@ -1226,7 +1204,7 @@ test('claim 7: the saved mic is found by its digests, a changed list falls back 
   const home = makeHome({ device: { index: 5, stamp: '0123456789abcdef' } });
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const key = ensureKey(home);
-  writePrivate(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up-profile', device: { index: 5, stamp: '0123456789abcdef', id: deviceDigest(key, dev[0].id), name: deviceDigest(key, 'another name') }, recorder: RECORDER, endOfSpeechMs: 300 }));
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up-profile', device: { index: 5, stamp: '0123456789abcdef', id: deviceDigest(key, dev[0].id), name: deviceDigest(key, 'another name') }, recorder: RECORDER, endOfSpeechMs: 300 }));
   const saved = rig({ home });
   const sl = await saved.start();
   assert.doesNotMatch(await wait(home), /mic-fallback/);

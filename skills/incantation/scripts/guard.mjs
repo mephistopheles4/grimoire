@@ -10,7 +10,7 @@ import { homedir, networkInterfaces } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { resolveRecorder } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
-import { readSettings, secureState } from './lib.mjs';
+import { ensureState, readSettings } from './lib.mjs';
 import { checkRuntime, platformKey } from './runtime/install.mjs';
 
 const CONNECT_MS = 500;
@@ -20,11 +20,11 @@ export const LINES = {
   node: 'guard: Node 24 or later is needed. See README step 1.',
   settings: 'guard: the settings are missing or out of range. Run /incantation install.',
   engine: 'guard: the speech engine in the settings is not one Incantation knows. Run /incantation install.',
-  state: 'guard: the ~/.grimoire/incantation folder is not private or not a plain folder. Run /incantation install.',
+  state: "guard: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. Run /incantation install.",
   health: 'guard: Voicebox is not answering on this machine. Start it: README step 1.',
   runtime: 'guard: the speech runtime is not installed, or a file of it is missing or the wrong size. Run /incantation install.',
   reach: 'guard: Voicebox answers on an address other than this machine. See README step 2.',
-  recorder: 'guard: ffmpeg is not where setup found it, or is not trusted. Run /incantation install.',
+  recorder: 'guard: ffmpeg is not where setup found it. Run /incantation install.',
   late: 'guard: the check took too long. See README step 1.',
 };
 
@@ -63,13 +63,13 @@ async function check(o) {
   if (!(major >= 24)) fail('node');
   let settings;
   try {
-    settings = readSettings(o.home, { platform });
+    settings = readSettings(o.home);
   } catch (e) {
     return fail(e.message === 'state' ? 'state' : 'settings');
   }
   if (!isEngine(settings.engine)) fail('engine');
   try {
-    secureState(o.home, { platform, create: false });
+    ensureState(o.home, { create: false });
   } catch {
     fail('state');
   }

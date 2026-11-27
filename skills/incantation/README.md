@@ -138,14 +138,12 @@ these places differ by platform:
 | Place | Windows | macOS and Linux |
 |---|---|---|
 | Capture input and device list | `dshow` | `avfoundation`, `pulse` or `alsa` |
-| Finding ffmpeg | fully qualified drive folders on PATH | absolute PATH entries, owned by root or you, writable by no one else |
-| The `~/.grimoire/incantation` folder's privacy | your profile folder's default access | 0700 folders and 0600 files, refused when looser |
+| Finding ffmpeg | fully qualified drive folders on PATH | absolute PATH entries |
+| Who can read `~/.grimoire/incantation` | your profile folder's default access | your account's default file modes; the observe log and the installer still set their own folders to 700 |
 | The OS mic permission | Settings, Privacy, Microphone, "Let desktop apps access your microphone" | macOS: give the terminal or app that runs Claude Code Microphone access; Linux: none beyond the sound server |
 
-- **PATH security for `ffmpeg` and `uv`.** On macOS and Linux, both must sit in
-  a folder owned by root or by you that no other account can write; a shared
-  Homebrew prefix owned by another account is refused. Neither is ever resolved
-  from the working folder.
+- **Finding `ffmpeg` and `uv`.** Neither is ever resolved from a relative PATH
+  entry or the working folder. Who owns the file is not checked.
 - **OS mic permission off.** With permission off, the mic gives only silence and
   the listener stops after `3 s` with `listener error mic`.
 - **A Bluetooth headset on macOS.** The headset's own mic works as the input,

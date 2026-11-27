@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 import { LINES, runGuard } from '../skills/incantation/scripts/guard.mjs';
-import { secureState, settingsPath, writePrivate } from '../skills/incantation/scripts/lib.mjs';
+import { ensureState, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
 import { ARCHIVES, FILES } from '../skills/incantation/scripts/runtime/pins.mjs';
 import { platformKey, pythonExe, runtimeDir } from '../skills/incantation/scripts/runtime/install.mjs';
 
@@ -22,14 +22,12 @@ const PLANTED = 'sk-planted-fake-key-0123456789abcdef';
 const fakeFs = {
   isFile: p => p === RECORDER,
   realpath: p => p,
-  lstat: () => ({ uid: 0, mode: 0o40755 }),
-  uid: () => 1000,
 };
 
 function fixture({ settings = {}, claude, project } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-guard-'));
-  secureState(home);
-  writePrivate(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up', device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000, ...settings }));
+  ensureState(home);
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up', device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000, ...settings }));
   const claudeJson = claude ?? { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: {} };
   writeFileSync(join(home, '.claude.json'), typeof claudeJson === 'string' ? claudeJson : JSON.stringify(claudeJson));
   const projectDir = mkdtempSync(join(tmpdir(), 'incantation-project-'));
@@ -87,8 +85,8 @@ test('with the real sherpa engine, a Phonon voice passes with no Kokoro on disk,
   const root = runtimeDir(f.home);
   const put = (rel, size) => {
     const p = join(root, ...rel.split('/'));
-    mkdirSync(join(p, '..'), { recursive: true, mode: 0o700 });
-    writeFileSync(p, '', { mode: 0o600 });
+    mkdirSync(join(p, '..'), { recursive: true });
+    writeFileSync(p, '');
     truncateSync(p, size);
   };
   const key = platformKey(process.platform, process.arch);
@@ -97,9 +95,9 @@ test('with the real sherpa engine, a Phonon voice passes with no Kokoro on disk,
   const python = win ? 'Scripts/python.exe' : 'bin/python';
   put(`py/${python}`, 0);
   assert.equal(join(root, 'py', ...python.split('/')), pythonExe(f.home));
-  writePrivate(join(root, 'py.manifest.json'), JSON.stringify({ files: [[python, 0]] }));
+  writeWhole(join(root, 'py.manifest.json'), JSON.stringify({ files: [[python, 0]] }));
   const real = profile => {
-    writePrivate(settingsPath(f.home), JSON.stringify({ engine: 'sherpa', port: 17493, profile, device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000 }));
+    writeWhole(settingsPath(f.home), JSON.stringify({ engine: 'sherpa', port: 17493, profile, device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000 }));
     return runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, addresses: () => [] });
   };
   assert.equal(await real('everly'), 'ok', 'a Phonon voice needs no Kokoro');
@@ -144,38 +142,28 @@ test('T18: the guard no longer asks for a voicebox MCP registration, and never r
   assert.equal(LINES.mcp, undefined);
 });
 
-// A link in place of the state folder: a junction on Windows, a symlink elsewhere.
+// A link in place of a folder: a junction on Windows, a symlink elsewhere.
 const linkFolder = (target, path) => symlinkSync(target, path, win ? 'junction' : 'dir');
 
-test('the state check fails closed on a link or junction in place, a real path outside home, and a looser mode', async t => {
+test('the state check follows a link or junction in place of the folder, takes any mode, and still fails on a file in its place', async t => {
   const outside = mkdtempSync(join(tmpdir(), 'incantation-outside-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const moved = fixture();
+  t.after(moved.remove);
   renameSync(join(moved.home, '.grimoire', 'incantation'), join(outside, 'incantation'));
   linkFolder(join(outside, 'incantation'), join(moved.home, '.grimoire', 'incantation'));
-  assert.equal(await guard(moved), LINES.state, 'a link whose real path is outside home');
-  moved.remove();
-  const inside = fixture();
-  renameSync(join(inside.home, '.grimoire', 'incantation'), join(inside.home, 'kept'));
-  linkFolder(join(inside.home, 'kept'), join(inside.home, '.grimoire', 'incantation'));
-  assert.equal(await guard(inside), LINES.state, 'a link, even to a folder inside home');
-  inside.remove();
+  assert.equal(await guard(moved), 'ok', 'a link to a folder outside home');
   if (!win) {
-    for (const [path, mode] of [[join('.grimoire', 'incantation'), 0o755], [join('.grimoire', 'incantation', 'run'), 0o750], [join('.grimoire', 'incantation', 'settings.json'), 0o644]]) {
-      const f = fixture();
-      chmodSync(join(f.home, path), mode);
-      assert.equal(await guard(f), LINES.state, `${path} at ${mode.toString(8)}`);
-      f.remove();
-    }
+    const f = fixture();
+    t.after(f.remove);
+    for (const [path, mode] of [[join('.grimoire', 'incantation'), 0o755], [join('.grimoire', 'incantation', 'run'), 0o750], [join('.grimoire', 'incantation', 'settings.json'), 0o644]]) chmodSync(join(f.home, path), mode);
+    assert.equal(await guard(f), 'ok', 'looser modes');
   }
-});
-
-test('T2: the guard says ok with the grimoire folder as its owner made it (eagle-eye\'s files beside ours, a looser mode on this platform)', async t => {
-  const f = fixture();
-  t.after(f.remove);
-  mkdirSync(join(f.home, '.grimoire', 'eagle-eye'), { mode: 0o755 });
-  if (!win) chmodSync(join(f.home, '.grimoire'), 0o755);
-  assert.equal(await guard(f), 'ok');
+  const file = fixture();
+  t.after(file.remove);
+  rmSync(join(file.home, '.grimoire', 'incantation', 'run'), { recursive: true });
+  writeFileSync(join(file.home, '.grimoire', 'incantation', 'run'), 'x');
+  assert.equal(await guard(file), LINES.state, 'a file where a folder belongs');
 });
 
 test('T2: the first run moves an old ~/.incantation to ~/.grimoire/incantation, settings and all, and goes on; a folder already at the new place is never overwritten', async t => {

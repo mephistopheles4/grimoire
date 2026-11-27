@@ -78,13 +78,10 @@ test('the listing lines show the stamp and cleaned names cut at 64, never an id'
   assert.notEqual(stampOf(devices), stampOf([{ name: 'Mic', id: 'other' }]));
 });
 
-// A file system for the resolver: `files` maps a path to its real path, and
-// `meta` gives a path's owner and mode (POSIX only).
-const fsOf = (files, meta = {}) => ({
+// A file system for the resolver: `files` maps a path to its real path.
+const fsOf = files => ({
   isFile: p => Object.hasOwn(files, p),
   realpath: p => files[p] ?? null,
-  lstat: p => meta[p] ?? { uid: 0, mode: 0o40755 },
-  uid: () => 1000,
 });
 
 test('windows: only fully qualified drive folders count, and the real path must still be a drive path', () => {
@@ -101,17 +98,10 @@ test('posix: a relative, empty or current-folder entry, or one inside the start 
   assert.equal(resolveRecorder({ platform: 'darwin', pathValue: '/proj/bin', startDir: '/proj', fs }), null);
 });
 
-test('posix: a recorder in a group- or other-writable folder, or owned by another account, is refused', () => {
-  const files = { '/opt/x/bin/ffmpeg': '/opt/x/bin/ffmpeg' };
-  const ok = { uid: 0, mode: 0o40755 };
-  const base = { '/': ok, '/opt': ok, '/opt/x': ok, '/opt/x/bin': ok, '/opt/x/bin/ffmpeg': { uid: 0, mode: 0o100755 } };
-  const resolve = meta => resolveRecorder({ platform: 'linux', pathValue: '/opt/x/bin', startDir: '/proj', fs: fsOf(files, { ...base, ...meta }) });
-  assert.equal(resolve({}), '/opt/x/bin/ffmpeg');
-  assert.equal(resolve({ '/opt/x/bin/ffmpeg': { uid: 1000, mode: 0o100755 } }), '/opt/x/bin/ffmpeg', 'owned by this account');
-  assert.equal(resolve({ '/opt/x': { uid: 0, mode: 0o40775 } }), null, 'a group-writable folder above it');
-  assert.equal(resolve({ '/opt/x/bin': { uid: 0, mode: 0o40757 } }), null, 'an other-writable folder');
-  assert.equal(resolve({ '/opt/x/bin/ffmpeg': { uid: 501, mode: 0o100755 } }), null, 'owned by another account');
-  assert.equal(resolve({ '/opt/x/bin/ffmpeg': { uid: 0, mode: 0o100775 } }), null, 'a group-writable file');
+test('posix: a recorder is taken from an absolute entry whoever owns it and whatever its mode', () => {
+  // An owner and a mode the old rule refused: nothing asks for either now.
+  const fs = { ...fsOf({ '/opt/x/bin/ffmpeg': '/opt/x/bin/ffmpeg' }), lstat: () => ({ uid: 501, mode: 0o40777 }), uid: () => 1000 };
+  assert.equal(resolveRecorder({ platform: 'linux', pathValue: '/opt/x/bin', startDir: '/proj', fs }), '/opt/x/bin/ffmpeg');
 });
 
 test('a relative or current-folder entry is refused by the rule itself, though a file sits there with an acceptable real path', () => {

@@ -64,7 +64,6 @@ node '<skill base directory>/scripts/render.mjs' --new-folder
 The script prints the folder's path. On Windows and macOS the folder is in
 the per-user temporary folder. On Linux it is under
 `$XDG_CACHE_HOME/contract-interview/`, else `~/.cache/contract-interview/`.
-On macOS and Linux the folder is owner-only.
 
 The person may name a parent folder instead:
 
