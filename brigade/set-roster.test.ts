@@ -43,14 +43,6 @@ const DATA = `${CONFIG}${SEP}plugins${SEP}data${SEP}grimoire-inline`
 const BRIGADE = `${DATA}${SEP}brigade`
 const FILE = `${BRIGADE}${SEP}${SID}.json`
 const ELSEWHERE = `${ROOT}${SEP}elsewhere`
-// Junctions exist only on Windows, and their answers were recorded there. On
-// any other host a test that builds one is not declared, and its title is
-// printed, so the run says what it left out.
-const withJunction: typeof test = (name, ...rest) => {
-  if (ON_WINDOWS) test(name, ...rest)
-  else console.log(`skipped: junctions are Windows-only (#481): ${name}`)
-}
-
 // --- the file system in memory ------------------------------------------------
 
 type Node =
@@ -195,7 +187,7 @@ const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 
 
 // The world's host is read from this file's address; the engine's own `cwd`
 // on a classic event is a second witness. If the two disagreed, the junction
-// tests would vanish from a Windows run, or run on Linux, with nothing failing.
+// cases would vanish from a Windows run, or run on Linux, with nothing failing.
 test("the world's host is the engine's: a drive-letter cwd is Windows, and only there", async ($, on) => {
   let cwd = ''
   on('classic.Notification', ($, e: any) => {
@@ -10012,16 +10004,6 @@ test('543 C8: with a program missing, in the folder or only a .cmd shim, or a ho
   expect(runs()).toEqual([])
 })
 
-withJunction('543 C8: a PATH entry that is a junction into the checkout leads to a program inside it, and nothing runs', async ($, on) => {
-  const { w, runs } = await startWorld(on, $)
-  w.dirs(`${REPO_DIR}\\bin`)
-  w.put(`${REPO_DIR}\\bin\\claude.exe`, { type: 'file', data: { text: '' } })
-  w.put('C:\\lnk', { type: 'link', kind: 'junction', target: `${REPO_DIR}\\bin` })
-  w.env = { ...WINDOWS, PATH: `C:\\lnk;${BIN}` }
-  expect((await startTool($)).text).toBe(refusedStart('program: found inside the folder'))
-  expect(runs().filter(a => a[0] === exe('claude'))).toEqual([])
-})
-
 test('579 C2: a start in a main checkout reaches the run with no startFolders key, and with a key planted naming another folder', async ($, on) => {
   const { store, runs } = await startWorld(on, $)
   expect((await startTool($)).ok).toBe(true)
@@ -10330,41 +10312,15 @@ for (const [label, change, rule] of QUEUED) {
   })
 }
 
-test("543 C8: a program whose real path is spelled otherwise than the folder's is not trusted: an odd spelling refuses, and a case that differs still counts as inside", async ($, on) => {
+test('543 C8: a program found on PATH runs wherever its real path leads, inside the folder included', async ($, on) => {
   const { w, runs } = await startWorld(on, $)
   const base = w.stat
-  const claudeBin = exe('claude')
-  const cases: [string, string][] = [
-    [ON_WINDOWS ? `\\\\?\\${claudeBin}` : `${BIN}/../bin/claude`, 'program: its real path could not be trusted'],
-    [`${REPO_DIR.toUpperCase()}${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`, 'program: found inside the folder'],
-  ]
-  for (const [real, why] of cases) {
-    w.stat = (p: string) => {
-      const s = base(p)
-      return s !== undefined && p === claudeBin ? { ...s, realPath: real } : s
-    }
-    expect((await startTool($)).text).toBe(refusedStart(why))
+  w.stat = (p: string) => {
+    const s = base(p)
+    return s !== undefined && p === exe('claude') ? { ...s, realPath: `${REPO_DIR}${SEP}bin${SEP}claude` } : s
   }
-  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
-})
-
-test("543 C8: a program whose real path differs from the folder's only in Unicode form is still inside it, whichever form each has", async ($, on) => {
-  const composed = `${REPO_DIR}é`
-  // The same name with an e and a combining accent.
-  const decomposed = `${REPO_DIR}é`
-  const { w, runs } = await startWorld(on, $)
-  for (const d of [composed, decomposed]) w.dirs(`${d}${SEP}.git`)
-  const base = w.stat
-  const claudeBin = exe('claude')
-  const tail = `${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`
-  for (const [folder, real] of [[composed, decomposed], [decomposed, composed]]) {
-    w.stat = (p: string) => {
-      const s = base(p)
-      return s !== undefined && p === claudeBin ? { ...s, realPath: `${real}${tail}` } : s
-    }
-    expect((await startTool($, { folder })).text).toBe(refusedStart('program: found inside the folder'))
-  }
-  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
+  expect((await startTool($)).ok).toBe(true)
+  expect(runs().filter(r => r[0] === exe('claude')).length).toBe(1)
 })
 
 test('543 C5: a checkout that keeps its branches in a reftable holds every name, as the branch half cannot be read', async ($, on) => {

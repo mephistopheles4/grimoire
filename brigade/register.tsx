@@ -26,7 +26,6 @@ import {
   checkRoster,
   dataFolder,
   dataPlace,
-  pathKey,
   ghRun,
   ghViewRun,
   linearLabel,
@@ -2977,19 +2976,7 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
     const found = await statPath($, p)
     known.set(p, 'found' in found && found.found.kind === 'file')
   }
-  wanted.clear()
-  const hit = lookup()
-  if ('why' in hit) return hit
-  // A link or junction on PATH can lead into the folder by a route the spelling compare cannot see:
-  // the file's real path must lie outside it too.
-  const real = await statPath($, hit.value)
-  if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
-  // A real path that is not itself a plain spelling is not trusted, and the compare folds case on
-  // every host: folding can only refuse more.
-  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: its real path could not be trusted' }
-  // Both sides in one Unicode form too, as a link's target may carry the other.
-  if (pathKey(real.found.realPath.normalize('NFC'), true).startsWith(`${pathKey(folder.normalize('NFC'), true)}/`)) return { why: 'program: found inside the folder' }
-  return hit
+  return lookup()
 }
 
 // The start. Every refusal is fixed words; nothing of a run is shown.
