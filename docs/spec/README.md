@@ -13,6 +13,7 @@ None yet.
 
 ## All specs
 
+- [0004-tests-faster](0004-tests-faster.md) — a draft: the test suite starts fewer processes, copies less and waits on states instead of fixed sleeps, with no shipped file changed
 - [0003-incantation-retire-voicebox-and-kokoro](0003-incantation-retire-voicebox-and-kokoro.md) — a draft: retires Voicebox and Kokoro so Parakeet hears and Phonon speaks on one uv-required local runtime
 - [0002-incantation-go-on-and-quote](0002-incantation-go-on-and-quote.md) — a draft: an easily undone act is said back and done with no yes, a head chef files a private issue the same way, and spoken lines show as block quotes
 - [0001-incantation-from-the-prototype](0001-incantation-from-the-prototype.md) — a draft: the incantation skill gains the local sherpa engine, the echo stack, the relay and a clear spoken yes
