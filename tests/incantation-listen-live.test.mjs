@@ -1,6 +1,9 @@
 // More tests of listen.mjs, from the listener the prototype proved onward
-// (S5.1 to S5.7 and what followed). The rest are in
-// incantation-listen.test.mjs.
+// (S5.1 to S5.7 and what followed); its "claim N" titles are numbered apart
+// from S6's claims. "live" names the live() helper below, a started rig that
+// has answered ready: every test here runs on fakes. The rest are in
+// incantation-listen.test.mjs. A new test goes in whichever file keeps their
+// run times close.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

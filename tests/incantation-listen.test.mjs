@@ -1,7 +1,7 @@
-// Tests of listen.mjs (docs/spec/incantation.md, S6; claims 4, 6, 8, 10, 11
-// and 12) against the shared rig's fakes. The same tests run on every
-// platform. incantation-listen-live.test.mjs holds the rest: the two files
-// run side by side, so neither alone sets the check's wall time.
+// Tests of listen.mjs (docs/spec/incantation.md, S6; S6's claims 4, 6, 8, 10,
+// 11 and 12) against the shared rig's fakes. The same tests run on every
+// platform. incantation-listen-live.test.mjs holds the rest, so the two run
+// side by side. A new test goes in whichever file keeps their run times close.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
