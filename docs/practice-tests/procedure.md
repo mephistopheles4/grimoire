@@ -134,9 +134,6 @@ stop.
 - **It denies edits** to the copy of the skill under test, to the work
   folder's project settings, MCP config and instruction files, under `.git`,
   and to `.gitattributes`.
-- **It denies reads** of the user config folder's credential file, settings
-  files and global state file, of `.ssh`, `.aws`, `.git-credentials` and
-  `.npmrc`, and of the run's backups.
 - **It removes 15 tools** that reach off the machine or schedule work, such
   as `SendMessage`, `WebFetch` and `CronCreate`. The settings file denies
   them, and the command line disallows them, so they do not appear in the
@@ -160,8 +157,10 @@ stop.
   output path, a check can seal any folder, and git's `diff`, `log` and
   `show` take an output file.
 - **Git can run a program** that its own configuration names.
-- **Reads reach most of your home folder.** The read denies bind the agent's
-  read tools only, and they cover a few named files.
+- **No read is denied.** A session's reads reach your home folder, with its
+  credential files and `.ssh`, and the run's backups.
+- **A link is followed.** A link inside a skill or setup folder brings what it
+  points at into the work folder.
 - **A read rule shows the session an environment value.** On `clean` and
   `owner-pact` the environment holds no secret by construction: it holds the
   system list, the temp folder and the case's test values. On `user-skills`
@@ -174,7 +173,9 @@ stop.
   more characters. A secret the session reads in another form can reach a
   report.
 - **The checks are evidence, not proof.** They cover only the six places.
-  The backups sit where an allowed command could overwrite them.
+  The backups sit where an allowed command could overwrite them, the
+  manifest among them, and `send` reads its skill-copy hashes unchecked. It
+  trusts the run state too, so an edit there steers the next turn.
 - **The rules are only a rule check.** Claude Code has no operating-system
   sandbox on native Windows.
 
@@ -206,9 +207,9 @@ stop.
 | `report <run-id>` | Prints the run record, ending with the summary line |
 | `end <run-id>` | Deletes the work folder. It deletes the backups too when no live place changed. The run directory keeps the record and the transcript |
 
-`send` takes no flags. It rebuilds every turn's flags, settings file and
-environment from the variant, and refuses when the run state no longer
-matches. So a turn never runs without the variant's settings.
+`send` takes no flags. It builds every turn's flags, settings file and
+environment from the variant, so a turn never runs without the variant's
+settings.
 
 **`start` takes these options:**
 
@@ -228,9 +229,9 @@ the runner stopped on an error. A refusal before a turn means no session
 ran. 2 means the session ran but the turn did not complete, or `end`
 could not delete everything.
 
-**`start` refuses** an unknown variant, a skill folder with no `SKILL.md`, a
-link in a copied folder, and a setup folder that holds a `.claude` folder, an
-MCP config or an instruction file. It refuses a work folder with an
+**`start` refuses** an unknown variant, a skill folder with no `SKILL.md`,
+and a setup folder that holds a `.claude` folder, an MCP config or an
+instruction file. It refuses a work folder with an
 instruction file or a project settings folder above it. It refuses a tool
 rule outside the four shapes, a read or append rule whose name the case does
 not set, a named value it does not take, and a case run on a variant it is
@@ -285,9 +286,8 @@ shell. It cannot tell whether a value you type is a real key, and it does
 not compare a value with your user settings.
 
 - The name matches `^[A-Z_][A-Z0-9_]*$`.
-- The runner refuses names that change how a program starts or where its
-  state lives, such as `PATH`, `TEMP`, `HOME`, `CLAUDE_CONFIG_DIR`,
-  `NODE_OPTIONS` and any `GIT_*` name.
+- The runner refuses a name it sets itself in the session's environment,
+  such as `PATH`, `HOME`, `TEMP` or `CLAUDE_CONFIG_DIR`.
 - A relative path resolves against the session's current folder, which
   starts as the work folder. Use one when a value must point inside the work
   folder: the folder's path does not exist before `start`.
