@@ -11037,9 +11037,9 @@ test('610 C2: on a subagent turn, and under an id the level tools are not offere
   expect(levelNotes(w)).toEqual([])
   expect(w.checks.filter(c => c === AUTONOMY_TOOL)).toEqual([])
 })
-// A reset that waits leaves the level in force at 1 and the pressed level at 1 too (a reset sets 1
-// before it waits), so no state holds a pressed 3 while a reset waits: the note's gate on the pressed
-// level stops it first, and levelNow's waiting branch is not reachable from a turn.
+// A reset that waits leaves the level in force at 1 and the stored level at 1 too (a reset sets 1
+// before it waits), so no state holds a 3 while a reset waits: the note's gate on the press time
+// stops it first, and levelNow's waiting branch is not reachable from a turn.
 
 for (const [what, verdict] of [
   ['a deny verdict', { decision: 'deny', reason: 'SECRET managed policy' }],
