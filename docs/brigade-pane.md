@@ -63,9 +63,8 @@ can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
 that repository too, at most 6 runs a minute in all, the repositories taking
 turns past five, and the pane names it on the Pull
 requests row. **The
-details need `gh` installed, signed in, and run from a github.com repository.** On
-macOS and Linux the pane also asks only when every folder on PATH is an absolute
-path. Without them the pill shows the number and the state the lead last knew, and the
+details need `gh` installed, signed in, and run from a github.com repository.**
+Without them the pill shows the number and the state the lead last knew, and the
 Pull requests view says "PR details unavailable". A pull request opened from a
 fork is never shown as the brigade's.
 

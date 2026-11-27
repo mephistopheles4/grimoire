@@ -26,7 +26,6 @@ import {
   checkRoster,
   dataFolder,
   dataPlace,
-  pathKey,
   ghRun,
   ghViewRun,
   linearLabel,
@@ -65,7 +64,7 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './roster.ts'
 import {
-  ENVELOPE as STOP_ENVELOPE, fromEngine, stopAnswer, stopTarget,
+  ENVELOPE as STOP_ENVELOPE, stopAnswer, stopTarget,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './stop.ts'
 import {
@@ -472,7 +471,7 @@ function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
 }
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
-// read only where the path rule allows it, so the pane follows no link either.
+// read only where the path rule allows it.
 async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   const at = await where($)
   if ('error' in at) {
@@ -488,9 +487,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   )
   try {
     const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
-    if ('refused' in placed) {
-      throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
-    }
+    if ('refused' in placed) throw new Error(placed.refused)
     if (placed.existing === undefined) {
       loadedCards = []
       await update($, roster, () => ({ cards: [], todos: [] }))
@@ -875,11 +872,6 @@ function marksTurn<T>(work: () => Promise<T>): Promise<T> {
   return run
 }
 
-// The fixed warnings after a write whose path then failed its check. They
-// name the file kind, never the path.
-const LOG_AFTER = 'Brigade: after a decision was logged, the decision log path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
-const MARKS_AFTER = 'Brigade: after a mark was saved, the marks path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
-
 // One mark for each row given, in this session's own marks file, in one write
 // in its queue. False when they could not be written; then nothing was changed.
 const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> =>
@@ -914,8 +906,6 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const text = serializeMarks(value)
     if ('error' in text) return false
     await $.fs.write(placed.file, text.value)
-    const after = await placeKind($, at, 'marks', at.id).catch(() => ({ refused: 'the check could not run' }))
-    if ('refused' in after || after.existing === undefined) $.ui.toast(MARKS_AFTER, { timeoutMs: 15000 })
     // The tab shows the mark at once; the next read finds the file again.
     held.delete(`marks ${at.id}`)
     tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
@@ -1109,19 +1099,16 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // The named answers, as the view reads them.
 const namedAnswers = (): ReadonlyMap<string, ReadonlyMap<number, GhPr>> => new Map([...ghNamed].map(([r, b]) => [r, b.answers]))
 
-// On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
-// an empty or relative entry could let a file in the project folder run in its
-// place, with the session's environment. Such a host runs nothing then. Windows
-// is measured: the engine runs the real `gh` there (brigade.md, R6).
-//
-// The host is worked out on each call, here and at Open in app, or is none.
+// `gh` and the stop's `claude` run by name, and a start looks its programs up;
+// each needs a host the pane can tell. The host is worked out on each call, here
+// and at Open in app, or is none.
 // The engine gives a mod no platform field. Windows is known first, by its
 // environment; then each probe in turn, as `probeHost` judges it. A read that
 // fails means no host, never unset. Each name is spelled at its call, so
 // `claude plugin validate` lists what the pane reads, and the reads stay in
 // these two callers because the directory's checker refuses `$` passed to a
 // helper that reads the host.
-async function ghFindable($: EngineInterface): Promise<boolean> {
+async function hostTold($: EngineInterface): Promise<boolean> {
   try {
     if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) return true
     let os: HostOs | 'next' | undefined = 'next'
@@ -1129,9 +1116,7 @@ async function ghFindable($: EngineInterface): Promise<boolean> {
       os = probeHost(probe, await statPath($, file))
       if (os !== 'next') break
     }
-    if (os === 'next' || os === undefined) return false
-    const path = await $.env.get('PATH')
-    return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
+    return os !== 'next' && os !== undefined
   } catch {
     return false
   }
@@ -1157,7 +1142,7 @@ async function runGh($: EngineInterface, repo?: string): Promise<ReadonlyMap<num
 // `tick` is the timer's own call, which always runs; the call at arm waits out
 // a minute since the last one, so a quick reopen asks once. One run goes at a
 // time: the base run first, then the named repositories whose turn it is, each
-// after its own PATH check. A minute whose runs overrun finds `asking` set and
+// after its own host check. A minute whose runs overrun finds `asking` set and
 // waits for the next.
 async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
   if (asking) return
@@ -1176,7 +1161,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
     if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
     ghAt = now
     const due = rotate(namedWanted, ghLast, NAMED_RUNS)
-    // A failed PATH check stops the minute: every repository still due counts
+    // A failed host check stops the minute: every repository still due counts
     // as down, and the turn moves past them.
     const stop = (from: number) => {
       if (!open()) return
@@ -1184,7 +1169,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
       if (due.length > 0) ghLast = due[due.length - 1]
     }
     if (baseWanted) {
-      if (!(await ghFindable($))) {
+      if (!(await hostTold($))) {
         if (open()) ghDown = true
         stop(0)
         return
@@ -1194,7 +1179,7 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
       takeBase(found, base)
     }
     for (const [i, r] of due.entries()) {
-      if (!(await ghFindable($))) {
+      if (!(await hostTold($))) {
         stop(i)
         return
       }
@@ -1543,7 +1528,7 @@ async function hostOpen($: EngineInterface, app: string, words: OpenerWords) {
 
 // A pill press (issue 513, S2): `gh pr view <number> --web`, built by
 // `ghViewRun` from the card's number and the repository `gh` answered with,
-// after the same PATH check the poll takes. The card is found again by place
+// after the same host check the poll takes. The card is found again by place
 // and title; one that moved, or has no answer, does nothing. Any failure shows
 // the one fixed toast, with none of `gh`'s text.
 const PILL_FAILED = 'Could not open the pull request'
@@ -1553,7 +1538,7 @@ async function openPill($: EngineInterface, c: Card) {
   if (number === undefined || answer === undefined) return
   const run = ghViewRun(number, answer.repo)
   try {
-    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    if (run === undefined || !(await hostTold($))) throw new Error('no run')
     const ran = await $.process.run([...run.argv], run.init)
     if (ran.exitCode !== 0) throw new Error('failed')
   } catch {
@@ -1564,7 +1549,7 @@ async function openPill($: EngineInterface, c: Card) {
 // A to-do's pull request link press on Desktop (issues 560 and the-pact#580): the pill's
 // route, `gh pr view <number> --web`, built by `ghViewRun` from the link's
 // parse, with the repository behind a constant github.com host, after the same
-// PATH check. No `gh` run opens an issue: an issue link is the engine's Link,
+// host check. No `gh` run opens an issue: an issue link is the engine's Link,
 // with no press. One press per to-do at a time (the pill has no such guard;
 // this one is keyed on the to-do's id). Failure is a refused or failed start, a
 // non-zero exit or a timeout, and shows the one fixed toast.
@@ -1575,7 +1560,7 @@ async function openTodoLink($: EngineInterface, id: string, parts: LinkParts) {
   visiting.add(id)
   try {
     const run = ghViewRun(parts.number, parts.repo, parts.kind)
-    if (run === undefined || !(await ghFindable($))) throw new Error('no run')
+    if (run === undefined || !(await hostTold($))) throw new Error('no run')
     const ran = await $.process.run([...run.argv], run.init)
     if (ran.exitCode !== 0) throw new Error('failed')
   } catch {
@@ -2049,19 +2034,6 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its write')
     progress.written = true
     await $.fs.write(placed.file, text.value)
-    // A link swapped in between the check and the write, at the file or at
-    // any folder above it, is caught here by the same path rule, after the
-    // fact, and said loudly. A hard link is not.
-    const after = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(err => ({
-      refused: `the check failed (${oneLine(String(err instanceof Error ? err.message : err), 200)})`,
-    }))
-    const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
-    if (why !== undefined) {
-      const warning = `Brigade: after the roster write, the roster path failed its check: ${why}. Something changed it between the check and the write; check ${placed.file} and where it leads.`
-      await update($, rosterError, () => warning)
-      $.ui.toast(warning, { timeoutMs: 15000 })
-      return failedAfterWrite(`the path then failed its check (${why}); the owner has been told`)
-    }
     // Only now does the pane change: it redraws at once, and the 5 s poll
     // stays the reader for changes made elsewhere.
     onLead = { sid: at.id, members: onLeadMembers(value.cards) }
@@ -2113,7 +2085,7 @@ const LOG_SCHEMA = {
 
 const refuseLog = (rule: string) => ({ deny: `log_decision refused: ${rule}. The decision log is unchanged; act at level 1.` })
 const failedAfterLog = () => ({
-  deny: 'log_decision failed after the write began: the decision log path then failed its check. The log may or may not hold the entry; act at level 1 and tell the owner.',
+  deny: 'log_decision failed after the write began. The log may or may not hold the entry; act at level 1 and tell the owner.',
 })
 
 // Refused until this module has offered the tools to this session id since its
@@ -2147,7 +2119,6 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
     const r = await appendToLog($, at, checked.value, { level: state.level, fixed: false, signal, progress })
     if ('refused' in r) return refuseLog(r.refused)
     if ('held' in r) return { deny: `log_decision refused: ${r.held}. ${SHAPE_TAIL}` }
-    if ('after' in r) return failedAfterLog()
     return { result: `Logged decision ${r.entry.id} at ${new Date(r.entry.at).toISOString()}, at level ${levelWords(state)}.` }
   })
 }
@@ -2170,9 +2141,8 @@ async function readOwnLog($: EngineInterface, at: Where): Promise<DecisionLog | 
 // tool's entry, or with `fixed` the pane's own Owner, Pane or alarm entry,
 // which skips the entry cap but never the byte cap: past it, the marks are
 // scanned and read entries drop, as for the tool's entry (#497). A
-// refusal is fixed words for log_decision to answer with; `after` means the
-// write began and the path then failed its check.
-type Appended = { entry: DecisionEntry } | { refused: string } | { held: string } | { after: true }
+// refusal is fixed words for log_decision to answer with.
+type Appended = { entry: DecisionEntry } | { refused: string } | { held: string }
 type AppendRun = { level: Level; fixed: boolean; signal?: AbortSignal; progress?: Progress }
 async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: AppendRun): Promise<Appended> {
   const placed = await placeKind($, at, 'decisions', at.id)
@@ -2199,13 +2169,6 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
   if (o.signal?.aborted === true) return { refused: 'abandoned: the call ran out of time or was interrupted before its write' }
   if (o.progress !== undefined) o.progress.written = true
   await $.fs.write(placed.file, text.value)
-  // A link swapped in between the check and the write is caught here,
-  // after the fact, and said loudly. A hard link is not.
-  const after = await placeKind($, at, 'decisions', at.id).catch(() => ({ refused: 'the check could not run' }))
-  if ('refused' in after || after.existing === undefined) {
-    $.ui.toast(LOG_AFTER, { timeoutMs: 15000 })
-    return { after: true }
-  }
   // The tab shows the entry at once; the next read finds the file again.
   held.delete(`decisions ${at.id}`)
   tabRead = { ...tabRead, logs: [...tabRead.logs.filter(l => l.sid !== at.id), { sid: at.id, writer: '', log: r.value.log }] }
@@ -2863,9 +2826,8 @@ const refuseStop = (rule: string) => ({ deny: `stop_background_session refused: 
 // The background stop: the model's own call on the main loop, for the one
 // background session its title names, read live from the session files at
 // each call. No output or error text of the run is shown.
-async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {
+async function stopBackground($: EngineInterface, e: Record<string, unknown>) {
   if (e.agentId !== undefined) return refuseStop("subagent: only the lead session's own turns stop a session")
-  if (!fromEngine(origin)) return refuseStop("caller: only the model's own call stops a session, never another plugin's")
   // The engine's keys as the stop rules list them, `requestMeta` included.
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(RULES_RULE)
@@ -2880,8 +2842,8 @@ async function stopBackground($: EngineInterface, e: Record<string, unknown>, or
   if (sessions === undefined) return refuseStop('session: the session files could not be read')
   const target = stopTarget(oneLine(title, 80), cards, sessions)
   if ('why' in target) return refuseStop(target.why)
-  // The pane's host and PATH rule, as for `gh` and `git`. On Windows it checks no PATH.
-  if (!(await ghFindable($))) return { result: stopAnswer(undefined) }
+  // The pane's host rule, as for `gh`.
+  if (!(await hostTold($))) return { result: stopAnswer(undefined) }
   const ran = await $.process.run(['claude', 'stop', target.jobId], { timeoutMs: 15000 }).catch(() => undefined)
   return { result: stopAnswer(ran) }
 }
@@ -3014,25 +2976,12 @@ async function programPath($: EngineInterface, name: string, platform: Platform,
     const found = await statPath($, p)
     known.set(p, 'found' in found && found.found.kind === 'file')
   }
-  wanted.clear()
-  const hit = lookup()
-  if ('why' in hit) return hit
-  // A link or junction on PATH can lead into the folder by a route the spelling compare cannot see:
-  // the file's real path must lie outside it too.
-  const real = await statPath($, hit.value)
-  if (!('found' in real) || real.found.realPath === undefined) return { why: 'program: not found on PATH' }
-  // A real path that is not itself a plain spelling is not trusted, and the compare folds case on
-  // every host: folding can only refuse more.
-  if ('why' in folderSpelling(real.found.realPath, platform)) return { why: 'program: its real path could not be trusted' }
-  // Both sides in one Unicode form too, as a link's target may carry the other.
-  if (pathKey(real.found.realPath.normalize('NFC'), true).startsWith(`${pathKey(folder.normalize('NFC'), true)}/`)) return { why: 'program: found inside the folder' }
-  return hit
+  return lookup()
 }
 
 // The start. Every refusal is fixed words; nothing of a run is shown.
-async function startBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown, signal: AbortSignal, progress: { ran: boolean }) {
+async function startBackground($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: { ran: boolean }) {
   if (e.agentId !== undefined) return refuseStart("subagent: only the lead session's own turns start a session")
-  if (!fromEngine(origin)) return refuseStart("caller: only the model's own call starts a session, never another plugin's")
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
   // pane that comes while a start waits behind another one stops it.
@@ -3076,8 +3025,8 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
     const named = noteNames(i.note, [...cards.map(c => c.title), ...(sessions?.rows.map(r => r.name) ?? [])], [i.name, i.lead])
     if ('why' in named) return refuseStart(named.why)
   }
-  // (4) the pane's host and PATH rule
-  if (!(await ghFindable($))) return refuseStart('host: the host or its PATH could not be trusted to look programs up')
+  // (4) the pane's host rule
+  if (!(await hostTold($))) return refuseStart('host: the host could not be told, so no program is looked up')
   // (5) the programs, by absolute path
   const git = await programPath($, 'git', platform, i.folder)
   if ('why' in git) return refuseStart(git.why)
@@ -3576,7 +3525,7 @@ export const register: Register = on => {
   // stop_background_session, answered here and nowhere beneath.
   on('tool.call', { tool: STOP_NAME }, async ($, e, next) => {
     try {
-      return await stopBackground($, e as unknown as Record<string, unknown>, next.origin)
+      return await stopBackground($, e as unknown as Record<string, unknown>)
     } catch {
       return refuseStop('error: the tool failed')
     }
@@ -3586,7 +3535,7 @@ export const register: Register = on => {
   on('tool.call', { tool: START_NAME }, async ($, e, next) => {
     const progress = { ran: false }
     try {
-      const r = await startBackground($, e as unknown as Record<string, unknown>, next.origin, next.signal, progress)
+      const r = await startBackground($, e as unknown as Record<string, unknown>, next.signal, progress)
       if (e.agentId === undefined && progress.ran) tally(owedRoster, 'start')
       return r
     } catch {

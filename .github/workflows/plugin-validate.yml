@@ -137,9 +137,9 @@ jobs:
   # load"), and so does a failing test: the exit code is the gate (#477).
   #
   # **Windows and Linux, as two jobs.** The tests' world follows its host: its
-  # paths are the host's, and the tests that build a junction run on Windows
-  # only, since Linux has none and their answers in brigade/recorded-stats.ts
-  # were recorded on Windows. So this job is the one that runs those tests, and
+  # paths are the host's, and the case that builds a junction runs on Windows
+  # only, since Linux has none and the answers in brigade/recorded-stats.ts
+  # were recorded on Windows. So this job is the one that runs that case, and
   # plugin-test-linux the one that runs the mod's paths as Linux spells them
   # (#481). Two jobs and not a matrix, so this job's check keeps its name.
   #
@@ -187,8 +187,7 @@ jobs:
       - name: Run the mod's tests
         run: claude plugin test .
 
-  # The same tests on Linux, where the junction tests are not declared and the
-  # run prints each one's title as skipped.
+  # The same tests on Linux, where the junction case does not run.
   plugin-test-linux:
     # Pinned, as validate is: the fetch names a platform package, linux, x64,
     # glibc.

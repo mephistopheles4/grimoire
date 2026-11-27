@@ -43,14 +43,6 @@ const DATA = `${CONFIG}${SEP}plugins${SEP}data${SEP}grimoire-inline`
 const BRIGADE = `${DATA}${SEP}brigade`
 const FILE = `${BRIGADE}${SEP}${SID}.json`
 const ELSEWHERE = `${ROOT}${SEP}elsewhere`
-// Junctions exist only on Windows, and their answers were recorded there. On
-// any other host a test that builds one is not declared, and its title is
-// printed, so the run says what it left out.
-const withJunction: typeof test = (name, ...rest) => {
-  if (ON_WINDOWS) test(name, ...rest)
-  else console.log(`skipped: junctions are Windows-only (#481): ${name}`)
-}
-
 // --- the file system in memory ------------------------------------------------
 
 type Node =
@@ -190,12 +182,12 @@ const PROBES = [MAC_PROBE, LINUX_PROBE]
 const asProbe = (path: string) => PROBES.find(p => p === path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/'))
 const OPENERS = ['explorer.exe', '/usr/bin/open', '/usr/bin/xdg-open']
 // A probe's answer: a stat as the engine gives it, or a rejection's message.
-type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean; realPath?: string } | { reject: string }
-const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 0, isLink: false, ...(realPath === undefined ? {} : { realPath }) })
+type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean } | { reject: string }
+const A_FILE: Probe = { kind: 'file', size: 1, mtimeMs: 0, isLink: false }
 
 // The world's host is read from this file's address; the engine's own `cwd`
 // on a classic event is a second witness. If the two disagreed, the junction
-// tests would vanish from a Windows run, or run on Linux, with nothing failing.
+// cases would vanish from a Windows run, or run on Linux, with nothing failing.
 test("the world's host is the engine's: a drive-letter cwd is Windows, and only there", async ($, on) => {
   let cwd = ''
   on('classic.Notification', ($, e: any) => {
@@ -432,19 +424,17 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
   w.clock = mock.clock(on)
   on('fs.stat', async ($, e: any) => {
     if (w.holdStat) await new Promise<void>(res => { const before = w.releaseStat; w.releaseStat = () => { before(); res() } })
-    // The host probes are answered from `w.probes`, with the real path exactly
-    // as written, before the Windows-shaped file system. On Windows the engine
-    // hands the hook an absolute Unix path resolved under the current drive's
-    // root (`C:\System\…`), so a probe is known by its path with the drive
-    // letter dropped and its separators made `/`.
+    // The host probes are answered from `w.probes`, before the Windows-shaped
+    // file system. On Windows the engine hands the hook an absolute Unix path
+    // resolved under the current drive's root, so a probe is known by its path
+    // with the drive letter dropped and its separators made `/`.
     const probe = asProbe(e.path)
     if (probe !== undefined) {
       w.probed.push(probe)
       const p = w.probes[probe]
       if (p === undefined) return { deny: ENOENT }
       if ('reject' in p) return { deny: p.reject }
-      // As the engine: a real path only when the caller asked to resolve.
-      return { value: e.resolve ? p : { ...p, realPath: undefined } }
+      return { value: p }
     }
     w.log.push(`stat ${e.path}`)
     const s = w.stat(e.path)
@@ -999,20 +989,12 @@ test("a call that outlasts the hook's budget is answered by the engine's .catch,
 
 // --- the path guard -----------------------------------------------------------
 
-const linkCases: [string, (w: World) => void, string][] = [
-  ['a junction at plugins', w => { w.dirs(`${ELSEWHERE}${SEP}plugins`); w.put(`${CONFIG}${SEP}plugins`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}plugins` }) }, 'link: plugins is a link'],
-  ['a junction at data', w => { w.dirs(`${CONFIG}${SEP}plugins`); w.dirs(`${ELSEWHERE}${SEP}data`); w.put(`${CONFIG}${SEP}plugins${SEP}data`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}data` }) }, 'link: data is a link'],
-  ['a junction at the data id', w => { w.dirs(`${CONFIG}${SEP}plugins${SEP}data`); w.dirs(`${ELSEWHERE}${SEP}id`); w.put(DATA, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}id` }) }, 'link: grimoire-inline is a link'],
-  ['a junction at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-  ['a broken junction at brigade', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}gone` }) }, 'link: brigade is a link'],
-  ['a directory symlink at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'dir-symlink', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-  ['a symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(`${ELSEWHERE}${SEP}settings.json`, { type: 'file', data: { text: '{"permissions":{}}' } }); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}settings.json` }) }, 'link: the roster file is a link'],
-  ['a broken symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}made.json` }) }, 'link: the roster file is a link'],
+const pathCases: [string, (w: World) => void, string][] = [
   ['a file where the brigade folder should be', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'file', data: { text: 'x' } }) }, 'path: brigade is not a folder'],
   ['a folder where the roster file should be', w => { w.dirs(FILE) }, 'path: the roster path is not a plain file'],
 ]
-for (const [name, setup, rule] of linkCases) {
-  ;(name.includes('junction') ? withJunction : test)(`${name} is refused, and nothing is created at any link target`, async ($, on) => {
+for (const [name, setup, rule] of pathCases) {
+  test(`${name} is refused, and nothing is created`, async ($, on) => {
     const w = world(on, setup)
     await start($)
     await brigade($)
@@ -1022,9 +1004,16 @@ for (const [name, setup, rule] of linkCases) {
     expect(r.text).toContain(rule)
     expect([...w.nodes.keys()].sort()).toEqual(before)
     expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
-    expect(w.text(`${ELSEWHERE}${SEP}settings.json`) ?? '{"permissions":{}}').toBe('{"permissions":{}}')
   })
 }
+
+test("the pane's own read refuses a roster path with the wrong kind on the way, and says so", async ($, on) => {
+  const w = world(on, pathCases[0]![1])
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  expect(w.errors).toContain(`Roster not shown: ${pathCases[0]![2]}`)
+})
 
 for (const [name, text] of [
   ['a file that is not a roster', 'not json at all, a secret'],
@@ -1057,45 +1046,6 @@ test('an existing roster is overwritten', async ($, on) => {
   await brigade($)
   expect((await call($, GOOD)).ok).toBe(true)
   expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
-})
-
-// The write lands, then the file or a folder above it is swapped for a link
-// before the check after it.
-for (const [name, swap, rule] of [
-  ['the file', (w: World) => { w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}x.json` }) }, 'link: the roster file is a link'],
-  ['the brigade folder', (w: World) => { w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
-] as const) {
-  // The brigade folder's link is a junction.
-  ;(name === 'the brigade folder' ? withJunction : test)(`${name} becoming a link after the write is told to the owner loudly`, async ($, on) => {
-    const w = world(on)
-    await start($)
-    await brigade($)
-    const write = w.write
-    w.write = (p, t) => {
-      write(p, t)
-      swap(w)
-    }
-    const r = await call($, GOOD)
-    expect(r.ok).toBe(false)
-    expect(r.text).toContain(`set_roster failed after the write began: the path then failed its check (${rule})`)
-    expect(r.text).toContain('may or may not have been kept')
-    expect(w.toasts.some(t => t.includes(rule))).toBe(true)
-    expect(w.errors.some(e => e.includes(rule))).toBe(true)
-  })
-}
-
-withJunction("the pane's own read refuses a roster path through a link, and says so", async ($, on) => {
-  const w = world(on, w => {
-    w.dirs(DATA)
-    w.dirs(`${ELSEWHERE}${SEP}b`)
-    w.put(`${ELSEWHERE}${SEP}b${SEP}${SID}.json`, { type: 'file', data: { text: JSON.stringify(GOOD) } })
-    w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` })
-  })
-  await start($)
-  await brigade($)
-  expect(w.errors.some(e => e.includes('link: brigade is a link; the roster path must not pass through a link or junction'))).toBe(true)
-  // Nothing was read through the link into the pane.
-  expect(w.roster.some(r => JSON.stringify(r).includes('alpha'))).toBe(false)
 })
 
 test('a reload with the pane open offers the tool again; one with the pane closed does not', async ($, on) => {
@@ -1465,12 +1415,12 @@ async function background(on: On, $: any) {
 }
 const macos = (w: World) => {
   w.env = {}
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+  w.probes = { [MAC_PROBE]: A_FILE }
 }
 // The macOS probe file is missing, so it rejects with ENOENT.
 const linux = (w: World) => {
   w.env = {}
-  w.probes = { [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  w.probes = { [LINUX_PROBE]: A_FILE }
 }
 
 test('on macOS, a press on a background card with a Remote Control link runs /usr/bin/open with that link and nothing else', async ($, on) => {
@@ -1502,56 +1452,21 @@ test('on a system the pane cannot identify, a press runs nothing and says there 
   expect(w.toasts.at(-1)).toBe(NO_OPENER)
 })
 
-test('on Windows, planted probe files are never looked at, and the press runs explorer.exe', async ($, on) => {
-  const w = await background(on, $)
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await act(mounted, 'desktop', 'open-2-gamma')
-  expect(w.probed).toEqual([])
-  expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
-})
-
 for (const env of [{ SystemRoot: 'C:\\Windows' }, { windir: 'C:\\Windows' }, { OS: 'Windows_NT' }]) {
   test(`Windows is known from ${Object.keys(env)[0]} alone, before any probe`, async ($, on) => {
     const w = await background(on, $)
     w.env = env
-    w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+    w.probes = { [MAC_PROBE]: A_FILE }
     await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([])
     expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
   })
 }
 
-// All three variables unset on Windows: the probes resolve under the drive's
-// root, where anyone can plant them, so their real paths are not Unix ones.
-for (const [name, mac, lin] of [
-  ['drive-letter', 'C:\\System\\Library\\CoreServices\\SystemVersion.plist', 'C:\\usr\\bin\\xdg-open'],
-  ['drive-letter with forward slashes', 'C:/System/Library/CoreServices/SystemVersion.plist', 'C:/usr/bin/xdg-open'],
-  ['backslash share-rooted', '\\\\server\\share\\System\\Library\\CoreServices\\SystemVersion.plist', '\\\\server\\share\\usr\\bin\\xdg-open'],
-  ['forward-slash share-rooted', '//server/share/System/Library/CoreServices/SystemVersion.plist', '//server/share/usr/bin/xdg-open'],
-] as const) {
-  test(`probe files with ${name} real paths and no Windows variable run nothing and say there is no opener`, async ($, on) => {
-    const w = await background(on, $)
-    w.env = {}
-    w.probes = { [MAC_PROBE]: fileAt(mac), [LINUX_PROBE]: fileAt(lin) }
-    await act(mounted, 'desktop', 'open-2-gamma')
-    expect(openers(w)).toEqual([])
-    expect(w.toasts.at(-1)).toBe(NO_OPENER)
-  })
-}
-
-test('a planted macOS probe with a bad real path stops there: the Linux probe is not asked', async ($, on) => {
-  const w = await background(on, $)
-  w.env = {}
-  w.probes = { [MAC_PROBE]: fileAt('C:\\System\\Library\\CoreServices\\SystemVersion.plist'), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
-  await act(mounted, 'desktop', 'open-2-gamma')
-  expect(w.probed).toEqual([MAC_PROBE])
-  expect(openers(w)).toEqual([])
-})
-
 test('an environment read that rejects means no host: no probe, no process, and the no-opener toast', async ($, on) => {
   const w = await background(on, $)
   w.failEnv = true
-  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+  w.probes = { [MAC_PROBE]: A_FILE }
   await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([])
   expect(openers(w)).toEqual([])
@@ -1561,7 +1476,7 @@ test('an environment read that rejects means no host: no probe, no process, and 
 test('a probe that rejects other than as missing means no host, and the next probe is not asked', async ($, on) => {
   const w = await background(on, $)
   w.env = {}
-  w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: A_FILE }
   await act(mounted, 'desktop', 'open-2-gamma')
   expect(w.probed).toEqual([MAC_PROBE])
   expect(openers(w)).toEqual([])
@@ -1569,14 +1484,13 @@ test('a probe that rejects other than as missing means no host, and the next pro
 })
 
 for (const [name, probe] of [
-  ['no real path', fileAt()],
-  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
-  ['something other than a file', { kind: 'other', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false }],
+  ['something other than a file', { kind: 'other', size: 0, mtimeMs: 0, isLink: false }],
 ] as const) {
   test(`a probe that answers with ${name} means no host`, async ($, on) => {
     const w = await background(on, $)
     w.env = {}
-    w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+    w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: A_FILE }
     await act(mounted, 'desktop', 'open-2-gamma')
     expect(w.probed).toEqual([MAC_PROBE])
     expect(openers(w)).toEqual([])
@@ -1644,11 +1558,7 @@ test('a press on another link runs while one link is in flight', async ($, on) =
 // Spec v4, decision 1: the Linux probe is held to the same checks as the
 // macOS one, reached when the macOS probe file is missing.
 for (const [name, probe] of [
-  ['a drive-letter real path', fileAt('C:\\usr\\bin\\xdg-open')],
-  ['a backslash share-rooted real path', fileAt('\\\\server\\share\\usr\\bin\\xdg-open')],
-  ['a forward-slash share-rooted real path', fileAt('//server/share/usr/bin/xdg-open')],
-  ['no real path', fileAt()],
-  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: LINUX_PROBE }],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false }],
   ['a rejection other than missing', { reject: 'EACCES: permission denied' }],
 ] as const) {
   test(`with the macOS probe missing, a Linux probe that answers with ${name} means no host`, async ($, on) => {
@@ -3581,23 +3491,21 @@ test('a file other than a summary at the summary path stops every later write, w
   expect(writerToasts(w)[0]).not.toContain('cards')
 })
 
-withJunction('a junction at the usage folder is refused, stopping the writer with one toast', async ($, on) => {
+test('a file where the usage folder should be is refused, stopping the writer with one toast', async ($, on) => {
   const w = world(on)
   await begin($, w)
   w.dirs(BRIGADE)
-  w.dirs(ELSEWHERE)
-  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
+  w.put(USAGE_DIR, { type: 'file', data: { text: 'x' } })
   w.stepUsage = STEP_USAGE
   for (let round = 0; round < 2; round++) {
     await raiseStep($)
     await turnEnd($)
     await w.clock.settle()
   }
-  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeUndefined()
   expect(usageWrites(w)).toEqual([])
   expect(writerToasts(w).length).toBe(1)
   expect(writerToasts(w)[0]).toContain('the summary path failed its check')
-  expect(writerToasts(w)[0]).not.toContain('is a link')
+  expect(writerToasts(w)[0]).not.toContain('is not a folder')
   expect(writerToasts(w)[0]).not.toContain(CONFIG)
 })
 
@@ -3649,34 +3557,6 @@ test('an aborted turn\'s end writes the newest numbers too', async ($, on) => {
   await turnEnd($, { isAborted: true, reason: 'aborted' })
   await w.clock.settle()
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006, 151094])
-})
-
-withJunction('a link swapped in during the write is caught by the check after it: one toast, and no later write', async ($, on) => {
-  const w = world(on)
-  await begin($, w)
-  w.dirs(BRIGADE)
-  w.dirs(ELSEWHERE)
-  w.holdWrite = true
-  w.stepUsage = STEP_USAGE
-  await raiseStep($)
-  await w.clock.settle()
-  // The write is held; a junction now takes the usage folder's place.
-  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
-  w.holdWrite = false
-  w.release()
-  await w.clock.settle()
-  // The race itself is the accepted gap: the held write went through the link.
-  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeDefined()
-  expect(writerToasts(w).length).toBe(1)
-  expect(writerToasts(w)[0]).toContain('after the write')
-  const writes = w.log.filter(l => l.startsWith('write ')).length
-  for (let round = 0; round < 2; round++) {
-    await raiseStep($)
-    await turnEnd($)
-    await w.clock.settle()
-  }
-  expect(w.log.filter(l => l.startsWith('write ')).length).toBe(writes)
-  expect(writerToasts(w).length).toBe(1)
 })
 
 test('after a module reload, a clear still starts the series over: the module load names the session id', async ($, on) => {
@@ -4677,7 +4557,7 @@ test('desktop, C12: a failed gh pr view shows the fixed toast and none of its ou
   expect(w.toasts).toEqual(['Could not open the pull request'])
 })
 
-test('desktop, C1: a failed PATH check runs nothing and shows the fixed toast', async ($, on) => {
+test('desktop, C1: a failed host check runs nothing and shows the fixed toast', async ($, on) => {
   const w = await prPane(on, $)
   const m = await mountOn($, 'desktop')
   // A host the pane cannot prove has no gh to find.
@@ -4732,7 +4612,7 @@ test('#560, the-pact#580 desktop: pressing a pull request link runs exactly gh p
   expect(w.procs.filter(p => p[0] !== 'gh')).toEqual([])
 })
 
-test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed PATH check runs nothing', async ($, on) => {
+test('#560 desktop: a failed or non-zero gh shows the one fixed toast and none of its output; a failed host check runs nothing', async ($, on) => {
   const w = await grouped(on, $, LINKED)
   const m = await mountOn($, 'desktop')
   await nodes(m)
@@ -5512,33 +5392,18 @@ test('an answer naming another repository than the first one is no answer', asyn
   expect(text.includes('PR details unavailable')).toBe(true)
 })
 
-test('on macOS a PATH with an empty or relative entry runs no gh, and an absolute PATH does', async ($, on) => {
-  const bad = world(on, w => {
+test('on macOS gh runs whatever the PATH holds, an empty or relative entry included', async ($, on) => {
+  const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
     macos(w)
-    w.env = { PATH: '/usr/bin::/bin' }
+    w.env = { PATH: '/usr/bin::bin' }
   })
   on('session.receive', (_: any, e: any) => e)
   await start($)
   await brigade($)
-  await bad.clock.settle()
-  await bad.clock.advance(120000)
-  expect(asked(bad)).toBe(0)
-})
-
-test('on macOS an absolute PATH lets gh run', async ($, on) => {
-  const good = world(on, w => {
-    w.dirs(BRIGADE)
-    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
-    macos(w)
-    w.env = { PATH: '/usr/bin:/bin' }
-  })
-  on('session.receive', (_: any, e: any) => e)
-  await start($)
-  await brigade($)
-  await good.clock.settle()
-  expect(asked(good)).toBe(1)
+  await w.clock.settle()
+  expect(asked(w)).toBe(1)
 })
 
 for (const surface of SURFACES) {
@@ -6625,11 +6490,10 @@ test('claim 5: an own log that fails its strict check is never overwritten, and 
   expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
 })
 
-withJunction('claim 5: a decisions folder that is a link is refused, and nothing is written through it', async ($, on) => {
+test('claim 5: a file where the decisions folder should be is refused, and nothing is written', async ($, on) => {
   const w = world(on, w => {
     w.dirs(BRIGADE)
-    w.dirs(`${ELSEWHERE}${SEP}d`)
-    w.put(DECISIONS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}d` })
+    w.put(DECISIONS, { type: 'file', data: { text: 'x' } })
   })
   await start($)
   await brigade($)
@@ -6638,7 +6502,7 @@ withJunction('claim 5: a decisions folder that is a link is refused, and nothing
   expect(r.text).toMatch(/^log_decision refused: path: /)
   expect(r.text).not.toContain('\\')
   expect(r.text).not.toContain(CONFIG)
-  expect(w.text(`${ELSEWHERE}${SEP}d${SEP}${SID}.json`)).toBeUndefined()
+  expect(w.text(DECISIONS)).toBe('x')
 })
 
 test('claim 6: To review shows the oldest unread entry of this log, with n of N, the level, the id and the writer', async ($, on) => {
@@ -7173,15 +7037,14 @@ test('claim 6: the card draws the entry\'s own level and id', async ($, on) => {
   expect(await shows(/^1 of 1$/)).toBe(true)
 })
 
-withJunction('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
+test('claim 5: a file where the marks folder should be is refused: the press writes nothing and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200)]))
     w.drop(MARKS)
-    w.dirs(`${ELSEWHERE}${SEP}m`)
-    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}m` })
+    w.put(MARKS, { type: 'file', data: { text: 'x' } })
   })
   await press($, 'dnext-1-200')
-  expect(w.text(`${ELSEWHERE}${SEP}m${SEP}${SID}.json`)).toBeUndefined()
+  expect(w.text(MARKS)).toBe('x')
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
 })
 
@@ -8854,16 +8717,15 @@ test('claim 17: one run at a time, and a minute whose runs overrun waits for the
   expect(w.ghInits.slice(5).map((_, i) => repoOf(w, i + 5))).toEqual(['r6/p', 'r7/p', 'r1/p', 'r2/p', 'r3/p'])
 })
 
-test('claim 17: each named run passes the host and PATH check: a PATH that turns relative mid-minute runs no more', async ($, on) => {
+test('claim 17: each named run passes the host check: a host the pane cannot tell mid-minute runs no more', async ($, on) => {
   const w = await namedPane(on, $, SEVEN.slice(0, 3), w => {
     macos(w)
-    w.env = { PATH: '/usr/bin:/bin' }
     w.holdGh = true
     // r1 answers for its own #1, so only the repositories the check stops count.
     w.ghOutBy['r1/p'] = JSON.stringify([ghPr(1, { url: 'https://github.com/r1/p/pull/1' })])
   })
   expect(asked(w)).toBe(1)
-  w.env = { PATH: '/usr/bin::/bin' }
+  w.probes = {}
   w.holdGh = false
   w.releaseGh()
   await w.clock.settle()
@@ -8872,15 +8734,14 @@ test('claim 17: each named run passes the host and PATH check: a PATH that turns
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'view-prs' })
   expect((await textOf(m)).includes('PR details unavailable for 2 repositories')).toBe(true)
-  w.env = { PATH: '/usr/bin:/bin' }
+  macos(w)
   await w.clock.advance(60000)
   expect(w.ghInits.slice(1).map((_, i) => repoOf(w, i + 1))).toEqual(['r1/p', 'r2/p', 'r3/p'])
 })
 
-test('claim 17: a failed PATH check before the base run counts the base and every named repository due', async ($, on) => {
+test('claim 17: a failed host check before the base run counts the base and every named repository due', async ($, on) => {
   const w = await namedPane(on, $, [ALPHA, ...SEVEN.slice(0, 2)], w => {
-    macos(w)
-    w.env = { PATH: '/usr/bin::/bin' }
+    w.env = {}
   })
   expect(asked(w)).toBe(0)
   const m = await mountOn($, 'desktop')
@@ -10033,7 +9894,7 @@ async function startWorld(on: On, $: any, planted: unknown = undefined, offer = 
     liveRows(w, [{ name: LEAD_NAME, status: 'idle', sessionId: SID, cwd: 'C:\\work' }])
   })
   w.env = ON_WINDOWS ? { ...WINDOWS, PATH: BIN, USERPROFILE: 'C:\\src' } : { PATH: BIN, HOME: '/src' }
-  if (!ON_WINDOWS) w.probes = { [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  if (!ON_WINDOWS) w.probes = { [LINUX_PROBE]: A_FILE }
   const out: Out = { origin: asRun(ORIGIN_OK), start: argv => asRun(`backgrounded · ab12cd34 · ${argv[3]}\n  claude agents\n  attach ab12cd34\n`) }
   w.procHook = async (e: any) => {
     if (e.argv[0] === exe('git')) return out.origin
@@ -10085,13 +9946,14 @@ test('543 C8: each guard refuses in fixed words with nothing run, in the stop to
   expect(runs()).toEqual([])
 })
 
-test('543 C8: with the host or PATH not to be trusted, or a program missing, in the folder or only a .cmd shim, nothing runs', async ($, on) => {
+test('543 C8: with a program missing, in the folder or only a .cmd shim, or a host the pane cannot tell, nothing runs', async ($, on) => {
   const { w, runs } = await startWorld(on, $)
   if (!ON_WINDOWS) {
-    // A POSIX host whose PATH holds a relative entry is not looked in.
-    w.env = { PATH: `bin:${BIN}` }
-    expect((await startTool($)).text).toBe(refusedStart('host: the host or its PATH could not be trusted to look programs up'))
+    // No Windows variable and no probe file: the host cannot be told.
     w.env = { PATH: BIN }
+    w.probes = {}
+    expect((await startTool($)).text).toBe(refusedStart('host: the host could not be told, so no program is looked up'))
+    w.probes = { [MAC_PROBE]: A_FILE }
   }
   w.drop(exe('claude'))
   expect((await startTool($)).text).toBe(refusedStart('program: not found on PATH'))
@@ -10106,16 +9968,6 @@ test('543 C8: with the host or PATH not to be trusted, or a program missing, in 
     expect((await startTool($)).text).toBe(refusedStart('program: only a .cmd shim was found'))
   }
   expect(runs()).toEqual([])
-})
-
-withJunction('543 C8: a PATH entry that is a junction into the checkout leads to a program inside it, and nothing runs', async ($, on) => {
-  const { w, runs } = await startWorld(on, $)
-  w.dirs(`${REPO_DIR}\\bin`)
-  w.put(`${REPO_DIR}\\bin\\claude.exe`, { type: 'file', data: { text: '' } })
-  w.put('C:\\lnk', { type: 'link', kind: 'junction', target: `${REPO_DIR}\\bin` })
-  w.env = { ...WINDOWS, PATH: `C:\\lnk;${BIN}` }
-  expect((await startTool($)).text).toBe(refusedStart('program: found inside the folder'))
-  expect(runs().filter(a => a[0] === exe('claude'))).toEqual([])
 })
 
 test('579 C2: a start in a main checkout reaches the run with no startFolders key, and with a key planted naming another folder', async ($, on) => {
@@ -10426,41 +10278,15 @@ for (const [label, change, rule] of QUEUED) {
   })
 }
 
-test("543 C8: a program whose real path is spelled otherwise than the folder's is not trusted: an odd spelling refuses, and a case that differs still counts as inside", async ($, on) => {
+test('543 C8: a program found on PATH runs wherever its real path leads, inside the folder included', async ($, on) => {
   const { w, runs } = await startWorld(on, $)
   const base = w.stat
-  const claudeBin = exe('claude')
-  const cases: [string, string][] = [
-    [ON_WINDOWS ? `\\\\?\\${claudeBin}` : `${BIN}/../bin/claude`, 'program: its real path could not be trusted'],
-    [`${REPO_DIR.toUpperCase()}${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`, 'program: found inside the folder'],
-  ]
-  for (const [real, why] of cases) {
-    w.stat = (p: string) => {
-      const s = base(p)
-      return s !== undefined && p === claudeBin ? { ...s, realPath: real } : s
-    }
-    expect((await startTool($)).text).toBe(refusedStart(why))
+  w.stat = (p: string) => {
+    const s = base(p)
+    return s !== undefined && p === exe('claude') ? { ...s, realPath: `${REPO_DIR}${SEP}bin${SEP}claude` } : s
   }
-  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
-})
-
-test("543 C8: a program whose real path differs from the folder's only in Unicode form is still inside it, whichever form each has", async ($, on) => {
-  const composed = `${REPO_DIR}é`
-  // The same name with an e and a combining accent.
-  const decomposed = `${REPO_DIR}é`
-  const { w, runs } = await startWorld(on, $)
-  for (const d of [composed, decomposed]) w.dirs(`${d}${SEP}.git`)
-  const base = w.stat
-  const claudeBin = exe('claude')
-  const tail = `${SEP}bin${SEP}claude${ON_WINDOWS ? '.exe' : ''}`
-  for (const [folder, real] of [[composed, decomposed], [decomposed, composed]]) {
-    w.stat = (p: string) => {
-      const s = base(p)
-      return s !== undefined && p === claudeBin ? { ...s, realPath: `${real}${tail}` } : s
-    }
-    expect((await startTool($, { folder })).text).toBe(refusedStart('program: found inside the folder'))
-  }
-  expect(runs().filter(r => r[0] === exe('claude'))).toEqual([])
+  expect((await startTool($)).ok).toBe(true)
+  expect(runs().filter(r => r[0] === exe('claude')).length).toBe(1)
 })
 
 test('543 C5: a checkout that keeps its branches in a reftable holds every name, as the branch half cannot be read', async ($, on) => {

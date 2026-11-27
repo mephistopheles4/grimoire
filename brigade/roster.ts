@@ -504,19 +504,19 @@ export function rotate(repos: readonly string[], last: string | undefined, max: 
 // --- the roster path ---------------------------------------------------------
 //
 // Whether a roster path may be read or written, decided from `stat` answers
-// alone. The engine offers no write that refuses a link, and a write follows
-// one: through a broken file link it creates the link's target, and through a
-// hard link it replaces the other file's text. So before each write, and each
-// read, every folder from the config folder down is looked at, then the file.
+// alone. Before each write, and each read, every folder from the config folder
+// down must be a folder, and the file a plain file. A link is followed.
 //
 // The answers come from the caller, so the rule runs the same against the
 // engine and against recorded answers in a test. A `stat` the engine rejects
 // reaches a mod as a message alone, with no error code: a missing path's ends
 // "failed: ENOENT" (measured on 2.1.292), and only that one means missing.
 
-/** What `$.fs.stat(path, { resolve: true })` answered, as far as the rule
- *  reads it. `isLink` is the path's own; `kind` and `realPath` are where it
- *  leads, `realPath` absent when it leads nowhere. */
+/** What `$.fs.stat(path, { resolve: true })` answered. The path rule reads
+ *  `kind` and `size`; the transcript finder's and the session files' place
+ *  checks also read `isLink` and `realPath`. `isLink` is the path's own; `kind`
+ *  and `realPath` are where it leads, `realPath` absent when it leads
+ *  nowhere. */
 export type StatFound = { kind: 'file' | 'dir' | 'other'; size: number; isLink: boolean; realPath?: string }
 
 /** One `stat`: found, missing, or refused for any other reason. */
@@ -543,8 +543,8 @@ const FOLDERS = (plugin: string, place: Place) =>
   place === 'roster' ? ['plugins', 'data', plugin, 'brigade'] : ['plugins', 'data', plugin, 'brigade', place === 'summary' ? 'usage' : place]
 
 /** A path as the real-path compare reads it: one separator, no trailing one,
- *  and case folded where the file system ignores it. The roster path rule and
- *  the transcript finder's place check both compare by it. */
+ *  and case folded where the file system ignores it. The transcript finder's
+ *  and the session files' place checks compare by it. */
 export const pathKey = (path: string, fold: boolean): string => {
   const flat = path.replace(/[\\/]+/g, '/').replace(/(.)\/$/, '$1')
   return fold ? flat.toLowerCase() : flat
@@ -562,14 +562,11 @@ export function foldsCase(path: string): boolean {
  *  then of the file.
  *
  *  Refused: a session id or data id not of their shape; a config folder that
- *  does not resolve; `plugins` missing; any folder that is a link, broken or
- *  not, or is not a folder; any `stat` that fails other than as missing, or
- *  finds a path with no real path; any folder whose real path is not the
- *  config folder's real path joined with the same names, which is the
- *  decisive control, since only junctions and file links were measured for
- *  `isLink`; and a file that is a link, is not a plain file, or lands
- *  anywhere but in the checked folder. A missing folder below `plugins` ends
- *  the walk: the write creates it and everything below it. */
+ *  does not resolve to a folder; `plugins` missing; anything on the way that
+ *  is not a folder; any `stat` that fails other than as missing; and a file
+ *  that is not a plain file. A link is followed: where it leads decides. A
+ *  missing folder below `plugins` ends the walk: the write creates it and
+ *  everything below it. */
 export function placeRoster(
   config: string,
   plugin: string,
@@ -615,39 +612,27 @@ async function placeFile(
   if (!SESSION_ID.test(sessionId)) return { refused: 'path: the session id is not the engine\'s shape' }
   if (!/^[A-Za-z0-9_-]{1,200}$/.test(plugin)) return { refused: 'path: the plugin\'s data id is not of its shape' }
   const sep = sepOf(config)
-  const fold = foldsCase(config)
   const top = await stat(config)
-  if (!('found' in top) || top.found.kind !== 'dir' || top.found.realPath === undefined) {
+  if (!('found' in top) || top.found.kind !== 'dir') {
     return { refused: 'path: the config folder does not resolve to a folder' }
   }
-  const real = pathKey(top.found.realPath, fold)
   let at = config
-  let expected = real
   const folders = FOLDERS(plugin, place)
   for (const name of folders) {
     at = `${at}${sep}${name}`
-    expected = `${expected}/${fold ? name.toLowerCase() : name}`
     const s = await stat(at)
     if ('missing' in s) {
       if (name === 'plugins') return { refused: 'path: the config folder has no plugins folder' }
       return { file: `${config}${sep}${folders.join(sep)}${sep}${leaf}` }
     }
     if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
-    if (s.found.isLink) return { refused: `link: ${name} is a link` }
     if (s.found.kind !== 'dir') return { refused: `path: ${name} is not a folder` }
-    if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== expected) {
-      return { refused: `link: ${name} does not lead where its name says` }
-    }
   }
   const file = `${at}${sep}${leaf}`
   const s = await stat(file)
   if ('missing' in s) return { file }
   if ('failed' in s) return { refused: `path: the ${place} file could not be read (${s.failed})` }
-  if (s.found.isLink) return { refused: `link: the ${place} file is a link` }
   if (s.found.kind !== 'file') return { refused: `path: the ${place} path is not a plain file` }
-  if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? leaf.toLowerCase() : leaf}`) {
-    return { refused: `link: the ${place} file does not lead where its name says` }
-  }
   return { file, existing: { size: s.found.size } }
 }
 
@@ -912,17 +897,8 @@ export function openerArgv(os: HostOs, link: string): string[] {
   return [os === 'windows' ? EXPLORER : os === 'macos' ? MAC_OPEN : XDG_OPEN, link]
 }
 
-/** Whether a probe's real path, exactly as the engine returned it, is a Unix
- *  one: one `/`, then a character that is not a separator, and no `\`
- *  anywhere. A Windows real path carries a drive letter or a share root
- *  (`\\server\…`), so it fails. Never pass it through a separator helper
- *  first: one that folds `\\server` to `//server` would let a share pass. */
-export function unixRealPath(path: string): boolean {
-  return /^\/[^\\/]/.test(path) && !path.includes('\\')
-}
-
-/** The files that prove a Unix host, in order: macOS' own version file, which
- *  System Integrity Protection guards, then Linux's opener itself. */
+/** The files that prove a Unix host, in order: macOS' own version file, then
+ *  Linux's opener itself. */
 export const HOST_PROBES = [
   ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
   ['linux', XDG_OPEN],
@@ -932,20 +908,17 @@ export const HOST_PROBES = [
  *  Windows host: `OS` is `Windows_NT`, or `SystemRoot` or `windir` is set.
  *  Callers read them in that order and stop at the first that does, so a
  *  later read that fails cannot undo a known answer. Windows is known by its
- *  environment only, never by a file: on Windows an absolute Unix path
- *  resolves under the drive's root, where any local user can plant it. */
+ *  environment only, before any probe file is looked at. */
 export function windowsEnv(name: 'OS' | 'SystemRoot' | 'windir', value: unknown): boolean {
   return name === 'OS' ? value === 'Windows_NT' : value !== undefined
 }
 
-/** What one probe's `stat` answer says about the host: its Unix host, `next`
- *  when the probe file is missing so the next probe is asked, or undefined
- *  for no host. A Unix answer needs the probe to be a file whose raw real
- *  path is a Unix one; any other answer, a failed read included, is no host. */
+/** What one probe's `stat` answer says about the host: its Unix host for a
+ *  file, `next` when the probe file is missing so the next probe is asked, or
+ *  undefined for no host, a failed read included. */
 export function probeHost(os: 'macos' | 'linux', s: StatAnswer): HostOs | 'next' | undefined {
   if ('missing' in s) return 'next'
-  if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
-  return unixRealPath(s.found.realPath) ? os : undefined
+  return 'failed' in s || s.found.kind !== 'file' ? undefined : os
 }
 
 // Open in app through the Desktop app's own tool, which shows a session this

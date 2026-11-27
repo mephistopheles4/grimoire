@@ -40,9 +40,8 @@ import {
 // and writes.
 //
 // It makes no session usage call, so no cost, rate limit or context breakdown
-// ever enters it. The first refusal of the summary path, before or after a
-// write, stops it until the module reloads, with one toast; a clear does not
-// restart it.
+// ever enters it. The first refusal of the summary path stops it until the
+// module reloads, with one toast; a clear does not restart it.
 
 // The engine's record of a session's start, the last one raised, which register.tsx's
 // `classic.SessionStart` hook keeps under the same key.
@@ -119,7 +118,6 @@ function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
 const REFUSED = {
   path: 'the summary path failed its check',
   file: 'the summary path holds a file that is not a summary file, so it is not overwritten',
-  after: 'the summary path failed its check after the write',
 } as const
 
 // The first refusal stops every later write until the module reloads, and
@@ -153,7 +151,7 @@ async function run($: EngineInterface) {
 }
 
 // One write: place the file under the path rule, overwrite only a summary
-// file, take the newest numbers, write, and run the path rule again after.
+// file, take the newest numbers and write.
 async function writeOnce($: EngineInterface) {
   if (stopped) return
   // The session the memory belongs to when the write starts. A clear while
@@ -187,13 +185,6 @@ async function writeOnce($: EngineInterface) {
   const text = serializeSummary(summary)
   if ('error' in text) return
   await $.fs.write(placed.file, text.value)
-  // A link swapped in between the check and the write is caught here, after
-  // the fact. A hard link is not.
-  const after = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(() => ({ refused: 'the check could not run' }))
-  const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
-  if (why === undefined) return
-  const said = refuse('after')
-  if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
 }
 
 /** For register.tsx's `session.start` hook, which a module load raises: the

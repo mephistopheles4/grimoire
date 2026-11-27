@@ -82,7 +82,8 @@ permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
 only once the owner runs `/brigade` or the head-chef skill loads, which offers it again when the pane is already open, or at the first turn that finds a pane the load left waiting shown, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, any input
-outside the roster's shape and size, and any link on the way to the file. It
+outside the roster's shape and size, and a path with the wrong kind of entry on
+the way to the file. It
 writes in every permission mode. It finds the Claude config folder from the install
 location, else from the session-start record it keeps in plugin state, else from
 Desktop's synced install folder. A deny rule for `mcp__grimoire__set_roster` removes it
@@ -137,8 +138,9 @@ from `GH_HOST` or its own default; only github.com answers are drawn.
 `gh` is the owner's own GitHub command line tool: the call sends the owner's
 GitHub credential to GitHub, and it inherits the session's environment, keys
 and tokens included. On Windows the engine was measured to run the real `gh`
-from the system path, not a stub in the working folder. On macOS and Linux the
-pane runs nothing when the inherited PATH has an empty or relative entry. The
+from the system path, not a stub in the working folder. On macOS and Linux an
+empty or relative entry on the inherited PATH is not refused, so one can let a
+file in the project folder run in `gh`'s place. The
 environment and the working folder's git remotes choose the repository for
 the cards that name none, and the pane pins the first answer's repository for
 the session. A named repository's answer counts only when every pull request
@@ -162,12 +164,11 @@ the last 30 minutes, the model family's window size from the fixed table (the
 one key a file may leave out, when the table has no row for the model), and
 whether any call wrote or read cache, and, since the card's model line reads it, the last call's model family as one word from the fixed list (the one other key a file may leave out). Never a model id, message id, text,
 path, cost, rate limit or cache window; the writer makes no session usage call
-at all. The write goes only where the roster's link-refusing path rule allows,
+at all. The write goes only where the roster's path rule allows,
 in a folder apart from the rosters, and overwrites only a file that is itself a
-summary file, so a planted hard link to any file that is not a summary file is
-refused; one to another summary file is not (below). The path rule
-runs again after the write. On any refusal the writer stops until the plugin
-reloads, a clear included, with one toast naming the kind of refusal in fixed
+summary file, so a link or hard link to any file that is not a summary file is
+refused; one to another summary file is not (below). On any refusal the writer
+stops until the plugin reloads, a clear included, with one toast naming the kind of refusal in fixed
 words. It asks no permission. What follows from it:
 - **What the file reveals:** when each session last worked, its context size
   and its minute-by-minute burn, for every session the plugin ran in. The
@@ -186,9 +187,9 @@ words. It asks no permission. What follows from it:
   them too. The owner can delete the `brigade/usage/` folder by hand. A revert
   to an older version leaves sessions already running writing until they are
   restarted; delete the folder after that.
-- **The race:** the check-and-write race the roster has now recurs in every
-  session, with no hijacked lead needed, and a hard link between two
-  summary-shaped files is not caught, as for rosters.
+- **Links:** the write and the pane's read follow a link, as the roster's do,
+  so a link planted under the config folder moves them; that is the machine's.
+  A hard link between two summary-shaped files is not caught, as for rosters.
 - **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
@@ -197,11 +198,9 @@ words. It asks no permission. What follows from it:
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
-  Four more gaps, each an open issue or a reliability note:
+  Three more gaps, each an open issue or a reliability note:
   - other plugins can read and rewrite the pane's list of refused summary
     files, and so plant or hide a refusal line (an open issue of the threat model, not accepted);
-  - the summary read follows a link swapped in after the path check, as the
-    transcript read does, and keeps only checked numbers (an open issue of the threat model, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included (an open issue of the threat model, not accepted);
   - a writer whose files keep failing a check with fresh times freezes its
@@ -278,9 +277,9 @@ shown inside the marks queue's turn, and act only when that card is still
 the one shown with the same entries: a press on a card drawn alone never marks
 an answer that arrived after the draw. "✓ Mark N relayed read" (0.91.0 to
 0.94.0, spec 448) is gone since 0.98.0: Mark all as read takes its entries. The
-marks one bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
-allows, overwrite only a file that passes the strict check of its own kind,
-and are checked again after the write. While the pane is open, and only then,
+marks one bulk press writes share one press time. Both files go only where the roster's path rule
+allows, and overwrite only a file that passes the strict check of its own
+kind. While the pane is open, and only then,
 it reads this session's own decision log and marks file by their own paths
 and, until 0.168.0, listed the hand-off folder on the roster's 5-second poll,
 reading the 20 newest other hand-offs for the Lead hand-off card. Since 0.121.0 (issue
@@ -323,9 +322,8 @@ own hash; it protects nothing secret. What follows from it:
   one of each per session id, and they outlast transcript cleanup and an
   uninstall that leaves the plugin's data folder. The owner can delete the
   `brigade/decisions/` and `brigade/marks/` folders by hand.
-- **The race and planted files:** the roster's check-and-write race recurs for
-  both writers, and a hard link between two files of one kind passes the
-  strict check. Anything that can write the data folder can plant a
+- **Links and planted files:** both writers follow a link, as the roster's does,
+  and a hard link between two files of one kind passes the strict check. Anything that can write the data folder can plant a
   well-formed log or marks file, current-dated marks that hide decisions
   included; the owner accepted this on 2026-10-26 (q19 A on #402).
 - **What a hijacked lead can log:** within the field rules and caps, false
@@ -396,8 +394,8 @@ foot of the Decisions tab. What follows from it:
   `read_lead_handoff` answer copies the hand-off it gives, another session's
   included, into the reading session's transcript, where it stays after the
   folder is deleted.
-- **The race and planted files:** the check-and-write race and the hard-link
-  gap of the other writers reach the hand-off writer too, and anything that
+- **Links and planted files:** the links and the hard-link gap of the other
+  writers reach the hand-off writer too, and anything that
   can write the data folder can plant a well-formed same-folder hand-off
   (q19 A on #402). A hijacked lead can write a false hand-off within its
   sections and cap, which the next lead in the same working folder is given
@@ -558,7 +556,10 @@ kind, folder and branch, and the cleaner the owner's instructions name. At
 level 3 the owner's user-level instructions file decides. The head chef then
 archives each Desktop session, and stops each background session with the
 mod's `stop_background_session`, which reads the session files at each call
-and stops only the session whose job id and name match the card. It runs a
+and stops only the session whose job id and name match the card. Neither
+`start_background_session` nor `stop_background_session` refuses another
+plugin's call, so another plugin could start or stop a session. The head chef
+runs a
 cleaner only if the owner's instructions state the program and how to run it,
 from its own shell and under the permission mode in force (a prompt in the default mode; in auto or bypass mode, or under an allow rule, it states the command in chat first). With none named,
 nothing is removed. Nothing in Brigade forces a removal, passes `-D`, runs

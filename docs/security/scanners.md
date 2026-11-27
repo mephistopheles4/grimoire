@@ -482,9 +482,8 @@ The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
 that does not load both exit `1`, so the exit code is the gate. It needs no
 sign-in and makes no model call, measured on 2.1.332 with an empty config
 folder and no API key. The tests' world follows its host: its paths are
-the host's, and the tests that build a junction run on Windows only, since
-Linux has none and their recorded answers come from Windows. Off Windows they
-are not declared, and the run prints each one's title as skipped. athanor runs
+the host's, and the case that builds a junction runs on Windows only, since
+Linux has none and the recorded answers come from Windows. athanor runs
 the same tests as `athanor run plugin-test`.
 
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball

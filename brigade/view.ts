@@ -2259,7 +2259,7 @@ export async function readProjects(config: string, io: FinderIo, finder: Finder)
 // The place check: the file at <config>/projects/<folder>/<id>.jsonl, taken
 // only when a resolving `stat` finds a regular file that is not itself a
 // link, whose real path is the real projects folder, then the folder, then
-// the file, compared as the roster path rule compares. Never rejects.
+// the file, compared by `pathKey`. Never rejects.
 async function placed(config: string, folder: string, sessionId: string, io: FinderIo, real: string): Promise<Found | undefined> {
   const sep = sepOf(config)
   const path = `${config}${sep}projects${sep}${folder}${sep}${sessionId}.jsonl`
@@ -2870,8 +2870,8 @@ export async function readSessions(config: string, io: PollIo): Promise<Sessions
   const fold = foldsCase(config)
   const d = await io.stat(dir).catch(() => undefined)
   if (!isRecord(d) || d.kind !== 'dir' || d.isLink !== false || typeof d.realPath !== 'string' || d.realPath === '') return undefined
-  // The folder's real path is the real config folder's `sessions`, as the
-  // roster path rule compares, so a link the stat does not report is caught.
+  // The folder's real path must be the real config folder's `sessions`,
+  // compared by `pathKey`, so a link the stat does not report is caught.
   const c = await io.stat(config).catch(() => undefined)
   if (!isRecord(c) || typeof c.realPath !== 'string' || c.realPath === '') return undefined
   if (pathKey(d.realPath, fold) !== pathKey(`${c.realPath}/sessions`, fold)) return undefined

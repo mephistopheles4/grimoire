@@ -87,9 +87,8 @@ there is not a contract pass. Its saving comes from the subset: the same files
 run on the host with `node --test`. `validate` runs `claude plugin validate
 --strict` on the same three targets as CI, at the same pinned Claude Code,
 which the image fetches when athanor builds it. `plugin-test` runs the mod's
-tests, `claude plugin test .`, with the same Claude Code. On Linux the tests
-that build a junction are not declared, and the run prints each one's title as
-skipped: junctions exist only on Windows.
+tests, `claude plugin test .`, with the same Claude Code. On Linux the case
+that builds a junction does not run: junctions exist only on Windows.
 
 To install athanor, clone its source repository outside this repository's tree
 and check out commit `42ce945`, the commit this configuration was tested with:
@@ -268,7 +267,7 @@ marks merge, the review queue, the search, the SHA-256, and a hand-off's
 input check and which hand-off is chosen. Its stop tool's
 module, `brigade/stop.ts`, is the fifth: `tests/brigade-stop.test.mjs` imports
 it to check which session a title names, the fixed words of the stop's answer
-and the engine-origin check, and reads `brigade/register.tsx`'s text for the
+and the engine's fields left out of its input, and reads `brigade/register.tsx`'s text for the
 stop's wiring and for what the mod must not hold: a window, a cleaner, a
 removal command or the other package's name. Its roster reminder's
 module, `brigade/reminder.ts`, is the sixth: `tests/brigade-reminder.test.mjs`
@@ -301,8 +300,7 @@ and the `pages` workflow does not depend on them. The first gate runs there,
 as the workflow's `plugin-test` job on a Windows runner and its
 `plugin-test-linux` job on a Linux one. Run it yourself before you push a
 change to `brigade/`, if you like, with `athanor run plugin-test`. The tests'
-world follows its host; off Windows the tests that build a junction are not
-declared, and the run says so. The second stays on your own machine: before a
+world follows its host; the case that builds a junction runs on Windows only. The second stays on your own machine: before a
 pull request that touches `brigade/`, run it on Windows and say so in the pull
 request. Off Windows, say that the recording gate could not run there:
 

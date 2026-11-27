@@ -75,7 +75,7 @@ flowchart LR
 - Harness: folder trust and the permission mode hold a branch's folder and the mod's tool calls only as Claude Code documents them; a mod's own call skips the prompt.
 - GitHub: secret scanning with push protection (known credential shapes only), Dependabot security updates and version updates on Actions only, and CodeQL default setup (Actions, JavaScript, TypeScript; default queries).
 - R4: every action pinned to a commit SHA, with zizmor's `ref-version-mismatch`; `persist-credentials: false` and per-job permissions; the validator package pinned, unpacked and never installed; `npm pack` run outside the checkout, and rule 6 refusing `.npmrc` and `.yarnrc.yml`.
-- R6: the mod asks the engine for its verdict first; its pane waits for `/brigade` or a head-chef load; the model never names a path, and a path rule runs before and after each write; writes are strict-checked, one at a time, capped; each call's bounds, `gh` argument lists and Open in app routes are fixed. [Detail](brigade.md#row-15).
+- R6: the mod asks the engine for its verdict first; its pane waits for `/brigade` or a head-chef load; the model never names a path, and a path rule runs before each write; writes are strict-checked, one at a time, capped; each call's bounds, `gh` argument lists and Open in app routes are fixed. [Detail](brigade.md#row-15).
 - R7: plugin state is read through checks and caps and drawn as text; the autonomy level changes only by a slider press, in pane or footer popover, or the owner's mode command, none of which asks for a confirmation in chat, and a stored copy another plugin rewrites changes nothing; a plugin can still press a control.
 - R10: rule 6d holds the tracked settings file to the one agent-guard entry; `CONTRIBUTING.md`'s agent guard says to read a branch's `.claude/` and `scripts/` first, or open with hooks off.
 - Incantation: sources and redirect hosts fixed in code; each downloaded file pinned by size and sha256, checked before it is kept or run; wheels by hash only; uv's CPython checked by uv alone. Silero VAD and the non-LFS Hugging Face files are trust-on-first-use pins. The Windows loopback reference lives in memory for the echo canceller. [Detail](../spec/0001-incantation-from-the-prototype.md).
@@ -168,7 +168,7 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - R3: plain-prose instructions no scanner detects; fifteen scanner dependencies resolve fresh each run.
 - R4: the CI pins are not content pins, and no tarball hash is checked; git in the image is not hash-pinned.
 - R5: cleanup's authorization; the sender check is a consistency check; git config still runs programs in the lead at cleanup; the start's reads run on any well-spelled local folder before the trust gate ([#588](https://github.com/mephistopheles4/grimoire/issues/588)); rerun the version checks when Claude Code changes ([#587](https://github.com/mephistopheles4/grimoire/issues/587)).
-- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's check-and-write race.
+- R6: the `claude://` opener and the Linear page opener inherit the session's environment; the roster's hard-link gap.
 - Remote Control: how long a member's transcript stays after it stops, and whether a device keeps a copy, are not checked.
 - R8: the script cannot stop the agent itself printing an environment variable.
 - R9: a home root joined from a separate string is not seen, and free text is not checked.
