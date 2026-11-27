@@ -24,7 +24,7 @@ stops talking to come and type. So-so is asking aloud, hearing a yes, and only
 then saying the yes does not count. For example:
 
 > You: Update grimoire from the local folder.
-> Incantation: So you want grimoire updated from the voicebox folder, then a
+> Incantation: So you want grimoire updated from the local folder, then a
 > restart. Shall I?
 > You: Go ahead.
 > Incantation runs it, then says: Updated. Restart to load it.
@@ -73,8 +73,8 @@ unmeant words, and often shows what the person really wanted.
 - Anything the person could confirm or answer by typing, they can do by voice
   after the say-back, except the first typed `/incantation` or
   `/incantation install`. Muting needs no say-back. An observe log stays on
-  this machine, never posted. It needs Node, a microphone, an audio player and
-  a speech engine: the runtime `/incantation install` fetches, or Voicebox.
+  this machine, never posted. It needs Node, a microphone, an audio player, `uv`,
+  and the local speech runtime `/incantation install` fetches.
 
 ## House rules
 
@@ -133,28 +133,21 @@ Do each step in order and stop at the first failure.
 
 1. **Node.** If `node` is not on the path, print the README's Node line and stop.
 2. **A running listener.** Run `node <skill base>/scripts/listen.mjs stop`.
-3. **Runtime.** Ask which voice engine the person wants, `kokoro` or
-   `phonon`, and only that engine's voice files are downloaded. Recommend
-   `kokoro`: it is the fast default, and `phonon` also needs `uv`. On a first
-   install no mic is open, so the answer is typed; on a later run a spoken
-   answer counts after the say-back. Then run
-   `node <skill base>/scripts/setup.mjs runtime plan <engine>`, with the
-   engine the person picked. Show its
-   lines in chat: for each part whether it is there and its size, a part the
-   engine does not need as skipped, whether `uv` was found (without it the
-   Python layer is skipped and the plan says what is lost: echo cancelling, the
-   end-of-turn hold, Phonon), the hosts it will
-   contact, and the total download, peak disk use and expected time. If the plan
-   says the `phonon` engine is unavailable, go back and offer `kokoro`. Say the plan
-   back with its size, naming the download as the cost, and ask for a yes. On a
-   first install no mic is open, so that yes is typed; on a later run a clear yes
-   after the spoken say-back counts. A heard turn alone never starts the
-   download. On the yes, run `node <skill base>/scripts/setup.mjs runtime install <engine>`
-   as a background command: it prints one line per part (`ok`,
-   `skipped <why>` or `failed <file>`). Show each line, and stop on a `failed`
-   one. `node <skill base>/scripts/setup.mjs runtime verify` checks every file
-   again later and prints the same lines. When the plan says every part is there,
-   go on.
+3. **Runtime.** Run `node <skill base>/scripts/setup.mjs runtime plan`. Show its
+   lines in chat: whether `uv` was found (`uv` is required — if missing, show
+   the line and stop), each of the six runtime parts and its size, the hosts it
+   will contact, and the total download, peak disk use and expected time. If the
+   plan exits 1 or marks the platform unsupported, stop and show why. Say the
+   plan back with its size, naming the download as the cost, and ask for a
+   yes. On a first install no mic is open, so that yes is typed; on a later run
+   a clear yes after the spoken say-back counts. A heard turn alone never starts
+   the download. On the yes, run
+   `node <skill base>/scripts/setup.mjs runtime install` as a background
+   command: it prints one line per part (`ok`, `skipped <why>` or
+   `failed <file>`). Show each line, and stop on a `failed` one.
+   `node <skill base>/scripts/setup.mjs runtime verify` checks every file again
+   later and prints the same lines. When the plan says every part is there, go
+   on.
 4. **Microphone.** Run `node <skill base>/scripts/setup.mjs devices`. Show its
    lines in chat: a stamp, then the microphones by number. If it prints a
    `setup:` line, show it and stop. Ask the person for the number of the
@@ -162,11 +155,8 @@ Do each step in order and stop at the first failure.
    typed. On a later run, with the mic open, a spoken number counts after the say-back.
 5. **Voice.** Run `node <skill base>/scripts/setup.mjs profiles`. Show its lines
    and ask the person for the id of the voice they want, typed on a first install
-   and spoken or typed after that. The list holds the voices of each engine installed,
-   the one from step 3 and any from an earlier install, each line ending with
-   its engine in brackets. If it prints a `setup:` line, show it and stop.
-   Recommend a preset on Kokoro when it is listed: a heavier engine costs
-   seconds a line.
+   and spoken or typed after that (`everly` is the built-in Phonon voice). If it
+   prints a `setup:` line, show it and stop.
 6. **Save.** Run `node <skill base>/scripts/setup.mjs choose <index> <stamp> <profile id>`
    with the number and the id the person gave and the stamp setup printed in
    step 4. Show its line. If the stamp is stale, run step 4 again.
@@ -242,8 +232,8 @@ steps for each line:
    audio, or was cut with the line before it), `say-held` (the person spoke, and
    you have not read it yet) or `say-no-player` (this machine has no player). On
    `say-held`, follow "A held line". Show any other reply but `speaking` in chat
-   only. Never speak through Voicebox's own tools: the listener plays nothing that
-   you do not hand it, and the mic has one reader, the listener.
+   only. Speak only through the listener: nothing else touches the speaker or
+   the mic, and the listener plays nothing that you do not hand it.
 
 - **Show it.** Before each say, write the line in chat as a block quote (`> `),
   word for word as the file holds it, so the person reads it as they hear it,
@@ -309,8 +299,8 @@ show the line, print `Stopped listening.` and print the README's line on the mod
   - `progress-due`: you have worked a while with nothing said; see Requests,
     "Working".
   - `timing:` is for the practice record, not for speech. `plays <n>` counts the
-    lines the listener said (played, or silent while your voice is muted), and any
-    another caller played through Voicebox itself, since the last delivery.
+    lines the listener said (played, or silent while your voice is muted) since
+    the last delivery.
 - **The mic and the voice are the person's.** Never mute either on your own;
   mute or unmute only as "Mute and unmute" says. "Mute" or "unmute" said alone
   never reaches you. The mic stays open while you speak, so the person can talk
