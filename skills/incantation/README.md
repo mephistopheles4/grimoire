@@ -139,7 +139,7 @@ these places differ by platform:
 |---|---|---|
 | Capture input and device list | `dshow` | `avfoundation`, `pulse` or `alsa` |
 | Finding ffmpeg | fully qualified drive folders on PATH | absolute PATH entries |
-| Who can read `~/.grimoire/incantation` | your profile folder's default access | your account's default file modes |
+| Who can read `~/.grimoire/incantation` | your profile folder's default access | your account's default file modes; the observe log and the installer still set their own folders to 700 |
 | The OS mic permission | Settings, Privacy, Microphone, "Let desktop apps access your microphone" | macOS: give the terminal or app that runs Claude Code Microphone access; Linux: none beyond the sound server |
 
 - **Finding `ffmpeg` and `uv`.** Neither is ever resolved from a relative PATH
