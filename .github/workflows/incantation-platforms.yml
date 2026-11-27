@@ -116,7 +116,7 @@ jobs:
           node-version: '24'
           check-latest: true
       - name: The listener's tests, on darwin
-        run: node --test tests/incantation-listen.test.mjs tests/incantation-echo.test.mjs
+        run: node --test tests/incantation-listen.test.mjs tests/incantation-listen-live.test.mjs tests/incantation-echo.test.mjs
       # A real child that ends on SIGINT, and one that ignores it, so the
       # signal and the SIGKILL after the grace are delivered for real.
       - name: stopRecorder with a real child
