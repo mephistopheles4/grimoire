@@ -32,7 +32,7 @@ test('a stale worktree is not walked, because .gitignore excludes it', () => {
   // machine, 18 of them worktrees. CI never saw it: a fresh checkout has no
   // worktrees, so the gate was red locally and green everywhere it was
   // measured.
-  const dir = tree({ renderers: true });
+  const dir = tree();
   const stale = join(dir, '.claude', 'worktrees', 'older-branch');
   mkdirSync(join(stale, 'skills', 'eagle-eye'), { recursive: true });
   writeFileSync(join(stale, 'a.box.json'), '{"title":"not a box"}');

@@ -50,8 +50,9 @@ export const allowancesName = '.skillspector-allowances.json';
 // what a case cost. It fails a registry row that matches no artifact, so the
 // copy carries one for each row: of the flightpath examples, only this one.
 // And unless a test asks for the real renderers, each is a stand-in that
-// passes whatever it is given, so a run starts Node three times for almost
-// nothing. The untouched copy and the invalid box ask for the real ones.
+// passes whatever it is given, so a run starts Node once per artifact for almost
+// nothing. A test whose result turns on a renderer's verdict, pass or fail, asks
+// for the real ones: today the untouched copy and the invalid box.
 const FLIGHTPATH = 'greet.flightpath.json';
 const copied = src => notEngineTypes(src) && !(src.endsWith('.flightpath.json') && !src.endsWith(FLIGHTPATH));
 
@@ -66,7 +67,7 @@ export function tree({ renderers = false } = {}) {
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
     cpSync(join(root, part), join(dir, part), { recursive: true, filter: copied });
   }
-  if (!renderers) for (const { renderer } of ARTIFACTS) writeFileSync(join(dir, renderer), '// Stands in for the renderer, which passes whatever it is given.\n');
+  if (!renderers) for (const { renderer } of ARTIFACTS) writeFileSync(join(dir, renderer), '// A stand-in for the renderer: it passes whatever it is given.\n');
   // The mod's folders travel too, when the tree has them: plugin.json names
   // the mod's contract and hooks/hooks.json names its module, and the check
   // fails a pointer to a file that is not there.
