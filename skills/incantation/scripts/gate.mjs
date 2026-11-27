@@ -1,4 +1,4 @@
-// The gate and the heard queue (docs/spec/incantation.md, S6, and its trial
+// The gate and the heard queue (docs/spec/0001, S6, and its trial
 // amendments), from #622's listener with the engine seam in place of the sound
 // server. Pure: time comes in with each call, so a test drives it with scripted
 // frames and scripted playback, and nothing here reads a clock, a file or the

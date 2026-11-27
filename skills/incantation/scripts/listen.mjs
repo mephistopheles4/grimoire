@@ -1,5 +1,4 @@
-// The always-on listener (docs/spec/incantation.md, S6, and its trial
-// amendments). Node built-ins only.
+// The always-on listener (docs/spec/0001, S6, and its amendments). Node built-ins only.
 //
 //   node listen.mjs start   holds the mic open until its session ends or it is stopped
 //   node listen.mjs wait    prints what was heard, once a turn is waiting
@@ -11,10 +10,10 @@
 //   node listen.mjs status  prints listening, hearing, thinking, working, speaking or muted
 //   node listen.mjs say <8 hex>  speaks the text in observe/say-<8 hex>.txt, in the person's voice (T18)
 //
-// It reaches the engine only through the seam (S5): synthesize() for each reply,
+// It reaches the engine only through the seam: synthesize() for each reply,
 // which it plays itself through a player it owns (so it knows when a reply
-// starts and ends, and can kill it), playback() to count replies that other
-// callers speak, and transcribe() for each turn, in memory, on 127.0.0.1. The mic is never muted by the session: only the person
+// starts and ends, and can kill it), and transcribe() for each turn, in
+// memory, on 127.0.0.1. The mic is never muted by the session: only the person
 // mutes it, by voice or through the channel (T11). It writes no audio and no
 // heard text to any file or log. Its status file holds one fixed word. Every
 // line it prints is fixed text, or the heard text a waiter asked for.
@@ -47,7 +46,7 @@ const stop = reason => {
   throw new Stop(reason);
 };
 
-export const REASONS = ['recorder', 'device', 'mic', 'playback', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended', 'waiting', 'relay'];
+export const REASONS = ['recorder', 'device', 'mic', 'engine', 'settings', 'state', 'session', 'stt', 'busy', 'warm', 'ended', 'waiting', 'relay'];
 
 const listenFile = home => join(runDir(home), 'listen.json');
 
@@ -272,7 +271,6 @@ export async function startListener(options = {}) {
         }
       });
     let waiter = null;
-    let feed = null;
     let child = null;
     let childExited = null;
     let server;
@@ -450,7 +448,6 @@ export async function startListener(options = {}) {
       speechEpoch++;
       current?.stop();
       current = null;
-      feed?.close?.();
       aec.close?.();
       loopback.close?.();
       turnJudge.close?.();
@@ -494,7 +491,7 @@ export async function startListener(options = {}) {
         const taken = queue.take(now);
         for (const t of taken.turns) lines.push(...heardLines(t.text, t.afterReply, knobs.maxText));
         lines.push(`timing: wait ${settings.endOfSpeechMs} stt ${Math.round(sttMs)}`);
-        // Playbacks since the last delivery, from any caller: the skill counts a
+        // Lines the listener played since the last delivery: the skill counts a
         // heard yes only when exactly one, its own say-back, came between.
         lines.push(`plays ${Math.min(plays, 9999)}`);
         plays = 0;
@@ -926,27 +923,6 @@ export async function startListener(options = {}) {
       server.listen(0, '127.0.0.1', res);
     });
     writeWhole(listenFile(home), JSON.stringify({ port: server.address().port, token: token.toString('hex') }));
-
-    // The playback feed first: nothing is captured until it answers, so no
-    // playback can begin unseen while the mic is open.
-    feed = engine.playback();
-    const opened = new Promise((resolve, reject) => {
-      feed.once('open', resolve);
-      feed.once('error', reject);
-    });
-    // A reply another caller speaks through Voicebox itself is counted and no
-    // more: Voicebox ends it on this feed within a second of its start, long
-    // before the audio ends, so it says nothing about what is playing (T18).
-    // The listener's own replies never appear here.
-    feed.on('start', () => {
-      plays++;
-    });
-    feed.on('error', () => finish('playback'));
-    try {
-      await withTimeout(opened, knobs.feedOpenMs);
-    } catch {
-      stop('playback');
-    }
 
     // Warm in the background; `ready` goes to the next waiter.
     // After `ready`, in the background, the engine makes the ten spinner words once,

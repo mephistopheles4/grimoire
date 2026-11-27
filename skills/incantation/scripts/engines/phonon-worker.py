@@ -1,5 +1,5 @@
 # Phonon worker (docs/spec/0001, S5.10). Loads Phonon 31m English once and keeps
-# it warm, like Kokoro in sherpa.mjs. One JSON line in per reply ({"text": ...}),
+# it warm across turns. One JSON line in per reply ({"text": ...}),
 # one JSON line out ({"ok": true, "rate": n, "pcm": base64 16-bit mono} or
 # {"ok": false}). Exits when stdin closes, so it ends with the listener.
 # Offline: the model and the voice are read from the runtime's own folder, the

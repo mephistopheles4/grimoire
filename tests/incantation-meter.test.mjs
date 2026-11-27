@@ -1,4 +1,4 @@
-// Tests of meter.mjs (docs/spec/incantation.md, T16): the mic's loudness as a
+// Tests of meter.mjs (docs/spec/0001, T16): the mic's loudness as a
 // row of digits, numbers only.
 
 import { test } from 'node:test';

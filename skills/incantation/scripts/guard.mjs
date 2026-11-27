@@ -1,19 +1,17 @@
-// The setup check (docs/spec/incantation.md, S5.6; W10; T18). Node built-ins only.
+// The setup check (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md). Node built-ins only.
 //
 //   node guard.mjs   prints `ok`, or the first failure and the README step that fixes it
 //
 // It runs before the listener at each start. It never prints an address, a
 // path or a setting's value: every line it prints is one of LINES.
 
-import { connect } from 'node:net';
-import { homedir, networkInterfaces } from 'node:os';
+import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { resolveRecorder } from './capture/ffmpeg.mjs';
 import { isEngine, loadEngine } from './engines/index.mjs';
 import { ensureState, readSettings } from './lib.mjs';
 import { checkRuntime, platformKey } from './runtime/install.mjs';
 
-const CONNECT_MS = 500;
 const DEADLINE_MS = 2000;
 
 export const LINES = {
@@ -21,9 +19,7 @@ export const LINES = {
   settings: 'guard: the settings are missing or out of range. Run /incantation install.',
   engine: 'guard: the speech engine in the settings is not one Incantation knows. Run /incantation install.',
   state: "guard: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. Run /incantation install.",
-  health: 'guard: Voicebox is not answering on this machine. Start it: README step 1.',
   runtime: 'guard: the speech runtime is not installed, or a file of it is missing or the wrong size. Run /incantation install.',
-  reach: 'guard: Voicebox answers on an address other than this machine. See README step 2.',
   recorder: 'guard: ffmpeg is not where setup found it. Run /incantation install.',
   late: 'guard: the check took too long. See README step 1.',
 };
@@ -37,25 +33,6 @@ class Fail extends Error {
 const fail = key => {
   throw new Fail(key);
 };
-
-function tcpOpen(host, port) {
-  return new Promise(resolve => {
-    const s = connect({ host, port, timeout: CONNECT_MS });
-    const done = ok => {
-      s.destroy();
-      resolve(ok);
-    };
-    s.once('connect', () => done(true));
-    s.once('timeout', () => done(false));
-    s.once('error', () => done(false));
-  });
-}
-
-const externalAddresses = () =>
-  Object.values(networkInterfaces())
-    .flat()
-    .filter(a => a && !a.internal)
-    .map(a => a.address);
 
 async function check(o) {
   const platform = o.platform ?? process.platform;
@@ -79,18 +56,12 @@ async function check(o) {
   } catch {
     return fail('engine');
   }
-  // An installed part with a missing or short file is a fault for either engine
-  // (sizes only; `setup.mjs runtime verify` re-hashes). The sherpa engine also
-  // needs the parts its voice runs on: Kokoro for a Kokoro voice, Phonon for a
-  // Phonon voice.
+  // An installed part with a missing or short file is a fault (sizes only;
+  // `setup.mjs runtime verify` re-hashes); engine.health checks every required
+  // part and the runtime interpreter.
   const runtime = (o.checkRuntime ?? checkRuntime)(o.home, platformKey(platform, o.arch ?? process.arch));
   if (runtime.damaged.length) fail('runtime');
-  if (!(await engine.health())) fail(engine.name === 'sherpa' ? 'runtime' : 'health');
-  // The port is Voicebox's: the sherpa engine opens none.
-  if (engine.name !== 'sherpa') {
-    const reached = await Promise.all((o.addresses ?? externalAddresses)().map(a => (o.tcpOpen ?? tcpOpen)(a, settings.port)));
-    if (reached.some(Boolean)) fail('reach');
-  }
+  if (!(await engine.health())) fail('runtime');
   const recorder = resolveRecorder({ platform, pathValue: o.pathValue, startDir: o.startDir, fs: o.fs });
   if (!recorder || recorder !== settings.recorder) fail('recorder');
   return 'ok';

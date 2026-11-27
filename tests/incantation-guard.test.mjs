@@ -1,5 +1,5 @@
-// Tests of guard.mjs (docs/spec/incantation.md, S5.6; claim 3), on a fake
-// engine, a fake recorder file system and a fixture home. No real Voicebox.
+// Tests of guard.mjs (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md),
+// on a fake engine, a fake recorder file system and a fixture home.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +16,6 @@ import { platformKey, pythonExe, runtimeDir } from '../skills/incantation/script
 const win = process.platform === 'win32';
 const BIN = win ? 'C:\\fake\\bin' : '/fake/bin';
 const RECORDER = win ? win32.join(BIN, 'ffmpeg.exe') : posix.join(BIN, 'ffmpeg');
-const URL_OK = 'http://127.0.0.1:17493/mcp';
 const PLANTED = 'sk-planted-fake-key-0123456789abcdef';
 
 const fakeFs = {
@@ -27,45 +26,44 @@ const fakeFs = {
 function fixture({ settings = {}, claude, project } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'incantation-guard-'));
   ensureState(home);
-  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up', device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000, ...settings }));
-  const claudeJson = claude ?? { mcpServers: { voicebox: { type: 'http', url: URL_OK } }, projects: {} };
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'sherpa', profile: 'everly', device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000, ...settings }));
+  const claudeJson = claude ?? { mcpServers: {}, projects: {} };
   writeFileSync(join(home, '.claude.json'), typeof claudeJson === 'string' ? claudeJson : JSON.stringify(claudeJson));
   const projectDir = mkdtempSync(join(tmpdir(), 'incantation-project-'));
   if (project) writeFileSync(join(projectDir, '.mcp.json'), JSON.stringify(project));
   return { home, projectDir, remove: () => (rmSync(home, { recursive: true, force: true }), rmSync(projectDir, { recursive: true, force: true })) };
 }
 
-const engine = (over = {}) => ({ health: async () => true, ...over });
+const engine = (over = {}) => ({ name: 'sherpa', health: async () => true, ...over });
 
 const guard = (f, over = {}) =>
-  runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, engine: engine(), addresses: () => [], ...over });
+  runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, engine: engine(), checkRuntime: () => ({ damaged: [], ok: true, states: {} }), ...over });
 
 const noValues = line => {
   assert.ok(!/127\.0\.0\.1|17493|fake|[\\/]Users|[\\/]home|sk-/.test(line), line);
   assert.ok(Object.values(LINES).includes(line) || line === 'ok', line);
 };
 
-test('ok with valid settings, a fake engine on 127.0.0.1 and a fake recorder', async t => {
+test('ok with valid settings, a healthy sherpa engine and a fake recorder', async t => {
   const f = fixture();
   t.after(f.remove);
   assert.equal(await guard(f), 'ok');
 });
 
-test('each check fails with its fixed line and no value', async t => {
+test('each check fails with its fixed line and no value, including pre-retirement settings', async t => {
   const cases = [
     [{}, { nodeVersion: '22.11.0' }, 'node'],
     [{}, { nodeVersion: '23.9.0' }, 'node'],
-    [{ settings: { port: 80 } }, {}, 'settings'],
+    [{ settings: { port: 17493 } }, {}, 'settings'],
+    [{ settings: { engine: undefined } }, {}, 'settings'],
+    [{ settings: { profile: 'bella' } }, {}, 'settings'],
+    [{ settings: { engine: 'voicebox' } }, {}, 'engine'],
     [{ settings: { engine: 'elsewhere' } }, {}, 'engine'],
     [{ settings: { engine: '../../evil' } }, {}, 'settings'],
-    [{}, { engine: engine({ health: async () => false }) }, 'health'],
-    [{}, { addresses: () => ['192.0.2.10'], tcpOpen: async () => true }, 'reach'],
     [{ settings: { recorder: win ? 'C:\\elsewhere\\ffmpeg.exe' : '/elsewhere/ffmpeg' } }, {}, 'recorder'],
     [{}, { pathValue: '' }, 'recorder'],
-    // The speech runtime (docs/spec/0001, S5.9, claim 15): an installed part with a
-    // missing or short file fails either engine; the sherpa engine also needs its core.
-    [{}, { checkRuntime: () => ({ damaged: ['hearing'], core: false, states: {} }) }, 'runtime'],
-    [{ settings: { engine: 'sherpa' } }, { engine: engine({ name: 'sherpa', health: async () => false }) }, 'runtime'],
+    [{}, { checkRuntime: () => ({ damaged: ['hearing'], ok: false, states: {} }) }, 'runtime'],
+    [{}, { engine: engine({ health: async () => false }) }, 'runtime'],
   ];
   for (const [fx, over, key] of cases) {
     const f = fixture(fx);
@@ -74,13 +72,14 @@ test('each check fails with its fixed line and no value', async t => {
     assert.equal(line, LINES[key], `${key}: ${line}`);
     noValues(line);
   }
+  assert.equal(LINES.health, undefined);
+  assert.equal(LINES.reach, undefined);
 });
 
 // The real sherpa engine and the real runtime check, on files of the real table
-// laid at their pinned sizes in the fixture home (issue 674). No o.engine and
-// no o.checkRuntime: the guard loads the engine for the home it is handed.
-test('with the real sherpa engine, a Phonon voice passes with no Kokoro on disk, a Kokoro voice fails, and a short file of any installed part fails', async t => {
-  const f = fixture({ settings: { engine: 'sherpa' } });
+// laid at their pinned sizes in the fixture home.
+test('with the real sherpa engine, all six runtime parts pass and any missing or short part fails with runtime', async t => {
+  const f = fixture();
   t.after(f.remove);
   const root = runtimeDir(f.home);
   const put = (rel, size) => {
@@ -91,52 +90,21 @@ test('with the real sherpa engine, a Phonon voice passes with no Kokoro on disk,
   };
   const key = platformKey(process.platform, process.arch);
   for (const a of ARCHIVES.filter(a => a.platform === null || a.platform === key)) for (const [file, size] of a.files) put(`${a.dest}/${file}`, size);
-  for (const g of FILES.filter(g => ['hearing', 'detector', 'phonon'].includes(g.part))) for (const [file, size] of g.files) put(`${g.dest}${file}`, size);
+  for (const g of FILES) for (const [file, size] of g.files) put(`${g.dest}${file}`, size);
   const python = win ? 'Scripts/python.exe' : 'bin/python';
   put(`py/${python}`, 0);
   assert.equal(join(root, 'py', ...python.split('/')), pythonExe(f.home));
   writeWhole(join(root, 'py.manifest.json'), JSON.stringify({ files: [[python, 0]] }));
-  const real = profile => {
-    writeWhole(settingsPath(f.home), JSON.stringify({ engine: 'sherpa', port: 17493, profile, device: { index: 0, stamp: '0123456789abcdef' }, recorder: RECORDER, endOfSpeechMs: 1000 }));
-    return runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs, addresses: () => [] });
-  };
-  assert.equal(await real('everly'), 'ok', 'a Phonon voice needs no Kokoro');
-  assert.equal(await real('bella'), LINES.runtime, 'a Kokoro voice needs Kokoro');
-  const speaking = FILES.find(g => g.part === 'speaking');
-  put(`${speaking.dest}${speaking.files[0][0]}`, 1);
-  assert.equal(await real('everly'), LINES.runtime, 'a short file in a part the voice never loads still fails');
+  const run = () => runGuard({ home: f.home, projectDir: f.projectDir, pathValue: BIN, startDir: f.projectDir, fs: fakeFs });
+  assert.equal(await run(), 'ok');
+  put(`${FILES[0].dest}${FILES[0].files[0][0]}`, 1);
+  assert.equal(await run(), LINES.runtime, 'a short runtime file fails');
 });
 
-test('the sherpa engine opens no port, so the reach check does not run for it', async t => {
-  const f = fixture({ settings: { engine: 'sherpa' } });
-  t.after(f.remove);
-  const asked = [];
-  const line = await guard(f, { engine: engine({ name: 'sherpa' }), addresses: () => ['192.0.2.10'], tcpOpen: async (...a) => (asked.push(a), true) });
-  assert.equal(line, 'ok');
-  assert.deepEqual(asked, []);
-});
-
-test('the reach check asks every non-loopback address on the settings port', async t => {
-  const f = fixture();
-  t.after(f.remove);
-  const asked = [];
-  await guard(f, { addresses: () => ['192.0.2.10', '2001:db8::1'], tcpOpen: async (a, p) => (asked.push(`${a} ${p}`), false) });
-  assert.deepEqual(asked, ['192.0.2.10 17493', '2001:db8::1 17493']);
-});
-
-test('it finishes within 2 s with every port timing out', async t => {
-  const f = fixture();
-  t.after(f.remove);
-  const began = Date.now();
-  const line = await guard(f, { addresses: () => ['192.0.2.10'], tcpOpen: () => new Promise(() => {}) });
-  assert.ok(Date.now() - began < 2100);
-  assert.equal(line, LINES.late);
-});
-
-test('T18: the guard no longer asks for a voicebox MCP registration, and never reads Claude Code\'s own config', async t => {
+test('never reads Claude Code\'s own config', async t => {
   for (const claude of [{ mcpServers: {} }, 'not json at all ' + PLANTED, { mcpServers: { voicebox: { type: 'stdio', command: '/usr/bin/bridge' } } }]) {
     const f = fixture({ claude });
-    assert.equal(await guard(f), 'ok', 'the session speaks through the listener now, so the MCP entry is not its business');
+    assert.equal(await guard(f), 'ok');
     f.remove();
   }
   assert.equal(LINES.mcp, undefined);

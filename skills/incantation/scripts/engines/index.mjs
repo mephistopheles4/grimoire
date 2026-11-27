@@ -1,10 +1,9 @@
-// The engine table (docs/spec/incantation.md, S5.1): a name to a shipped
-// module, fixed in code. Settings name an engine by its key here; any other
-// name is refused before anything is imported. A second engine is one more
-// row and one more file (W5).
+// The engine table (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md):
+// a name to a shipped module, fixed in code. Settings name an engine by its
+// key here; any other name is refused before anything is imported. A second
+// engine is one more row and one more file.
 
 const ENGINES = Object.freeze({
-  voicebox: () => import('./voicebox.mjs'),
   sherpa: () => import('./sherpa.mjs'),
 });
 

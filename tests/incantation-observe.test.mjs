@@ -1,4 +1,4 @@
-// Tests of observe.mjs (docs/spec/incantation.md, S4.4; claim 24): a fixture
+// Tests of observe.mjs (docs/spec/0001, S4.4; claim 24): a fixture
 // home, the command line run as the skill runs it, and the exported functions
 // with a fixed clock. File modes are POSIX, so the mode checks skip on win32.
 

@@ -1,4 +1,4 @@
-// Tests of gate.mjs (docs/spec/incantation.md, S6; claims 4, 7 and 9), from
+// Tests of gate.mjs (docs/spec/0001, S6; claims 4, 7 and 9), from
 // #622's listener tests with the sound server taken out. The turn logic is
 // driven with scripted frames and scripted playback, tones and silence only,
 // never recorded speech.

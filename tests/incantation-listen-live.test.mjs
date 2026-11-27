@@ -312,7 +312,7 @@ test('claim 7: the saved mic is found by its digests, a changed list falls back 
   const home = makeHome({ device: { index: 5, stamp: '0123456789abcdef' } });
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const key = ensureKey(home);
-  writeWhole(settingsPath(home), JSON.stringify({ engine: 'voicebox', port: 17493, profile: 'made-up-profile', device: { index: 5, stamp: '0123456789abcdef', id: deviceDigest(key, dev[0].id), name: deviceDigest(key, 'another name') }, recorder: RECORDER, endOfSpeechMs: 300 }));
+  writeWhole(settingsPath(home), JSON.stringify({ engine: 'sherpa', profile: 'everly', device: { index: 5, stamp: '0123456789abcdef', id: deviceDigest(key, dev[0].id), name: deviceDigest(key, 'another name') }, recorder: RECORDER, endOfSpeechMs: 300 }));
   const saved = rig({ home });
   const sl = await saved.start();
   assert.doesNotMatch(await wait(home), /mic-fallback/);

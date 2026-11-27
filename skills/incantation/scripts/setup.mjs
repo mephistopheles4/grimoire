@@ -1,36 +1,35 @@
-// Setup (docs/spec/incantation.md, S5.5). The person runs it in their own
+// Setup (docs/spec/0003-incantation-retire-voicebox-and-kokoro.md). The person runs it in their own
 // terminal, never a session: device and profile names go to that terminal
 // only, and it is the one writer of ~/.grimoire/incantation/settings.json.
 //
 //   node setup.mjs devices                              the stamp and each microphone, by index
-//   node setup.mjs profiles                             Voicebox's profiles, by id
+//   node setup.mjs profiles                             the speech runtime's profiles, by id
 //   node setup.mjs choose <index> <stamp> <profile id>  checks all three, pins ffmpeg, writes the settings
-//   node setup.mjs runtime plan | install [engine] | verify   the speech runtime (docs/spec/0001, S5.9)
+//   node setup.mjs runtime plan | install | verify      the speech runtime (docs/spec/0001, S5.9)
 
 import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
-import { findUv, installRuntime, OMITTED, planRuntime, verifyRuntime } from './runtime/install.mjs';
+import { findUv, installRuntime, planRuntime, verifyRuntime } from './runtime/install.mjs';
 import { listDevices, listingLines, resolveRecorder, stampOf } from './capture/ffmpeg.mjs';
 import { loadEngine } from './engines/index.mjs';
 import { SETTINGS_DEFAULTS, SETTINGS_KEYS, cleanText, deviceDigest, ensureKey, runDir, ensureState, settingsPath, writeWhole } from './lib.mjs';
 
 export const LINES = {
-  usage: 'usage: setup.mjs devices | profiles | choose <index> <stamp> <profile id> | runtime plan [kokoro | phonon] | install [kokoro | phonon] | verify',
+  usage: 'usage: setup.mjs devices | profiles | choose <index> <stamp> <profile id> | runtime plan | install | verify',
   recorder: 'setup: ffmpeg was not found on an absolute PATH entry outside this folder. See README step 1.',
   devices: 'setup: ffmpeg listed no microphone. See README step 4.',
   stale: 'setup: the microphone list changed since you listed it. Run setup.mjs devices again.',
   index: 'setup: there is no microphone with that index.',
-  voicebox: 'setup: Voicebox is not answering on this machine. Start it: README step 1.',
-  profile: 'setup: Voicebox has no profile with that id. Run setup.mjs profiles.',
+  runtime: 'setup: the speech runtime is not installed. Run /incantation install.',
+  profile: 'setup: no Phonon voice with that id. Run setup.mjs profiles.',
   voices: 'setup: no voice is installed. Run setup.mjs runtime install first.',
   state: "setup: the ~/.grimoire/incantation folder cannot be used: part of it is missing or cannot be made or read, or a file and a folder stand in each other's place. See README step 3.",
   failed: 'setup: could not save the settings.',
   saved: 'setup: saved. Run /incantation in a session.',
 };
 
-// A fresh `choose` writes this engine (S13.10). Settings with no engine key read
-// as voicebox, as they always did: SETTINGS_DEFAULTS.engine is that reading.
+// Every fresh `choose` writes this engine.
 export const FRESH_ENGINE = 'sherpa';
 
 // uv, run by the installer: no shell, no window, a named environment and the
@@ -43,21 +42,20 @@ const runUv = (file, args, { cwd, env }) =>
     ),
   );
 
-// `setup.mjs runtime plan | install [kokoro | phonon] | verify` (S5.9). The engine
-// leaves out the speaking part the other one alone needs; with none, every part is
-// planned and fetched. plan and verify print
+// `setup.mjs runtime plan | install | verify` (S5.9). plan and verify print
 // their lines at once; install prints a line per file and per part through
 // `o.log` as it goes (it runs as a background command) and returns none of its
 // own then.
 async function runtimeCommand(args, o, platform) {
   const arch = o.arch ?? process.arch;
-  if (!['plan', 'install', 'verify'].includes(args[0]) || args.length > (args[0] === 'verify' ? 1 : 2)) return { lines: [LINES.usage], code: 2 };
-  const engine = args[1];
-  if (engine !== undefined && !Object.hasOwn(OMITTED, engine)) return { lines: [LINES.usage], code: 2 };
+  if (!['plan', 'install', 'verify'].includes(args[0]) || args.length !== 1) return { lines: [LINES.usage], code: 2 };
   if (args[0] === 'verify') return verifyRuntime({ home: o.home, platform, arch });
   const find = () => findUv({ platform, pathValue: o.pathValue, startDir: o.startDir, fs: o.fs });
-  if (args[0] === 'plan') return { lines: planRuntime({ home: o.home, platform, arch, uv: find(), engine }).lines, code: 0 };
-  const done = await installRuntime({ home: o.home, platform, arch, engine, pathValue: o.pathValue, startDir: o.startDir, fs: o.fs, env: o.env ?? process.env, runUv: o.runUv ?? runUv, transport: o.transport, free: o.free, log: o.log });
+  if (args[0] === 'plan') {
+    const planned = planRuntime({ home: o.home, platform, arch, uv: find(), release: o.release });
+    return { lines: planned.lines, code: planned.ok ? 0 : 1 };
+  }
+  const done = await installRuntime({ home: o.home, platform, arch, pathValue: o.pathValue, startDir: o.startDir, fs: o.fs, env: o.env ?? process.env, release: o.release, runUv: o.runUv ?? runUv, transport: o.transport, free: o.free, log: o.log });
   return { lines: o.log ? [] : done.lines, code: done.code };
 }
 
@@ -82,14 +80,13 @@ export async function runSetup(argv, o) {
     return { lines: [LINES.state], code: 1 };
   }
   if (command === 'runtime') return runtimeCommand(args, o, platform);
-  const engine = o.engine ?? (await loadEngine(FRESH_ENGINE, { port: SETTINGS_DEFAULTS.port, home: o.home, platform, arch: o.arch ?? process.arch }));
+  const engine = o.engine ?? (await loadEngine(FRESH_ENGINE, { home: o.home, platform, arch: o.arch ?? process.arch }));
   const recorderOf = () => resolveRecorder({ platform, pathValue: o.pathValue, startDir: o.startDir, fs: o.fs });
   const listOf = async recorder => listDevices({ recorder, platform, run: o.list ?? runListing(runDir(o.home)) });
 
   if (command === 'profiles') {
     const profiles = await engine.profiles();
-    if (!profiles) return { lines: [LINES.voicebox], code: 1 };
-    if (!profiles.length) return { lines: [LINES.voices], code: 1 };
+    if (!profiles?.length) return { lines: [LINES.voices], code: 1 };
     return { lines: profiles.filter(p => SETTINGS_KEYS.profile(p.id)).map(p => `${p.id} ${cleanText(p.name, 64)}${p.engine ? ` (${cleanText(p.engine, 32)})` : ''}`), code: 0 };
   }
   const recorder = recorderOf();
@@ -104,7 +101,7 @@ export async function runSetup(argv, o) {
   if (index >= devices.length) return { lines: [LINES.index], code: 1 };
   if (!SETTINGS_KEYS.profile(args[2])) return { lines: [LINES.profile], code: 1 };
   const profiles = await engine.profiles();
-  if (!profiles) return { lines: [LINES.voicebox], code: 1 };
+  if (!profiles?.length) return { lines: [LINES.voices], code: 1 };
   if (!profiles.some(p => p.id === args[2])) return { lines: [LINES.profile], code: 1 };
   // The mic is kept as keyed digests of its id and name, never as text (S13.5);
   // the key is made at the first choose and stays, so older digests keep matching.

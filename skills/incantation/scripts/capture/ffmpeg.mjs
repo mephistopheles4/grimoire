@@ -1,4 +1,4 @@
-// The capture adapter (docs/spec/incantation.md, S5.4): ffmpeg, one row per
+// The capture adapter (docs/spec/0001, S5.4): ffmpeg, one row per
 // platform. Every platform-dependent line of capture lives in ROWS, and every
 // function takes the platform as an argument, so each row runs on every
 // runner. Nothing here reads the environment: the PATH value and the folder
