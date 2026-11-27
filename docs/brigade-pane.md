@@ -142,11 +142,11 @@ Only your press or your own `/brigade manual`, `/brigade auto [goal]`
 or `/brigade turbo <goal>` moves the level, and
 the level in force is drawn on every view (on Desktop, at the pane's foot), 3 in the warning colour; a lowering or a 2 you type also gives the lead one turn, so it reads the new level at once (a 3 does not: tell the lead yourself); a 3 the
 command set shows its goal under the slider (an Auto goal reaches the lead through `read_autonomy` and is not drawn). On Desktop, while the pane is open, a chip left of the model name under the prompt names the level; a press on it opens a popover of the three levels beside the message box. A pick there is a press on the slider, with one difference: a raise acts while the popover is open, whether or not the pane is in view. The popover needs Claude Code 2.1.331 or later; on an older one the chip opens nothing. Each move
-is logged as your own decision ("Owner"). The level is the last one set, held
-in the mod's memory; a stored copy in plugin state serves one job, a reload,
-and something else rewriting it changes nothing (since 0.116.0; before that,
-it set the level back to 1 and raised an alarm, and old logs still show those
-alarms as "Not from a press"). A compaction keeps the level, whether a press or a command set it
+is logged as your own decision ("Owner"). The level is the last one set, kept in plugin
+state, where a value of no known shape reads as 1 (from 0.116.0 to 0.185.0 the
+mod held it in its memory; before 0.116.0 a rewritten value set the level back
+to 1 and raised an alarm, and old logs still show those alarms as "Not from a
+press"). A compaction keeps the level, whether a press or a command set it
 (since 0.116.0). A new lead session starts at 1, and so does a
 reload of the mod, a clear and a resume; a reload from a level above 1 is
 logged as "Pane". Showing the pane again no longer resets it. A reset that

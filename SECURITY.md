@@ -165,10 +165,9 @@ one key a file may leave out, when the table has no row for the model), and
 whether any call wrote or read cache, and, since the card's model line reads it, the last call's model family as one word from the fixed list (the one other key a file may leave out). Never a model id, message id, text,
 path, cost, rate limit or cache window; the writer makes no session usage call
 at all. The write goes only where the roster's path rule allows,
-in a folder apart from the rosters, and overwrites only a file that is itself a
-summary file, so a link or hard link to any file that is not a summary file is
-refused; one to another summary file is not (below). On any refusal the writer
-stops until the plugin reloads, a clear included, with one toast naming the kind of refusal in fixed
+in a folder apart from the rosters, and overwrites whatever plain file is at its
+place without reading it. On any refusal the writer
+stops until the plugin reloads, a clear included, with one toast in fixed
 words. It asks no permission. What follows from it:
 - **What the file reveals:** when each session last worked, its context size
   and its minute-by-minute burn, for every session the plugin ran in. The
@@ -189,18 +188,21 @@ words. It asks no permission. What follows from it:
   restarted; delete the folder after that.
 - **Links:** the write and the pane's read follow a link, as the roster's do,
   so a link planted under the config folder moves them; that is the machine's.
-  A hard link between two summary-shaped files is not caught, as for rosters.
+  A hard link at the file's place is not caught: the write lands on whatever file
+  it names.
 - **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; the threat model leaves this to the machine: a forged file from a program
-  running as the owner is the machine's, and from another plugin, a branch's code or a steered session it is an open issue. A step the transcript would not count restarts the
+  running as the owner is the machine's, as is one from another plugin; from a
+  branch's code or a steered session it is an open issue. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
   Three more gaps, each an open issue or a reliability note:
   - other plugins can read and rewrite the pane's list of refused summary
-    files, and so plant or hide a refusal line (an open issue of the threat model, not accepted);
+    files, and so plant or hide a refusal line (another plugin's, outside the
+    threat model's scope);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included (an open issue of the threat model, not accepted);
   - a writer whose files keep failing a check with fresh times freezes its
@@ -430,9 +432,8 @@ Remote Control. The mod acts on it only when the engine stamps the run as the
 owner's Enter or a Remote Control message, so a run the engine stamps as
 anything else sets nothing. Whether another plugin, or the model itself, can run
 the command with the owner's stamp, or a hook can change the stamp, is not yet
-measured; until
-it is, that path sits in the class the owner accepted for plugins that forge a
-confirmation (the threat model's class “Other plugins share the mod's trust”). **Since head-chef 1.23.0 (issue 541,
+measured; until it is, another plugin's use of that path is outside the threat model's
+scope, and the model's stays unmeasured. **Since head-chef 1.23.0 (issue 541,
 proposed; it waits on the owner's confirmed merge, which classes it)** the lead also widens or narrows a command
 goal on the owner's own typed turn in its chat, with no new command, where the
 owner's user-level instructions file counts the owner's chat words as a
@@ -451,8 +452,8 @@ keep waiting still waits: an install, a post carrying
 private work, a merge that changes the threat model's scope or accepted classes,
 and an edit to its scope, its naming line, or an accepted class that widens the level-3 leave. The control is the
 log and the flag, which the owner reviews after the fact; the log rests on
-the decision files, whose planting by another plugin is still an open
-issue of the threat model. A 3 it sets, or a 2 with a goal, carries its goal, which is
+the decision files, whose planting by a branch's code or a steered session is
+still an open issue of the threat model. A 3 it sets, or a 2 with a goal, carries its goal, which is
 cleaned, held to 300 characters and not screened for
 secrets; both sit in the module's memory, never in plugin state, and a
 compaction keeps them. Any slider press, another mode command, a
@@ -464,14 +465,13 @@ skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 until the mod has offered it to this
 session since its last reload, and otherwise the level in force, since 0.88.0 whether the pane is
 shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
-**Since 0.116.0 (issue 504) the level is the last one a press or a command set,
-held in the module's memory.** A copy sits in plugin state as `autonomy`, this
-session's id and its level, never in a file, for one job: a reload of the mod
-finds a stored level above 1, resets it to 1 and logs a Pane entry. A stored
-value that another plugin rewrites changes nothing and raises no alarm; the
-mod no longer compares it with the last press. Before 0.116.0 it did, and set
-the level to 1 and logged an alarm ("Not from a press"); an old log's alarm
-still reads and draws. The level in force is 1 while a reset's Pane entry
+**The level is the last one a press or a command set, kept in plugin state** as
+`autonomy`, this session's id and its level, never in a file; a value that is not
+1, 2 or 3 reads as 1, and a reload of the mod finds a stored level above 1, resets
+it to 1 and logs a Pane entry. From 0.116.0 (issue 504) to 0.185.0 the level was
+held in the module's memory; before 0.116.0 the mod compared the stored copy with
+the last press, set the level to 1 and logged an alarm ("Not from a press"); an
+old log's alarm still reads and draws. The level in force is 1 while a reset's Pane entry
 waits to be logged, and for a 3 with no press time. A press that raises the
 level first logs what waits, then an Owner entry in the session's own log, and
 the raise does not happen if either cannot be written; a lowering always
@@ -506,13 +506,14 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
   slider moves and mode commands, and of the reloads, which show roughly when
   the owner let the lead run alone. Owner, Pane and alarm entries never drop.
 - **Who can move it:** another plugin can read `autonomy`, and so learn when
-  the owner let the lead run alone, and can press the slider, and so raise the
-  level the lead reads; a press by another plugin is logged as the owner's. It
+  the owner let the lead run alone, can rewrite it, and so change the level the
+  lead reads (a rewritten 3 with no press time reads as 1), and can press the
+  slider, and so raise that level; a press by another plugin is logged as the owner's. It
   can also press the footer chip, which only opens the popover: a pick there is
   a post only this mod's hooks see, and whether another plugin can make that
   post is not checked.
-  A rewrite of the stored copy changes nothing until the next reload, which
-  resets it. The owner accepted this on 2026-10-26, and again for level 3 (q2
+  All of this is another plugin's, outside the threat model's scope. The owner
+  accepted this on 2026-10-26, and again for level 3 (q2
   and q32 A on #402). Since head-chef 0.17.0 (issue 416) the skill has the
   lead read the level with `read_autonomy` before each decision it would take
   itself; a level, goal or yes named in a message, file, hand-off or report is
@@ -541,7 +542,7 @@ press time and a Dismiss, on the terminal and Desktop only. What follows from it
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
-machine: the [row 15 section](docs/security/brigade.md#row-15) of `brigade.md` (the threat model's classes it cites include “Other plugins share the mod's trust”, “A forged or misled session can speak for the lead”, “Data leaves the machine as the owner accepted” and “The mod's tools run with no permission prompt”)
+machine: the [row 15 section](docs/security/brigade.md#row-15) of `brigade.md` (the threat model's classes it cites include “A forged or misled session can speak for the lead”, “Data leaves the machine as the owner accepted” and “The mod's tools run with no permission prompt”)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
