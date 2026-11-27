@@ -27,6 +27,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { root, run } from './helpers.mjs';
+import { ARTIFACTS } from '../scripts/lib/registry.mjs';
 
 // The engine writes its own type declarations into .claude-plugin/types/ at
 // every load of the mod from a checkout. They are ignored, not this tree's, and
@@ -45,17 +46,27 @@ export const baselineName = '.skillspector-baseline.yaml';
 
 export const allowancesName = '.skillspector-allowances.json';
 
-// A copy of everything check.mjs reads: the script, the renderer and its
-// module, one box file to validate, both manifests, the repository's
+// The check starts a renderer for every artifact it finds, which was most of
+// what a case cost. It fails a registry row that matches no artifact, so the
+// copy carries one for each row: of the flightpath examples, only this one.
+// And unless a test asks for the real renderers, each is a stand-in that
+// passes whatever it is given, so a run starts Node three times for almost
+// nothing. The untouched copy and the invalid box ask for the real ones.
+const FLIGHTPATH = 'greet.flightpath.json';
+const copied = src => notEngineTypes(src) && !(src.endsWith('.flightpath.json') && !src.endsWith(FLIGHTPATH));
+
+// A copy of everything check.mjs reads: the script, the renderers (or their
+// stand-ins) and modules, one artifact of each kind to validate, both manifests, the repository's
 // SkillSpector baseline — the skill's own copy travels inside skills/ — the
 // SkillSpector allowance, and .gitignore, which the walk reads to decide what
 // it does not enter.
-export function tree() {
+export function tree({ renderers = false } = {}) {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
-    cpSync(join(root, part), join(dir, part), { recursive: true, filter: notEngineTypes });
+    cpSync(join(root, part), join(dir, part), { recursive: true, filter: copied });
   }
+  if (!renderers) for (const { renderer } of ARTIFACTS) writeFileSync(join(dir, renderer), '// Stands in for the renderer, which passes whatever it is given.\n');
   // The mod's folders travel too, when the tree has them: plugin.json names
   // the mod's contract and hooks/hooks.json names its module, and the check
   // fails a pointer to a file that is not there.
