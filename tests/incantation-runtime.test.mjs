@@ -40,7 +40,6 @@ function tar(entries) {
 const rows = map => Object.entries(map).map(([f, d]) => [f, d.length, sha256(d)]);
 const DATA = {
   parakeet: { 'enc.bin': Buffer.from('encoder bytes'), 'tokens.txt': Buffer.from('a b c') },
-  kokoro: { 'model.bin': Buffer.from('model bytes'), 'data/x.dict': Buffer.from('dict') },
   vad: { 'v.onnx': Buffer.from('vad') },
   turn: { 't.onnx': Buffer.from('turn') },
   phonon: { 'model.safetensors': Buffer.from('phonon') },
@@ -59,7 +58,6 @@ const PINS = {
   ],
   FILES: [
     { part: 'hearing', src: 'hf', base: '/o/p/resolve/abc/', dest: 'parakeet/', files: rows(DATA.parakeet) },
-    { part: 'speaking', src: 'hf', base: '/o/k/resolve/abc/', dest: 'kokoro/', files: rows(DATA.kokoro) },
     { part: 'detector', src: 'github', base: '/g/r/releases/download/x/', dest: 'vad/', files: rows(DATA.vad) },
     { part: 'turn', src: 'hf', base: '/o/t/resolve/abc/', dest: 'smart-turn/', files: rows(DATA.turn) },
     { part: 'phonon', src: 'hf', base: '/o/ph/resolve/abc/', dest: 'hf/hub/m/snapshots/abc/', files: rows(DATA.phonon) },
@@ -120,11 +118,10 @@ test('claim 14: every part is fetched, checked and renamed into place; verify th
   try {
     const { lines, code } = await install(f);
     assert.equal(code, 0);
-    for (const p of ['addon', 'hearing', 'speaking', 'detector', 'python', 'turn', 'phonon']) assert.ok(lines.includes(`${p} ok`), `${p}: ${lines.join(' | ')}`);
-    assert.equal(readFileSync(join(runtimeDir(f.home), 'kokoro', 'data', 'x.dict'), 'utf8'), 'dict');
+    for (const p of ['addon', 'hearing', 'detector', 'python', 'turn', 'phonon']) assert.ok(lines.includes(`${p} ok`), `${p}: ${lines.join(' | ')}`);
     assert.equal(existsSync(partialDir(f.home)), false, 'runtime.partial is gone');
     assert.deepEqual(verifyRuntime({ home: f.home, platform, arch, pins: PINS }).lines.every(l => l.endsWith(' ok')), true);
-    assert.equal(checkRuntime(f.home, KEY, PINS).core, true);
+    assert.equal(checkRuntime(f.home, KEY, PINS).ok, true);
   } finally {
     f.remove();
   }
@@ -174,7 +171,7 @@ test('claim 14: a file whose size or sha256 differs from its pin is not kept, an
       assert.equal(code, 1, label);
       assert.ok(lines.includes('hearing failed enc.bin'), `${label}: ${lines.join(' | ')}`);
       assert.equal(existsSync(join(runtimeDir(f.home), 'parakeet')), false, `${label}: nothing of the failed part is kept`);
-      assert.ok(lines.includes('speaking ok'), 'the next part still goes on');
+      assert.ok(lines.includes('detector ok'), 'the next part still goes on');
     } finally {
       f.remove();
     }
@@ -338,18 +335,20 @@ test('claim 14: the real table holds no .bz2, only https sources, full commits a
   for (const lock of Object.values(LOCKS)) assert.ok(readFileSync(new URL(`../skills/incantation/scripts/runtime/${lock}`, import.meta.url), 'utf8').includes('--hash=sha256:'));
 });
 
-test('claim 15: plan prints each part\'s state and size and whether uv was found, and with no uv names what is lost', async () => {
+test('claim 15: plan prints each part\'s state and size and whether uv was found, and sets ok false without uv', async () => {
   const f = fixture();
   try {
-    const withUv = planRuntime({ home: f.home, platform, arch, uv: UV, pins: PINS }).lines;
-    assert.ok(withUv.some(l => /^addon missing \d+ MB$/.test(l)));
-    assert.ok(withUv.includes('uv found'));
-    assert.ok(withUv.some(l => l.startsWith('total download ') && l.includes('peak disk') && l.includes('at 10 MB/s')));
+    const withUv = planRuntime({ home: f.home, platform, arch, uv: UV, pins: PINS });
+    assert.equal(withUv.ok, true);
+    assert.ok(withUv.lines.some(l => /^addon missing \d+ MB$/.test(l)));
+    assert.ok(withUv.lines.includes('uv found'));
+    assert.ok(withUv.lines.some(l => l.startsWith('total download ') && l.includes('peak disk') && l.includes('at 10 MB/s')));
     // The plan names exactly the table's hosts, as whole words and in order.
-    assert.deepEqual(withUv.find(l => l.startsWith('hosts '))?.split(' ').slice(1), [...HOSTS]);
-    const without = planRuntime({ home: f.home, platform, arch, uv: null, pins: PINS }).lines;
-    assert.ok(without.includes('uv not found') && without.includes('python skipped no uv'));
-    assert.ok(without.some(l => /echo cancelling/.test(l) && /end-of-turn/.test(l) && /Phonon/.test(l)));
+    assert.deepEqual(withUv.lines.find(l => l.startsWith('hosts '))?.split(' ').slice(1), [...HOSTS]);
+    const without = planRuntime({ home: f.home, platform, arch, uv: null, pins: PINS });
+    assert.equal(without.ok, false);
+    assert.ok(without.lines.includes('uv not found') && without.lines.includes('python skipped no uv') && without.lines.includes('turn skipped no uv') && without.lines.includes('phonon skipped no uv'));
+    assert.ok(without.lines.some(l => /uv is required/.test(l)));
     await install(f);
     assert.ok(planRuntime({ home: f.home, platform, arch, uv: UV, pins: PINS }).lines.some(l => /^hearing present \d+ MB$/.test(l)));
   } finally {
@@ -357,19 +356,25 @@ test('claim 15: plan prints each part\'s state and size and whether uv was found
   }
 });
 
-test('claim 15: with no uv the core installs and the Python layer is skipped; with too little disk nothing is fetched', async () => {
+test('claim 15: with no uv or too little disk, install refuses early via log with code 1 and downloads nothing', async () => {
   const f = fixture();
   try {
     const log = [];
-    const { lines, code } = await install(f, { pathValue: '', transport: fakeTransport(served(), log) });
-    assert.equal(code, 0);
-    assert.ok(lines.includes('python skipped no uv') && lines.includes('turn skipped no uv') && lines.includes('phonon skipped no uv'));
-    assert.ok(lines.includes('hearing ok'));
+    const logged = [];
+    const { lines, code } = await install(f, { pathValue: '', transport: fakeTransport(served(), log), log: l => logged.push(l) });
+    assert.equal(code, 1);
+    assert.deepEqual(lines, ['python failed no uv']);
+    assert.deepEqual(logged, ['python failed no uv']);
+    assert.equal(log.length, 0, 'nothing downloaded when uv is missing');
+    assert.equal(existsSync(partialDir(f.home)), false, 'runtime.partial not created');
+    assert.equal(existsSync(join(runtimeDir(f.home), 'parakeet')), false);
     const g = fixture();
     try {
-      const short = await install(g, { free: () => 10, transport: fakeTransport(served(), log) });
+      const shortLog = [];
+      const short = await install(g, { free: () => 10, transport: fakeTransport(served(), log), log: l => shortLog.push(l) });
       assert.equal(short.code, 1);
       assert.match(short.lines[0], /not enough free disk space/);
+      assert.deepEqual(shortLog, short.lines);
       assert.equal(existsSync(join(runtimeDir(g.home), 'parakeet')), false);
     } finally {
       g.remove();
@@ -393,151 +398,22 @@ test('claim 15: verify re-hashes (a same-size change is caught); the guard check
     assert.equal(partState(f.home, 'hearing', KEY, PINS), 'damaged');
     rmSync(target);
     assert.deepEqual(checkRuntime(f.home, KEY, PINS).damaged, ['hearing']);
-    assert.equal(checkRuntime(f.home, KEY, PINS).core, false);
+    assert.equal(checkRuntime(f.home, KEY, PINS).ok, false);
   } finally {
     f.remove();
   }
 });
 
-test('claim 15: core counts only the parts the voice needs: Kokoro for a Kokoro voice, Phonon for a Phonon voice (issue 674)', async () => {
+test('claim 15: all six runtime parts are required by checkRuntime', async () => {
   const f = fixture();
   try {
-    await install(f);
-    const kokoro = join(runtimeDir(f.home), 'kokoro');
-    assert.equal(checkRuntime(f.home, KEY, PINS).core, true);
-    rmSync(kokoro, { recursive: true });
-    assert.deepEqual(checkRuntime(f.home, KEY, PINS).damaged, []);
-    assert.equal(checkRuntime(f.home, KEY, PINS).core, false, 'a Kokoro voice, the default, needs Kokoro');
-    assert.equal(checkRuntime(f.home, KEY, PINS, 'kokoro').core, false);
-    assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').core, true, 'a Phonon voice runs without Kokoro');
-    rmSync(join(runtimeDir(f.home), 'hf'), { recursive: true });
-    assert.deepEqual(checkRuntime(f.home, KEY, PINS).damaged, []);
-    assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').core, false, 'a Phonon voice needs Phonon');
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 15: a Phonon voice still needs the addon, the hearing model and the speech detector (issue 674)', async () => {
-  const f = fixture();
-  try {
-    for (const [part, folder] of [['addon', 'node_modules'], ['hearing', 'parakeet'], ['detector', 'vad']]) {
+    for (const [part, folder] of [['addon', 'node_modules'], ['hearing', 'parakeet'], ['detector', 'vad'], ['python', 'py'], ['turn', 'smart-turn'], ['phonon', 'hf']]) {
       await install(f);
-      assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').core, true, `${part}: the whole runtime is there`);
+      assert.equal(checkRuntime(f.home, KEY, PINS).ok, true, `${part}: the whole runtime is there`);
       rmSync(join(runtimeDir(f.home), folder), { recursive: true });
-      assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').states.phonon, 'ok');
-      assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').core, false, `a Phonon voice needs ${part}`);
+      assert.equal(checkRuntime(f.home, KEY, PINS).states[part], part === 'python' ? 'damaged' : 'absent');
+      assert.equal(checkRuntime(f.home, KEY, PINS).ok, false, `runtime requires ${part}`);
     }
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 15: the plan and the install for an engine leave out the speaking part the other engine alone needs (issue 674)', async () => {
-  const f = fixture();
-  try {
-    const every = planRuntime({ home: f.home, platform, arch, uv: UV, pins: PINS });
-    const phonon = planRuntime({ home: f.home, platform, arch, uv: UV, engine: 'phonon', pins: PINS });
-    const kokoro = planRuntime({ home: f.home, platform, arch, uv: UV, engine: 'kokoro', pins: PINS });
-    const missing = (plan, part) => plan.lines.some(l => new RegExp(`^${part} missing \\d+ MB$`).test(l));
-    assert.ok(missing(every, 'speaking') && missing(every, 'phonon'), 'no engine named: every part, as before');
-    assert.ok(phonon.lines.includes('speaking skipped not needed by the phonon engine') && missing(phonon, 'phonon'));
-    assert.ok(kokoro.lines.includes('phonon skipped not needed by the kokoro engine') && missing(kokoro, 'speaking'));
-    assert.ok(phonon.download < every.download && kokoro.download < every.download, 'each engine downloads less than both');
-    assert.ok(phonon.peak < every.peak && kokoro.peak < every.peak, 'each engine needs less disk than both');
-    for (const plan of [phonon, kokoro]) for (const part of ['python', 'turn']) assert.ok(missing(plan, part), `${part} stays planned for both engines`);
-
-    // Room for one engine but not for both: the disk check reads the engine's own plan.
-    const free = Math.ceil(phonon.peak * 1.1);
-    assert.ok(free < every.peak * 1.1, 'the fixture leaves a gap between one engine and both');
-    const all = await install(f, { free: () => free });
-    assert.equal(all.code, 1);
-    assert.match(all.lines[0], /not enough free disk space/);
-
-    const log = [];
-    const { lines, code } = await install(f, { engine: 'phonon', free: () => free, transport: fakeTransport(served(), log) });
-    assert.equal(code, 0, lines.join(' | '));
-    assert.ok(lines.includes('speaking skipped not needed by the phonon engine') && lines.includes('phonon ok') && lines.includes('python ok') && lines.includes('turn ok'));
-    assert.equal(existsSync(join(runtimeDir(f.home), 'kokoro')), false, 'no Kokoro file is fetched');
-    assert.ok(!log.some(r => r.path.includes('/o/k/')), 'no request goes to the Kokoro files');
-    assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').core, true, 'the guard is satisfied with no Kokoro on disk');
-    assert.equal(checkRuntime(f.home, KEY, PINS, 'phonon').states.speaking, 'absent');
-    assert.ok(verifyRuntime({ home: f.home, platform, arch, pins: PINS }).lines.includes('speaking skipped not installed'));
-  } finally {
-    f.remove();
-  }
-  const g = fixture();
-  try {
-    const log = [];
-    const { lines, code } = await install(g, { engine: 'kokoro', transport: fakeTransport(served(), log) });
-    assert.equal(code, 0, lines.join(' | '));
-    assert.ok(lines.includes('phonon skipped not needed by the kokoro engine') && lines.includes('speaking ok') && lines.includes('python ok') && lines.includes('turn ok'));
-    assert.equal(existsSync(join(runtimeDir(g.home), 'hf')), false, 'no Phonon file is fetched');
-    assert.ok(log.some(r => r.path.includes('/o/k/')), 'the Kokoro files are fetched');
-    assert.ok(!log.some(r => r.path.includes('/o/ph/')), 'no request goes to the Phonon files');
-    assert.equal(checkRuntime(g.home, KEY, PINS, 'kokoro').core, true);
-    assert.ok(verifyRuntime({ home: g.home, platform, arch, pins: PINS }).lines.includes('phonon skipped not installed'));
-  } finally {
-    g.remove();
-  }
-});
-
-test('claim 15: the Phonon engine with no uv or no python layer fails the install and the plan says to choose the other engine (issue 674)', async () => {
-  const f = fixture();
-  try {
-    assert.ok(planRuntime({ home: f.home, platform, arch, uv: null, engine: 'phonon', pins: PINS }).lines.includes('phonon engine unavailable without uv; choose the kokoro engine'));
-    assert.ok(!planRuntime({ home: f.home, platform, arch, uv: null, engine: 'kokoro', pins: PINS }).lines.some(l => l.includes('choose the kokoro engine')));
-    const bad = await install(f, { engine: 'phonon', pathValue: '' });
-    assert.equal(bad.code, 1, 'the person picked Phonon, so a skipped Phonon is a failure');
-    assert.ok(bad.lines.includes('phonon skipped no uv') && bad.lines.includes('hearing ok'));
-    const g = fixture();
-    try {
-      const ok = await install(g, { engine: 'kokoro', pathValue: '' });
-      assert.equal(ok.code, 0, 'Kokoro with no uv installs the core as before');
-    } finally {
-      g.remove();
-    }
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 15: the Phonon engine below the Python layer\'s floor, with uv found, fails the install and the plan says to choose the other engine (issue 674)', async () => {
-  const f = fixture();
-  try {
-    const pins = { ...PINS, PYTHON_FLOOR: { [KEY]: { release: 99, name: 'Test OS 99', why: 'the test wheel needs it' } } };
-    const plan = planRuntime({ home: f.home, platform, arch, uv: UV, engine: 'phonon', release: '20.1.0', pins }).lines;
-    assert.ok(plan.includes('phonon skipped no python layer') && plan.includes('phonon engine unavailable here; choose the kokoro engine'), plan.join(' | '));
-    const bad = await install(f, { engine: 'phonon', pins, release: '20.1.0' });
-    assert.equal(bad.code, 1, 'the person picked Phonon, so a skipped Phonon is a failure');
-    assert.ok(bad.lines.includes('phonon skipped no python layer') && bad.lines.includes('hearing ok'), bad.lines.join(' | '));
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 15: where the addon does not run, the Phonon engine\'s plan says choose Voicebox and never offers the kokoro engine (issue 674)', () => {
-  const f = fixture();
-  try {
-    // No lock either: the python gap comes first.
-    const bsd = planRuntime({ home: f.home, platform: 'freebsd', arch: 'x64', uv: UV, engine: 'phonon' }).lines;
-    // A lock but no addon: the missing uv comes first.
-    const noAddon = planRuntime({ home: f.home, platform, arch, uv: null, engine: 'phonon', pins: { ...PINS, ARCHIVES: PINS.ARCHIVES.filter(a => a.platform === null) } }).lines;
-    for (const [lines, phononLine] of [[bsd, 'phonon skipped no python layer'], [noAddon, 'phonon skipped no uv']]) {
-      assert.ok(lines.some(l => l.startsWith('addon unavailable ') && l.endsWith('; choose Voicebox')), lines.join(' | '));
-      assert.ok(lines.includes(phononLine), lines.join(' | '));
-      assert.ok(!lines.some(l => l.includes('choose the kokoro engine')), lines.join(' | '));
-    }
-  } finally {
-    f.remove();
-  }
-});
-
-test('claim 15: an engine name that is a key of every object reads as no engine named, and a voice as a Kokoro voice', () => {
-  const f = fixture();
-  try {
-    assert.deepEqual(checkRuntime(f.home, KEY, PINS, 'toString'), checkRuntime(f.home, KEY, PINS));
-    assert.deepEqual(planRuntime({ home: f.home, platform, arch, uv: UV, engine: 'toString', pins: PINS }).lines, planRuntime({ home: f.home, platform, arch, uv: UV, pins: PINS }).lines);
   } finally {
     f.remove();
   }
@@ -549,6 +425,7 @@ test('claim 15: nothing installed reads as absent for every part, and nothing is
     const c = checkRuntime(f.home, KEY, PINS);
     assert.deepEqual(c.damaged, []);
     assert.ok(Object.values(c.states).every(s => s === 'absent'));
+    assert.equal(c.ok, false);
     assert.equal(readdirSync(join(f.home, '.grimoire', 'incantation')).includes('runtime'), false);
   } finally {
     f.remove();
@@ -585,68 +462,87 @@ test('GRIM-56: every platform with a lock has a pinned addon, and the locks pin 
   assert.ok(intel.has('onnxruntime==1.23.2'));
 });
 
-test('GRIM-56: on Apple Silicon, Intel macOS and Linux ARM the plan holds the whole runtime', () => {
+test('GRIM-56: on Apple Silicon, Intel macOS and Linux ARM the plan holds the whole 6-part runtime', () => {
   const f = fixture();
   try {
     for (const [p, a, release] of [['darwin', 'arm64', '23.0.0'], ['darwin', 'x64', '22.6.0'], ['linux', 'arm64', '6.8.0']]) {
-      const lines = planRuntime({ home: f.home, platform: p, arch: a, release, uv: UV }).lines;
-      for (const part of ['addon', 'hearing', 'speaking', 'detector', 'python', 'turn', 'phonon']) assert.ok(lines.some(l => new RegExp(`^${part} missing \\d+ MB$`).test(l)), `${p}-${a} ${part}: ${lines.join(' | ')}`);
+      const plan = planRuntime({ home: f.home, platform: p, arch: a, release, uv: UV });
+      assert.equal(plan.ok, true, `${p}-${a}`);
+      for (const part of ['addon', 'hearing', 'detector', 'python', 'turn', 'phonon']) assert.ok(plan.lines.some(l => new RegExp(`^${part} missing \\d+ MB$`).test(l)), `${p}-${a} ${part}: ${plan.lines.join(' | ')}`);
     }
   } finally {
     f.remove();
   }
 });
 
-test('GRIM-56: below the wheels\' macOS floor the plan names the floor and its upstream reason, and plans no turn or Phonon model', () => {
+test('GRIM-56: below the wheels\' macOS floor the plan marks ok false, names the floor and its upstream reason, and plans no turn or Phonon model', () => {
   const f = fixture();
   try {
     for (const [a, release, floor, why] of [['arm64', '22.6.0', 'macOS 14', /onnxruntime 1\.32\.0/], ['x64', '21.6.0', 'macOS 13', /onnxruntime 1\.23\.2/]]) {
-      const lines = planRuntime({ home: f.home, platform: 'darwin', arch: a, release, uv: UV }).lines;
-      const py = lines.find(l => l.startsWith('python '));
+      const plan = planRuntime({ home: f.home, platform: 'darwin', arch: a, release, uv: UV });
+      assert.equal(plan.ok, false);
+      const py = plan.lines.find(l => l.startsWith('python '));
       assert.ok(py.startsWith(`python unavailable needs ${floor}: `) && why.test(py), py);
-      assert.ok(lines.includes('turn skipped no python layer') && lines.includes('phonon skipped no python layer'), lines.join(' | '));
-      assert.ok(lines.some(l => /^addon missing \d+ MB$/.test(l)));
+      assert.ok(plan.lines.includes('turn skipped no python layer') && plan.lines.includes('phonon skipped no python layer'), plan.lines.join(' | '));
+      assert.ok(plan.lines.some(l => /^addon missing \d+ MB$/.test(l)));
     }
   } finally {
     f.remove();
   }
 });
 
-test('GRIM-56: Windows on ARM and a platform nothing ships for say why the addon is missing, not only "choose Voicebox"', () => {
+test('GRIM-56: Windows on ARM and unsupported platforms set ok false and say why the addon or Python is missing without suggesting Voicebox', () => {
   const f = fixture();
   try {
-    const arm = planRuntime({ home: f.home, platform: 'win32', arch: 'arm64', uv: UV }).lines;
-    assert.ok(arm.some(l => /^addon unavailable sherpa-onnx-node \S+ publishes no Windows on ARM addon; choose Voicebox$/.test(l)), arm.join(' | '));
-    const bsd = planRuntime({ home: f.home, platform: 'freebsd', arch: 'x64', uv: UV }).lines;
-    assert.ok(bsd.some(l => /^addon unavailable sherpa-onnx-node \d\S* publishes no addon for freebsd-x64; choose Voicebox$/.test(l)), bsd.join(' | '));
-    assert.ok(bsd.includes('python unavailable no pinned wheels for freebsd-x64'), bsd.join(' | '));
+    const arm = planRuntime({ home: f.home, platform: 'win32', arch: 'arm64', uv: UV });
+    assert.equal(arm.ok, false);
+    assert.ok(arm.lines.some(l => /^addon unavailable sherpa-onnx-node \S+ publishes no Windows on ARM addon$/.test(l)), arm.lines.join(' | '));
+    const bsd = planRuntime({ home: f.home, platform: 'freebsd', arch: 'x64', uv: UV });
+    assert.equal(bsd.ok, false);
+    assert.ok(bsd.lines.some(l => /^addon unavailable sherpa-onnx-node \d\S* publishes no addon for freebsd-x64$/.test(l)), bsd.lines.join(' | '));
+    assert.ok(bsd.lines.includes('python unavailable no pinned wheels for freebsd-x64'), bsd.lines.join(' | '));
   } finally {
     f.remove();
   }
 });
 
-test('GRIM-56: install below the floor skips the Python layer with the floor\'s reason, and the core still installs', async () => {
+test('GRIM-56: install below the floor or on an unsupported platform refuses early via log without downloading anything', async () => {
   const f = fixture();
   try {
     const calls = [];
+    const log = [];
+    const logged = [];
     const floor = { [KEY]: { release: 99, name: 'Test OS 99', why: 'the test wheel needs it' } };
-    const { lines, code } = await install(f, { pins: { ...PINS, PYTHON_FLOOR: floor }, release: '20.1.0', runUv: fakeUv(calls) });
-    assert.equal(code, 0);
-    assert.ok(lines.includes('python skipped needs Test OS 99: the test wheel needs it'), lines.join(' | '));
-    for (const l of ['turn skipped no python layer', 'phonon skipped no python layer', 'addon ok', 'hearing ok', 'speaking ok', 'detector ok']) assert.ok(lines.includes(l), `${l}: ${lines.join(' | ')}`);
-    assert.equal(calls.filter(c => c.args[0] === 'pip').length, 0);
+    const { lines, code } = await install(f, { pins: { ...PINS, PYTHON_FLOOR: floor }, release: '20.1.0', runUv: fakeUv(calls), transport: fakeTransport(served(), log), log: l => logged.push(l) });
+    assert.equal(code, 1);
+    assert.deepEqual(lines, ['python failed needs Test OS 99: the test wheel needs it']);
+    assert.deepEqual(logged, lines);
+    assert.equal(log.length, 0);
+    assert.equal(calls.length, 0);
     // With no uv as well, the floor is still the reason given.
     const h = fixture();
     try {
       const noUv = await install(h, { pins: { ...PINS, PYTHON_FLOOR: floor }, release: '20.1.0', pathValue: '' });
-      assert.ok(noUv.lines.includes('python skipped needs Test OS 99: the test wheel needs it'), noUv.lines.join(' | '));
+      assert.equal(noUv.code, 1);
+      assert.deepEqual(noUv.lines, ['python failed needs Test OS 99: the test wheel needs it']);
     } finally {
       h.remove();
     }
-    // At the floor, the same table installs the Python layer.
+    // Unsupported addon platform refuses with addon failed before anything downloads.
+    const arm = fixture();
+    try {
+      const armRes = await install(arm, { platform: 'win32', arch: 'arm64', transport: fakeTransport(served(), log) });
+      assert.equal(armRes.code, 1);
+      assert.ok(armRes.lines[0].startsWith('addon failed '));
+      assert.equal(log.length, 0);
+    } finally {
+      arm.remove();
+    }
+    // At the floor, the same table installs the Python layer and full runtime.
     const g = fixture();
     try {
       const at = await install(g, { pins: { ...PINS, PYTHON_FLOOR: floor }, release: '99.0.0', runUv: fakeUv(calls) });
+      assert.equal(at.code, 0);
       assert.ok(at.lines.includes('python ok'), at.lines.join(' | '));
       assert.ok(calls.some(c => c.args[0] === 'pip'));
     } finally {
