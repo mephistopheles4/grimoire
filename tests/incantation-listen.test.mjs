@@ -360,8 +360,20 @@ test('it refuses to start, with a fixed reason, on a changed recorder, no usable
 
 test('no file under the fixture home or the temp folder holds audio or heard text after a turn', async t => {
   const marker = `zq${Date.now()}heardmarker`;
-  const before = new Set(readdirSync(tmpdir()));
+  // The temp folder is this test's own for its length: other test files write to the shared one while it runs.
+  // os.tmpdir() reads these on every call, so the rig, the listener and its child processes all use it.
+  const own = mkdtempSync(join(tmpdir(), 'incantation-own-tmp-'));
+  const saved = ['TMPDIR', 'TEMP', 'TMP'].map(name => [name, process.env[name]]);
+  for (const [name] of saved) process.env[name] = own;
+  t.after(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(own, { recursive: true, force: true });
+  });
   const r = rig({ engineOptions: { text: marker } });
+  assert.ok(r.home.startsWith(own), "the home is in this test's temp folder");
   t.after(r.cleanup);
   const l = await r.start();
   await tick();
@@ -370,31 +382,11 @@ test('no file under the fixture home or the temp folder holds audio or heard tex
   assert.match(await wait(r.home), new RegExp(marker));
   await l.stop();
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
-  for (const f of walk(r.home)) {
+  // The whole temp folder, the home included.
+  for (const f of walk(own)) {
     const bytes = readFileSync(f);
     assert.ok(!bytes.includes(marker), f);
     assert.ok(!bytes.includes('RIFF'), f);
-  }
-  // Every entry new in the temp folder since the turn began, whatever its name.
-  const fresh = readdirSync(tmpdir()).filter(n => !before.has(n) && !r.home.endsWith(n));
-  for (const n of fresh) {
-    const p = join(tmpdir(), n);
-    let files = [];
-    try {
-      files = statSync(p).isFile() ? [p] : walk(p);
-    } catch {
-      continue; // another test's entry, gone already
-    }
-    for (const file of files) {
-      let bytes;
-      try {
-        bytes = readFileSync(file);
-      } catch {
-        continue;
-      }
-      assert.ok(!bytes.includes(marker), n);
-      if (/^incantation|\.wav$/i.test(n)) assert.ok(!bytes.includes('RIFF'), n);
-    }
   }
 });
 
