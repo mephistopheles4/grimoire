@@ -162,10 +162,10 @@ test('T12: idle returns only once no reply is playing, and gives up after the id
   assert.equal(await say(readChannel(r.home), 'One.', 3000), 'speaking\n');
   let settled = false;
   const pending = cli(r.home, 'idle').then(v => ((settled = true), v));
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.equal(settled, false, 'held while a reply plays');
   r.player.plays[0].end();
-  await tick(100);
+  await tick(100); // proves absence: keep the wait
   assert.equal(settled, false, 'and for the tail after it');
   assert.equal(await pending, 'idle\n');
   assert.equal(await say(readChannel(r.home), 'Two.', 3000), 'speaking\n');

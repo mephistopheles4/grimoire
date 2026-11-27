@@ -48,11 +48,15 @@ export function makeHome(overrides = {}) {
 export function fakeEngine({ text = 'hello there', warm = async () => 42, health = true, synth } = {}) {
   const engine = {
     calls: 0,
+    spun: 0, // spinner words asked for; they are kept out of `synthesized`
     synthesized: [],
     wav: Buffer.from('RIFF-made-up-audio'),
     // The ten spinner words are made once after ready (S5.2); each is its own small buffer, and none is a reply.
     synthesize: async text => {
-      if (SPINNERS.includes(text)) return Buffer.from(`RIFF-spin-${text}`);
+      if (SPINNERS.includes(text)) {
+        engine.spun++;
+        return Buffer.from(`RIFF-spin-${text}`);
+      }
       engine.synthesized.push(text);
       return synth === undefined ? engine.wav : typeof synth === 'function' ? synth(text) : synth;
     },
@@ -75,7 +79,8 @@ export function fakePlayer({ available = true, spinnerMs = 20 } = {}) {
     if (!available) return null;
     let resolve;
     const done = new Promise(r => (resolve = r));
-    const h = { wav, done, stopped: false, end: outcome => resolve(outcome ?? 'ended'), stop: () => ((h.stopped = true), p.stops++, resolve('killed')) };
+    const h = { wav, done, stopped: false, ended: false, end: outcome => resolve(outcome ?? 'ended'), stop: () => ((h.stopped = true), p.stops++, resolve('killed')) };
+    done.then(() => (h.ended = true));
     if (Buffer.isBuffer(wav) && wav.toString().startsWith('RIFF-spin-')) {
       h.word = wav.toString().slice('RIFF-spin-'.length);
       h.stop = () => ((h.stopped = true), resolve('killed'));
@@ -147,6 +152,27 @@ export function rig(options = {}) {
 
 export const wait = home => ask(readChannel(home), 'wait', 5000);
 export const tick = (ms = 30) => new Promise(r => setTimeout(r, ms));
+
+// Polls `check` every 10 ms until it returns a truthy value, and returns it.
+// `check` may be async; `until` awaits it. A throw counts as not yet. On
+// reaching `ms` milliseconds it calls `check` once more, and only if that is
+// falsy too does it fail with `what` and the last error, if there was one.
+// `ms` has no default.
+export async function until(check, what, ms) {
+  const end = performance.now() + ms;
+  let failed;
+  for (;;) {
+    const last = performance.now() >= end;
+    try {
+      const value = await check();
+      if (value) return value;
+    } catch (e) {
+      failed = e;
+    }
+    if (last) throw new Error(`not within ${ms} ms: ${what}${failed ? ` (last error: ${failed.message})` : ''}`, { cause: failed });
+    await tick(Math.max(Math.min(end - performance.now(), 10), 0));
+  }
+}
 
 // The promise's value, or `late` once `ms` has passed. The limit's timer is
 // cleared when the race settles, so it keeps no test file alive.

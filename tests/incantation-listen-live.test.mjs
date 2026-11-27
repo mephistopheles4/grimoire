@@ -13,12 +13,14 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { SPINNERS, ask, leadSilence, pickSpinner, readChannel, say, stopRecorder, waitLines } from '../skills/incantation/scripts/listen.mjs';
 import { deviceDigest, ensureKey, observeDir, runDir, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
-import { LISTEN, RECORDER, PARSED, makeHome, rig, wait, tick, within, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
+import { LISTEN, RECORDER, PARSED, makeHome, rig, wait, tick, until, within, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
 
 // ---- GRIM-36 ticket 2 (S5.1 to S5.7): the listener the prototype proved ----
 
 const voiceOf = home => readFileSync(join(runDir(home), 'voice'), 'utf8').trim();
 const raced = (promise, ms = 300) => within(promise, ms, 'still waiting');
+// The listener makes the ten spinner words after ready; until then no turn gets one.
+const wordsMade = (r, ms) => until(() => r.engine.spun === SPINNERS.length, 'the ten spinner words are made', ms);
 const live = async (t, options) => {
   const r = rig(options);
   t.after(r.cleanup);
@@ -60,7 +62,7 @@ test('claim 3: a working word lapses after workingMs, ends on a line spoken, and
 
 test('claim 3: a muted voice makes no synthesis call and plays nothing, and the say still counts as played', async t => {
   const r = await live(t, { engineOptions: { text: 'Yes.' } });
-  await tick(100); // the spinner words are made after ready: count only what comes after
+  await wordsMade(r, 100); // count only what comes after
   const before = r.engine.synthesized.length;
   assert.equal(await cli(r.home, 'mute-voice'), 'voice-muted\n');
   assert.equal(await spoken(r, 'Shall I go on?'), 'speaking\n');
@@ -100,12 +102,13 @@ test('claim 3: a listener older than a command closes the connection, and the cl
 
 test('claim 4: a kept turn plays one spinner word within 100 ms, never the same twice running over 50 turns, and it is not counted in plays', async t => {
   const r = await live(t, { engineOptions: { text: 'Run the tests.' } });
-  await tick(120); // the ten words are made after ready
+  await wordsMade(r, 120);
   const seen = [];
   for (let i = 0; i < 50; i++) {
     r.t += 1600; // a person's next sentence comes more than echoHoldMs after the last cue
     r.turn();
-    await tick(70);
+    await until(() => r.player.spinners.length === i + 1, `turn ${i}: one word, within the pause`, 70);
+    await until(() => r.player.spinners[i].ended, `turn ${i}: the word ends, so the next turn can have one`, 70);
     assert.equal(r.player.spinners.length, i + 1, `turn ${i}: one word, within the pause`);
     seen.push(r.player.spinners[i].word);
   }
@@ -119,9 +122,9 @@ test('claim 4: a kept turn plays one spinner word within 100 ms, never the same 
 
 test('follow-up 1: the spinner word plays when the gate hears the end of speech, before the turn is transcribed', async t => {
   const r = await live(t, { engineOptions: { text: () => new Promise(res => setTimeout(() => res('Run the tests.'), 400)) } });
-  await tick(120);
+  await wordsMade(r, 120);
   r.turn();
-  await tick(100); // well before the transcript is back
+  await until(() => r.player.spinners.length === 1 && r.engine.calls === 1, 'the cue, with the engine at work', 100); // well before the transcript is back
   assert.equal(r.player.spinners.length, 1, 'the cue came with the end of speech, not after the text');
   assert.equal(r.engine.calls, 1, 'and the engine is still working on the turn');
   const pending = wait(r.home);
@@ -132,7 +135,7 @@ test('follow-up 1: the spinner word plays when the gate hears the end of speech,
 test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a fragment is cut short; none for a muted mic or a muted voice, and one for a turn over a line', async t => {
   const words = ['stop', 'Mute.', 'Unmute.', 'you', 'Run the tests.'];
   const r = await live(t, { engineOptions: { text: texts(...words) } });
-  await tick(120);
+  await wordsMade(r, 120);
   const turn = () => {
     r.t += 1600; // each sentence comes more than echoHoldMs after the last sound
     r.turn();
@@ -166,13 +169,13 @@ test('follow-up 1: a cue that turns out to be for a stop word, a mute word or a 
 
 test('follow-up 1: a quick turn inside the echo window still gets a cue, and our own sound heard back is stopped and not delivered', async t => {
   const r = await live(t, { engineOptions: { text: texts('Run the tests.', 'One sec.') } });
-  await tick(120);
+  await wordsMade(r, 120);
   r.turn();
   await tick(70);
   assert.equal(r.player.spinners.length, 1);
   r.push(3163, 12); // the mic hears the spinner word's own tail, within echoHoldMs of its end
   r.push(1000, 15);
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.ok(r.player.spinners.length >= 1, 'the first cue played');
   const out = await wait(r.home);
   assert.match(out, /^Heard: "Run the tests."$/m);
@@ -190,7 +193,7 @@ test('follow-up 2: a say queued behind a playing line holds while a new turn is 
   r.push(3163, 5); // the person begins a new turn, short of a barge-in
   assert.equal(r.player.stops, 0);
   r.player.plays[0].end(); // the first line ends: the queued one would start now
-  await tick(250);
+  await tick(250); // proves absence: keep the wait
   assert.equal(answered, null, 'held while they talk');
   assert.equal(r.player.plays.length, 1, 'and not started');
   r.push(1000, 15); // a fragment: dropped
@@ -205,7 +208,7 @@ test('follow-up 2: a say queued behind a playing line holds while a new turn is 
   r.push(1000, 34);
   r.push(3163, 5);
   r.player.plays[2].end();
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.equal(r.player.plays.length, 3, 'held');
   r.push(3163, 5);
   r.push(1000, 15);
@@ -351,7 +354,7 @@ test('claim 7: a fallback name is printed cleaned (letters, digits, spaces and (
 
 test('S5.7: a turn begun over a reply is flagged overlap, so a spinner word heard back by the mic is not delivered', async t => {
   const r = await live(t, { engineOptions: { text: texts('Pondering.', 'Run the tests.') } });
-  await tick(120);
+  await wordsMade(r, 120);
   r.push(1000, 34);
   assert.equal(await spoken(r, 'A line.'), 'speaking\n');
   r.player.plays[0].end();
@@ -371,10 +374,10 @@ test('bug b: idle holds while a turn is being heard and returns once it has been
   assert.equal(statusOf(r.home), 'hearing');
   let settled = false;
   const pending = cli(r.home, 'idle').then(v => ((settled = true), v));
-  await tick(200);
+  await tick(200); // proves absence: keep the wait
   assert.equal(settled, false, 'held while a turn is being heard');
   r.push(3163, 10);
-  await tick(100);
+  await tick(100); // proves absence: keep the wait
   assert.equal(settled, false, 'and while the voice goes on');
   r.push(1000, 15); // the turn ends: its text must settle first
   assert.equal(await pending, 'idle\n');
@@ -388,7 +391,7 @@ test('bug b: a say waits while the person is mid-sentence and then speaks when t
   r.push(3163, 5); // mid-sentence
   let answered = null;
   const line = say(channel, 'A reply that must not talk over them.', 3000).then(v => ((answered = v), v));
-  await tick(250);
+  await tick(250); // proves absence: keep the wait
   assert.equal(answered, null, 'not answered while they talk');
   assert.equal(r.player.plays.length, 0, 'and nothing plays over them');
   r.push(1000, 15); // the turn is a fragment: dropped
@@ -400,7 +403,7 @@ test('bug b: a say waits while the person is mid-sentence and then speaks when t
   r.push(1000, 34);
   r.push(3163, 5);
   const stale = say(channel, 'A second reply.', 3000);
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.equal(r.player.plays.length, 1);
   r.push(3163, 5);
   r.push(1000, 15);
@@ -445,7 +448,7 @@ const longTurn = r => {
 test('bug a: a turn cut at 30 s and its rest reach the session as one turn, in order, with nothing lost', async t => {
   const r = await live(t, { engineOptions: { text: texts('This is the first part of a long turn.', 'And this is the rest of it.') } });
   longTurn(r);
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   const out = await wait(r.home);
   assert.match(out, /^Heard: "This is the first part of a long turn\. And this is the rest of it\."$/m);
   assert.equal(r.engine.calls, 2);
@@ -457,27 +460,27 @@ test('bug a: a turn cut at 30 s and its rest reach the session as one turn, in o
 // let a spinner word that did play end, so a second one could not hide behind it.
 test('GRIM-51: no spinner word plays at a cut for length; one plays when the person stops', async t => {
   const r = await live(t, { engineOptions: { text: texts('This is the first part.', 'And the rest.') } });
-  await tick(120);
+  await wordsMade(r, 120);
   r.push(1000, 34);
   r.push(3163, 1010); // past the limit, and still talking
-  await tick(100);
+  await tick(100); // proves absence: keep the wait
   assert.equal(r.player.spinners.length, 0, 'nothing while they talk');
   r.push(1000, 15);
-  await tick(100);
+  await tick(100); // proves absence: keep the wait
   assert.equal(r.player.spinners.length, 1, 'one at the end');
 });
 
 test('GRIM-51: a person who stops right at the cut still gets one spinner word, whether silence follows or only a click', async t => {
   for (const click of [false, true]) {
     const r = await live(t, { engineOptions: { text: 'a lone part with no rest' } });
-    await tick(120);
+    await wordsMade(r, 120);
     r.push(1000, 34);
     r.push(3163, 1000); // exactly the limit
-    await tick(100);
+    await tick(100); // proves absence: keep the wait
     assert.equal(r.player.spinners.length, 0, 'none at the cut itself');
     if (click) r.push(3163, 2); // too short to be a turn
     r.push(1000, 60);
-    await tick(100);
+    await tick(100); // proves absence: keep the wait
     assert.equal(r.player.spinners.length, 1, click ? 'after a click' : 'after silence');
     assert.match(await within(wait(r.home), 2000, 'never'), /^Heard: "a lone part with no rest"$/m);
   }
@@ -486,12 +489,12 @@ test('GRIM-51: a person who stops right at the cut still gets one spinner word, 
 test('GRIM-51: a cut part that was lost or was only noise, with no rest, gets no spinner word', async t => {
   for (const text of [null, 'you']) {
     const r = await live(t, { engineOptions: { text: () => text } });
-    await tick(120);
+    await wordsMade(r, 120);
     r.push(1000, 34);
     r.push(3163, 1000); // exactly the limit
-    await tick(100); // its text has settled before the chain ends
+    await until(() => r.engine.calls === 1, 'the cut part is transcribed', 100); // its text has settled before the chain ends
     r.push(1000, 60);
-    await tick(100);
+    await tick(100); // proves absence: keep the wait
     assert.equal(r.player.spinners.length, 0, String(text));
   }
 });
@@ -521,7 +524,7 @@ test('bug a: a long heard text is split into several lines at word ends and none
   const words = Array.from({ length: 220 }, (_, i) => `word${i}`).join(' ');
   const r = await live(t, { engineOptions: { text: words } });
   r.turn();
-  await tick(150);
+  await until(() => r.engine.calls === 1, 'the turn is transcribed', 150);
   const out = await wait(r.home);
   const lines = out.split('\n').filter(l => l.startsWith('Heard'));
   assert.ok(lines.length >= 3);
@@ -543,11 +546,11 @@ test('claim 12 (listener side): the click file accepts mute-voice and unmute-voi
   const r = await live(t);
   const click = join(runDir(r.home), 'command');
   writeFileSync(click, 'mute-voice');
-  await tick(400);
+  await until(() => voiceOf(r.home) === 'muted' && !existsSync(click), 'the mute-voice click is read and removed', 400);
   assert.equal(voiceOf(r.home), 'muted');
   assert.equal(existsSync(click), false);
   writeFileSync(click, 'unmute-voice');
-  await tick(400);
+  await until(() => voiceOf(r.home) === 'on', 'the unmute-voice click is read', 400);
   assert.equal(voiceOf(r.home), 'on');
 });
 
@@ -574,7 +577,7 @@ test('GRIM-53: a line already waiting when a kept turn lands is held, and a held
   r.push(1000, 34);
   r.push(3163, 5); // the person is mid-sentence
   const line = say(channel, 'Merging it now.', 3000);
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.equal(r.player.plays.length, 0, 'nothing plays over them');
   r.push(3163, 5);
   r.push(1000, 15); // the turn is kept
@@ -596,7 +599,7 @@ test('GRIM-53: a line whose audio is still being made when a kept turn lands is 
 test('GRIM-53: a say that lands while the first part of a turn waits for its rest is held at once', async t => {
   const r = await live(t, { engineOptions: { text: 'the first part with no end' }, knobs: { joinMs: 5000 } });
   r.turn(); // kept, but it ends on no sentence mark: held for its rest, so not yet queued
-  await tick(150);
+  await until(() => r.engine.calls === 1, 'the first part is transcribed', 150);
   assert.equal(await raced(say(readChannel(r.home), 'Running it now.', 3000), 500), 'say-held\n', 'held at once, not waiting for the rest');
   assert.equal(r.player.plays.length, 0);
 });
