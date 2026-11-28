@@ -75,9 +75,9 @@ test('C2: an idle row that goes busy before the grace ends is not noted, and its
   assert.ok(quietCheck(w, cards, one([['build-1', row('build-1', 'idle')]]), 2 * GRACE_MS));
 });
 
-test('C3: a report by session id, or by name with no id match, at or after the window start stops the note', () => {
+test('C3: a report by session id, or by name from a wrapper with no id, at or after the window start stops the note', () => {
   const late = 10 * GRACE_MS;
-  for (const attrs of ['from-session="id-build-1" from-name="someone"', 'from-session="nobody" from-name="build-1"']) {
+  for (const attrs of ['from-session="id-build-1" from-name="someone"', 'from-name="build-1"']) {
     const w = newWatch();
     const { cards, matched } = world(1000);
     sentTo(w, cards, matched, 'build-1', 500);
@@ -89,6 +89,10 @@ test('C3: a report by session id, or by name with no id match, at or after the w
   heardFrom(w, cards, matched, wrap('from-session="id-build-1" from-name="build-1"'), 400);
   sentTo(w, cards, matched, 'build-1', 500);
   assert.ok(quietCheck(w, cards, matched, late), 'a report before the send does not count');
+  const w2 = newWatch();
+  sentTo(w2, cards, matched, 'build-1', 500);
+  heardFrom(w2, cards, matched, wrap('from-session="nobody" from-name="build-1"'), 600);
+  assert.ok(quietCheck(w2, cards, matched, late), 'a member name under another session id is not its report');
 });
 
 test('C3: a Desktop member matches by its host id, and an id match wins over a name match', () => {
@@ -114,6 +118,8 @@ test('C3: text with no wrapper, or a wrapper past its first tag, matches nothing
   assert.ok(quietCheck(w, cards, matched, late));
   assert.deepEqual(sender('<cross-session-message from="a" from-name="x">'), { name: 'x' });
   assert.deepEqual(sender(`<cross-session-message from-name="${'x'.repeat(201)}">`), {});
+  assert.deepEqual(sender(`<cross-session-message from-name="${'x'.repeat(200)}">`), { name: 'x'.repeat(200) });
+  assert.deepEqual(sender('<cross-session-message from="a">\nfrom-session="s" from-name="n"'), {}, 'attributes past the opening tag');
 });
 
 test('C4: a new send re-arms the member; busy then idle again inside one window is not noted twice', () => {
@@ -126,6 +132,7 @@ test('C4: a new send re-arms the member; busy then idle again inside one window 
   assert.equal(quietCheck(w, cards, at('idle', 30), 30 + 2 * GRACE_MS), undefined, 'same window');
   sentTo(w, cards, at('idle', 30), 'build-1', 40 + 2 * GRACE_MS);
   assert.ok(quietCheck(w, cards, at('idle', 50 + 2 * GRACE_MS), 50 + 4 * GRACE_MS), 'new window');
+  assert.equal(quietCheck(w, cards, at('idle', 50 + 2 * GRACE_MS), 50 + 10 * GRACE_MS), undefined, 'new window noted once');
 });
 
 test('C4: a send names the card only by its row name, and an address or an unknown name records nothing', () => {
@@ -133,6 +140,7 @@ test('C4: a send names the card only by its row name, and an address or an unkno
   const { cards, matched } = world(0);
   sentTo(w, cards, matched, 'uds:\\\\.\\pipe\\x', 5 * GRACE_MS);
   sentTo(w, cards, matched, 'someone-else', 5 * GRACE_MS);
+  sentTo(w, cards, matched, 'id-build-1', 5 * GRACE_MS);
   sentTo(w, cards, matched, { sessionId: 'id-build-1' }, 5 * GRACE_MS);
   assert.ok(quietCheck(w, cards, matched, 5 * GRACE_MS), 'no window moved');
   const w2 = newWatch();
@@ -180,8 +188,11 @@ test('C7: the maps keep only cards still in the roster', () => {
   const w = newWatch();
   const { cards, matched } = world(0);
   sentTo(w, cards, matched, 'build-1', 10);
-  quietCheck(w, [], new Map(), 20);
-  assert.equal(w.sent.size, 0);
+  assert.ok(quietCheck(w, cards, matched, 10 + GRACE_MS));
+  heardFrom(w, cards, matched, '<cross-session-message from-name="build-1">', 20 + GRACE_MS);
+  for (const k of ['sent', 'heard', 'seen', 'noted']) assert.ok(w[k].size > 0, `seeded ${k}`);
+  quietCheck(w, [], new Map(), 30 + GRACE_MS);
+  for (const k of ['sent', 'heard', 'idleSeen', 'seen', 'goneSeen', 'noted', 'pending']) assert.equal(w[k].size, 0, k);
 });
 
 test('C5: a note whose submit did not land is not marked, and is found again after the gap', () => {

@@ -344,6 +344,7 @@ test('spec 0006 C9: head-chef asks for no idle subscription', () => {
   for (const f of [...homes, ...evals]) {
     const t = flat(read(f));
     assert.doesNotMatch(t, /notify_when_idle/i, f);
+    assert.doesNotMatch(t, /idle notice, so it never polls|asks for the session's idle/i, f);
     assert.doesNotMatch(t, /subscribe again|subscribe to (its|the session's) idle|subscribed/i, f);
     assert.doesNotMatch(t, /idle notice (came|has)/i, f);
   }

@@ -89,11 +89,15 @@ The delivery's text opens with the engine's wrapper. Observed on this machine
 
 `from-session` there is the row's `hostId` (the session file's
 `hostSessionId`), and `from-name` is the session file's `name`. A background
-sender's `from-session` was not observed; the name fallback covers it.
+sender's `from-session` was not observed; the name fallback covers it when
+the wrapper has none.
 `quiet.ts` reads the two attributes from the opening tag only, each at most 200
 characters. A card matches when its one matched row has `sessionId` or
-`hostId` equal to `from-session`; with no such card, when its row's `name`
-equals `from-name`. Text with no wrapper at its start matches nothing.
+`hostId` equal to `from-session`. Only a wrapper with no `from-session`
+falls back to the row's `name` equal to `from-name`, so a peer with an id of
+its own cannot take a member's name to close its window (Test round 1); a
+background member whose id is neither gets at most an extra note, which S9
+takes over a missed stop. Text with no wrapper at its start matches nothing.
 
 The wrapper is a same-user claim. A wrong match only delays or adds one quiet
 note; it opens nothing (S6).
@@ -259,9 +263,10 @@ submit lands, and other plugins' hooks.
 - **C2.** No note while the row is `busy`, `waiting`, `shell` or `?`, for a card
   not `working`, or for a card with two rows or one never seen. Same file.
 - **C3.** A report matched by `from-session` (a `sessionId` or a `hostId`), or
-  by `from-name` with no session match, at or after the window start stops
-  the note; one before it does not; text with no wrapper at its start matches
-  nothing. Same file.
+  by `from-name` from a wrapper with no `from-session`, at or after the window
+  start stops the note; one before it does not; a member's name under another
+  session id does not; text with no wrapper at its start matches nothing.
+  Same file.
 - **C4.** A new send re-arms the member, and a send to `name [ref]` counts; a
   second stop in the new window is noted once; busy then idle again inside one
   window is not; an address or an unknown name moves nothing; the window

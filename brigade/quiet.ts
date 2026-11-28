@@ -94,11 +94,12 @@ export function sentTo(w: Watch, cards: readonly Card[], matched: ReadonlyMap<st
 }
 
 /** A peer's delivery: a report from each card whose one row holds the claimed
- *  session id; with none, from each whose row has the claimed name. */
+ *  session id. Only a wrapper with no session id falls back to the claimed
+ *  name, so a peer cannot take a member's name to close its window. */
 export function heardFrom(w: Watch, cards: readonly Card[], matched: ReadonlyMap<string, readonly SessionRow[]>, text: string, now: number): void {
   const { session, name } = sender(text)
   let titles = session === undefined ? [] : cardsWhere(cards, matched, r => r.sessionId === session || r.hostId === session)
-  if (titles.length === 0 && name !== undefined) titles = cardsWhere(cards, matched, r => r.name === name)
+  if (session === undefined && name !== undefined) titles = cardsWhere(cards, matched, r => r.name === name)
   for (const title of titles) w.heard.set(title, now)
 }
 

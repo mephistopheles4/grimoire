@@ -11614,7 +11614,7 @@ const goIdle = (w: World) => liveRows(w, [{ name: 'build-q', status: 'idle', ses
 const reportFrom = (session: string, name: string) =>
   `<cross-session-message from="uds:\\\\.\\pipe\\LOCAL\\cc-msg-0123" from-session="${session}" from-name="${name}" from-mode="prompting">\ndone\n</cross-session-message>`
 
-test("spec 0006 C7: a member idle with no report since the lead's message hands the lead one note, framed as the plugin's", async ($, on) => {
+test("spec 0006 C8: a member idle with no report since the lead's message hands the lead one note, framed as the plugin's", async ($, on) => {
   const { w, seen } = await quietWorld(on, $)
   await sendTo($, { to: 'build-q', message: 'go on' })
   goIdle(w)
@@ -11629,7 +11629,7 @@ test("spec 0006 C7: a member idle with no report since the lead's message hands 
   expect(quietNotes(seen).length).toBe(1)
 })
 
-test("spec 0006 C7: a peer's report after the lead's message stops the note, and a subagent's send records nothing", async ($, on) => {
+test("spec 0006 C8: a peer's report after the lead's message stops the note, and a subagent's send records nothing", async ($, on) => {
   const { w, seen } = await quietWorld(on, $)
   await sendTo($, { to: 'build-q', message: 'go on' })
   await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom(Q_HOST, 'someone') })
@@ -11646,18 +11646,30 @@ test("spec 0006 C7: a peer's report after the lead's message stops the note, and
   expect(quietNotes(seen).length).toBe(1)
 })
 
-test('spec 0006 C8: a report by name alone counts, and one before the send does not', async ($, on) => {
+test('spec 0006 C7: a read that is not complete counts no session as gone, and notes nothing', async ($, on) => {
   const { w, seen } = await quietWorld(on, $)
-  await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom('local_ffff', 'build-q') })
-  await w.clock.advance(1000)
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  // The member's file is gone and another fails its check: the read is not complete.
+  liveRows(w, [])
+  w.put(`${SESSIONS}${SEP}999.json`, { type: 'file', data: { text: 'not json' } })
+  await w.clock.advance(300000)
+  expect(quietNotes(seen)).toEqual([])
+})
+
+test('spec 0006 C8: a rejected submit releases its cards, and the note goes again after the gap', async ($, on) => {
+  let rejects = 1
+  const { w, seen } = await quietWorld(on, $, e => {
+    if (QUIET.test(String(e.text)) && rejects-- > 0) throw new Error('refused')
+    return { text: e.text }
+  })
   await sendTo($, { to: 'build-q', message: 'go on' })
   goIdle(w)
   await w.clock.advance(130000)
   expect(quietNotes(seen).length).toBe(1)
-  await sendTo($, { to: 'build-q', message: 'again' })
-  await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom('local_ffff', 'build-q') })
+  await w.clock.advance(70000)
+  expect(quietNotes(seen).length).toBe(2)
   await w.clock.advance(300000)
-  expect(quietNotes(seen).length).toBe(1)
+  expect(quietNotes(seen).length).toBe(2)
 })
 
 test('spec 0006 C8: a dropped note is not marked, and goes again after the gap', async ($, on) => {
