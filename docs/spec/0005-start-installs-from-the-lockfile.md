@@ -40,8 +40,8 @@ start as today.
   asks, but would run repository code before the folder-trust check. The
   install runs after a start that succeeded, so trust is checked first.
 - *Security against Functional suitability, the residual.* Repository code
-  runs with no prompt. It is origin's default branch as Claude Code fetched
-  it for the worktree, which the owner may not have read, plus the
+  runs with no prompt. It is the commit Claude Code based the worktree on (by default origin's default branch, as fetched),
+  which the owner may not have read, plus the
   lockfile's packages. What runs includes at least: root and dependency
   install scripts as the repository's own settings allow, and, whatever
   those settings say, pnpm's `.pnpmfile.cjs`, Yarn's `yarnPath` and plugins,
@@ -146,7 +146,7 @@ list) decide which scripts run (the lead's decision 123).
 worktree's `.npmrc`, `.yarnrc`, `.yarnrc.yml` (each, when present, a
 regular file that is not a link, or reason `read`) and the chosen manager's lockfile files are
 read with `read(path)`, each capped at 20 MB (bigger counts as http). When
-any holds `http://`, in any case, nothing is installed: reason `http`. A
+any spells `http://` literally, in any case, nothing is installed: reason `http`. A
 read that fails gives reason `read`.
 
 **S3.5 The programs** `node` and the manager are found by `program`, as
@@ -229,7 +229,7 @@ error, or the run's output. `Not started` and every refusal are unchanged.
 - `docs/spec/README.md`: this spec's line.
 
 **Sign-off.** The owner accepts, in words, the S1 residual: the start runs
-repository code with no prompt, from origin's default branch and the
+repository code with no prompt, from the commit Claude Code based the worktree on (by default origin's default branch) and the
 lockfile's packages, with the S3.6 variables (the proxy variables and the
 account name among them), with no limit on the files that code reads in the
 owner's account or where it sends them, with the node launcher started
@@ -246,8 +246,8 @@ them as before.
 ## S6. Claims
 
 1. `installAfterStart` on a ready worktree holding `pnpm-lock.yaml` runs
-   `git status` in it, then spawns `[node, '-e', INSTALL_WRAPPER, pnpm,
-   'install', '--frozen-lockfile']` with `cwd` the worktree and a 250 s cap,
+   `git status` in it, then spawns `[node, '-e', INSTALL_WRAPPER, <worktree>, pnpm,
+   'install', '--frozen-lockfile']` with `cwd` the node program's folder and a 250 s cap,
    and returns `Installed: pnpm install --frozen-lockfile.`
 2. Each S3.4 row maps to exactly its argv, and no argv holds a script flag.
 3. No lockfile: no spawn, and `No install: no lockfile.`
