@@ -87,7 +87,8 @@ still on an older version cannot read a log that holds a flag until it
 reloads; never delete that log to clear its refusal. No press removes a
 decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
-every decision newest first, 50 at a time. On Desktop and the terminal a
+every decision newest first, 50 at a time. A row in Flagged or History draws
+its headline on at most two lines; open it for the whole card. On Desktop and the terminal a
 search box filters all three by every word you type.
 
 Since 0.121.0 (issue 509) the tab draws only this session's own decision
