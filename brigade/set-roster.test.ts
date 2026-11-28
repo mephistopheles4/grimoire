@@ -9886,10 +9886,14 @@ async function startWorld(on: On, $: any, planted: unknown = undefined, offer = 
   if (!ON_WINDOWS) w.probes = { [LINUX_PROBE]: A_FILE }
   const out: Out = { origin: asRun(ORIGIN_OK), start: argv => asRun(`backgrounded · ab12cd34 · ${argv[3]}\n  claude agents\n  attach ab12cd34\n`) }
   w.procHook = async (e: any) => {
-    if (e.argv[0] === exe('git')) return out.origin
+    // The install's check of the new worktree (spec 0005 S3.3): a clean tree.
+    if (e.argv[0] === exe('git')) return e.argv[3] === 'status' ? asRun('') : out.origin
     if (e.argv[0] === exe('claude')) {
       await out.hold
-      return out.start(e.argv)
+      const answer = out.start(e.argv) as any
+      // A start that backgrounds a member makes its worktree, here with no lockfile.
+      if (answer?.exitCode === 0) w.dirs(wtFolder(e.argv[3]))
+      return answer
     }
     return undefined
   }
@@ -9903,16 +9907,18 @@ test('543 C1/C4: a start reads the origin once, then runs the fixed start with t
   const { w, sets, runs } = await startWorld(on, $)
   const r = await startTool($)
   expect(r.ok).toBe(true)
-  expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. Write its card with set_roster; the tool wrote none.`)
+  expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. No install: no lockfile. Write its card with set_roster; the tool wrote none.`)
   expect(runs()).toEqual([
     [exe('git'), '-C', REPO_DIR, 'config', '--local', '--get-all', 'remote.origin.url'],
     [exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high', 'Your work is issue 543 on mephistopheles4/grimoire, in the project\'s tracker. Send your questions and reports to Head chef.'],
+    [exe('git'), '-C', wtFolder('delta'), 'status', '--porcelain', '--untracked-files=no'],
   ])
-  // The git run keeps -C and takes no working folder; the start takes one and adds no variable.
+  // The git runs keep -C and take no working folder; the start takes one and adds no variable.
   const inits = w.procs.map((a, i) => [a[0], w.inits[i]]).filter(([p]) => p === exe('git') || p === exe('claude'))
   expect(inits).toEqual([
     [exe('git'), { timeoutMs: 15000 }],
     [exe('claude'), { cwd: REPO_DIR, timeoutMs: 60000 }],
+    [exe('git'), { timeoutMs: 5000 }],
   ])
   expect(w.procs.some(a => a.includes('--permission-mode'))).toBe(false)
   expect(sets).toEqual([])
@@ -10061,7 +10067,7 @@ test('578 C2/C4: a note that passes rides as the last argv element behind the to
   const note = 'The spec is approved; skip to Build.'
   const r = await startTool($, { note })
   expect(r.ok).toBe(true)
-  expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. Write its card with set_roster; the tool wrote none.`)
+  expect(r.text).toBe(`Started delta: job ab12cd34. Folder: ${wtFolder('delta')}. Branch: worktree-delta. No install: no lockfile. Write its card with set_roster; the tool wrote none.`)
   expect(runs()[1]).toEqual([
     exe('claude'), '--bg', '--remote-control', 'delta', '-n', 'delta', '-w', 'delta', '--model', 'sonnet', '--effort', 'high',
     `Your work is issue 543 on mephistopheles4/grimoire, in the project's tracker. Send your questions and reports to Head chef. Head chef, not the owner, adds: ${note}`,

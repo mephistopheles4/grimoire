@@ -3004,7 +3004,7 @@ async function startBackground($: EngineInterface, e: Record<string, unknown>, s
     return startRun($, checked.value, sessions, signal, progress)
   })
   // Spec 0005 S2: the start's queue turn is over, so a second start does not wait on the install.
-  if (!('install' in done)) return done
+  if (!('install' in done) || done.install === undefined) return done
   return { result: await installAfter($, done.install, signal) }
 }
 

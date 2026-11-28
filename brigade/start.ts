@@ -460,8 +460,8 @@ export type InstallPorts = {
   /** Output pulled and dropped, ended at capMs or on the signal; the exit code, or undefined when ended, not started or thrown. */
   spawn: (argv: string[], init: { cwd?: string }, capMs: number) => Promise<number | undefined>
   sleep: (ms: number) => Promise<unknown>
-  /** The clock's now, in ms. */
-  now: () => number
+  /** The clock's now, in ms. The engine's clock answers with a promise. */
+  now: () => number | Promise<number>
   /** The file's text (spec 0005 S3.5a). */
   read: (path: string) => Promise<string>
   program: (name: string) => Promise<{ value: string } | { why: string }>
@@ -482,7 +482,7 @@ export async function installAfterStart(ports: InstallPorts, input: Inputs, plat
     const git = await ports.program('git')
     if ('why' in git) return notInstalled('worktree')
     let ready = false
-    const began = ports.now()
+    const began = await ports.now()
     for (;;) {
       const dir = await ports.stat(worktree)
       if ('found' in dir && dir.found.kind === 'dir' && !dir.found.isLink && dir.found.realPath !== undefined && samePath(dir.found.realPath, worktree, platform)) {
@@ -490,7 +490,7 @@ export async function installAfterStart(ports: InstallPorts, input: Inputs, plat
         const status = await ports.run([git.value, '-C', worktree, 'status', '--porcelain', '--untracked-files=no'], { timeoutMs: GIT_STATUS_TIMEOUT_MS }).catch(() => undefined)
         ready = isRecord(status) && status.exitCode === 0 && status.isStdoutTruncated === false && status.stdout === ''
       }
-      if (ready || ports.now() - began >= WORKTREE_WAIT_MS) break
+      if (ready || (await ports.now()) - began >= WORKTREE_WAIT_MS) break
       await ports.sleep(1000)
     }
     if (!ready) return notInstalled('worktree')
