@@ -430,6 +430,8 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   idle notice. Messages arrive on their own: don't poll.
 - A member a Brigade note names: ask it once, and not again until it
   reports, unless it waits, as below: then its check rules hold.
+  A named member that has been idle over an hour is not asked: tell the owner
+  in one line, naming it.
 - A member whose report says it waits on something that runs without it (its
   own background job, a subagent, or an outside actor such as a bot on its
   pull request), and that then goes idle, is waiting. Its card stays

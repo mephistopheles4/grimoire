@@ -181,7 +181,10 @@ decision 179): with the pane closed, the lead goes by the member's last report
 and treats an unknown time as cold; the sentence allowing a subscription to a
 cold member goes; the idle-cost line is spec 0007's; `lead-idle-own-question`
 keeps its member ten minutes idle; and `cold-member-fresh-start` names no idle
-notice.
+notice. A member a Brigade note names that has been idle over an hour is not
+asked: the lead tells the owner in one line, naming it (this session's pick,
+from the Test read of the merge). `lead-idle-ask-once` also says its member
+went idle a few minutes ago, so it is warm.
 
 - **"Sending and idle notices"** (title kept: tests pin it). The subscribe
   bullet becomes:
