@@ -4,6 +4,101 @@ This page holds detail behind the controls the [threat model](threat-model.md) n
 
 Each section below holds one scenario, told from the attacker's side, with what stops it today, what still gets through and its framework tags. The threat model's controls name the controls (R1 to R12) these rows detail.
 
+<!-- toc -->
+
+- [Row 1](#row-1)
+  - [Scenario](#scenario)
+  - [What stops it today](#what-stops-it-today)
+  - [Residual gap](#residual-gap)
+  - [Tags](#tags)
+- [Row 2](#row-2)
+  - [Scenario](#scenario-1)
+  - [What stops it today](#what-stops-it-today-1)
+  - [Residual gap](#residual-gap-1)
+  - [Tags](#tags-1)
+- [Row 3](#row-3)
+  - [Scenario](#scenario-2)
+  - [What stops it today](#what-stops-it-today-2)
+  - [Residual gap](#residual-gap-2)
+  - [Tags](#tags-2)
+- [Row 4](#row-4)
+  - [Scenario](#scenario-3)
+  - [What stops it today](#what-stops-it-today-3)
+  - [Residual gap](#residual-gap-3)
+  - [Tags](#tags-3)
+- [Row 5](#row-5)
+  - [Scenario](#scenario-4)
+  - [What stops it today](#what-stops-it-today-4)
+  - [Residual gap](#residual-gap-4)
+  - [Tags](#tags-4)
+- [Row 6](#row-6)
+  - [Scenario](#scenario-5)
+  - [What stops it today](#what-stops-it-today-5)
+  - [Residual gap](#residual-gap-5)
+  - [Tags](#tags-5)
+- [Row 7](#row-7)
+  - [Scenario](#scenario-6)
+  - [What stops it today](#what-stops-it-today-6)
+  - [Residual gap](#residual-gap-6)
+  - [Tags](#tags-6)
+- [Row 8](#row-8)
+  - [Scenario](#scenario-7)
+  - [What stops it today](#what-stops-it-today-7)
+  - [Residual gap](#residual-gap-7)
+  - [Tags](#tags-7)
+- [Row 9](#row-9)
+  - [Scenario](#scenario-8)
+  - [What stops it today](#what-stops-it-today-8)
+  - [Residual gap](#residual-gap-8)
+  - [Tags](#tags-8)
+- [Row 10](#row-10)
+  - [Scenario](#scenario-9)
+  - [What stops it today](#what-stops-it-today-9)
+  - [Residual gap](#residual-gap-9)
+  - [Tags](#tags-9)
+- [Row 11](#row-11)
+  - [Scenario](#scenario-10)
+  - [What stops it today](#what-stops-it-today-10)
+  - [Residual gap](#residual-gap-10)
+  - [Tags](#tags-10)
+- [Row 12](#row-12)
+  - [Scenario](#scenario-11)
+  - [What stops it today](#what-stops-it-today-11)
+  - [Residual gap](#residual-gap-11)
+  - [Tags](#tags-11)
+- [Row 13](#row-13)
+  - [Scenario](#scenario-12)
+  - [What stops it today](#what-stops-it-today-12)
+  - [Residual gap](#residual-gap-12)
+  - [Tags](#tags-12)
+- [Row 14](#row-14)
+  - [Scenario](#scenario-13)
+  - [What stops it today](#what-stops-it-today-13)
+  - [Residual gap](#residual-gap-13)
+  - [Tags](#tags-13)
+- [Row 17](#row-17)
+  - [Scenario](#scenario-14)
+  - [What stops it today](#what-stops-it-today-14)
+  - [Residual gap](#residual-gap-14)
+  - [Tags](#tags-14)
+- [Row 18](#row-18)
+  - [Scenario](#scenario-15)
+  - [What stops it today](#what-stops-it-today-15)
+  - [Residual gap](#residual-gap-15)
+  - [Tags](#tags-15)
+- [Row 19](#row-19)
+  - [Scenario](#scenario-16)
+  - [What stops it today](#what-stops-it-today-16)
+  - [Residual gap](#residual-gap-16)
+  - [Tags](#tags-16)
+- [Row 20](#row-20)
+  - [Scenario](#scenario-17)
+  - [What stops it today](#what-stops-it-today-17)
+  - [Residual gap](#residual-gap-17)
+  - [Tags](#tags-17)
+
+<!-- /toc -->
+
 ## Row 1
 
 ### Scenario
@@ -138,7 +233,7 @@ Tampering
 
 ### What stops it today
 
-Pull request required on `main`. `check`, SkillSpector's `scan` and zizmor's `audit` must pass; `validate` runs on pull requests, not as a required check. `check` refuses a `SKILL.md` frontmatter key outside its allow-list, so a `hooks` key cannot register hooks unseen, and a hidden control or line-separator character in any file under `skills/` (rule 2c of `scripts/check.mjs`). Rule 7 of `scripts/check.mjs` reads every SkillSpector baseline with a hand-written reader that refuses a spelling the scanner's loader would read differently, and holds each skill's entry to the root entry of the same rule: the same reason, and a scope no broader, where a narrowing of a rule-wide root entry names one exact `file` or `message` with no wildcard. Rule 7a fails two paths under `skills/` that differ only in case, since the scanner matches `file` ignoring case. The SkillSpector workflow's `eagle-eye` scan job, whose result the required `scan` check reads, also proves on every run that the pinned scanner honours an entry's `file`: it scans a copy of `eagle-eye` whose edge audit is also copied to a second path, and `scripts/skillspector-probe.mjs` requires the copy's E1 to be reported and the original's to stay suppressed.
+Pull request required on `main`. `check`, SkillSpector's `scan` and zizmor's `audit` must pass; the plugin validator is a step of `check`. `check` refuses a `SKILL.md` frontmatter key outside its allow-list, so a `hooks` key cannot register hooks unseen, and a hidden control or line-separator character in any file under `skills/` (rule 2c of `scripts/check.mjs`). Rule 7 of `scripts/check.mjs` reads every SkillSpector baseline with a hand-written reader that refuses a spelling the scanner's loader would read differently, and holds each skill's entry to the root entry of the same rule: the same reason, and a scope no broader, where a narrowing of a rule-wide root entry names one exact `file` or `message` with no wildcard. Rule 7a fails two paths under `skills/` that differ only in case, since the scanner matches `file` ignoring case. The SkillSpector workflow's `eagle-eye` scan job, whose result the required `scan` check reads, also proves on every run that scans it that the pinned scanner honours an entry's `file`: it scans a copy of `eagle-eye` whose edge audit is also copied to a second path, and `scripts/skillspector-probe.mjs` requires the copy's E1 to be reported and the original's to stay suppressed.
 
 ### Residual gap
 
@@ -156,7 +251,7 @@ SkillSpector is static pattern matching: an instruction written to read as ordin
 
 ### What stops it today
 
-Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code, for the plugin validator (`validate`) and the plugin tests (`plugin-test` on Windows and `plugin-test-linux` on Linux), is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; no job holds a token or secret, each has `contents: read`, and none has a path into `pages`. Every `npm pack` runs from the runner's temp folder, outside the checkout, so npm reads no `.npmrc` a branch adds, and rule 6 of `scripts/check.mjs` refuses one, and a `.yarnrc.yml`, anywhere in the tree. The athanor image fetch is hash-pinned; git in that image is not, accepted as the class “The local test image trusts Debian's archive at build time” ([row 20](#row-20)). See [scanners.md](scanners.md).
+Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. The one package, Claude Code, for the plugin validator and the plugin tests (steps of `check` and `windows`), is pinned to an exact npm version and its reported version checked; it is fetched and unpacked, never installed, so no package script runs; no job holds a token or secret, each has `contents: read`, and none has a path into `pages`. Every `npm pack` runs from the runner's temp folder, outside the checkout, so npm reads no `.npmrc` a branch adds, and rule 6 of `scripts/check.mjs` refuses one, and a `.yarnrc.yml`, anywhere in the tree. The athanor image fetch is hash-pinned; git in that image is not, accepted as the class “The local test image trusts Debian's archive at build time” ([row 20](#row-20)). See [scanners.md](scanners.md).
 
 ### Residual gap
 

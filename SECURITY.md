@@ -1,5 +1,19 @@
 # Security
 
+<!-- toc -->
+
+- [Reporting a vulnerability](#reporting-a-vulnerability)
+- [Scope](#scope)
+- [What this project is, in threat terms](#what-this-project-is-in-threat-terms)
+- [Pages built from a stranger's text](#pages-built-from-a-strangers-text)
+- [What the edge audit sends](#what-the-edge-audit-sends)
+- [What Incantation's runtime installer contacts](#what-incantations-runtime-installer-contacts)
+- [Scanners in CI](#scanners-in-ci)
+- [What the platform is relied on for](#what-the-platform-is-relied-on-for)
+- [What is deliberately not defended against](#what-is-deliberately-not-defended-against)
+
+<!-- /toc -->
+
 ## Reporting a vulnerability
 
 Use GitHub's **private vulnerability reporting**: the "Report a vulnerability"
@@ -798,7 +812,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
-| Plugin validator's `validate` job, which runs on pull requests and is not a required check | a manifest or skill the schema rejects shows a failed run |
+| The plugin validator, a step of the required `check` job | a manifest or skill the schema rejects blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for

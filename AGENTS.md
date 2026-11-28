@@ -20,6 +20,12 @@ is not a Docker fault, so stop and tell the owner. Read
 
 The four `scripts/` directories and `docs/decisions/` are described in [`docs/layout.md`](docs/layout.md).
 
+## Tables of contents
+
+After a heading change in a doc `scripts/toc.config.json` covers, or a Markdown doc crossing 100 lines, run `node scripts/toc.mjs`. Read changes to `scripts/toc.mjs` closely: it is a vendored copy, and to update it, copy `docs/toc.mjs` from `mephistopheles4/the-pact` and set that commit in its Source line.
+
+Beyond logs, ADRs, tests and the files loaded whole or written for people, the config leaves out head-chef's change log, each skill reference that keeps its own `## Contents` list, head-chef's `roster.md` and `starting.md`, whose text is copied into contract schedules, and eagle-eye's `CONTRACT.md`, where a table's comment markers trip the skill scanner's `P2` rule. Add a new file of any of the last three kinds there.
+
 ## Head-chef and the rules it runs under
 
 Head-chef manages sessions. How the work inside a session should be done is not its concern; that comes from whatever configuration a person runs. Head-chef and the Brigade pane may read that configuration, but they never assume one, use its terms or need it installed.

@@ -6,6 +6,22 @@ Tier: Standard, not the sensitive route. The security pair runs at Test,
 because this change runs a script from the home folder and changes where the
 audit's text goes (the lead's pick).
 
+<!-- toc -->
+
+- [S1. Objective and driver](#s1-objective-and-driver)
+- [S2. What exists](#s2-what-exists)
+- [S3. Choosing the route](#s3-choosing-the-route)
+- [S4. Reaching Clef](#s4-reaching-clef)
+- [S5. The request and the answer](#s5-the-request-and-the-answer)
+- [S6. What the person reads](#s6-what-the-person-reads)
+- [S7. The skill's text](#s7-the-skills-text)
+- [S8. Acceptance claims](#s8-acceptance-claims)
+- [S8a. Needs the owner](#s8a-needs-the-owner)
+- [S9. Trade-offs](#s9-trade-offs)
+- [S10. Out of scope](#s10-out-of-scope)
+
+<!-- /toc -->
+
 ## S1. Objective and driver
 
 Today `skills/eagle-eye/audit.mjs` can send a box only to a paid, hosted

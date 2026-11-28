@@ -14,6 +14,28 @@ and its sixteen tickets decided, in one place.
 
 ---
 
+<!-- toc -->
+
+- [Problem Statement](#problem-statement)
+- [Solution](#solution)
+- [User Stories](#user-stories)
+- [Implementation Decisions](#implementation-decisions)
+  - [The skill, and what it is called](#the-skill-and-what-it-is-called)
+  - [What it takes in](#what-it-takes-in)
+  - [How a large change is cut](#how-a-large-change-is-cut)
+  - [The flightpath file](#the-flightpath-file)
+  - [The validator is the schema](#the-validator-is-the-schema)
+  - [The page](#the-page)
+  - [The text output](#the-text-output)
+  - [Where the files live](#where-the-files-live)
+  - [The artifact is disposable](#the-artifact-is-disposable)
+  - [Wiring into the repository](#wiring-into-the-repository)
+- [Testing Decisions](#testing-decisions)
+- [Out of Scope](#out-of-scope)
+- [Further Notes](#further-notes)
+
+<!-- /toc -->
+
 ## Problem Statement
 
 A reader who did not write a change cannot see its shape.

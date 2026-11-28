@@ -253,7 +253,7 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './reminder.ts'
 import {
-  needsListing, resolveListed,
+  coldRefusal, needsListing, resolveListed,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './send.ts'
 import {
@@ -3610,7 +3610,9 @@ export const register: Register = on => {
   // reminds only, never writes the roster. First, a lead's send to a name that
   // lists twice is readdressed to its row on this machine, or refused
   // (send.ts, GRIM-41); a listing that fails passes the send on as sent, and
-  // the engine judges the name. Both do nothing while the pane is closed. No
+  // the engine judges the name. After that, a lead's message to a member idle
+  // for over an hour is refused (send.ts, GRIM-86); no usable time passes it
+  // on. All do nothing while the pane is closed. No
   // `.catch` on this hook: a retry of a failed send would send the message
   // twice.
   on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
@@ -3621,6 +3623,17 @@ export const register: Register = on => {
         const found = await resolveListed(to, async cursor => (await $.tool.call({ tool: 'ListAgents', ...(cursor === undefined ? {} : { cursor }) })).result)
         if (found.deny !== undefined) return { deny: found.deny }
         if (found.to !== undefined) call = { ...e, to: found.to }
+      }
+    } catch {
+      // The send goes on as sent.
+    }
+    try {
+      if (e.agentId === undefined && timers.length > 0) {
+        const at = await where($)
+        if (!('error' in at)) {
+          const cold = coldRefusal(e, (await readSessions(at.config, sessionIo($)))?.rows, await $.clock.now())
+          if (cold !== undefined) return { deny: cold }
+        }
       }
     } catch {
       // The send goes on as sent.
@@ -4683,7 +4696,7 @@ export const register: Register = on => {
             )}
           </Box>
           <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="column">
-            <Text wrap="truncate-end" strikethrough={isTicked} dimColor={isTicked}>
+            <Text wrap="truncate-end" maxLines={1} strikethrough={isTicked} dimColor={isTicked}>
               {oneLine(t.text, MAX_TEXT)}
             </Text>
             {linkText !== undefined &&
@@ -4879,8 +4892,9 @@ export const register: Register = on => {
         <Text dimColor>{text}</Text>
       </Box>
     )
-    // A History row: one press holding the fold arrow and the headline, a dim
-    // line under it, and the source over the time on the right.
+    // A History row: one press holding the fold arrow and the headline, which
+    // draws at most two rows (GRIM-73), a dim line under it cut to one, and the
+    // source over the time on the right.
     const historyRow = (r: Row, i: number) => {
       const k = markKey(r.sid, r.entry.id, r.entry.at)
       const isOpen = openedRows.has(k)
@@ -4891,9 +4905,9 @@ export const register: Register = on => {
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
               <Button key={`dopen-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
                 <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
-                {isRead ? <Text dimColor>{headline(r)}</Text> : <Text weight="medium">{headline(r)}</Text>}
+                {isRead ? <Text dimColor maxLines={2}>{headline(r)}</Text> : <Text weight="medium" maxLines={2}>{headline(r)}</Text>}
               </Button>
-              <Text dimColor size="footnote" wrap="truncate-end">
+              <Text dimColor size="footnote" wrap="truncate-end" maxLines={1}>
                 {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>
@@ -4944,9 +4958,9 @@ export const register: Register = on => {
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
               <Button key={`dfopen-${key}`} plain onPress={noop}>
                 <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
-                <Text dimColor>{headline(r)}</Text>
+                <Text dimColor maxLines={2}>{headline(r)}</Text>
               </Button>
-              <Text dimColor size="footnote" wrap="truncate-end">
+              <Text dimColor size="footnote" wrap="truncate-end" maxLines={1}>
                 {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>

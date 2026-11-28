@@ -17,6 +17,20 @@ behind the controls: [`checks.md`](checks.md), [`brigade.md`](brigade.md),
 scanners and the audit send. An edit that weakens a control one of these pages names is
 a removed control. A page's “Accepted class” line holds only what that class's sentence names; a page line citing a class for more, or a new send off the machine, is an open issue until the owner names it.
 
+<!-- toc -->
+
+- [Boundaries](#boundaries)
+  - [Text into a session](#text-into-a-session)
+  - [Code that runs](#code-that-runs)
+  - [Merges and acts](#merges-and-acts)
+  - [Data off the machine](#data-off-the-machine)
+- [Scope](#scope)
+- [Residual risk](#residual-risk)
+- [Accepted threat classes](#accepted-threat-classes)
+- [Open issues](#open-issues)
+
+<!-- /toc -->
+
 ## Boundaries
 
 ```mermaid
@@ -89,7 +103,7 @@ flowchart LR
 
 **Controls:**
 
-- GitHub: a ruleset on `main` requires a pull request, an up-to-date branch and the checks `check`, `scan` and `audit`, and blocks deletion and non-fast-forward pushes; it requires no approving review. The plugin validator's `validate` runs on pull requests and is not a required check.
+- GitHub: a ruleset on `main` requires a pull request, an up-to-date branch and the checks `check`, `scan` and `audit`, and blocks deletion and non-fast-forward pushes; it requires no approving review. The plugin validator is a step of `check`.
 - R3: `scripts/check.mjs` holds frontmatter keys, hidden characters, manifests, baselines (rules 2c, 6c, 7 and 7a), fixed home paths and a version bump; SkillSpector's probe, the scanner pins, and partly read files pinned by content; review of each diff.
 - The head chef names the repository and whether it is public before an act, deletes its temporary post file, reads the head again before a merge, deletes a branch only on the owner's words or a same-repository head, and posts no error text. A level-3 merge goes toward the goal and names the reviewed head, with CI passed on it. Every other merge or close, and a merge that changes this model's scope or classes, is a checkpoint: level 2 stops, level 3 logs and flags. [Detail](brigade.md#row-16).
 
@@ -177,4 +191,3 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.
 - Package-manager settings files nothing reads (`.yarnrc`, `.pnpmfile.cjs`, `bunfig.toml`, `.env`): ask the owner.
-- The plugin validator `validate` is not a required check on `main`: ask the owner.

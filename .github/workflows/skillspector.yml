@@ -56,33 +56,60 @@ jobs:
       contents: read
     outputs:
       skills: ${{ steps.list.outputs.skills }}
+      count: ${{ steps.list.outputs.count }}
     steps:
+      # fetch-depth: 2 so a pull request's merge commit can be diffed against
+      # its base, HEAD^1. Every git command after this is a local read.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # jq ships on the ubuntu-24.04 image. An empty list fails here by name
-      # rather than as a matrix with nothing in it, because no skills is a tree
-      # that lost them, not a tree with nothing to scan.
+          fetch-depth: 2
+      # jq ships on the ubuntu-24.04 image. A tree with no skill fails here by
+      # name rather than as a matrix with nothing in it, because no skills is a
+      # tree that lost them, not a tree with nothing to scan.
       #
       # A skill is a directory with a SKILL.md in it, under skills/. Each row
       # carries the name the job and its code-scanning category use, and the
       # directory the scanner is pointed at. A skill keeps its bare name, so
       # its category does not move.
-      - name: List the skills
+      #
+      # **Which skills a pull request scans (GRIM-62).** Only the skills whose
+      # folder it changed; none when it changed no skill. Every skill when it
+      # changes the scanner's pin or the gate (this file, scripts/skillspector-*),
+      # the allowances or the root baseline, when its diff cannot be read, or
+      # when a changed path is one git quotes. A push to main scans every skill.
+      - name: List the skills to scan
         id: list
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
-          skills=$(
+          all=$(
             {
               for d in skills/*/; do
                 if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$d")" "${d%/}"; fi
               done
             } | jq -R 'split("\t") | {skill: .[0], dir: .[1]}' | jq -cs .
           )
-          if [ "$skills" = "[]" ]; then
+          if [ "$all" = "[]" ]; then
             echo "no directory under skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
             exit 1
           fi
+          every=yes
+          if [ "$EVENT" = pull_request ] && changed=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD); then
+            every=no
+            while IFS= read -r p; do
+              case "$p" in
+                '"'*|.github/workflows/skillspector.yml|scripts/skillspector-*|.skillspector-allowances.json|.skillspector-baseline.yaml) every=yes ;;
+              esac
+            done <<< "$changed"
+          fi
+          if [ "$every" = yes ]; then
+            skills="$all"
+          else
+            skills=$(jq -c --arg changed "$changed" '($changed | split("\n")) as $paths | map(select((.dir + "/") as $d | any($paths[]; startswith($d))))' <<< "$all")
+          fi
           echo "skills=${skills}" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq length <<< "$skills")" >> "$GITHUB_OUTPUT"
           echo "skills to scan: ${skills}"
 
   # One job per skill. Each one scans a single skill directory with that
@@ -116,6 +143,8 @@ jobs:
   skill:
     name: scan ${{ matrix.dir }}
     needs: skills
+    # A matrix with no rows is an error, so a pick of none skips the job.
+    if: needs.skills.outputs.count != '0'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -354,7 +383,8 @@ jobs:
   # the set of names changes whenever a skill is added, and a required status
   # check needs a name that does not. This job is that name — `scan`, which the
   # single job before it carried — and it is red unless the listing and every
-  # skill's gate passed. It runs unless the run was cancelled, so a failure
+  # picked skill's gate passed. Skipped scans pass only when the listing picked
+  # none. It runs unless the run was cancelled, so a failure
   # upstream reaches it as a failure rather than a skip. It has no `name:` on
   # purpose: a job's name is its check name, and this one's is its id.
   scan:
@@ -367,6 +397,8 @@ jobs:
         env:
           LISTED: ${{ needs.skills.result }}
           SCANNED: ${{ needs.skill.result }}
+          COUNT: ${{ needs.skills.outputs.count }}
         run: |
-          echo "listing the skills: ${LISTED}; scanning each one: ${SCANNED}"
-          [ "$LISTED" = success ] && [ "$SCANNED" = success ]
+          echo "listing the skills: ${LISTED}; skills picked: ${COUNT}; scanning each one: ${SCANNED}"
+          [ "$LISTED" = success ] || exit 1
+          [ "$SCANNED" = success ] || { [ "$COUNT" = 0 ] && [ "$SCANNED" = skipped ]; }

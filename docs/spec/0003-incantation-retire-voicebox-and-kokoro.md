@@ -10,6 +10,28 @@ The easily-undone say-back and block-quote speech rules in
 [`0002-incantation-go-on-and-quote.md`](0002-incantation-go-on-and-quote.md)
 remain intact.
 
+<!-- toc -->
+
+- [S1. Objective and driver](#s1-objective-and-driver)
+- [S2. Scope and boundaries](#s2-scope-and-boundaries)
+  - [In scope](#in-scope)
+  - [Out of scope (deferred)](#out-of-scope-deferred)
+  - [Boundaries](#boundaries)
+- [S3. Detailed design](#s3-detailed-design)
+  - [`skills/incantation/scripts/engines/index.mjs` and `voicebox.mjs`](#skillsincantationscriptsenginesindexmjs-and-voiceboxmjs)
+  - [`skills/incantation/scripts/lib.mjs`](#skillsincantationscriptslibmjs)
+  - [`skills/incantation/scripts/engines/sherpa.mjs` and `phonon-worker.py`](#skillsincantationscriptsenginessherpamjs-and-phonon-workerpy)
+  - [`skills/incantation/scripts/guard.mjs`](#skillsincantationscriptsguardmjs)
+  - [`skills/incantation/scripts/listen.mjs`](#skillsincantationscriptslistenmjs)
+  - [`skills/incantation/scripts/runtime/pins.mjs` and `install.mjs`](#skillsincantationscriptsruntimepinsmjs-and-installmjs)
+  - [`skills/incantation/scripts/setup.mjs` and `.github/workflows/incantation-platforms.yml`](#skillsincantationscriptssetupmjs-and-githubworkflowsincantation-platformsyml)
+  - [Contract, skill, docs, manifests, allowances, specs, and tests](#contract-skill-docs-manifests-allowances-specs-and-tests)
+- [S4. Acceptance claims](#s4-acceptance-claims)
+- [S5. Commands and stop conditions](#s5-commands-and-stop-conditions)
+- [S6. Rollback and open items](#s6-rollback-and-open-items)
+
+<!-- /toc -->
+
 ## S1. Objective and driver
 
 Incantation currently maintains two speech engines (`voicebox` over HTTP and

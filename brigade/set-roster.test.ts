@@ -4676,7 +4676,10 @@ for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const all = await nodes(m)
     for (const t of ['Review PR 18', 'Answer on the issue', 'Paste the key']) {
       const node = all.find(n => n.type === 'Text' && n.text === t)
-      expect(node?.props.wrap, `${surface} ${t}`).toBe('truncate-end')
+      // Desktop and VS Code always cut at the end, so with maxLines the engine draws no wrap there.
+      expect(node?.props.wrap, `${surface} ${t}`).toBe(surface === 'desktop' || surface === 'vscode' ? undefined : 'truncate-end')
+      // A phone wraps a cut at the end unless the Text also says how many rows (GRIM-73 C1).
+      expect(node?.props.maxLines, `${surface} ${t}`).toBe(1)
     }
     // The label is the check against a look-alike repository: drawn whole, wrapped and never cut.
     for (const label of ['PR 18 o/r', '#560 mephistopheles4/grimoire']) {
@@ -7118,6 +7121,35 @@ async function flagPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobil
   const w = await decisionsPane(on, $, surface, setup)
   await w.clock.advance(1000)
   return w
+}
+
+for (const surface of ['desktop', 'terminal', 'mobile'] as const) {
+  test(`GRIM-73 C2 ${surface}: a Flagged and a History row's headline draws at most two rows, and the dim line under it one`, async ($, on) => {
+    const LONG = 'Flagged pick that runs on '.repeat(10).trim()
+    // Decision 3 stays unread behind decision 2's card, so History draws its headline in the unread weight.
+    const UNREAD = 'Unread pick that runs on '.repeat(10).trim()
+    await flagPane(on, $, surface, w =>
+      seed(w, LOG, logText([kept(1, 200, { options: [LONG, 'No'], pick: LONG }), kept(2, 300), kept(3, 400, { options: [UNREAD, 'No'], pick: UNREAD })])),
+    )
+    await press($, 'dflag-1-200')
+    for (const group of ['grp-d-flagged', 'grp-d-history']) {
+      await press($, group)
+      const heads = await mounted.findAll({ type: 'Text', text: LONG })
+      expect(heads.length, `${surface} ${group}`).toBeGreaterThan(0)
+      for (const h of heads) expect(h.props.maxLines, `${surface} ${group}`).toBe(2)
+      if (group === 'grp-d-history') {
+        const unread = await mounted.findAll({ type: 'Text', text: UNREAD })
+        expect(unread.map((u: any) => [u.props.weight, u.props.maxLines]), surface).toEqual([['medium', 2]])
+      }
+      const unders = await mounted.findAll({ type: 'Text', text: /· decision 1$/ })
+      expect(unders.length, `${surface} ${group}`).toBeGreaterThan(0)
+      for (const u of unders) {
+        expect(u.props.wrap).toBe(surface === 'desktop' ? undefined : 'truncate-end')
+        expect(u.props.maxLines).toBe(1)
+      }
+      await press($, group)
+    }
+  })
 }
 
 test('claim 9: Flag marks the shown entry flagged, shows the next, and puts it in Flagged, folded at first; the log is unchanged', async ($, on) => {
@@ -10741,6 +10773,46 @@ test("GRIM-41: with the pane closed, and from a subagent, a send goes on as sent
   await brigade($)
   await sendTo($, { message: 'go on', agentId: 'a1' })
   expect(sent.map(e => e.to)).toEqual(['session-a', 'session-a'])
+})
+
+// --- a message to a cold member (GRIM-86) ---------------------------------------------
+
+// A world whose message tool records its calls and whose session files hold
+// one row for `session-a`, `minutes` minutes before the clock, which stands at 0 here.
+const coldWorld = async (on: On, $: any, status: string, minutes: number) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
+  await start($)
+  await brigade($)
+  liveRows(w, [{ name: 'session-a', status, sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -minutes * 60 * 1000 }])
+  return { w, sent }
+}
+
+test('GRIM-86: a message to a member idle for 61 minutes is refused and nothing is sent', async ($, on) => {
+  const { sent } = await coldWorld(on, $, 'idle', 61)
+  const r: any = await sendTo($, { message: 'go on' })
+  expect(String(r.deny)).toMatch(/^Brigade: nothing was sent\. That session has been idle for over an hour/)
+  expect(sent).toEqual([])
+})
+
+test('GRIM-86: with the pane closed, a message to a cold member goes on as sent', async ($, on) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
+  await start($)
+  liveRows(w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -61 * 60 * 1000 }])
+  await sendTo($, { message: 'go on' })
+  expect(sent.length).toBe(1)
+})
+
+test('GRIM-86: at 59 minutes, busy, a subscription or a subagent, the send goes on', async ($, on) => {
+  const warm = await coldWorld(on, $, 'idle', 59)
+  await sendTo($, { message: 'go on' })
+  expect(warm.sent.length).toBe(1)
+  liveRows(warm.w, [{ name: 'session-a', status: 'busy', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -500 * 60000 }])
+  await sendTo($, { message: 'go on' })
+  expect(warm.sent.length).toBe(2)
+  liveRows(warm.w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -500 * 60000 }])
+  await sendTo($, { notify_when_idle: true })
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  expect(warm.sent.length).toBe(4)
 })
 
 // --- the usage read's breakdown ---------------------------------------------------
