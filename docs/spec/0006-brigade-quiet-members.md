@@ -171,13 +171,14 @@ members`. The note holds no session name, id, path, report text or `to`.
 
 ## S5. Head-chef
 
-Contract 2.17.0, *Proposed*, in `skills/head-chef/references/CONTRACT.md`
+Contract 2.18.0, *Proposed*, in `skills/head-chef/references/CONTRACT.md`
 first, then copied to each home, with a `contract.changelog.md` row naming
 the owner's ask and this spec.
 
-Spec 0007 landed first, as contract 2.16.0, and its never-message-a-cold-member
-rule stays. Where it and the text below differ, this holds (the lead's pick,
-decision 179): with the pane closed, the lead goes by the member's last report
+Spec 0007 landed first, as contracts 2.16.0 and 2.17.0, and its cold-member
+default and deliberate wake (its S10) stay; a wake is the one exception to the
+rules here that send a cold member nothing. Where it and the text below differ,
+this holds (the lead's pick, decision 179): with the pane closed, the lead goes by the member's last report
 and treats an unknown time as cold; the sentence allowing a subscription to a
 cold member goes; the idle-cost line is spec 0007's; `lead-idle-own-question`
 keeps its member ten minutes idle; and `cold-member-fresh-start` names no idle
@@ -275,7 +276,7 @@ note, or add one note. It cannot put text of its own into the note.
 ## S7. Version and rollback
 
 Plugin version in `.claude-plugin/plugin.json`: the next minor after `main`
-at merge (`0.193.0` today). Head-chef contract 2.16.0 to 2.17.0.
+at merge (`0.194.0` today). Head-chef contract 2.17.0 to 2.18.0.
 
 Rollback: revert the merge. Skill and mod go back together; the skill then
 asks for subscriptions again. Trigger: C11 shows two notes for one stop, a
@@ -380,7 +381,7 @@ submit lands, and other plugins' hooks.
 ## S12. Needs the owner
 
 - **The merge.** At Deploy, after the Test rounds.
-- **Confirming contract 2.17.0.** It goes in *Proposed*; confirm it once C11
+- **Confirming contract 2.18.0.** It goes in *Proposed*; confirm it once C11
   passes.
 - **Running the five edited evals.** Eval spend needs the owner's word, which
   no level lifts. Recommended: once, at Test, since only a run shows the lead

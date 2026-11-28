@@ -1,6 +1,7 @@
-# Head-chef: never wake a cold member
+# Head-chef: no cold wake by default
 
-Status: Draft — in force when the owner merges it.
+Status: Draft — in force when the owner merges it. S10 (GRIM-87) amends the
+"never" of S1, S4, S5 and S9: a deliberate wake gets through.
 
 Tier: Standard, non-sensitive route (the session's pick, taken by the lead;
 not yet the owner's). Checks run through athanor only; no new CI job or
@@ -20,6 +21,7 @@ plugin version is bumped.
 - [S7. Acceptance claims](#s7-acceptance-claims)
 - [S8. Trade-off points](#s8-trade-off-points)
 - [S9. Not in this spec](#s9-not-in-this-spec)
+- [S10. A deliberate wake (GRIM-87)](#s10-a-deliberate-wake-grim-87)
 
 <!-- /toc -->
 
@@ -187,3 +189,50 @@ notice" words of item 1 and all of item 4:
 - Changing the 15-minute waiting check itself, or GRIM-60's silent-stop watch.
 - An owner override in the lead's chat. The owner can still type in the
   member's own chat, which this rule never touches.
+
+## S10. A deliberate wake (GRIM-87)
+
+Tier: Standard (the lead's pick). The owner asked that a cold member can be
+woken on purpose: a flag is needed when the session is cold. Where this
+section and an earlier one differ, this one holds.
+
+1. **The wake line.** A message whose first line is `COLD WAKE: <reason>`,
+   with a real reason in place of `<reason>`, passes the cold check unchanged.
+   The marker is at the very start, in capitals; the reason is on the same
+   line and does not open with `<`. Anything else is refused as in S4, a
+   structured message included. A resend alone never passes.
+2. **The refusal** keeps the cost and the fresh-start default, drops "Send it
+   nothing", and names who may wake, the log entry and the wake line. The
+   words are `REFUSE_COLD` in `brigade/send.ts`.
+3. **Who and when.** A fresh session from the record stays the default. A wake
+   is due when what only that session holds is worth the re-read: at level 3
+   on the lead's judgment, at levels 1 and 2 on the owner's words.
+4. **The log.** Before it sends, the lead logs the wake with `log_decision`,
+   source `lead`, with a `flag` giving the reason, so it is in the owner's
+   Flagged list. The mod does not check that the entry exists.
+5. **Letter case.** With no session row spelled as sent, the check judges the
+   one row whose name differs only in letter case.
+
+Claims:
+
+- **C8.** A send to a cold member with no wake line is refused with the new
+  fixed words and nothing is sent. Test: `brigade-send.test.mjs`.
+- **C9.** A send opening with the wake line and a reason reaches a cold member
+  unchanged. Tests: `brigade-send.test.mjs` and `set-roster.test.ts`.
+- **C10.** The marker on a later line, after a space or a quote mark, in
+  another case, with no reason, with the reason on the next line, with the
+  placeholder, the refusal's own words, and a structured message are each
+  refused. Test: `brigade-send.test.mjs`.
+- **C11.** A name that differs only in letter case from the one row is
+  checked; a row spelled as sent is judged first. Test: same file.
+- **C12.** Head-chef's text, from the contract, keeps the fresh start as the
+  default, says when a wake is due at each level, has the lead log it as a
+  flagged decision before sending, and holds no "never" for a cold member.
+  Check: the repo's contract check, and a read of the diff.
+- **C13.** `athanor run check` passes on the final head.
+
+Trade-off: the log rests on the head-chef text, not the mod. Having the mod
+write or check the entry would make the record certain, at the cost of more
+code in the send hook. Taken: the smaller change, cheaper to reverse. The
+owner can still see every wake line in the member's own chat.
+

@@ -71,8 +71,9 @@ Read this when the model for the next piece of work on an existing session
 differs from that session's own model, for example when the owner asks for
 the next piece of work on another model. Read it too when the member is cold:
 its last turn ended more than an hour ago, so its prompt cache has expired.
-Send a cold member no message, whatever the work: the message would make it
-re-read its whole history at full price.
+By default, send a cold member no message: it would make it re-read its whole
+history at full price. The one exception, here and in the steps below, is a
+wake, as "Sending and idle notices" in `SKILL.md` says.
 
 Do not change the session's model with a setter. Start a fresh session from
 the record on the issue, with steps 1 to 7 above. The reason: a model switch drops the prompt cache, so the

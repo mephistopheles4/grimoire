@@ -10794,7 +10794,14 @@ test('GRIM-86: a message to a member idle for 61 minutes is refused and nothing 
   expect(sent).toEqual([])
 })
 
-test('GRIM-86: with the pane closed, a message to a cold member goes on as sent', async ($, on) => {
+test('GRIM-87: a message opening with the wake line reaches a cold member as sent', async ($, on) => {
+  const { sent } = await coldWorld(on, $, 'idle', 61)
+  const message = 'COLD WAKE: only it holds the uncommitted fix\nPush it.'
+  await sendTo($, { message })
+  expect(sent.map(e => e.message)).toEqual([message])
+})
+
+test('GRIM-86: with the pane closed, a message to a cold member goes on as sent',async ($, on) => {
   const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
   await start($)
   liveRows(w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -61 * 60 * 1000 }])
