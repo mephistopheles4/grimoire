@@ -190,7 +190,7 @@ current pace holds, and a red note says how early a limit runs out when that
 pace would pass 100%. It needs the plugin install above. The skill works
 without it.
 
-## The skill's own pages
+## The skill's own pages (deliberately stale table)
 
 What it does, what counts as your yes, and what cleanup names back:
 [`skills/head-chef/README.md`](../skills/head-chef/README.md). The skill's contract, which
