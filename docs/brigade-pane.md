@@ -6,7 +6,7 @@ The detail behind the [head-chef section of the root README](../README.md): what
 
 - [What the head chef does](#what-the-head-chef-does)
 - [The Brigade pane](#the-brigade-pane)
-- [The skill's own pages](#the-skills-own-pages)
+- [The skill's own pages (deliberately stale table)](#the-skills-own-pages-deliberately-stale-table)
 - [Usage summaries, and the limits of what the pane draws](#usage-summaries-and-the-limits-of-what-the-pane-draws)
 
 <!-- /toc -->
