@@ -13,6 +13,7 @@ None yet.
 
 ## All specs
 
+- [0008-secret-run-skill-and-guard](0008-secret-run-skill-and-guard.md) — a draft: a secret-run skill has the agent use a password manager's run command with references, never the value, and a mod guard refuses the common accidents
 - [0007-head-chef-no-cold-wake](0007-head-chef-no-cold-wake.md) — a draft: the lead never messages a member idle over an hour; the Brigade send hook refuses it, and the lead starts a fresh session from the record
 - [0005-eagle-eye-clef-audit](0005-eagle-eye-clef-audit.md) — a draft: the eagle-eye audit gains an opt-in local Clef route, at no charge and with nothing sent off the machine
 - [0004-tests-faster](0004-tests-faster.md) — a draft: the test suite starts fewer processes, copies less and waits on states instead of fixed sleeps, with no shipped file changed
