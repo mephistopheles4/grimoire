@@ -299,3 +299,4 @@ declares. **It cannot prove which branch was taken or what an effect
 returned.** Those stay the author's claims.
 
 Say the limit. Do not let a page imply a check it did not make.
+
