@@ -5,6 +5,21 @@ Specs in force live in `docs/spec/`. Pull requests stay on GitHub,
 `mephistopheles4/grimoire`; pass `-R mephistopheles4/grimoire` to every `gh`
 command that takes it.
 
+<!-- toc -->
+
+- [A vulnerability goes somewhere else](#a-vulnerability-goes-somewhere-else)
+- [Conventions](#conventions)
+- [Claim the item before you work it](#claim-the-item-before-you-work-it)
+- [Pull requests as a triage surface](#pull-requests-as-a-triage-surface)
+- [When a skill says "publish to the issue tracker"](#when-a-skill-says-publish-to-the-issue-tracker)
+- [When a skill says "fetch the relevant ticket"](#when-a-skill-says-fetch-the-relevant-ticket)
+- [Cut a spec into tickets: one item each, under the parent](#cut-a-spec-into-tickets-one-item-each-under-the-parent)
+- [Wayfinding operations](#wayfinding-operations)
+- [Older GitHub issues](#older-github-issues)
+- [Whose text counts](#whose-text-counts)
+
+<!-- /toc -->
+
 ## A vulnerability goes somewhere else
 
 A security finding is reported through GitHub's **private vulnerability

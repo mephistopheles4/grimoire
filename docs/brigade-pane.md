@@ -2,6 +2,15 @@
 
 The detail behind the [head-chef section of the root README](../README.md): what the head chef may do in your name, the Brigade pane (sessions, pull requests, decisions, the autonomy levels, the context and burn-rate views), and the usage summary files with their known limits. It moved here whole from the root README, so the front page stays a front page. For what the skill does, what counts as your yes and what cleanup names back, read [`skills/head-chef/README.md`](../skills/head-chef/README.md).
 
+<!-- toc -->
+
+- [What the head chef does](#what-the-head-chef-does)
+- [The Brigade pane](#the-brigade-pane)
+- [The skill's own pages](#the-skills-own-pages)
+- [Usage summaries, and the limits of what the pane draws](#usage-summaries-and-the-limits-of-what-the-pane-draws)
+
+<!-- /toc -->
+
 ## What the head chef does
 
 Reach for it in Claude Desktop when you want work to run in another session,

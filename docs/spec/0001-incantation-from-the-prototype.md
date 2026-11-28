@@ -25,6 +25,51 @@ are the owner's own words (S1). A choice with no tag is this spec's own.
 Where "As built" (the last section) and an earlier section differ, "As built"
 holds.
 
+<!-- toc -->
+
+- [S1. Sources](#s1-sources)
+- [S2. Objective](#s2-objective)
+- [S3. Scope](#s3-scope)
+- [S4. The skill: contract amendments](#s4-the-skill-contract-amendments)
+  - [S4.1 A clear yes (W5, W9)](#s41-a-clear-yes-w5-w9)
+  - [S4.2 Voice stands in for typing (W1, W2)](#s42-voice-stands-in-for-typing-w1-w2)
+  - [S4.3 The request flow (W2)](#s43-the-request-flow-w2)
+  - [S4.4 Acknowledgement and progress (W3, W6, W9)](#s44-acknowledgement-and-progress-w3-w6-w9)
+  - [S4.5 How it speaks (W2, W9)](#s45-how-it-speaks-w2-w9)
+  - [S4.6 Mute (W2)](#s46-mute-w2)
+  - [S4.7 Hearing through the relay (W7)](#s47-hearing-through-the-relay-w7)
+  - [S4.8 Trims](#s48-trims)
+  - [S4.9 Fences](#s49-fences)
+  - [S4.10 Other contract changes](#s410-other-contract-changes)
+  - [S4.11 Head-chef's gates](#s411-head-chefs-gates)
+- [S5. The listener](#s5-the-listener)
+  - [S5.1 Commands](#s51-commands)
+  - [S5.2 Spinner words (W3, W6)](#s52-spinner-words-w3-w6)
+  - [S5.3 Progress beat](#s53-progress-beat)
+  - [S5.4 A heard turn moves on (W8)](#s54-a-heard-turn-moves-on-w8)
+  - [S5.5 Mic fallback and the settings (W4)](#s55-mic-fallback-and-the-settings-w4)
+  - [S5.6 Status and the status line](#s56-status-and-the-status-line)
+  - [S5.7 Kept small changes](#s57-kept-small-changes)
+  - [S5.8 The echo stack (W10, W11)](#s58-the-echo-stack-w10-w11)
+  - [S5.9 The runtime and its install (W10)](#s59-the-runtime-and-its-install-w10)
+  - [S5.10 The engines, and Voicebox's place](#s510-the-engines-and-voiceboxs-place)
+  - [S5.11 What each machine gets](#s511-what-each-machine-gets)
+- [S6. Grimoire's mod](#s6-grimoires-mod)
+  - [S6.1 Binding](#s61-binding)
+  - [S6.2 The relay (W7)](#s62-the-relay-w7)
+  - [S6.3 The permission nudge (W2)](#s63-the-permission-nudge-w2)
+  - [S6.4 The mic band's voice button (W2)](#s64-the-mic-bands-voice-button-w2)
+- [S7. Acceptance claims](#s7-acceptance-claims)
+- [S8. Files](#s8-files)
+- [S9. Security](#s9-security)
+- [S10. Trade-offs](#s10-trade-offs)
+- [S11. Rollback](#s11-rollback)
+- [S12. Open points](#s12-open-points)
+- [S13. Build order](#s13-build-order)
+- [As built](#as-built)
+
+<!-- /toc -->
+
 ## S1. Sources
 
 **The owner's words,** as recorded in the prototype's change log, field notes,

@@ -11,6 +11,31 @@ One rule runs through all of them: **a check that reports and changes nothing
 reads as a check that passed.** So each one either gates a merge or says
 plainly that it does not.
 
+<!-- toc -->
+
+- [CodeQL](#codeql)
+  - [The `strip` function](#the-strip-function)
+- [Action pins](#action-pins)
+- [SkillSpector: the skill prose](#skillspector-the-skill-prose)
+  - [The gate](#the-gate)
+  - [One scan per skill](#one-scan-per-skill)
+  - [Partial reads](#partial-reads)
+  - [The baseline](#the-baseline)
+  - [The Security tab](#the-security-tab)
+  - [CodeRabbit](#coderabbit)
+- [zizmor: the workflows](#zizmor-the-workflows)
+  - [The gate](#the-gate-1)
+  - [What it does not see](#what-it-does-not-see)
+- [The plugin validator: the manifests and the skills](#the-plugin-validator-the-manifests-and-the-skills)
+  - [What it catches, and what it does not](#what-it-catches-and-what-it-does-not)
+  - [The pin](#the-pin)
+  - [The mod's tests](#the-mods-tests)
+  - [Bumping it](#bumping-it)
+  - [Reproducing a red run](#reproducing-a-red-run)
+- [What is deliberately not installed](#what-is-deliberately-not-installed)
+
+<!-- /toc -->
+
 ## CodeQL
 
 CodeQL runs in GitHub's default setup. Its JavaScript extractor also reads
