@@ -139,7 +139,43 @@ const say = { to: 'build-1', message: 'go on' };
 test('C1: a message to an idle member whose last turn ended 61 minutes ago is refused with the fixed words', () => {
   assert.equal(COLD_MS, 60 * MIN);
   assert.equal(coldRefusal(say, [row('idle', 61)], NOW), REFUSE_COLD);
-    assert.equal(REFUSE_COLD, "Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. Send it nothing. For new work on its issue, start a fresh session from the record on the issue, as \"When the model changes or the member is cold\" in head-chef's starting.md says, and ask the owner to stop the old one.");
+    assert.equal(REFUSE_COLD, "Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. For new work on its issue, start a fresh session from the record on the issue, as \"When the model changes or the member is cold\" in head-chef's starting.md says, and ask the owner to stop the old one. To wake it on purpose, on your own judgment at level 3 and only on the owner's words at levels 1 and 2: log it with log_decision (source lead, with a flag giving the reason), then make the message's first line \"COLD WAKE: <your reason>\".");
+});
+
+// The wake line (GRIM-87).
+const cold = [row('idle', 500)];
+const send = message => coldRefusal({ to: 'build-1', message }, cold, NOW);
+
+test('GRIM-87: a message whose first line is the wake line with a reason passes to a cold member', () => {
+  assert.equal(send('COLD WAKE: only it holds the uncommitted fix'), undefined);
+  assert.equal(send('COLD WAKE: only it holds the uncommitted fix\nCommit and push it.'), undefined);
+  assert.equal(send('COLD WAKE: only it holds the uncommitted fix\r\nCommit and push it.'), undefined);
+  assert.equal(coldRefusal({ to: 'build-1 [aaa111]', message: 'COLD WAKE: the owner asked' }, cold, NOW), undefined);
+});
+
+test('GRIM-87: anything short of the wake line and a reason is refused', () => {
+  for (const message of [
+    'go on\nCOLD WAKE: later line',
+    ' COLD WAKE: leading space',
+    '> COLD WAKE: quoted',
+    '"COLD WAKE: quoted"',
+    'cold wake: lower case',
+    'COLD WAKE no colon',
+    'COLD WAKE:',
+    'COLD WAKE:   ',
+    'COLD WAKE:\nthe reason on the next line',
+    'COLD WAKE: <your reason>',
+    REFUSE_COLD,
+    { type: 'shutdown_request', reason: 'COLD WAKE: structured' },
+  ]) assert.equal(send(message), REFUSE_COLD, JSON.stringify(message));
+});
+
+test('GRIM-87: a name in another letter case is checked, and a row spelled as sent is judged first', () => {
+  assert.equal(coldRefusal({ to: 'Build-1', message: 'go on' }, cold, NOW), REFUSE_COLD);
+  assert.equal(coldRefusal(say, [row('idle', 500, 'BUILD-1')], NOW), REFUSE_COLD);
+  assert.equal(coldRefusal(say, [row('idle', 1), row('idle', 500, 'BUILD-1')], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', 500), row('idle', 1, 'BUILD-1')], NOW), REFUSE_COLD);
+  assert.equal(coldRefusal(say, [row('idle', 500, 'Build-1'), row('idle', 500, 'BUILD-1')], NOW), undefined);
 });
 
 test('C2: 59 minutes, exactly 60, or a busy row at any time passes on', () => {

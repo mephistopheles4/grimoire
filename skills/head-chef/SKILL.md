@@ -160,8 +160,8 @@ line and the owner sets it in that session.
   shows the prompt. For a background member, that chat is its card's link in
   the Brigade pane, its row in the claude.ai session list, or `claude attach
   <name>` in a terminal.
-- Never send a message to a member idle for over an hour: it would re-read
-  its whole context at full price. Go by the Brigade refusal; with no refusal
+- By default, send no message to a member idle for over an hour: it would
+  re-read its whole context at full price. Go by the Brigade refusal; with no refusal
   to go by (the pane closed), go by when the member's last report or idle
   notice came, and when you cannot tell, treat it as cold. For new work on a
   cold member's issue, including an owner's answer the member waits on, start
@@ -169,8 +169,17 @@ line and the owner sets it in that session.
   prompt, as [when the member is cold](<references/starting.md#when-the-model-changes-or-the-member-is-cold>) says: name it as the
   session that carries the issue, send the old one nothing more, and ask to
   stop or archive it. When the record is not on the issue, tell the owner in
-  one line and wait; do not wake the member to post it. A subscription with
+  one line and wait, unless a wake is due. A subscription with
   no message is still allowed to a cold member.
+- Wake a cold member only on purpose, when what only that session holds is
+  worth the re-read, such as work not yet pushed or a record not on the
+  issue. At level 3 that is your judgment; at levels 1 and 2 it takes the
+  owner's words. Before you send, log it with `log_decision`, source `lead`,
+  with a `flag` giving the reason; at levels 1 and 2 its `why` quotes those
+  words. Then make the message's first line `COLD WAKE: <your reason>`, the
+  reason filled in: while the pane is open, the Brigade mod refuses a cold
+  member any message without that line. A wake is the one exception to each
+  rule that sends a cold member nothing, or does not ask or tell it.
 - Track and report only the sessions you started or the owner handed you.
 
 ## Between the owner and the sessions

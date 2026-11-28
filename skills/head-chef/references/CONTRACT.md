@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.16.0
+Version: 2.17.0
 Kind: skill
 Level: Thorough
 
@@ -89,7 +89,7 @@ need, without overwhelming me or showing me too much.
 **A fresh session for a new model.** When the next piece of work needs a different model, it starts a fresh session from the record on the issue and never changes a running session's model with a setter. It names the fresh session as the one that carries the issue, sends the old one nothing more, and archives or stops it only as the skill's stops list says.
 *Proposed*: restates 1.36.1 "A model change starts a fresh session", Proposed; pending at 1.36.1.
 
-**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. It never sends a message to a member idle over an hour, which would re-read its context at full price; for new work on that member's issue it starts a fresh session from the record on the issue.
+**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to each session's idle notice after each start, report and send, and does not poll; the notice arrives for a background member. By default it sends no message to a member idle over an hour, which would re-read its context at full price; for new work on that member's issue it starts a fresh session from the record on the issue. It wakes such a member only on purpose, on its own judgment at level 3 and on the owner's words at levels 1 and 2, and logs the wake as a flagged decision.
 *Proposed*: restates 1.36.1 "Sending", "Idle notices" and "Idle cost", Confirmed.
 
 **A waiting member.** A waiting member is handled as SKILL.md's Waiting section says.
@@ -466,8 +466,8 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   shows the prompt. For a background member, that chat is its card's link in
   the Brigade pane, its row in the claude.ai session list, or `claude attach
   <name>` in a terminal.
-- Never send a message to a member idle for over an hour: it would re-read
-  its whole context at full price. Go by the Brigade refusal; with no refusal
+- By default, send no message to a member idle for over an hour: it would
+  re-read its whole context at full price. Go by the Brigade refusal; with no refusal
   to go by (the pane closed), go by when the member's last report or idle
   notice came, and when you cannot tell, treat it as cold. For new work on a
   cold member's issue, including an owner's answer the member waits on, start
@@ -475,8 +475,17 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   prompt, as [when the member is cold](<references/starting.md#when-the-model-changes-or-the-member-is-cold>) says: name it as the
   session that carries the issue, send the old one nothing more, and ask to
   stop or archive it. When the record is not on the issue, tell the owner in
-  one line and wait; do not wake the member to post it. A subscription with
+  one line and wait, unless a wake is due. A subscription with
   no message is still allowed to a cold member.
+- Wake a cold member only on purpose, when what only that session holds is
+  worth the re-read, such as work not yet pushed or a record not on the
+  issue. At level 3 that is your judgment; at levels 1 and 2 it takes the
+  owner's words. Before you send, log it with `log_decision`, source `lead`,
+  with a `flag` giving the reason; at levels 1 and 2 its `why` quotes those
+  words. Then make the message's first line `COLD WAKE: <your reason>`, the
+  reason filled in: while the pane is open, the Brigade mod refuses a cold
+  member any message without that line. A wake is the one exception to each
+  rule that sends a cold member nothing, or does not ask or tell it.
 - Track and report only the sessions you started or the owner handed you.
 
 ### SKILL.md: Between the owner and the sessions
@@ -1113,8 +1122,9 @@ Read this when the model for the next piece of work on an existing session
 differs from that session's own model, for example when the owner asks for
 the next piece of work on another model. Read it too when the member is cold:
 its last turn ended more than an hour ago, so its prompt cache has expired.
-Send a cold member no message, whatever the work: the message would make it
-re-read its whole history at full price.
+By default, send a cold member no message: it would make it re-read its whole
+history at full price. The one exception, here and in the steps below, is a
+wake, as "Sending and idle notices" in `SKILL.md` says.
 
 Do not change the session's model with a setter. Start a fresh session from
 the record on the issue, with steps 1 to 8 above. The reason: a model switch drops the prompt cache, so the
