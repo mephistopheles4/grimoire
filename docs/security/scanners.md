@@ -489,8 +489,8 @@ Linux has none and the recorded answers come from Windows. athanor runs
 the same tests as `athanor run plugin-test`.
 
 Both jobs live in `plugin-test.yml` and run only on a change to `brigade/`,
-`.claude-plugin/`, `hooks/` or either workflow file: the mod imports nothing
-outside `brigade/`.
+`hooks/`, either workflow file, or `.claude-plugin/` past its manifests
+(`validate` reads those): the mod imports nothing outside `brigade/`.
 
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball
 and `tar` unpacks it outside the checkout. The package holds one executable and
@@ -518,7 +518,7 @@ and the check validates against a stale schema.
 
 **How.**
 
-1. Change the version in all ten places together: three in each of the three
+1. Change the version in all thirteen places together: three in each of the three
    jobs and four in
    `tests/container/Dockerfile`. Replace the image's
    sha512 with the new version's: `npm view

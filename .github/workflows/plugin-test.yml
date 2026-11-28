@@ -9,6 +9,11 @@
 # account runs 20 jobs at once across every repository, and these two would
 # otherwise start on every pull request.
 #
+# **Not on a version bump.** Every skill change bumps .claude-plugin/plugin.json,
+# so the two manifests are left out of the filter, or these jobs would start on
+# every skill pull request. The required `validate` reads both manifests against
+# Claude Code's schema and type-checks the mod on every pull request.
+#
 # **The Claude Code pin lives here and in plugin-validate.yml.** A change to
 # either file runs these tests, so a bump made in only one still tests the mod. The version strings
 # that move together are listed beside the fetch below.
@@ -24,6 +29,8 @@ on:
     paths:
       - brigade/**
       - .claude-plugin/**
+      - "!.claude-plugin/plugin.json"
+      - "!.claude-plugin/marketplace.json"
       - hooks/**
       - .github/workflows/plugin-test.yml
       - .github/workflows/plugin-validate.yml
@@ -31,6 +38,8 @@ on:
     paths:
       - brigade/**
       - .claude-plugin/**
+      - "!.claude-plugin/plugin.json"
+      - "!.claude-plugin/marketplace.json"
       - hooks/**
       - .github/workflows/plugin-test.yml
       - .github/workflows/plugin-validate.yml

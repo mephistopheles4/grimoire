@@ -356,8 +356,8 @@ jobs:
       # would: the original's E1 finding must stay suppressed
       # and the copy's must be reported. A pin bump that stops honouring `file`
       # goes red here. One skill's copy is enough to show it, and the step runs in
-  # every scan job: with only the touched skills scanned, a row condition
-  # would skip it on most pull requests (docs/spec/0005, S5).
+      # every scan job: with only the touched skills scanned, a row condition
+      # would skip it on most pull requests (docs/spec/0005, S5).
       #
       # The copy keeps the folder name `eagle-eye`: under another name the scanner
       # raises an AS3 finding on CONTRACT.md. It sits under the runner's temp

@@ -144,10 +144,14 @@ runs the mod's paths as Linux spells them.
 
 1. **Both move to a new workflow, `.github/workflows/plugin-test.yml`,** with
    the same job names and steps, and a `pull_request` `paths` filter:
-   `brigade/**`, `.claude-plugin/**`, `hooks/**`,
-   `.github/workflows/plugin-test.yml` and
+   `brigade/**`, `.claude-plugin/**` except `plugin.json` and
+   `marketplace.json`, `hooks/**`, `.github/workflows/plugin-test.yml` and
    `.github/workflows/plugin-validate.yml`. It also runs on `push` to `main`
-   with the same filter, and by hand.
+   with the same filter, and by hand. The two manifests are left out because
+   every skill change bumps `plugin.json`'s version, which would start these
+   jobs on every skill pull request; the required `validate` reads both
+   manifests against Claude Code's schema and type-checks the mod on every
+   pull request.
 2. **Neither job is a required check,** so a path filter cannot leave a
    required check pending.
 3. `validate` stays in `plugin-validate.yml` and runs on every pull request.

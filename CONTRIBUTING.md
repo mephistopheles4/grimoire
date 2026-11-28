@@ -299,7 +299,7 @@ the publishing path: their jobs have `contents: read`, hold no token or
 secret, write nothing, and the `pages` workflow does not depend on them. The
 first gate runs in `plugin-test`, as its `plugin-test` job on a Windows runner
 and its `plugin-test-linux` job on a Linux one, on a change to `brigade/`,
-`.claude-plugin/`, `hooks/` or either workflow. Run it yourself before you push a
+`hooks/`, either workflow, or `.claude-plugin/` other than its two manifests. Run it yourself before you push a
 change to `brigade/`, if you like, with `athanor run plugin-test`. The tests'
 world follows its host; the case that builds a junction runs on Windows only. The second stays on your own machine: before a
 pull request that touches `brigade/`, run it on Windows and say so in the pull
