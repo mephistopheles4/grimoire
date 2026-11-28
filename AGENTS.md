@@ -24,7 +24,7 @@ The four `scripts/` directories and `docs/decisions/` are described in [`docs/la
 
 After a heading change in a doc `scripts/toc.config.json` covers, or a Markdown doc crossing 100 lines, run `node scripts/toc.mjs`. Read changes to `scripts/toc.mjs` closely: it is a vendored copy, and to update it, copy `docs/toc.mjs` from `mephistopheles4/the-pact` and set that commit in its Source line.
 
-Beyond logs, ADRs, tests and the files loaded whole or written for people, the config leaves out head-chef's change log, each skill reference that keeps its own `## Contents` list, and head-chef's `roster.md` and `starting.md`, whose text is copied into contract schedules. Add a new file of either of the last two kinds there.
+Beyond logs, ADRs, tests and the files loaded whole or written for people, the config leaves out head-chef's change log, each skill reference that keeps its own `## Contents` list, head-chef's `roster.md` and `starting.md`, whose text is copied into contract schedules, and eagle-eye's `CONTRACT.md`, where a table's comment markers trip the skill scanner's `P2` rule. Add a new file of any of the last three kinds there.
 
 ## Head-chef and the rules it runs under
 
