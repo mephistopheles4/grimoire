@@ -3067,6 +3067,8 @@ async function installAfter($: EngineInterface, start: { input: StartInputs; pla
         run: (argv, init) => $.process.run(argv, init),
         spawn: (argv, init, capMs) => spawnExit(() => $.process.spawn({ argv, ...init }), (ms, fn) => $.clock.after(ms, fn), capMs, signal),
         sleep: ms => $.clock.sleep(ms),
+        now: () => $.clock.now(),
+        read: async path => String(await $.fs.read(path)),
         program: name => programPath($, name, start.platform, start.input.folder),
       },
       start.input,

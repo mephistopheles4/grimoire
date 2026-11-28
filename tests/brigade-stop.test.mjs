@@ -159,6 +159,11 @@ test('543 C8: the start tool refuses a subagent before anything, runs every othe
   // Spec 0005 C10: the start run is as it was and holds no install; the install runs in startBackground after the queue turn is left.
   assert.ok(!run.slice(0, run.indexOf('async function installAfter')).includes('installAfterStart('), 'the install is not in the start run');
   assert.ok(start.indexOf('await startTurn(') < start.indexOf('await installAfter('), 'the install comes after the queue turn');
+  // Spec 0005 S3.1 and S3.7: only a `Started` answer carries an install, and the install's answer is the start's own answer plus its sentence.
+  const runLines = live(run.slice(0, run.indexOf('async function installAfter')));
+  const gate = runLines.indexOf("if (!result.startsWith('Started')) return { result }");
+  assert.ok(gate >= 0 && runLines[gate + 1] === 'return { result, install: { input: i, platform, ran } }', "the install is handed on only past the Started gate");
+  assert.ok(live(run.slice(run.indexOf('async function installAfter'))).includes('return startAnswer(start.ran, start.input, start.platform, sentence)'), "the install's answer is startAnswer with the sentence");
   // Issue 579: the start reads no store and holds no list check.
   assert.doesNotMatch(run, /\$\.store\.get|listed\(/);
 });

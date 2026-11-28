@@ -374,9 +374,10 @@ export const INSTALL_SENTENCES = {
   read: 'Not installed: the lockfile could not be read.',
   modules: 'Not installed: the worktree already holds node_modules.',
   several: 'Not installed: more than one kind of lockfile.',
+  http: 'Not installed: the repository names a plain http address.',
 } as const
 export const installed = (command: string): string => `Installed: ${command}.`
-export const notInstalled = (why: 'abandoned' | 'worktree' | 'read' | 'modules' | 'several' | { program: string } | { install: string }): string => {
+export const notInstalled = (why: 'abandoned' | 'worktree' | 'read' | 'modules' | 'several' | 'http' | { program: string } | { install: string }): string => {
   const head = typeof why === 'string'
     ? INSTALL_SENTENCES[why]
     : 'program' in why
@@ -400,23 +401,23 @@ const WRAPPER_FIXED = {
   npm_config_fund: 'false',
 }
 
-/** Spec 0005 S3.6: run by `node -e`, given the manager's path then its words as arguments. It hands the manager only the
- *  named variables (compared without case) and six fixed words, runs it with no shell and no streams, and exits with its
+/** Spec 0005 S3.6: run by `node -e`, given the worktree, the manager's path, then its words as arguments. It hands the manager only the
+ *  named variables (compared without case) and six fixed words, runs it in the worktree with no shell and no streams, and exits with its
  *  status, or 124 when it was killed at 240 s or could not start. A fixed constant: nothing typed reaches it. */
 export const INSTALL_WRAPPER = `
 const keep = new Set(${JSON.stringify(WRAPPER_KEEP)});
 const env = {};
 for (const [k, v] of Object.entries(process.env)) if (keep.has(k.toUpperCase())) env[k] = v;
 Object.assign(env, ${JSON.stringify(WRAPPER_FIXED)});
-const r = require('node:child_process').spawnSync(process.argv[1], process.argv.slice(2), { env, stdio: 'ignore', windowsHide: true, timeout: 240000 });
+const r = require('node:child_process').spawnSync(process.argv[2], process.argv.slice(3), { cwd: process.argv[1], env, stdio: 'ignore', windowsHide: true, timeout: 240000 });
 process.exit(typeof r.status === 'number' ? r.status : 124);
 `
 
-const WORKTREE_WAIT_S = 30
-const GIT_STATUS_TIMEOUT_MS = 10000
+const WORKTREE_WAIT_MS = 30000
+const GIT_STATUS_TIMEOUT_MS = 5000
+const HTTP_READ_MAX = 20 * 1024 * 1024
 export const INSTALL_CAP_MS = 250000
 
-/** The six ports of spec 0005 S2. */
 /** The install's spawn (spec 0005 S2): its pieces are pulled and dropped, and it ends at `capMs` or on
  *  the signal, since a spawn kills its child when its loop ends. The stream's return value is
  *  `{ code, signal }`. Resolves the exit code, or undefined when it was ended, could not start or threw. */
@@ -459,10 +460,16 @@ export type InstallPorts = {
   /** Output pulled and dropped, ended at capMs or on the signal; the exit code, or undefined when ended, not started or thrown. */
   spawn: (argv: string[], init: { cwd?: string }, capMs: number) => Promise<number | undefined>
   sleep: (ms: number) => Promise<unknown>
+  /** The clock's now, in ms. */
+  now: () => number
+  /** The file's text (spec 0005 S3.5a). */
+  read: (path: string) => Promise<string>
   program: (name: string) => Promise<{ value: string } | { why: string }>
 }
 
 const LOCK_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', '.yarnrc.yml'] as const
+const SETTINGS_NAMES = ['.npmrc', '.yarnrc'] as const
+const MANAGER_LOCKS: Record<string, string[]> = { pnpm: ['pnpm-lock.yaml'], npm: ['package-lock.json', 'npm-shrinkwrap.json'], yarn: ['yarn.lock'] }
 
 /** Spec 0005 S3.2 to S3.7, in order: the sentence for the S4 answer. It never throws; a throw is reason `install`. */
 export async function installAfterStart(ports: InstallPorts, input: Inputs, platform: Platform): Promise<string> {
@@ -475,22 +482,29 @@ export async function installAfterStart(ports: InstallPorts, input: Inputs, plat
     const git = await ports.program('git')
     if ('why' in git) return notInstalled('worktree')
     let ready = false
-    for (let n = 0; n < WORKTREE_WAIT_S && !ready; n++) {
-      if (n > 0) await ports.sleep(1000)
+    const began = ports.now()
+    for (;;) {
       const dir = await ports.stat(worktree)
-      if (!('found' in dir) || dir.found.kind !== 'dir' || dir.found.isLink || dir.found.realPath === undefined || !samePath(dir.found.realPath, worktree, platform)) continue
-      const status = await ports.run([git.value, '-C', worktree, 'status', '--porcelain', '--untracked-files=no'], { timeoutMs: GIT_STATUS_TIMEOUT_MS })
-      ready = isRecord(status) && status.exitCode === 0 && status.isStdoutTruncated === false && status.stdout === ''
+      if ('found' in dir && dir.found.kind === 'dir' && !dir.found.isLink && dir.found.realPath !== undefined && samePath(dir.found.realPath, worktree, platform)) {
+        // A git run that rejects is not ready, not a throw.
+        const status = await ports.run([git.value, '-C', worktree, 'status', '--porcelain', '--untracked-files=no'], { timeoutMs: GIT_STATUS_TIMEOUT_MS }).catch(() => undefined)
+        ready = isRecord(status) && status.exitCode === 0 && status.isStdoutTruncated === false && status.stdout === ''
+      }
+      if (ready || ports.now() - began >= WORKTREE_WAIT_MS) break
+      await ports.sleep(1000)
     }
     if (!ready) return notInstalled('worktree')
     // S3.4: the worktree's files.
     const sep = platform === 'win32' ? '\\' : '/'
     const regular: Record<string, boolean> = {}
+    const sizes: Record<string, number> = {}
     for (const name of LOCK_NAMES) {
       const at = await ports.stat(`${worktree}${sep}${name}`)
       if ('missing' in at) regular[name] = false
-      else if ('found' in at && at.found.kind === 'file' && !at.found.isLink) regular[name] = true
-      else return notInstalled('read')
+      else if ('found' in at && at.found.kind === 'file' && !at.found.isLink) {
+        regular[name] = true
+        sizes[name] = at.found.size
+      } else return notInstalled('read')
     }
     const modules = await ports.stat(`${worktree}${sep}node_modules`)
     if ('failed' in modules) return notInstalled('read')
@@ -503,6 +517,27 @@ export async function installAfterStart(ports: InstallPorts, input: Inputs, plat
     if ('reason' in table) return notInstalled('several')
     const [manager, ...rest] = table.words as [string, ...string[]]
     command = table.words.join(' ')
+    // S3.5a: a plain http address in a settings file or the lockfile: install nothing.
+    const toRead: string[] = MANAGER_LOCKS[manager]!.filter(n => regular[n] === true)
+    if (regular['.yarnrc.yml'] === true) toRead.push('.yarnrc.yml')
+    for (const name of SETTINGS_NAMES) {
+      const at = await ports.stat(`${worktree}${sep}${name}`)
+      if ('missing' in at) continue
+      // A link, a folder or a failed stat is a settings file the manager may still read: install nothing.
+      if (!('found' in at) || at.found.kind !== 'file' || at.found.isLink) return notInstalled('read')
+      toRead.push(name)
+      sizes[name] = at.found.size
+    }
+    for (const name of toRead) {
+      if ((sizes[name] ?? 0) > HTTP_READ_MAX) return notInstalled('http')
+      let text: string
+      try {
+        text = await ports.read(`${worktree}${sep}${name}`)
+      } catch {
+        return notInstalled('read')
+      }
+      if (text.length > HTTP_READ_MAX || /http:\/\//i.test(text)) return notInstalled('http')
+    }
     // S3.5: the programs, by absolute path; the manager is named before node.
     const managerPath = await ports.program(manager)
     if ('why' in managerPath) return notInstalled({ program: manager })
@@ -510,7 +545,12 @@ export async function installAfterStart(ports: InstallPorts, input: Inputs, plat
     if ('why' in node) return notInstalled({ program: 'node' })
     // S3.2 again, then S3.6: the install, through the wrapper.
     if (ports.aborted()) return notInstalled('abandoned')
-    const code = await ports.spawn([node.value, '-e', INSTALL_WRAPPER, managerPath.value, ...rest], { cwd: worktree }, INSTALL_CAP_MS)
+    // The wrapper starts in the node program's own folder, outside the repository (resolveProgram's rule), so a
+    // version-manager shim for node reads nothing of the worktree; the wrapper runs the manager in the worktree.
+    const cut = Math.max(node.value.lastIndexOf('\\'),node.value.lastIndexOf('/'))
+    let start = node.value.slice(0, cut)
+    if (start === '' || /^[A-Za-z]:$/.test(start)) start = node.value.slice(0, cut + 1)
+    const code = await ports.spawn([node.value, '-e', INSTALL_WRAPPER, worktree, managerPath.value, ...rest], { cwd: start }, INSTALL_CAP_MS)
     return code === 0 ? installed(command) : notInstalled({ install: command })
   } catch {
     // S3.7: a throw is reason install, and nothing else.
