@@ -89,15 +89,18 @@ or type `/brigade` to open it.
 - **Relays** questions and answers, quoted, with the source named.
 - **Decides small questions** your direction already covers, and tells you in
   one line.
-- **Hears when a session stops** (since 1.0.0). After each start and each
-  report it asks for the session's idle notice, so it never polls. A session
+- **Hears when a session stops** (since 1.0.0). The Brigade pane watches for
+  a member that goes idle or stops with no report and tells the lead, so the
+  lead neither polls nor subscribes (since 2.18.0). A session
   that goes idle with no report since the lead's last message is asked once,
   unless it reported that it waits on something that runs without it; the lead then checks
   that wait on a timer (since 1.14.0).
-  It never messages a session idle for over an hour, because the message
-  would make it re-read its whole context at full price; for new work on that
-  session's issue it starts a fresh session from the record on the issue, and
-  asks you to stop the old one. A session
+  By default it sends nothing to a session idle for over an hour, because the
+  message would make it re-read its whole context at full price; for new work
+  on that session's issue it starts a fresh session from the record on the
+  issue, and asks you to stop the old one. It can wake such a session on
+  purpose (since 2.17.0): on its own judgment at Turbo, otherwise on your
+  words, logged as a flagged decision. A session
   waiting at a permission prompt may not go idle, so the lead may not notice
   it; that session's own chat shows the prompt.
 - **Approves plans and closes sessions in plain text.** A session's "spec

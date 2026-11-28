@@ -16,6 +16,11 @@ goes idle or exits, after it asked for one with the message tool's
 `notify_when_idle`.
 _Avoid_: idle ping, heartbeat, poll
 
+**Quiet note**:
+The one turn the Brigade mod hands the lead naming `working` members that went
+idle or stopped with no report since its last message to them.
+_Avoid_: silent stop, nudge
+
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
 or 3 Turbo. Only the owner sets it: by a
