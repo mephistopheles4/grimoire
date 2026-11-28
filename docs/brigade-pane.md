@@ -6,7 +6,7 @@ The detail behind the [head-chef section of the root README](../README.md): what
 
 - [What the head chef does](#what-the-head-chef-does)
 - [The Brigade pane](#the-brigade-pane)
-- [The skill's own pages (deliberately stale table)](#the-skills-own-pages-deliberately-stale-table)
+- [The skill's own pages](#the-skills-own-pages)
 - [Usage summaries, and the limits of what the pane draws](#usage-summaries-and-the-limits-of-what-the-pane-draws)
 
 <!-- /toc -->
@@ -190,7 +190,7 @@ current pace holds, and a red note says how early a limit runs out when that
 pace would pass 100%. It needs the plugin install above. The skill works
 without it.
 
-## The skill's own pages (deliberately stale table)
+## The skill's own pages
 
 What it does, what counts as your yes, and what cleanup names back:
 [`skills/head-chef/README.md`](../skills/head-chef/README.md). The skill's contract, which
