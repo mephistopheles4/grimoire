@@ -139,7 +139,7 @@ const say = { to: 'build-1', message: 'go on' };
 test('C1: a message to an idle member whose last turn ended 61 minutes ago is refused with the fixed words', () => {
   assert.equal(COLD_MS, 60 * MIN);
   assert.equal(coldRefusal(say, [row('idle', 61)], NOW), REFUSE_COLD);
-  assert.match(REFUSE_COLD, /^Brigade: nothing was sent\..*idle for over an hour.*Send it nothing.*"When the model changes" in head-chef's starting\.md.*ask the owner to stop the old one\.$/);
+    assert.equal(REFUSE_COLD, "Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. Send it nothing. For new work on its issue, start a fresh session from the record on the issue, as \"When the model changes or the member is cold\" in head-chef's starting.md says, and ask the owner to stop the old one.");
 });
 
 test('C2: 59 minutes, exactly 60, or a busy row at any time passes on', () => {
@@ -157,6 +157,7 @@ test('C3: a subscription with no message to a cold member passes on, and so does
   // A name sent with its ref is judged by the name, so a ref is no way round the check.
   assert.equal(coldRefusal({ to: 'build-1 [aaa111]', message: 'go on' }, cold, NOW), REFUSE_COLD);
   assert.equal(coldRefusal({ to: 'build-1 [aaa111]', message: 'go on' }, [row('idle', 59)], NOW), undefined);
+  for (const to of ['build-1[aaa111]', 'build-1  [aaa111]', 'build-1 [a.b]', 'build-1 ']) assert.equal(coldRefusal({ to, message: 'go on' }, cold, NOW), REFUSE_COLD, to);
 });
 
 test('C4: no usable time passes the send on', () => {

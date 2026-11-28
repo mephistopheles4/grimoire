@@ -71,8 +71,9 @@ after the GRIM-41 name resolution and while the pane is open):
    > Brigade: nothing was sent. That session has been idle for over an hour,
    > so a message would make it re-read its whole context at full price.
    > Send it nothing. For new work on its issue, start a fresh session from
-   > the record on the issue, as "When the model changes" in head-chef's
-   > starting.md says, and ask the owner to stop the old one.
+   > the record on the issue, as "When the model changes or the member is
+   > cold" in head-chef's starting.md says, and ask the owner to stop the old
+   > one.
 
 3. The pure check (rows and clock in, `cold` or not out) goes in
    `brigade/send.ts` as plain TypeScript with no engine import, beside
@@ -106,7 +107,13 @@ Through the contract (`skills/head-chef/references/CONTRACT.md`, raise its
    cold: do not ask it. Tell the owner in one line with the three options
    the check already gives. A member that reports on its own is warm again.
 4. A subscription with no message is still allowed to a cold member.
-5. `references/starting.md`, "When the model changes": add the cold member
+5. Closing and renaming: a cold member is not asked to wrap up (ask the
+   owner to stop or archive it) and is not told of a rename.
+6. Two older evals follow S5.1: `lead-idle-ask` fails any send to its member
+   idle for three hours, and `lead-idle-own-question` sets its member ten
+   minutes idle, so its send stays right. A cold member waiting on an owner's
+   answer has no eval of its own; C6 covers the fresh start it shares.
+7. `references/starting.md`, "When the model changes": add the cold member
    as the second reason to start fresh, with the same steps, and change the
    heading to cover both ("When the model changes or the member is cold").
    Its step that asks the old session to post the record does not apply to a

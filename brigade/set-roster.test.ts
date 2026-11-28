@@ -10762,6 +10762,14 @@ test('GRIM-86: a message to a member idle for 61 minutes is refused and nothing 
   expect(sent).toEqual([])
 })
 
+test('GRIM-86: with the pane closed, a message to a cold member goes on as sent', async ($, on) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
+  await start($)
+  liveRows(w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -61 * 60 * 1000 }])
+  await sendTo($, { message: 'go on' })
+  expect(sent.length).toBe(1)
+})
+
 test('GRIM-86: at 59 minutes, busy, a subscription or a subagent, the send goes on', async ($, on) => {
   const warm = await coldWorld(on, $, 'idle', 59)
   await sendTo($, { message: 'go on' })

@@ -120,7 +120,7 @@ export const resolveListed = async (name: string, listed: (cursor?: string) => P
 export const COLD_MS = 60 * 60 * 1000
 
 export const REFUSE_COLD =
-  `Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. Send it nothing. For new work on its issue, start a fresh session from the record on the issue, as "When the model changes" in head-chef's starting.md says, and ask the owner to stop the old one.`
+  `Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. Send it nothing. For new work on its issue, start a fresh session from the record on the issue, as "When the model changes or the member is cold" in head-chef's starting.md says, and ask the owner to stop the old one.`
 
 /** The refusal for a lead's send, or undefined to pass it on. Only a call that
  *  carries a message to a session name, bare or with its ref, is judged: it is refused when the
@@ -136,12 +136,14 @@ export const coldRefusal = (
 ): string | undefined => {
   const sent = typeof call === 'object' && call !== null ? (call as { to?: unknown }).to : undefined
   // A name sent with its ref is judged by the name.
-  const to = typeof sent === 'string' ? sent.replace(/ \[[A-Za-z0-9_-]{1,80}\]$/, '') : sent
+  const to = typeof sent === 'string' ? sent.replace(/\s*\[[^\]]*\]\s*$/, '').trim() : sent
   if (!needsListing(to) || !sendsMessage(call) || rows === undefined || !Number.isFinite(now)) return undefined
   const named = rows.filter(r => r.name === to)
   if (named.length !== 1) return undefined
   const { status, updatedAt } = named[0]
   if (status !== 'idle' || typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return undefined
+  // A time ahead of the clock would never read as cold anyway; this line
+  // says so, as matchRows treats such a time as no usable time.
   if (updatedAt > now + AHEAD_MS) return undefined
   return now - updatedAt > COLD_MS ? REFUSE_COLD : undefined
 }

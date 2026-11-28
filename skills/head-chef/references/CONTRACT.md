@@ -512,9 +512,10 @@ Home: `SKILL.md`, the section "Between the owner and the sessions". Carries out:
   spec you have read on the issue, never on the report alone. The go-ahead
   on a spec is as the owner's user-level instructions file says.
   To close a member, ask it to wrap up: commit, push, report, and say it is
-  ready to close.
+  ready to close. A cold member is not asked: ask the owner to stop or
+  archive it.
 - **A rename.** Before you are renamed, tell each member the new name, and
-  tell the owner.
+  tell the owner. A cold member is not told.
 - Say a pending decision once, not every turn.
 - Update the Brigade pane in the same step as each report you take and each
   decision you send.

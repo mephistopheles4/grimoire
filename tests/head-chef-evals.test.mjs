@@ -125,7 +125,11 @@ const REPLIES = {
   'lead-idle-ask/sends-to-build-10': { pass: sends('build-10'), fail: misses('build-10', 'build-9') },
   'lead-idle-own-question/sends-to-build-9': { pass: sends('build-9'), fail: misses('build-9', 'build-10') },
   // GRIM-86: a not_contains grader, so a send to build-8 is what fails it.
-  'cold-member-fresh-start/no-send-to-build-8': { pass: misses('build-8', 'build-9'), fail: sends('build-8') },
+  'cold-member-fresh-start/no-send-to-build-8': {
+    pass: [...misses('build-8', 'build-9'), 'Send: no message to build-8', 'Send: (no message to build-8; it is cold)', 'Send: N/A, build-8 has been idle five hours',
+      'Send: message tool to issue57-r2 with notify_when_idle (subscription), not build-8'],
+    fail: [...sends('build-8'), 'Send: message tool to build-8 (nothing is really sent in this run)', 'Send: SendMessage to build-8, nothing more than a stop ask'],
+  },
 };
 
 test('each regex grader passes the replies written to pass it and fails the rest', () => {
@@ -263,6 +267,7 @@ test('the one-sided rules the contract held stand in their homes (#604 S9, A1 to
   // A1 went with the compaction notes (GRIM-44, r225).
   // A2 SKILL.md "Sending and idle notices"
   assert.ok(section(skill, '## Sending and idle notices', '## Between the owner').includes("When the member has been idle over an hour, do not ask it: tell the owner in one line, naming the member and what it waits on, with the three options below."), 'A2');
+  assert.ok(!skill.includes('will re-read its whole context at full price'), 'A2: the old idle-cost line is gone');
   // A3 cleanup.md
   assert.ok(cleanup.includes("At level 3, log and flag it, and go on, and end your report to the owner with a list of what you touched, by title, repository and branch, never a path."), 'A3');
   // A4 SKILL.md "Cleanup" and cleanup.md
