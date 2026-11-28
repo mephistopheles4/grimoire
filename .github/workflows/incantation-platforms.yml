@@ -11,16 +11,25 @@
 # public repository: macos-15 (Apple Silicon), macos-15-intel, ubuntu-24.04-arm
 # and ubuntu-24.04. No larger runner.
 #
-# **When it runs.** By hand, or on a pull request that changes the runtime's
-# pins or this file. Each job downloads about 1.2 GB from the hosts the plan
+# **When it runs.** On a pull request that changes the runtime's pins or this
+# file, on two runners: macos-15 (Apple Silicon) and ubuntu-24.04. Weekly and
+# by hand, on all four. Each job downloads about 1.2 GB from the hosts the plan
 # names, so it does not run on every pull request. It is not a required check.
 #
-# **The plumbing job** runs on the two macOS runners only. It checks the
+# **Why two on a pull request (docs/spec/0005, S4).** The account runs 20 jobs
+# at once, 5 of them macOS, across every repository, and jobs past that queue.
+# The Apple Silicon Mac is the one a GRIM-57 kind of bug shows on, and Linux
+# x64 is the common Linux. Intel Mac and Linux on ARM fail rarely and alone, so
+# they wait for the weekly run, and GitHub is retiring its Intel Mac runners.
+# The weekly run holds two Macs, under the limit.
+#
+# **The plumbing steps** run in the same job, on macOS only. They check the
 # listener's macOS paths with real processes: the listener's tests on darwin,
 # the recorder's stop with a real child, and the steady player feeding a real
 # ffplay. The runners have no speaker and no Bluetooth, so ffplay plays to SDL's
 # dummy audio driver: this proves the plumbing, never that a person hears a
-# line (GRIM-57).
+# line (GRIM-57). No `timeout-minutes` is set; GitHub's default, 360 minutes,
+# is far over what the job takes.
 #
 # **Not on the publishing path.** `contents: read`, no secret. The installer
 # sends no token (docs/spec/0001, S5.9).
@@ -29,6 +38,10 @@ name: incantation-platforms
 
 on:
   workflow_dispatch:
+  # Monday, 04:17 UTC, on all four runners. The README's badge for this event
+  # shows the result.
+  schedule:
+    - cron: '17 4 * * 1'
   pull_request:
     paths:
       - skills/incantation/scripts/runtime/**
@@ -45,8 +58,9 @@ jobs:
   runtime:
     strategy:
       fail-fast: false
+      # Two runners on a pull request, all four otherwise (header comment).
       matrix:
-        os: [macos-15, macos-15-intel, ubuntu-24.04-arm, ubuntu-24.04]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["macos-15", "ubuntu-24.04"]' || '["macos-15", "macos-15-intel", "ubuntu-24.04-arm", "ubuntu-24.04"]') }}
     runs-on: ${{ matrix.os }}
     # Named, so a step runs with pipefail and a failed command before `tee`
     # fails the step.
@@ -98,28 +112,16 @@ jobs:
           test "$("$R/py/bin/python" -I "$E/aec-worker.py" </dev/null | head -c 4)" = AEC1
           HF_HOME="$R/hf" HF_HUB_OFFLINE=1 "$R/py/bin/python" -I "$E/phonon-worker.py" </dev/null | grep -q '"ready": true'
 
-  plumbing:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, macos-15-intel]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-          check-latest: true
+      # The plumbing, on the Macs only (header comment). It runs after the
+      # runtime steps and even when one of them failed, so a runtime failure
+      # does not hide a plumbing result.
       - name: The listener's tests, on darwin
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: node --test tests/incantation-listen.test.mjs tests/incantation-listen-live.test.mjs tests/incantation-echo.test.mjs
       # A real child that ends on SIGINT, and one that ignores it, so the
       # signal and the SIGKILL after the grace are delivered for real.
       - name: stopRecorder with a real child
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: |
           node --input-type=module -e '
           import { spawn } from "node:child_process";
@@ -139,6 +141,7 @@ jobs:
           console.log("stopRecorder: SIGINT ends a recorder, SIGKILL ends one that ignores it");
           '
       - name: Install ffmpeg, with ffplay
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: |
           brew install ffmpeg
           test -x "$(brew --prefix)/bin/ffplay"
@@ -147,6 +150,7 @@ jobs:
       # 30 ms frames on a real clock, must settle ended (not failed) with
       # ffplay running, and close must end ffplay.
       - name: The steady player feeds a real ffplay
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         env:
           SDL_AUDIODRIVER: dummy
         run: |

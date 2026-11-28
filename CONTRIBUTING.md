@@ -294,11 +294,12 @@ gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
 page saved to its store. Those keys and the saved entry are the page's seam.
 
 **Two more gates for the mod's `set_roster` tool.** CI fetches Claude Code in
-one place only, the plugin validator's workflow, and that is not the publishing
-path: its jobs have `contents: read`, hold no token or secret, write nothing,
-and the `pages` workflow does not depend on them. The first gate runs there,
-as the workflow's `plugin-test` job on a Windows runner and its
-`plugin-test-linux` job on a Linux one. Run it yourself before you push a
+two workflows only, the plugin validator's and `plugin-test`, and neither is
+the publishing path: their jobs have `contents: read`, hold no token or
+secret, write nothing, and the `pages` workflow does not depend on them. The
+first gate runs in `plugin-test`, as its `plugin-test` job on a Windows runner
+and its `plugin-test-linux` job on a Linux one, on a change to `brigade/`,
+`.claude-plugin/`, `hooks/` or either workflow. Run it yourself before you push a
 change to `brigade/`, if you like, with `athanor run plugin-test`. The tests'
 world follows its host; the case that builds a junction runs on Windows only. The second stays on your own machine: before a
 pull request that touches `brigade/`, run it on Windows and say so in the pull

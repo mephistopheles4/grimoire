@@ -170,8 +170,12 @@ Each skill is scanned on its own, with its own baseline. The repository root is
 not scanned. A skill directory is what installs, and the rest of the tree is
 CodeQL's, zizmor's, or prose no agent is given. The workflow lists the skills
 from the tree on every run, so a new skill cannot go unscanned. One job named
-`scan` passes only when every skill did. Each skill's result goes into the run
-summary as a table.
+`scan` passes only when every scanned skill did. Each skill's result goes into
+the run summary as a table.
+
+A pull request or push scans only the skills it touched; every skill is
+scanned weekly, by hand, and on a change to the workflow, allowances or gate
+scripts (`scripts/skillspector-select.mjs`).
 
 The scanner's whole-scan deadline is 600 seconds, and
 `SKILLSPECTOR_MAX_WORKFLOW_SECONDS` sets it. One skill scans in five to eight
@@ -262,7 +266,7 @@ baseline header.
 
 **The scanner has to honour `file`, and CI proves it.** A scanner that ignored
 `file` would apply every entry to the whole folder again while the gate stayed
-green. On every run the `scan` job copies `eagle-eye` with its edge audit
+green. Every per-skill scan job copies `eagle-eye` with its edge audit
 copied to `lib/audit.mjs`, scans the copy with `--use-shipped-baseline`, and
 `scripts/skillspector-probe.mjs` requires the copy's `E1` to be reported and
 the original's to stay suppressed. A scanner pin bump that stops honouring
@@ -463,10 +467,9 @@ Measured on 2.1.332, in athanor's image with no network:
   three times (the package in the fetch step, the tarball's file name below
   it, and the string `2.1.332 (Claude Code)` the version step compares
   against);
-- the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.332`, written
-  the same three times;
-- the `plugin-test-linux` job: the Linux package, written the same three
-  times;
+- in `plugin-test.yml`, the `plugin-test` job:
+  `@anthropic-ai/claude-code-win32-x64@2.1.332`, and the `plugin-test-linux`
+  job: the Linux package, each written the same three times;
 - `tests/container/Dockerfile`, athanor's image: the Linux package, written
   four times in its one `RUN` line, for `athanor run validate` and
   `athanor run plugin-test`, beside the
@@ -480,19 +483,19 @@ version fails before the gate can read as clean.
 The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
 `plugin-test-linux` job runs it on a Linux one. A failing test and a test file
 that does not load both exit `1`, so the exit code is the gate. It needs no
-sign-in and makes no model call, measured on 2.1.332 with an empty config
-folder and no API key. The tests' world follows its host: its paths are
+sign-in and makes no model call. The tests' world follows its host: its paths are
 the host's, and the case that builds a junction runs on Windows only, since
 Linux has none and the recorded answers come from Windows. athanor runs
 the same tests as `athanor run plugin-test`.
 
+Both jobs live in `plugin-test.yml` and run only on a change to `brigade/`,
+`.claude-plugin/`, `hooks/` or either workflow file: the mod imports nothing
+outside `brigade/`.
+
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball
 and `tar` unpacks it outside the checkout. The package holds one executable and
 no scripts. Nothing runs an install, so no package script can run and no
-`package.json` or lockfile is written. The wrapper package,
-`@anthropic-ai/claude-code`, would need its postinstall script to put the binary
-in place. zizmor's `adhoc-packages` audit flags `npm install` as an install
-outside a lockfile, and a lockfile is the manifest this repository refuses.
+`package.json` or lockfile is written.
 
 **As strong as zizmor's pin, and no stronger.** npm never re-publishes a version
 number, so this is close to a content pin and is not one. Checking the
@@ -515,8 +518,9 @@ and the check validates against a stale schema.
 
 **How.**
 
-1. Change the version in all ten places together: three in each job of the
-   workflow and four in `tests/container/Dockerfile`. Replace the image's
+1. Change the version in all ten places together: three in each of the three
+   jobs and four in
+   `tests/container/Dockerfile`. Replace the image's
    sha512 with the new version's: `npm view
    @anthropic-ai/claude-code-linux-x64@<version> dist.integrity`, decoded from
    base64 to hex. Change the date beside the pin above.

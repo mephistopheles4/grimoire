@@ -35,20 +35,36 @@
 
 name: skillspector
 
+# **Only the skills a change touched, on a pull request and a push.** Every
+# skill on the weekly run, by hand, and when the scanner's pin, the allowances
+# or the gate's code change. scripts/skillspector-select.mjs makes the pick and
+# says why in its log (docs/spec/0005, S5). The per-skill split stays: the
+# scanner's whole-scan deadline is why one job per skill exists, and the owner
+# asked to keep it.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  # Monday, 04:47 UTC: every skill, so a scanner rule that moved under an
+  # unchanged pin still turns something red within the week. The README's
+  # badge for this event shows the result.
+  schedule:
+    - cron: '47 4 * * 1'
 
 permissions:
   contents: read
 
 jobs:
-  # Which skills there are, read from the tree on every run rather than listed
+  # Which skills to scan, read from the tree on every run rather than listed
   # here. A skill added without a line in this file would be a skill nobody
   # scans, and a gate that quietly does nothing reads as a gate that passed. A
   # skill is a directory under skills/ with a SKILL.md in it, which is how
   # CONTRIBUTING.md defines one.
+  #
+  # **A job, not a path filter.** The scan matrix is computed, so it needs a job
+  # before it, and a workflow-level path filter would leave the required `scan`
+  # pending on every pull request it skipped.
   skills:
     name: list the skills
     runs-on: ubuntu-24.04
@@ -56,34 +72,35 @@ jobs:
       contents: read
     outputs:
       skills: ${{ steps.list.outputs.skills }}
+      count: ${{ steps.list.outputs.count }}
     steps:
+      # The pick reads the changed paths from local history, so the checkout
+      # fetches it: the merge commit and its parents on a pull request, the
+      # whole history on a push, which reads everything since `before`. Every
+      # git command after this is a local read; no credential is kept.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # jq ships on the ubuntu-24.04 image. An empty list fails here by name
-      # rather than as a matrix with nothing in it, because no skills is a tree
-      # that lost them, not a tree with nothing to scan.
+          # 0 is false in an expression, so the pull request's 2 comes first.
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      # A tree with no skill fails here by name rather than as a matrix with
+      # nothing in it, because no skills is a tree that lost them, not a tree
+      # with nothing to scan. An empty pick is a different thing: `count` is 0,
+      # the scans are skipped, and `scan` passes.
       #
-      # A skill is a directory with a SKILL.md in it, under skills/. Each row
-      # carries the name the job and its code-scanning category use, and the
-      # directory the scanner is pointed at. A skill keeps its bare name, so
-      # its category does not move.
-      - name: List the skills
+      # Each row carries the name the job and its code-scanning category use,
+      # and the directory the scanner is pointed at. A skill keeps its bare
+      # name, so its category does not move. `before` comes through the
+      # environment, and the script refuses anything but a commit id.
+      - name: List the skills to scan
         id: list
-        run: |
-          skills=$(
-            {
-              for d in skills/*/; do
-                if [ -f "${d}SKILL.md" ]; then printf '%s\t%s\n' "$(basename "$d")" "${d%/}"; fi
-              done
-            } | jq -R 'split("\t") | {skill: .[0], dir: .[1]}' | jq -cs .
-          )
-          if [ "$skills" = "[]" ]; then
-            echo "no directory under skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
-            exit 1
-          fi
-          echo "skills=${skills}" >> "$GITHUB_OUTPUT"
-          echo "skills to scan: ${skills}"
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: node scripts/skillspector-select.mjs
 
   # One job per skill. Each one scans a single skill directory with that
   # skill's own baseline, gates on it, and writes its verdict to the run's
@@ -116,6 +133,8 @@ jobs:
   skill:
     name: scan ${{ matrix.dir }}
     needs: skills
+    # A matrix with no rows is an error, so a pick of none skips the job.
+    if: needs.skills.outputs.count != '0'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -302,8 +321,12 @@ jobs:
       # nothing. A skill renamed or removed does orphan its category: no upload
       # under that name comes again, so its open alerts stay open until somebody
       # closes them by hand.
+      #
+      # **Push and schedule**, both on main. A skill a push did not scan keeps
+      # its last upload under its category, which is still its state: its
+      # directory did not change.
       - name: Upload SARIF
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'schedule'
         uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: ${{ runner.temp }}/skillspector-upload.sarif
@@ -328,7 +351,9 @@ jobs:
       # copied to lib/audit.mjs, using --use-shipped-baseline as an installer
       # would: the original's E1 finding must stay suppressed
       # and the copy's must be reported. A pin bump that stops honouring `file`
-      # goes red here. One skill is enough to show it.
+      # goes red here. One skill's copy is enough to show it, and the step runs in
+  # every scan job: with only the touched skills scanned, a row condition
+  # would skip it on most pull requests (docs/spec/0005, S5).
       #
       # The copy keeps the folder name `eagle-eye`: under another name the scanner
       # raises an AS3 finding on CONTRACT.md. It sits under the runner's temp
@@ -337,7 +362,6 @@ jobs:
       # complete and does not run the gate on it. It proves the installer's route;
       # the gate above loads the same file with --baseline.
       - name: Prove the scanner honours the baseline's file
-        if: matrix.skill == 'eagle-eye'
         run: |
           mkdir -p "${RUNNER_TEMP}/probe"
           cp -r skills/eagle-eye "${RUNNER_TEMP}/probe/eagle-eye"
@@ -353,20 +377,31 @@ jobs:
   # One name for the whole scan. The per-skill jobs are named after skills, so
   # the set of names changes whenever a skill is added, and a required status
   # check needs a name that does not. This job is that name — `scan`, which the
-  # single job before it carried — and it is red unless the listing and every
-  # skill's gate passed. It runs unless the run was cancelled, so a failure
-  # upstream reaches it as a failure rather than a skip. It has no `name:` on
-  # purpose: a job's name is its check name, and this one's is its id.
+  # single job before it carried — and it is red unless the listing passed and
+  # every picked skill's gate passed. A pick of none skips the scans, and that
+  # passes only when the listing said the pick was empty. It runs unless the
+  # run was cancelled, so a failure upstream reaches it as a failure rather
+  # than a skip. It has no `name:` on purpose: a job's name is its check name,
+  # and this one's is its id.
+  #
+  # The verdict is scripts/skillspector-select.mjs's scanVerdict, so the rule
+  # has tests; the checkout is only to read that script.
   scan:
     needs: [skills, skill]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    permissions: {}
+    permissions:
+      contents: read
     steps:
-      - name: Every skill passed its gate
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Every picked skill passed its gate
         env:
           LISTED: ${{ needs.skills.result }}
           SCANNED: ${{ needs.skill.result }}
-        run: |
-          echo "listing the skills: ${LISTED}; scanning each one: ${SCANNED}"
-          [ "$LISTED" = success ] && [ "$SCANNED" = success ]
+          COUNT: ${{ needs.skills.outputs.count }}
+        run: node scripts/skillspector-select.mjs verdict

@@ -386,6 +386,12 @@ node scripts/check.mjs
 Security problems go through private reporting, not a public issue:
 [`SECURITY.md`](SECURITY.md).
 
+The weekly runs, which cover what pull requests leave out (every skill's scan,
+Intel Mac and Linux on ARM). A red badge is a failed weekly run:
+
+[![weekly skillspector](https://github.com/mephistopheles4/grimoire/actions/workflows/skillspector.yml/badge.svg?event=schedule)](https://github.com/mephistopheles4/grimoire/actions/workflows/skillspector.yml?query=event%3Aschedule)
+[![weekly incantation-platforms](https://github.com/mephistopheles4/grimoire/actions/workflows/incantation-platforms.yml/badge.svg?event=schedule)](https://github.com/mephistopheles4/grimoire/actions/workflows/incantation-platforms.yml?query=event%3Aschedule)
+
 ## Licence
 
 [MIT](LICENSE). © 2026 Ayman Diab.

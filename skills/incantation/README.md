@@ -119,9 +119,9 @@ messages and are not repeated.
 | Platform | What you get | Status |
 |---|---|---|
 | Windows 11 | the whole runtime, with `uv` for the Python layer | Tested with a real mic and a headset: the owner's trial. |
-| Linux x64 and Linux on ARM (64-bit) | the whole runtime, with `uv` for the Python layer, which needs glibc 2.28 or later (the onnxruntime and livekit wheels are `manylinux_2_28`) | Installed, verified and each part started once by the `incantation-platforms` workflow; no real-mic run. |
-| macOS 14 or later, Apple Silicon | the whole runtime, with `uv` for the Python layer | The same workflow, and a Phonon run on an Apple Silicon Mac; no real-mic run. |
-| macOS 13 or later, Intel | the whole runtime, with `uv` for the Python layer. Intel Macs run an older onnxruntime, 1.23.2, because later releases publish no Intel Mac wheel; elsewhere it is 1.32.0. 1.23.2 gets no upstream security fixes, and is safe here only because every model it loads is pinned by hash | The same workflow; no real-mic run. |
+| Linux x64 and Linux on ARM (64-bit) | the whole runtime, with `uv` for the Python layer, which needs glibc 2.28 or later (the onnxruntime and livekit wheels are `manylinux_2_28`) | Installed, verified and each part started once by the `incantation-platforms` workflow: Linux x64 on each pull request that changes the runtime, Linux on ARM weekly; no real-mic run. |
+| macOS 14 or later, Apple Silicon | the whole runtime, with `uv` for the Python layer | The same workflow, on each pull request that changes the runtime, and a Phonon run on an Apple Silicon Mac; no real-mic run. |
+| macOS 13 or later, Intel | the whole runtime, with `uv` for the Python layer. Intel Macs run an older onnxruntime, 1.23.2, because later releases publish no Intel Mac wheel; elsewhere it is 1.32.0. 1.23.2 gets no upstream security fixes, and is safe here only because every model it loads is pinned by hash | The same workflow, weekly; no real-mic run. |
 | macOS 13 on Apple Silicon, macOS 12 on Intel | unsupported: onnxruntime's wheel needs macOS 14 on Apple Silicon and macOS 13 on Intel, and `setup.mjs runtime plan` says so | |
 | Windows on ARM | unsupported: `sherpa-onnx-node` 1.13.8 publishes no Windows on ARM build, and the plan says so | |
 | Any other platform | unsupported: the plan names the platform and stops | |

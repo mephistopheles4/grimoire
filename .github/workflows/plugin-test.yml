@@ -1,0 +1,133 @@
+# Run the Brigade mod's tests with Claude Code's own test runner, on Windows
+# and on Linux.
+#
+# **Its own file, so it can carry a path filter.** These jobs moved here from
+# plugin-validate.yml (docs/spec/0005, S6). `validate` there is a required
+# check and runs on every pull request; these two are not required, so a path
+# filter cannot leave a required check pending. The mod imports nothing outside
+# brigade/, so a change outside the paths below cannot break its tests. The
+# account runs 20 jobs at once across every repository, and these two would
+# otherwise start on every pull request.
+#
+# **The Claude Code pin lives here and in plugin-validate.yml.** A change to
+# either file runs these tests, so a bump made in only one still tests the mod. The version strings
+# that move together are listed beside the fetch below.
+#
+# **Not on the publishing path.** `contents: read`, no token, no secret, and
+# pages.yml does not depend on it.
+
+name: plugin-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - brigade/**
+      - .claude-plugin/**
+      - hooks/**
+      - .github/workflows/plugin-test.yml
+      - .github/workflows/plugin-validate.yml
+  pull_request:
+    paths:
+      - brigade/**
+      - .claude-plugin/**
+      - hooks/**
+      - .github/workflows/plugin-test.yml
+      - .github/workflows/plugin-validate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The Brigade mod's tests, `claude plugin test .`, which run
+  # brigade/*.test.ts and brigade/*.test.tsx under the engine's own test
+  # runner. A test file that does not load fails the run ("the file did not
+  # load"), and so does a failing test: the exit code is the gate (#477).
+  #
+  # **Windows and Linux, as two jobs.** The tests' world follows its host: its
+  # paths are the host's, and the case that builds a junction runs on Windows
+  # only, since Linux has none and the answers in brigade/recorded-stats.ts
+  # were recorded on Windows. So this job is the one that runs that case, and
+  # plugin-test-linux the one that runs the mod's paths as Linux spells them
+  # (#481). Two jobs and not a matrix, so this job's check keeps its name.
+  #
+  # **No credential.** The runner needs no sign-in and makes no model call:
+  # measured on 2.1.332 with an empty config folder and no API key.
+  plugin-test:
+    # Pinned, as plugin-validate.yml's validate is, because the fetch names a platform package:
+    # windows, x64.
+    runs-on: windows-2025
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The same fetch as plugin-validate.yml's validate, of the Windows package, whose one
+      # executable is `package/claude.exe`. These two version strings, the one
+      # in the version check below, validate's three, plugin-test-linux's three
+      # and the one in tests/container/Dockerfile move together. `tar` runs in the folder,
+      # since Git's tar reads a drive letter in a path as a remote host.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.332"
+          tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.332.tgz"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      - name: Check the version
+        run: |
+          expected="2.1.332 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      - name: Run the mod's tests
+        run: claude plugin test .
+
+  # The same tests on Linux, where the junction case does not run.
+  plugin-test-linux:
+    # Pinned, as plugin-validate.yml's validate is: the fetch names a platform package, linux, x64,
+    # glibc.
+    runs-on: ubuntu-24.04
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # plugin-validate.yml's fetch, unchanged; its version strings move with the others.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.332"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.332.tgz" -C "$RUNNER_TEMP/claude"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      - name: Check the version
+        run: |
+          expected="2.1.332 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      - name: Run the mod's tests
+        run: claude plugin test .
