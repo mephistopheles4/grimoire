@@ -95,6 +95,7 @@ test('the counter fails a doc over budget or gone, and passes one at budget', ()
     // A generated table of contents is not counted.
     writeFileSync(join(dir, 't.md'), 'one\n\n<!-- toc -->\n\n- [Two](#two)\n\n<!-- /toc -->\n\n## Two\n');
     assert.deepEqual(faults(dir, { 't.md': 3 }), [], 'the table adds no words');
+    assert.equal(faults(dir, { 't.md': 2 }).length, 1, 'the words outside the table still count');
     const gone = faults(dir, { 'a.md': 4, 'c.md': 10 });
     assert.equal(gone.length, 1, 'a listed doc that is gone fails');
     assert.match(gone[0], /^c\.md is in BUDGET/, 'the message names the doc');

@@ -63,14 +63,14 @@ Linux one. All three put their tool on the runner and never on your machine
 stays the only one you need for them. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
-`check.yml` also runs `node scripts/toc.mjs --check`, which the command above does
-not. After a heading change, run `node scripts/toc.mjs`.
-
 It walks what `.gitignore` does not exclude, so a worktree under
 `.claude/worktrees/` is not descended into and not checked. Only the root
 `.gitignore` is read. A file git tracks that `.gitignore` matches fails, because
 it would ship with no rule reading it; in CI the check also fails when it
 cannot ask git which files it tracks.
+
+It does not check tables of contents; `check.yml` does. After a heading change,
+or a doc crossing 100 lines, run `node scripts/toc.mjs`.
 
 You need Node 24 or later and nothing else. There is no install step, because
 there are no dependencies. The skills' own scripts and the one command share
@@ -390,7 +390,7 @@ it needs the owner's yes in the issue, and only review holds that line.
 procedure is two reviews wearing one hat.
 
 **Say what you tested.** "Ran `node scripts/check.mjs`, green" is enough for a
-prose change. For a renderer change, say which box file you rendered and what
+prose change with no heading change. For a renderer change, say which box file you rendered and what
 you looked at on the page.
 
 **A behaviour change carries a test.** Not a coverage target — there is none.
