@@ -271,7 +271,8 @@ what the plugin route installs. There, `E1` and `PE3` still hide a send or a
 credential read in any file, the mod's included. The scan does not hold which
 providers receive a box's text and the key: a test in `tests/audit.test.mjs`
 holds the hosts written as URLs in `audit.mjs`'s source to two, all `https`,
-and review holds the rest.
+and review holds the rest. The Clef route writes no URL; it sends where
+`ensure` says ([edge-audit.md](edge-audit.md#the-local-route)).
 
 The `contract` skill's `EA2`, `P2` and `RA2` entries name the files they fire on. An
 entry that names a file covers all of that file. With `P2` off for `SKILL.md`,
@@ -451,11 +452,10 @@ in flight. That is a style decision nobody has taken.
 
 The `check` job in [`.github/workflows/check.yml`](../../.github/workflows/check.yml)
 runs `claude plugin validate --strict` on every pull request and every push to
-`main`, as a step. `scripts/check.mjs` checks the rules that span files, such as the two
-manifests agreeing. The validator checks each file against the schema Claude
-Code itself loads, and `--strict` fails on an unknown field the runtime would
-ignore in silence. Neither replaces the other. It is a step of the required
-`check` job, so a red run blocks a merge.
+`main`, as a step. `scripts/check.mjs` checks the rules that span files. The
+validator checks each file against the schema Claude Code itself loads, and
+`--strict` fails on an unknown field the runtime would ignore in silence. It is
+a step of the required `check` job, so a red run blocks a merge.
 
 **Three runs, named one by one.** The step validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
@@ -487,7 +487,7 @@ Measured on 2.1.332, in athanor's image with no network:
 
 ### The pin
 
-**Claude Code 2.1.332**, set on 2026-11-26. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in three places that move together:
+**Claude Code 2.1.332**. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in three places that move together:
 
 - the `check` job in `check.yml`: `@anthropic-ai/claude-code-linux-x64@2.1.332`, written
   three times (the package in the fetch step, the tarball's file name below
