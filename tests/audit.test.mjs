@@ -955,6 +955,7 @@ test('C6: when Clef is not ready or ensure answers oddly, the run exits 3, sends
     [{ out: ready(`${svc.base}/elsewhere`) }, /not a loopback/],
     [{ out: ready(`https://127.0.0.1:${svc.port}`) }, /not a loopback/],
     [{ out: ready(`http://127.0.0.1`) }, /not a loopback/],
+    [{ out: `${JSON.stringify({ state: 'ready', url: [svc.base] })}\n` }, /not a loopback/],
   ];
   try {
     for (const [opts, want] of cases) {

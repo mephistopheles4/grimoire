@@ -12,15 +12,17 @@
 //              The argued ones are scored against the full run's controls and
 //              flagged by the full run's rule. A sourced or measured one is
 //              listed and never sent. A set that holds sends nothing.
-//   --probe    print `yes` when a usable key is in the environment and `no`
-//              when none is. A key in the wrong variable is not usable. Reads no box and opens no connection. The skill's offer to
+//   --probe    print `yes` when a usable key is in the environment, or the Clef
+//              route is named, and `no` otherwise. A key in the wrong variable
+//              is not usable. Reads no box, runs nothing and opens no connection. The skill's offer to
 //              run the audit hangs on this answer, so it stays one word.
 //   --provider print the provider a run would use, or `none`. Reads no box and
 //              opens no connection.
 //   --dry-run  print the request body for the first argued edge, and send it
 //              nowhere. On standard error, state how many requests a real run
-//              sends, to which provider, that each is charged to the key, and
-//              their rough size. Needs no key.
+//              sends, to which provider, that each is charged to the key (on
+//              the Clef route: that nothing leaves the machine and no key is
+//              charged), and their rough size. Needs no key, and never runs Clef.
 //   --json     also write the ranking to <path>. The box file is never written.
 //
 // Exit codes, each one tested in tests/audit.test.mjs:
@@ -28,7 +30,9 @@
 //   0  a ranking, a probe answer, a dry run, or a --sel set with nothing to send
 //   1  the box file cannot be read as a box
 //   2  a usage error, including an unknown option id in --sel
-//   3  no usable key in the environment. Nothing was sent.
+//   3  no usable route: no usable key, an unknown EAGLE_EYE_AUDIT_PROVIDER, or
+//      on the Clef route no clef tool, Clef not set up, failed, still starting,
+//      or an answer from ensure that cannot be read. Nothing was sent.
 //   4  the service failed or refused, its answer did not have the pinned shape,
 //      or two answers in one run named different models
 //   5  the endpoint override is not a loopback address. Nothing was read or sent.
@@ -702,6 +706,8 @@ function ensureClef() {
   // Only a port on 127.0.0.1 over plain http, with nothing else in the URL.
   let url;
   try {
+    // Only a string: new URL() would read a list as its first entry.
+    if (typeof out.url !== 'string') throw new TypeError('not a string');
     url = new URL(out.url);
   } catch {
     url = undefined;
