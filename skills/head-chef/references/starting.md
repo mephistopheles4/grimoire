@@ -41,14 +41,15 @@ A start whose route the owner's words did not name is a background session with 
    `/brigade` or the Desktop start. Send later updates to the session as
    messages, by its name.
 5. **Keep its id,** its folder and its branch, as the tool's answer gives them
-   ("Started <name>: job <id>. Folder: <folder>. Branch: <branch>." and a note to write its card), in this
+   ("Started <name>: job <id>. Folder: <folder>. Branch: <branch>.", one sentence on whether it installed the packages, and a note to write its card), in this
    chat only: its card and cleanup use them. The tool writes no card: write it
    in step 7. When the answer begins "Not started", or a refusal says the
    session may or may not have started, a session may exist: see "When a start
    is refused". Any other refusal says nothing started: see that section too.
 6. **Report the start in chat,** in the form of the example in `SKILL.md`'s "What a good
    report looks like": the session, its issue, a background session with
-   Remote Control, its model and effort plainly, where the owner opens it
+   Remote Control, its model and effort plainly, the answer's install
+   sentence word for word, where the owner opens it
    (its card in the Brigade pane, or the claude.ai session list on the
    phone), what the owner must do, and the 5-hour and weekly usage, read with
    Desktop's usage tool. Usage figures go in this chat only.

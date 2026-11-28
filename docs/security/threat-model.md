@@ -68,7 +68,7 @@ flowchart LR
 
 ### Code that runs
 
-**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build.
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the start's lockfile install (spec 0005, pending the owner's words).
 
 **Controls:**
 
@@ -97,7 +97,7 @@ flowchart LR
 
 ### Data off the machine
 
-**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post.
+**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post; the start's install requests (spec 0005, pending the owner's words).
 
 **Controls:**
 
@@ -176,5 +176,5 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - Not accepted: another page opened from disk, or an extension, reading the saved interview answers; a session named like a card feeding it; the pill press has no rate limit; a skill's write scope and a contract's second-agent load are held by prose.
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.
-- Package-manager settings files nothing reads (`.yarnrc`, `.pnpmfile.cjs`, `bunfig.toml`, `.env`): ask the owner.
+- Package-manager settings files nothing reads (`.yarnrc`, `bunfig.toml`, `.env`): ask the owner. The start's install reads and runs `.npmrc`, `.yarnrc.yml` and `.pnpmfile.cjs` (spec 0005): the owner's words pending.
 - The plugin validator `validate` is not a required check on `main`: ask the owner.
