@@ -92,6 +92,8 @@ test('C3: a report by session id, or by name from a wrapper with no id, at or af
   const w2 = newWatch();
   sentTo(w2, cards, matched, 'build-1', 500);
   heardFrom(w2, cards, matched, wrap('from-session="nobody" from-name="build-1"'), 600);
+  heardFrom(w2, cards, matched, wrap('from-session="" from-name="build-1"'), 600);
+  heardFrom(w2, cards, matched, wrap(`from-session="${'s'.repeat(201)}" from-name="build-1"`), 600);
   assert.ok(quietCheck(w2, cards, matched, late), 'a member name under another session id is not its report');
 });
 

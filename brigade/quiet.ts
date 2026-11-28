@@ -93,13 +93,17 @@ export function sentTo(w: Watch, cards: readonly Card[], matched: ReadonlyMap<st
   for (const title of cardsWhere(cards, matched, r => r.name === name)) w.sent.set(title, now)
 }
 
+/** Whether the wrapper's opening tag holds a `from-session` attribute at all,
+ *  readable or not. */
+const claimsSession = (text: string): boolean => /\sfrom-session=/.test(OPENING.exec(text)?.[1] ?? '')
+
 /** A peer's delivery: a report from each card whose one row holds the claimed
- *  session id. Only a wrapper with no session id falls back to the claimed
- *  name, so a peer cannot take a member's name to close its window. */
+ *  session id. Only a wrapper with no `from-session` attribute falls back to
+ *  the claimed name; one whose id is empty or too long matches nothing. */
 export function heardFrom(w: Watch, cards: readonly Card[], matched: ReadonlyMap<string, readonly SessionRow[]>, text: string, now: number): void {
   const { session, name } = sender(text)
   let titles = session === undefined ? [] : cardsWhere(cards, matched, r => r.sessionId === session || r.hostId === session)
-  if (session === undefined && name !== undefined) titles = cardsWhere(cards, matched, r => r.name === name)
+  if (!claimsSession(text) && name !== undefined) titles = cardsWhere(cards, matched, r => r.name === name)
   for (const title of titles) w.heard.set(title, now)
 }
 

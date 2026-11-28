@@ -94,8 +94,10 @@ the wrapper has none.
 `quiet.ts` reads the two attributes from the opening tag only, each at most 200
 characters. A card matches when its one matched row has `sessionId` or
 `hostId` equal to `from-session`. Only a wrapper with no `from-session`
-falls back to the row's `name` equal to `from-name`, so a peer with an id of
-its own cannot take a member's name to close its window (Test round 1); a
+attribute falls back to the row's `name` equal to `from-name`; one whose id is
+empty or too long matches nothing. So a peer whose wrapper the engine stamps
+with its id cannot take a member's name to close its window (Test rounds 1
+and 2); a
 background member whose id is neither gets at most an extra note, which S9
 takes over a missed stop. Text with no wrapper at its start matches nothing.
 
@@ -287,7 +289,8 @@ submit lands, and other plugins' hooks.
 - **C9.** Head-chef's `SKILL.md`, `README.md`, `references/starting.md` and
   `references/desktop.md`, and the five evals' prompts, hold no
   `notify_when_idle`, no "subscribe again", no "subscribe to its idle notice" or
-  "subscribe to the session's idle", and no idle notice that "came"
+  "subscribe to the session's idle", "asks for the session's idle", "idle
+  notice, so it never polls", and no idle notice that "came"
   (case-insensitive, over each file's text with line breaks folded). Test:
   one case in
   `tests/head-chef-evals.test.mjs`. The contract is held by
