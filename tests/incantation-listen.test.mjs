@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { ask, readChannel, say, waitLines } from '../skills/incantation/scripts/listen.mjs';
 import { observeDir, runDir, settingsPath, writeWhole } from '../skills/incantation/scripts/lib.mjs';
-import { LISTEN, RECORDER, LOOPBACK_ONLY, makeHome, fakeEngine, fakePlayer, fakeRecorder, rig, wait, tick, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
+import { LISTEN, RECORDER, LOOPBACK_ONLY, makeHome, fakeEngine, fakePlayer, fakeRecorder, rig, wait, tick, within, statusOf, texts, cli, spoken } from './incantation-listen-fixture.mjs';
 
 test('a turn goes through the engine and a waiter is told what was heard, with the timing and the ready line', async t => {
   const r = rig();
@@ -38,7 +38,7 @@ test('T5: a turn the engine hears as a lone "you" or "Thank you." never reaches 
     await tick();
     r.turn();
     const pending = wait(r.home);
-    const out = await Promise.race([pending, tick(300).then(() => 'still waiting')]);
+    const out = await within(pending, 300, 'still waiting');
     assert.equal(out, 'still waiting', `${text}: a dropped fragment costs the session no turn (T14)`);
     assert.equal(r.engine.calls, 1, 'it was transcribed, then dropped');
     await l.stop();
@@ -162,10 +162,10 @@ test('T12: idle returns only once no reply is playing, and gives up after the id
   assert.equal(await say(readChannel(r.home), 'One.', 3000), 'speaking\n');
   let settled = false;
   const pending = cli(r.home, 'idle').then(v => ((settled = true), v));
-  await tick(150);
+  await tick(150); // proves absence: keep the wait
   assert.equal(settled, false, 'held while a reply plays');
   r.player.plays[0].end();
-  await tick(100);
+  await tick(100); // proves absence: keep the wait
   assert.equal(settled, false, 'and for the tail after it');
   assert.equal(await pending, 'idle\n');
   assert.equal(await say(readChannel(r.home), 'Two.', 3000), 'speaking\n');
@@ -329,7 +329,7 @@ test('with no wait connected within the relay time of ready it ends with the fix
   const kept = rig({ knobs: { relayWaitMs: 150 } });
   const k = await kept.start();
   assert.match(await wait(kept.home), /^ready /m);
-  const state = await Promise.race([k.done, tick(500).then(() => 'still up')]);
+  const state = await within(k.done, 500, 'still up');
   assert.equal(state, 'still up');
   await k.stop('stopped');
   kept.cleanup();
@@ -360,8 +360,20 @@ test('it refuses to start, with a fixed reason, on a changed recorder, no usable
 
 test('no file under the fixture home or the temp folder holds audio or heard text after a turn', async t => {
   const marker = `zq${Date.now()}heardmarker`;
-  const before = new Set(readdirSync(tmpdir()));
+  // The temp folder is this test's own for its length: other test files write to the shared one while it runs.
+  // os.tmpdir() reads these on every call, so the rig, the listener and its child processes all use it.
+  const own = mkdtempSync(join(tmpdir(), 'incantation-own-tmp-'));
+  const saved = ['TMPDIR', 'TEMP', 'TMP'].map(name => [name, process.env[name]]);
+  for (const [name] of saved) process.env[name] = own;
+  t.after(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(own, { recursive: true, force: true });
+  });
   const r = rig({ engineOptions: { text: marker } });
+  assert.ok(r.home.startsWith(own), "the home is in this test's temp folder");
   t.after(r.cleanup);
   const l = await r.start();
   await tick();
@@ -370,31 +382,11 @@ test('no file under the fixture home or the temp folder holds audio or heard tex
   assert.match(await wait(r.home), new RegExp(marker));
   await l.stop();
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
-  for (const f of walk(r.home)) {
+  // The whole temp folder, the home included.
+  for (const f of walk(own)) {
     const bytes = readFileSync(f);
     assert.ok(!bytes.includes(marker), f);
     assert.ok(!bytes.includes('RIFF'), f);
-  }
-  // Every entry new in the temp folder since the turn began, whatever its name.
-  const fresh = readdirSync(tmpdir()).filter(n => !before.has(n) && !r.home.endsWith(n));
-  for (const n of fresh) {
-    const p = join(tmpdir(), n);
-    let files = [];
-    try {
-      files = statSync(p).isFile() ? [p] : walk(p);
-    } catch {
-      continue; // another test's entry, gone already
-    }
-    for (const file of files) {
-      let bytes;
-      try {
-        bytes = readFileSync(file);
-      } catch {
-        continue;
-      }
-      assert.ok(!bytes.includes(marker), n);
-      if (/^incantation|\.wav$/i.test(n)) assert.ok(!bytes.includes('RIFF'), n);
-    }
   }
 });
 
@@ -476,7 +468,7 @@ test('T14: a wait ends only on a real heard turn, the first ready line, a stop o
   await cli(r.home, 'mute');
   await cli(r.home, 'unmute');
   const pending = wait(r.home);
-  const early = await Promise.race([pending, tick(350).then(() => 'still waiting')]);
+  const early = await within(pending, 350, 'still waiting');
   assert.equal(early, 'still waiting', 'neither a mute notice nor 350 ms of quiet ends a wait');
   r.turn();
   const out = await pending;
