@@ -130,7 +130,7 @@ test('543 C8: the start tool refuses a subagent before anything, runs every othe
     'async function startBackground($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: { ran: boolean }) {',
     'if (e.agentId !== undefined) return refuseStart(…)',
     'const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))',
-    'return startTurn(async () => {',
+    'const done = await startTurn(async () => {',
     'if (signal.aborted) return refuseStart(…)',
     'if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(…)',
     'if (!(await offered($))) return refuseStart(…)',
@@ -142,6 +142,8 @@ test('543 C8: the start tool refuses a subagent before anything, runs every othe
     "if ('why' in checked) return refuseStart(…)",
     'return startRun($, checked.value, sessions, signal, progress)',
     '})',
+    "if (!('install' in done) || done.install === undefined) return done",
+    'return { result: await installAfter($, done.install, signal) }',
     '}',
   ]);
   for (const l of live(start.slice(0, start.indexOf('async function startRun')))) if (l.includes('refuseStart(')) assert.match(l, /return refuseStart\((?:'[^'$]*'|"[^"$]*"|RULES_RULE|OFFER_RULE|checked\.why)\)$/, l);
@@ -149,11 +151,19 @@ test('543 C8: the start tool refuses a subagent before anything, runs every othe
   assert.match(handler, /startBackground\(\$, e as unknown as Record<string, unknown>, next\.signal, progress\)/, "the handler passes the call's own signal");
   // The run's steps, in the order of S2.2: the platform, the spelling, the folder, the name, the host, the programs, the origin, then the start.
   const run = start.slice(start.indexOf('async function startRun'));
-  const order = ['hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'hostTold($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'progress.ran = true', 'startArgv(i, claude.value'];
+  const order = ['hostPlatform($)', 'folderSpelling(i.folder', 'checkoutFacts($, i.folder', 'nameHeld($', 'hostTold($)', "programPath($, 'git'", "programPath($, 'claude'", 'originArgv(git.value', 'attempted.add(', 'progress.ran = true', 'startArgv(i, claude.value', 'installAfterStart('];
   assert.match(run, /originArgv\(git\.value[\s\S]*if \(signal\.aborted\) return refuseStart\('abandoned: the call ran out of time or was interrupted before its run'\)\n\s*attempted\.add\(/, 'a call abandoned before its run is refused before the name is held');
   const at = order.map(s => run.indexOf(s));
   assert.ok(at.every(n => n >= 0), `a step is missing: ${order.filter((s, k) => at[k] < 0)}`);
   assert.deepEqual(at, [...at].sort((a, b) => a - b), 'the steps are out of order');
+  // Spec 0008 C10: the start run is as it was and holds no install; the install runs in startBackground after the queue turn is left.
+  assert.ok(!run.slice(0, run.indexOf('async function installAfter')).includes('installAfterStart('), 'the install is not in the start run');
+  assert.ok(start.indexOf('await startTurn(') < start.indexOf('await installAfter('), 'the install comes after the queue turn');
+  // Spec 0008 S3.1 and S3.7: only a `Started` answer carries an install, and the install's answer is the start's own answer plus its sentence.
+  const runLines = live(run.slice(0, run.indexOf('async function installAfter')));
+  const gate = runLines.indexOf("if (!result.startsWith('Started')) return { result }");
+  assert.ok(gate >= 0 && runLines[gate + 1] === 'return { result, install: { input: i, platform, ran } }', "the install is handed on only past the Started gate");
+  assert.ok(live(run.slice(run.indexOf('async function installAfter'))).includes('return startAnswer(start.ran, start.input, start.platform, sentence)'), "the install's answer is startAnswer with the sentence");
   // Issue 579: the start reads no store and holds no list check.
   assert.doesNotMatch(run, /\$\.store\.get|listed\(/);
 });

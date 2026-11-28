@@ -82,7 +82,7 @@ flowchart LR
 
 ### Code that runs
 
-**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the pact's clef tool, which the audit's Clef route runs from under the home folder, with neither audit key in its environment.
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the start's lockfile install (spec 0008, pending the owner's words); the pact's clef tool, which the audit's Clef route runs from under the home folder, with neither audit key in its environment.
 
 **Controls:**
 
@@ -111,7 +111,7 @@ flowchart LR
 
 ### Data off the machine
 
-**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post.
+**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post; the start's install requests (spec 0008, pending the owner's words).
 
 **Controls:**
 
@@ -123,7 +123,7 @@ flowchart LR
 
 ## Scope
 
-**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other tool on the machine, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code and a tool fed outside input are not. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI. The root of trust is the owner's GitHub account.
+**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other tool on the machine, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code and a tool fed outside input are not. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI; for the start's lockfile install, the registries, git hosts and version-manager hosts a repository names (spec 0008, pending the owner's words). The root of trust is the owner's GitHub account.
 
 ## Residual risk
 
@@ -190,4 +190,4 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - Not accepted: another page opened from disk, or an extension, reading the saved interview answers; a session named like a card feeding it; the pill press has no rate limit; a skill's write scope and a contract's second-agent load are held by prose.
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.
-- Package-manager settings files nothing reads (`.yarnrc`, `.pnpmfile.cjs`, `bunfig.toml`, `.env`): ask the owner.
+- Package-manager settings files nothing reads (`bunfig.toml`, `.env`): ask the owner. The start's install reads and runs `.npmrc`, `.yarnrc`, `.yarnrc.yml`, `.pnpmfile.cjs` and `pnpm-workspace.yaml` (spec 0008): the owner's words pending.

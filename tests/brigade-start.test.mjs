@@ -5,6 +5,10 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const S = await import('../brigade/start.ts');
 
@@ -371,10 +375,10 @@ test('C7, C9: anything else is the fixed Not started words, whatever the run pri
 
 // --- C11: the description ---------------------------------------------------------
 
-test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 amended it, on one line', () => {
+test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 and spec 0008 S5 amended it, on one line', () => {
   assert.equal(
     S.DESCRIPTION,
-    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
+    'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. After a start, a repository with one lockfile gets its packages installed in locked mode. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
   );
   assert.ok(!/\n/.test(S.DESCRIPTION));
 });
@@ -536,3 +540,294 @@ test('the-pact#580: the GitHub-number refusals hold, and use the same fixed word
   for (const bad of ['0', '01', '12345678', '1a', '-1', '', '1 ', '1\n']) assert.equal(refused(check({ ...GOOD, issue: bad })), ISSUE_WHY, JSON.stringify(bad));
 });
 
+
+// --- spec 0008: the install after a start ------------------------------------------------
+
+const WT = 'C:\\src\\grimoire\\.claude\\worktrees\\build-543';
+const NODE = 'C:\\bin\\node.exe';
+const FILE = { found: { kind: 'file', size: 1, isLink: false } };
+const DIR = { found: { kind: 'dir', size: 0, isLink: false, realPath: WT } };
+const CLEAN = { exitCode: 0, stdout: '', isStdoutTruncated: false };
+const TAIL = 'The member starts without its packages.';
+const PNPM = 'pnpm install --frozen-lockfile';
+
+// Stand-in ports: `files` are the lockfile names present, `over` replaces the answer for a stat by its path
+// below the worktree (or the worktree itself), `aborts[n]` is the n-th answer of aborted(), `texts` the text of a file
+// by name, and the clock moves only when sleep is called.
+function world(opts = {}) {
+  const { files = [], over = {}, status = CLEAN, aborts = [], missingProgram, throws, texts = {} } = opts;
+  const code = 'code' in opts ? opts.code : 0;
+  const calls = { stat: [], run: [], spawn: [], sleep: [], read: [], program: [], aborted: 0 };
+  let clock = 0;
+  const boom = what => {
+    if (throws === what) throw new Error('C:\\secret\\path TOKEN=abc');
+  };
+  const ports = {
+    aborted: () => {
+      boom('aborted');
+      return aborts[calls.aborted++] === true;
+    },
+    stat: async p => {
+      boom('stat');
+      calls.stat.push(p);
+      const name = p === WT ? WT : p.slice(WT.length + 1);
+      if (name in over) return over[name];
+      if (p === WT) return DIR;
+      return files.includes(name) || name in texts ? FILE : { missing: true };
+    },
+    run: async (argv, init) => {
+      boom('run');
+      calls.run.push({ argv, init });
+      return status;
+    },
+    spawn: async (argv, init, cap) => {
+      boom('spawn');
+      calls.spawn.push({ argv, init, cap });
+      return code;
+    },
+    sleep: async ms => {
+      boom('sleep');
+      calls.sleep.push(ms);
+      clock += ms;
+    },
+    now: () => {
+      boom('now');
+      return clock;
+    },
+    read: async p => {
+      boom('read');
+      calls.read.push(p);
+      return texts[p.slice(WT.length + 1)] ?? '';
+    },
+    program: async name => {
+      boom('program');
+      calls.program.push(name);
+      return name === missingProgram ? { why: 'program: not found on PATH' } : { value: name === 'node' ? NODE : `C:\\bin\\${name}.exe` };
+    },
+  };
+  return { ports, calls };
+}
+const after = w => S.installAfterStart(w.ports, GOOD, 'win32');
+
+test('0008 C1: a ready worktree with pnpm-lock.yaml runs git status in it, then spawns the wrapper with pnpm, the worktree as an argument, cwd outside it and a 250 s cap', async () => {
+  const w = world({ files: ['pnpm-lock.yaml'] });
+  const sentence = await after(w);
+  assert.deepEqual(w.calls.run, [{ argv: ['C:\\bin\\git.exe', '-C', WT, 'status', '--porcelain', '--untracked-files=no'], init: { timeoutMs: 5000 } }]);
+  assert.deepEqual(w.calls.spawn, [{ argv: [NODE, '-e', S.INSTALL_WRAPPER, WT, 'C:\\bin\\pnpm.exe', 'install', '--frozen-lockfile'], init: { cwd: 'C:\\bin' }, cap: 250000 }]);
+  assert.notEqual(w.calls.spawn[0].init.cwd, WT, 'the wrapper starts outside the worktree');
+  assert.equal(sentence, `Installed: ${PNPM}.`);
+});
+
+test('0008 C1, C5: the spawn port reads the exit from the stream\'s return value, and the cap or the signal ends the child', async () => {
+  // A stream as the engine's spawn gives it: text pieces, then `{ code, signal }` as its return value.
+  const stream = (code, { hang = false } = {}) => {
+    const state = { returned: false };
+    const it = (async function* () {
+      yield { stream: 'stdout', text: 'progress' };
+      if (hang) await new Promise(() => {});
+      return { code, signal: null };
+    })();
+    const ret = it.return.bind(it);
+    it.return = v => { state.returned = true; return ret(v); };
+    return { it, state };
+  };
+  const timers = [];
+  const after = (ms, fn) => { const t = { ms, fn, cancelled: false, cancel: () => { t.cancelled = true; } }; timers.push(t); return t; };
+  const live = () => new AbortController().signal;
+  assert.equal(await S.spawnExit(() => stream(0).it, after, 250000, live()), 0);
+  assert.equal(await S.spawnExit(() => stream(7).it, after, 250000, live()), 7);
+  assert.equal(timers[0].ms, 250000);
+  assert.ok(timers.every(t => t.cancelled), 'the cap timer is cancelled once the child exits');
+  // The cap fires: the loop ends and the child is ended.
+  const capped = stream(0, { hang: true });
+  const p = S.spawnExit(() => capped.it, after, 250000, live());
+  await new Promise(r => setImmediate(r));
+  timers.at(-1).fn();
+  assert.equal(await p, undefined);
+  assert.ok(capped.state.returned, 'the stream is closed, which kills the child');
+  // The signal aborts mid-run.
+  const ctrl = new AbortController();
+  const stopped = stream(0, { hang: true });
+  const q = S.spawnExit(() => stopped.it, after, 250000, ctrl.signal);
+  await new Promise(r => setImmediate(r));
+  ctrl.abort();
+  assert.equal(await q, undefined);
+  assert.ok(stopped.state.returned);
+  // Already aborted, or a spawn that cannot start: no exit code.
+  let opened = false;
+  assert.equal(await S.spawnExit(() => { opened = true; return stream(0).it; }, after, 1, AbortSignal.abort()), undefined);
+  assert.equal(opened, false);
+  assert.equal(await S.spawnExit(() => { throw new Error('ENOENT'); }, after, 1, live()), undefined);
+});
+
+test('0008 C2: each lockfile row maps to exactly its argv, and no argv holds a script flag', async () => {
+  const rows = [
+    [['pnpm-lock.yaml'], ['pnpm', 'install', '--frozen-lockfile']],
+    [['package-lock.json'], ['npm', 'ci', '--no-audit', '--no-fund']],
+    [['npm-shrinkwrap.json'], ['npm', 'ci', '--no-audit', '--no-fund']],
+    [['package-lock.json', 'npm-shrinkwrap.json'], ['npm', 'ci', '--no-audit', '--no-fund']],
+    [['yarn.lock', '.yarnrc.yml'], ['yarn', 'install', '--immutable']],
+    [['yarn.lock'], ['yarn', 'install', '--frozen-lockfile']],
+  ];
+  for (const [files, words] of rows) {
+    const w = world({ files });
+    assert.equal(await after(w), `Installed: ${words.join(' ')}.`, files.join());
+    const argv = w.calls.spawn[0].argv.slice(4);
+    assert.deepEqual(argv, [`C:\\bin\\${words[0]}.exe`, ...words.slice(1)], files.join());
+  }
+  for (const files of [['pnpm-lock.yaml', 'package-lock.json'], ['pnpm-lock.yaml', 'yarn.lock'], ['package-lock.json', 'yarn.lock'], ['npm-shrinkwrap.json', 'yarn.lock', '.yarnrc.yml']]) {
+    const w = world({ files });
+    assert.equal(await after(w), `Not installed: more than one kind of lockfile. ${TAIL}`, files.join());
+    assert.equal(w.calls.spawn.length, 0);
+  }
+});
+
+test('0008 C3: no lockfile spawns nothing and answers No install: no lockfile.', async () => {
+  for (const files of [[], ['.yarnrc.yml']]) {
+    const w = world({ files });
+    assert.equal(await after(w), 'No install: no lockfile.');
+    assert.equal(w.calls.spawn.length, 0);
+  }
+});
+
+test('0008 C4: each Not installed case answers its own sentence and the fixed tail, and quotes no path, error or output', async () => {
+  const failed = `Not installed: ${PNPM} failed, was stopped or ran past four minutes.`;
+  const cases = [
+    [world({ files: ['pnpm-lock.yaml'], aborts: [true] }), 'Not installed: the call was interrupted.'],
+    [world({ files: ['pnpm-lock.yaml'], over: { [WT]: { missing: true } } }), 'Not installed: the worktree was not ready in time.'],
+    [world({ files: ['pnpm-lock.yaml'], over: { 'yarn.lock': { failed: 'EPERM C:\\secret\\path' } } }), 'Not installed: the lockfile could not be read.'],
+    [world({ files: ['pnpm-lock.yaml'], over: { node_modules: DIR } }), 'Not installed: the worktree already holds node_modules.'],
+    [world({ over: { 'pnpm-lock.yaml': { found: { kind: 'file', size: 1, isLink: true } } } }), 'Not installed: the lockfile could not be read.'],
+    [world({ over: { 'pnpm-lock.yaml': { found: { kind: 'dir', size: 0, isLink: false } } } }), 'Not installed: the lockfile could not be read.'],
+    [world({ files: ['pnpm-lock.yaml'], texts: { '.npmrc': 'registry=HTTP://registry.example/\n' } }), 'Not installed: the repository names a plain http address.'],
+    [world({ files: ['pnpm-lock.yaml', 'yarn.lock'] }), 'Not installed: more than one kind of lockfile.'],
+    [world({ files: ['pnpm-lock.yaml'], missingProgram: 'pnpm' }), 'Not installed: pnpm was not found as a program.'],
+    [world({ files: ['pnpm-lock.yaml'], missingProgram: 'node' }), 'Not installed: node was not found as a program.'],
+    [world({ files: ['pnpm-lock.yaml'], code: 1 }), failed],
+    [world({ files: ['pnpm-lock.yaml'], code: undefined }), failed],
+    [world({ files: ['pnpm-lock.yaml'], code: 124 }), failed],
+  ];
+  for (const [w, head] of cases) {
+    const sentence = await after(w);
+    assert.equal(sentence, `${head} ${TAIL}`);
+    assert.equal(w.calls.spawn.length, head === failed ? 1 : 0, head);
+  }
+});
+
+test('0008 C4: a plain http address in a settings file or the chosen lockfile installs nothing; https, a link and a failed read do not', async () => {
+  const http = `Not installed: the repository names a plain http address. ${TAIL}`;
+  const at = name => `${WT}\\${name}`;
+  for (const [files, name, text] of [
+    [['pnpm-lock.yaml'], '.npmrc', 'a=b\nregistry=http://r.example/'],
+    [['pnpm-lock.yaml'], '.yarnrc', 'registry "http://r.example"'],
+    [['yarn.lock', '.yarnrc.yml'], '.yarnrc.yml', 'npmRegistryServer: HtTp://r.example'],
+    [['pnpm-lock.yaml'], 'pnpm-lock.yaml', 'resolution: {tarball: http://r.example/x.tgz}'],
+    [['package-lock.json', 'npm-shrinkwrap.json'], 'npm-shrinkwrap.json', '"resolved": "http://r.example/x.tgz"'],
+  ]) {
+    const w = world({ files, texts: { [name]: text } });
+    assert.equal(await after(w), http, name);
+    assert.equal(w.calls.spawn.length, 0, name);
+    assert.ok(w.calls.read.includes(at(name)), `${name} was read`);
+  }
+  const ok = world({ files: ['pnpm-lock.yaml'], texts: { '.npmrc': 'registry=https://r.example/' } });
+  assert.equal(await after(ok), `Installed: ${PNPM}.`);
+  // A settings file that is a link or a folder installs nothing (the manager may still read it); a file over 20 MB counts as http; a failed read gives reason read.
+  for (const kind of [{ kind: 'file', size: 1, isLink: true }, { kind: 'dir', size: 0, isLink: false }]) {
+    const odd = world({ files: ['pnpm-lock.yaml'], over: { '.npmrc': { found: kind } } });
+    assert.equal(await after(odd), `Not installed: the lockfile could not be read. ${TAIL}`, JSON.stringify(kind));
+    assert.equal(odd.calls.spawn.length, 0);
+  }
+  const big = world({ files: ['pnpm-lock.yaml'], over: { 'pnpm-lock.yaml': { found: { kind: 'file', size: 20 * 1024 * 1024 + 1, isLink: false } } } });
+  assert.equal(await after(big), http);
+  assert.equal(big.calls.read.length, 0);
+  assert.equal(await after(world({ files: ['pnpm-lock.yaml'], throws: 'read' })), `Not installed: the lockfile could not be read. ${TAIL}`);
+});
+
+test('0008 C5: aborted() true before the worktree check, or before the install, spawns nothing', async () => {
+  const early = world({ files: ['pnpm-lock.yaml'], aborts: [true] });
+  assert.equal(await after(early), `Not installed: the call was interrupted. ${TAIL}`);
+  assert.equal(early.calls.stat.length + early.calls.run.length + early.calls.spawn.length, 0);
+  const late = world({ files: ['pnpm-lock.yaml'], aborts: [false, true] });
+  assert.equal(await after(late), `Not installed: the call was interrupted. ${TAIL}`);
+  assert.equal(late.calls.spawn.length, 0);
+  assert.ok(late.calls.run.length > 0, 'the second check is the one after the worktree');
+});
+
+test('0008 C6: a worktree that is a link, resolves elsewhere or is not clean in 30 s, a git run that rejects, and one holding node_modules, spawns nothing', async () => {
+  const wait = `Not installed: the worktree was not ready in time. ${TAIL}`;
+  const dirAt = realPath => ({ found: { kind: 'dir', size: 0, isLink: false, realPath } });
+  const notReady = [
+    world({ files: ['pnpm-lock.yaml'], over: { [WT]: { found: { kind: 'dir', size: 0, isLink: true, realPath: WT } } } }),
+    world({ files: ['pnpm-lock.yaml'], over: { [WT]: dirAt('C:\\elsewhere') } }),
+    world({ files: ['pnpm-lock.yaml'], over: { [WT]: dirAt(undefined) } }),
+    world({ files: ['pnpm-lock.yaml'], status: { exitCode: 0, stdout: ' M a.txt\n', isStdoutTruncated: false } }),
+    world({ files: ['pnpm-lock.yaml'], status: { exitCode: 1, stdout: '', isStdoutTruncated: false } }),
+    world({ files: ['pnpm-lock.yaml'], status: { exitCode: 0, stdout: '', isStdoutTruncated: true } }),
+    world({ files: ['pnpm-lock.yaml'], over: { [WT]: { found: { kind: 'file', size: 1, isLink: false, realPath: WT } } } }),
+    world({ files: ['pnpm-lock.yaml'], throws: 'run' }),
+  ];
+  for (const w of notReady) {
+    assert.equal(await after(w), wait);
+    assert.equal(w.calls.spawn.length, 0);
+    assert.equal(w.calls.sleep.length, 30, 'once a second for 30 s of the clock');
+    assert.ok(w.calls.sleep.every(ms => ms === 1000));
+  }
+  for (const found of [DIR, { found: { kind: 'file', size: 0, isLink: false } }, { found: { kind: 'dir', size: 0, isLink: true } }]) {
+    const w = world({ files: ['pnpm-lock.yaml'], over: { node_modules: found } });
+    assert.equal(await after(w), `Not installed: the worktree already holds node_modules. ${TAIL}`);
+    assert.equal(w.calls.spawn.length, 0);
+  }
+});
+
+test('0008 C7: a throw in any port gives reason install, in fixed words', async () => {
+  for (const throws of ['aborted', 'stat', 'now', 'program', 'spawn']) {
+    const sentence = await after(world({ files: ['pnpm-lock.yaml'], throws }));
+    assert.match(sentence, /^Not installed: .* failed, was stopped or ran past four minutes\. The member starts without its packages\.$/, throws);
+    assert.doesNotMatch(sentence, /secret|TOKEN|[A-Z]:\\/, throws);
+  }
+  // sleep runs only while the worktree is not ready.
+  const sentence = await after(world({ files: ['pnpm-lock.yaml'], over: { [WT]: { missing: true } }, throws: 'sleep' }));
+  assert.match(sentence, /^Not installed: .* failed, was stopped or ran past four minutes\. The member starts without its packages\.$/);
+});
+
+test("0008 C8: startAnswer with a sentence puts it before Write its card; without one, today's text", () => {
+  const ran = { exitCode: 0, stdout: OUT, isStdoutTruncated: false };
+  assert.equal(
+    S.startAnswer(ran, GOOD, 'win32', `Installed: ${PNPM}.`),
+    `Started build-543: job ${ID}. Folder: C:\\src\\grimoire\\.claude\\worktrees\\build-543. Branch: worktree-build-543. Installed: ${PNPM}. Write its card with set_roster; the tool wrote none.`,
+  );
+  assert.equal(
+    S.startAnswer(ran, GOOD),
+    `Started build-543: job ${ID}. Folder: C:\\src\\grimoire\\.claude\\worktrees\\build-543. Branch: worktree-build-543. Write its card with set_roster; the tool wrote none.`,
+  );
+  assert.equal(S.startAnswer({ exitCode: 1 }, GOOD, 'win32', 'No install: no lockfile.'), S.NOT_STARTED);
+});
+
+test('0008 C9: INSTALL_WRAPPER, run by Node, hands the manager the allow-listed variables and the six fixed words and no other, and exits with its status', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grim34-'));
+  try {
+    const stand = path.join(dir, 'stand-in.cjs');
+    const out = path.join(dir, 'env.json');
+    fs.writeFileSync(stand, "require('node:fs').writeFileSync(process.argv[2], JSON.stringify({ env: process.env, cwd: process.cwd() })); process.exit(Number(process.argv[3]));\n");
+    const work = path.join(dir, 'work');
+    fs.mkdirSync(work);
+    const parent = { ...process.env, FAKE_SECRET_TOKEN: 'hunter2', github_token: 'ghp_x', NODE_OPTIONS: '--no-warnings', mise_data_dir: 'D:\\mise', GIT_TERMINAL_PROMPT: '1', npm_config_fund: 'true' };
+    const ran = spawnSync(process.execPath, ['-e', S.INSTALL_WRAPPER, work, process.execPath, stand, out, '7'], { env: parent, cwd: os.tmpdir(), stdio: 'ignore', timeout: 30000 });
+    assert.equal(ran.status, 7, "the manager's status passes through");
+    const { env, cwd } = JSON.parse(fs.readFileSync(out, 'utf8'));
+    assert.equal(fs.realpathSync(cwd), fs.realpathSync(work), "the manager runs in the argument's folder, which the wrapper itself did not start in");
+    const get = n => Object.entries(env).find(([k]) => k.toUpperCase() === n.toUpperCase())?.[1];
+    for (const bad of ['FAKE_SECRET_TOKEN', 'github_token', 'NODE_OPTIONS']) assert.equal(get(bad), undefined, `${bad} reached the manager`);
+    assert.ok(!JSON.stringify(env).includes('hunter2'));
+    assert.equal(get('PATH'), parent.PATH ?? parent.Path, 'PATH is kept');
+    assert.equal(get('MISE_DATA_DIR'), 'D:\\mise', 'a name is kept whatever its case');
+    const fixed = { GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', YARN_ENABLE_TELEMETRY: '0', COREPACK_ENABLE_DOWNLOAD_PROMPT: '0', npm_config_update_notifier: 'false', npm_config_fund: 'false' };
+    for (const [k, v] of Object.entries(fixed)) assert.equal(get(k), v, k);
+    const allowed = ['PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'SYSTEMDRIVE', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'TEMP', 'TMP', 'TMPDIR', 'USERNAME', 'USER', 'LANG', 'LC_ALL', 'TERM', 'OS', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'MISE_DATA_DIR', 'MISE_CONFIG_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', ...Object.keys(fixed)];
+    for (const k of Object.keys(env)) assert.ok(allowed.some(n => n.toUpperCase() === k.toUpperCase()), `${k} is not on the list`);
+    const missing = spawnSync(process.execPath, ['-e', S.INSTALL_WRAPPER, work, path.join(dir, 'no-such-manager')], { stdio: 'ignore', timeout: 30000 });
+    assert.equal(missing.status, 124, 'a manager that cannot start exits 124');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

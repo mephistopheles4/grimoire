@@ -13,6 +13,7 @@ None yet.
 
 ## All specs
 
+- [0008-start-installs-from-the-lockfile](0008-start-installs-from-the-lockfile.md) — a draft: the background start installs a member's packages from the lockfile, in locked mode, once the start has succeeded
 - [0007-head-chef-no-cold-wake](0007-head-chef-no-cold-wake.md) — a draft: the lead messages a member idle over an hour only to wake it on purpose; the Brigade send hook refuses any other send, and the lead starts a fresh session from the record
 - [0006-brigade-quiet-members](0006-brigade-quiet-members.md) — a draft: the Brigade mod notes a member that goes idle or stops with no report, so the lead subscribes to no idle notice
 - [0005-eagle-eye-clef-audit](0005-eagle-eye-clef-audit.md) — a draft: the eagle-eye audit gains an opt-in local Clef route, at no charge and with nothing sent off the machine
