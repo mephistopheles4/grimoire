@@ -1,7 +1,8 @@
 # The edge audit, in full
 
 `skills/eagle-eye/audit.mjs` is the only file in this repository that opens a
-network connection. [`SECURITY.md`](../../SECURITY.md#what-the-edge-audit-sends)
+network connection, and the only shipped file that runs a script from outside
+its skill folder. [`SECURITY.md`](../../SECURITY.md#what-the-edge-audit-sends)
 has the short version. This page has the rest.
 
 <!-- toc -->
@@ -10,6 +11,7 @@ has the short version. This page has the rest.
 - [When it runs](#when-it-runs)
 - [What it sends](#what-it-sends)
 - [Who receives it](#who-receives-it)
+- [The local route](#the-local-route)
 - [The key](#the-key)
 - [The test override](#the-test-override)
 - [What it refuses and what it cannot change](#what-it-refuses-and-what-it-cannot-change)
@@ -27,7 +29,8 @@ probability ran nothing.
 
 ## When it runs
 
-Only when somebody runs it with a box path and a key in the environment. The
+Only when somebody runs it with a box path and either a key in the
+environment or `EAGLE_EYE_AUDIT_PROVIDER=clef` (the local route, below). The
 skill tells the agent to:
 
 1. probe for a key with `--probe`, which answers `yes` or `no` and opens no
@@ -93,6 +96,39 @@ it. The dry run and the setup text say so.
 
 What a provider does with the text is its policy, not this repository's. Do not
 audit a box whose text you would not send.
+
+## The local route
+
+`EAGLE_EYE_AUDIT_PROVIDER=clef` sends the audit to Clef, a local decision
+model that the pact's clef tool runs ([spec
+0005](../spec/0005-eagle-eye-clef-audit.md)). Nothing picks this route
+unasked: a running Clef is never detected and used. When the variable is
+set, no key is read, and a run never falls back to a paid route. Any other
+value is no route: the probe says `no`, and a run exits `3`.
+
+- **Who receives it.** Only the Clef supervisor, on `127.0.0.1`. The request
+  has no key, no `Origin` header and no `model` field. Nothing leaves the
+  machine, and the dry run says so.
+- **The script it runs.** A real run starts Clef with
+  `<node> ~/.pact/tools/clef.mjs ensure --wait 60`, up to three times while
+  Clef is starting. This script is outside the skill folder, so the seal does
+  not cover it. Its path is fixed under the home folder, and no flag, file or
+  variable of the audit names another script. But `HOME` and `USERPROFILE`
+  choose the home folder, and a trusted project's settings can set them, as
+  they can for any node command: that residual is the owner's call. It runs
+  with no shell, from the caller's folder, so Clef's own check on a Claude
+  home folder inside a project still judges it. Both key variables and the
+  audit's own are removed from its environment, in any case. Only its standard
+  output is read. The probe, `--provider` and the dry run never run it.
+- **What it accepts back.** A `ready` state with a URL whose parsed fields
+  are `http:`, host `127.0.0.1`, a port and nothing else. Any other answer
+  exits `3` with nothing sent. The message names a state word at most, never
+  the script's output, which can hold a local path.
+- **What it never does.** It never runs Clef's setup or `stop`, and never
+  downloads anything.
+- **The answer.** Clef's bare map is checked as its contract documents it:
+  exactly the eight patterns, each with only a probability. Anything else
+  exits `4`.
 
 ## The key
 

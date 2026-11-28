@@ -82,7 +82,7 @@ flowchart LR
 
 ### Code that runs
 
-**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build.
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the pact's clef tool, which the audit's Clef route runs from under the home folder, with neither audit key in its environment.
 
 **Controls:**
 
@@ -115,7 +115,7 @@ flowchart LR
 
 **Controls:**
 
-- R8: the audit's dry run first names every receiver, and a standing yes comes only from the user's own instructions; `audit.mjs` never prints or writes the key; the endpoint override takes only loopback. [Detail](edge-audit.md).
+- R8: the audit's dry run first names every receiver, and a standing yes comes only from the user's own instructions; `audit.mjs` never prints or writes the key; the endpoint override takes only loopback; the Clef route is opt-in by name and sends only to 127.0.0.1. [Detail](edge-audit.md).
 - R9: rule 2 refuses a fixed home path in shipped folders, the one print helper masks the account segment, and groundtrack warns on an absolute path, naming the field. [Detail](checks.md#row-17).
 - The permission warning before the first launch names background sessions.
 
