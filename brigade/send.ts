@@ -139,8 +139,9 @@ export const coldRefusal = (
   const to = typeof sent === 'string' ? sent.replace(/\s*\[[^\]]*\]\s*$/, '').trim() : sent
   if (!needsListing(to) || !sendsMessage(call) || rows === undefined || !Number.isFinite(now)) return undefined
   const named = rows.filter(r => r.name === to)
-  if (named.length !== 1) return undefined
-  const { status, updatedAt } = named[0]
+  const only = named.length === 1 ? named[0] : undefined
+  if (only === undefined) return undefined
+  const { status, updatedAt } = only
   if (status !== 'idle' || typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return undefined
   // A time ahead of the clock would never read as cold anyway; this line
   // says so, as matchRows treats such a time as no usable time.

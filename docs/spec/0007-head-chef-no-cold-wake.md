@@ -9,6 +9,20 @@ It changes the head-chef contract and its `SKILL.md`, one reference file, the
 Brigade send hook, one test file and one eval. Shipped files change, so the
 plugin version is bumped.
 
+<!-- toc -->
+
+- [S1. Objective and driver](#s1-objective-and-driver)
+- [S2. Words](#s2-words)
+- [S3. The clock](#s3-the-clock)
+- [S4. The mod](#s4-the-mod)
+- [S5. The skill](#s5-the-skill)
+- [S6. Build order](#s6-build-order)
+- [S7. Acceptance claims](#s7-acceptance-claims)
+- [S8. Trade-off points](#s8-trade-off-points)
+- [S9. Not in this spec](#s9-not-in-this-spec)
+
+<!-- /toc -->
+
 ## S1. Objective and driver
 
 A member idle for over an hour has lost its prompt cache. A message to it
