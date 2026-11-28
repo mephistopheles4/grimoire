@@ -10743,6 +10743,46 @@ test("GRIM-41: with the pane closed, and from a subagent, a send goes on as sent
   expect(sent.map(e => e.to)).toEqual(['session-a', 'session-a'])
 })
 
+// --- a message to a cold member (GRIM-86) ---------------------------------------------
+
+// A world whose message tool records its calls and whose session files hold
+// one row for `session-a`, `minutes` minutes before the clock, which stands at 0 here.
+const coldWorld = async (on: On, $: any, status: string, minutes: number) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
+  await start($)
+  await brigade($)
+  liveRows(w, [{ name: 'session-a', status, sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -minutes * 60 * 1000 }])
+  return { w, sent }
+}
+
+test('GRIM-86: a message to a member idle for 61 minutes is refused and nothing is sent', async ($, on) => {
+  const { sent } = await coldWorld(on, $, 'idle', 61)
+  const r: any = await sendTo($, { message: 'go on' })
+  expect(String(r.deny)).toMatch(/^Brigade: nothing was sent\. That session has been idle for over an hour/)
+  expect(sent).toEqual([])
+})
+
+test('GRIM-86: with the pane closed, a message to a cold member goes on as sent', async ($, on) => {
+  const { w, sent } = twinWorld(on, [{ ref: 'loc111', type: 'bg' }])
+  await start($)
+  liveRows(w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -61 * 60 * 1000 }])
+  await sendTo($, { message: 'go on' })
+  expect(sent.length).toBe(1)
+})
+
+test('GRIM-86: at 59 minutes, busy, a subscription or a subagent, the send goes on', async ($, on) => {
+  const warm = await coldWorld(on, $, 'idle', 59)
+  await sendTo($, { message: 'go on' })
+  expect(warm.sent.length).toBe(1)
+  liveRows(warm.w, [{ name: 'session-a', status: 'busy', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -500 * 60000 }])
+  await sendTo($, { message: 'go on' })
+  expect(warm.sent.length).toBe(2)
+  liveRows(warm.w, [{ name: 'session-a', status: 'idle', sessionId: S1, cwd: 'C:\\work', statusUpdatedAt: -500 * 60000 }])
+  await sendTo($, { notify_when_idle: true })
+  await sendTo($, { message: 'go on', agentId: 'a1' })
+  expect(warm.sent.length).toBe(4)
+})
+
 // --- the usage read's breakdown ---------------------------------------------------
 //
 // Every usage read asks the engine for the local summary breakdown; the terminal
