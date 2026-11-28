@@ -130,8 +130,10 @@ line and the owner sets it in that session.
   `working`, and you don't ask it as a quiet session. Read no process: the
   member checks its own run.
   - Check it 15 minutes after the report, or at twice the member's own
-    estimate when the report gave one. The idle-cost line below still holds
-    for a check that reaches a member idle over an hour.
+    estimate when the report gave one. When the member has been idle over an
+    hour, do not ask it: tell the owner in one line, naming the member and
+    what it waits on, with the three options below. A member that reports on
+    its own is warm again.
   - While any member waits, keep one one-shot timer set to the earliest check
     time, with the scheduling tool your session offers; load it first if it
     is deferred. Keep none while no member waits. With no such tool, tell the
@@ -158,8 +160,17 @@ line and the owner sets it in that session.
   shows the prompt. For a background member, that chat is its card's link in
   the Brigade pane, its row in the claude.ai session list, or `claude attach
   <name>` in a terminal.
-- Before you message a session idle for over an hour, tell the owner in one
-  line that the session will re-read its whole context at full price.
+- Never send a message to a member idle for over an hour: it would re-read
+  its whole context at full price. Go by the Brigade refusal; with no refusal
+  to go by (the pane closed), go by when the member's last report or idle
+  notice came, and when you cannot tell, treat it as cold. For new work on a
+  cold member's issue, including an owner's answer the member waits on, start
+  a fresh session from the record on the issue, with the answer in its start
+  prompt, as [when the member is cold](<references/starting.md#when-the-model-changes-or-the-member-is-cold>) says: name it as the
+  session that carries the issue, send the old one nothing more, and ask to
+  stop or archive it. When the record is not on the issue, tell the owner in
+  one line and wait; do not wake the member to post it. A subscription with
+  no message is still allowed to a cold member.
 - Track and report only the sessions you started or the owner handed you.
 
 ## Between the owner and the sessions

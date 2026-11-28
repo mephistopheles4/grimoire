@@ -1,7 +1,7 @@
 // A send to a member that lists twice (brigade/send.ts, GRIM-41).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { listedCursor, needsListing, resolveListed, resolveSend, MAX_PAGES,REFUSE_MANY, REFUSE_NO_LOCAL, REFUSE_PARTIAL, REFUSE_TWO_LOCAL, REFUSE_UNKNOWN } from '../brigade/send.ts';
+import { COLD_MS, REFUSE_COLD, coldRefusal, listedCursor, needsListing, resolveListed, resolveSend, MAX_PAGES,REFUSE_MANY, REFUSE_NO_LOCAL, REFUSE_PARTIAL, REFUSE_TWO_LOCAL, REFUSE_UNKNOWN } from '../brigade/send.ts';
 
 const local = (ref = 'aaa111', type = 'bg', name = 'build-1') => ({ name, ref, type });
 const remote = (ref = 'bbb222', name = 'build-1') => ({ name, ref, type: 'remote_control' });
@@ -128,4 +128,45 @@ test('the next page is read from the listing\'s own footer line only', () => {
   assert.equal(listedCursor({ listing: `  ${foot}  ·  bg` }), undefined);
   assert.equal(listedCursor({ listing: 'Peer sessions (1):' }), undefined);
   assert.equal(listedCursor(undefined), undefined);
+});
+
+// The cold check (GRIM-86, claims C1 to C4).
+const NOW = 1_800_000_000_000;
+const MIN = 60 * 1000;
+const row = (status, minutesAgo, name = 'build-1') => ({ name, status, sessionId: 'x', ...(minutesAgo === undefined ? {} : { updatedAt: NOW - minutesAgo * MIN }) });
+const say = { to: 'build-1', message: 'go on' };
+
+test('C1: a message to an idle member whose last turn ended 61 minutes ago is refused with the fixed words', () => {
+  assert.equal(COLD_MS, 60 * MIN);
+  assert.equal(coldRefusal(say, [row('idle', 61)], NOW), REFUSE_COLD);
+  assert.match(REFUSE_COLD, /^Brigade: nothing was sent\..*idle for over an hour.*Send it nothing.*"When the model changes" in head-chef's starting\.md.*ask the owner to stop the old one\.$/);
+});
+
+test('C2: 59 minutes, exactly 60, or a busy row at any time passes on', () => {
+  assert.equal(coldRefusal(say, [row('idle', 59)], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', 60)], NOW), undefined);
+  for (const status of ['busy', 'waiting', '?']) assert.equal(coldRefusal(say, [row(status, 500)], NOW), undefined);
+});
+
+test('C3: a subscription with no message to a cold member passes on, and so does a send to main, all or an address', () => {
+  const cold = [row('idle', 500)];
+  assert.equal(coldRefusal({ to: 'build-1', notify_when_idle: true }, cold, NOW), undefined);
+  assert.equal(coldRefusal({ to: 'build-1', message: '  ' }, cold, NOW), undefined);
+  for (const to of ['main', '*', 'uds:/x', 'bridge:s1']) assert.equal(coldRefusal({ to, message: 'go on' }, [row('idle', 500, to)], NOW), undefined);
+  assert.equal(coldRefusal(say, cold, NOW), REFUSE_COLD);
+  // A name sent with its ref is judged by the name, so a ref is no way round the check.
+  assert.equal(coldRefusal({ to: 'build-1 [aaa111]', message: 'go on' }, cold, NOW), REFUSE_COLD);
+  assert.equal(coldRefusal({ to: 'build-1 [aaa111]', message: 'go on' }, [row('idle', 59)], NOW), undefined);
+});
+
+test('C4: no usable time passes the send on', () => {
+  assert.equal(coldRefusal(say, undefined, NOW), undefined);
+  assert.equal(coldRefusal(say, [], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', 500, 'other')], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', 500), row('idle', 500)], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', undefined)], NOW), undefined);
+  assert.equal(coldRefusal(say, [{ ...row('idle', 500), updatedAt: Number.NaN }], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', -3)], NOW), undefined);
+  assert.equal(coldRefusal(say, [row('idle', 500)], Number.NaN), undefined);
+  assert.equal(coldRefusal(undefined, [row('idle', 500)], NOW), undefined);
 });

@@ -61,7 +61,8 @@ In the existing `tool.call` hook on the send tool (`brigade/register.tsx`,
 after the GRIM-41 name resolution and while the pane is open):
 
 1. Only a lead's message send to a session name is checked, after the
-   GRIM-41 resolution, against the one session-file row with that name. A
+   GRIM-41 resolution, against the one session-file row with that name; a
+   name sent with its ref is checked by the name. A
    subscription, a subagent's send, `main`, `*` and an address pass
    unchecked.
 2. When the row is cold (S3), the send is refused with fixed words and
