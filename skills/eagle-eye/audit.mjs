@@ -78,19 +78,44 @@
 // OpenRouter's answer also carries `usage.cost`. It is read nowhere: its unit
 // is not documented for this endpoint, and only one route returns it.
 //
+// **A third route, on this machine** (spec 0005). Clef is a local decision
+// model that the pact's clef tool runs, with the same question types. The
+// person opts in with EAGLE_EYE_AUDIT_PROVIDER=clef, and nothing else picks
+// it: a running Clef is never detected and used unasked, so the model that
+// scores a box never changes with nothing the person set. When the variable
+// is set, the keys are not read, and a run never falls back to a paid route.
+// A run sends nothing off the machine and charges no key.
+//
+// A real run starts Clef with `node ~/.pact/tools/clef.mjs ensure --wait 60`,
+// run from this process with no shell, and sends to the URL that ensure
+// prints. Starting it here is on purpose: on Windows, a supervisor that a
+// separate, short command started is ended with that command. The script's
+// path is fixed. No variable, flag or file can name another script, because
+// a cloned project's settings can set environment variables. This file never
+// runs `stop`: another tool can share the supervisor, which stops itself
+// when idle. Clef takes no key, needs no Origin header, and answers with the
+// bare map `{ "<id>": { "noul": n } }`. That map is checked and mapped to the
+// pinned shape, under the fixed model name clef-local, since Clef names none.
+// One supervisor serves one model, so the one-model rule holds there too.
+//
 // Environment:
 //
 //   TYPESAFE_API_KEY           a TypeSafe key. Never printed or written.
 //   OPENROUTER_API_KEY         an OpenRouter key, used when TYPESAFE_API_KEY is
 //                              not set. Never printed or written.
+//   EAGLE_EYE_AUDIT_PROVIDER   `clef` picks the local Clef route, ignoring case
+//                              and spaces. Any other value is no route: the
+//                              probe says no and a run exits 3.
 //   EAGLE_EYE_AUDIT_ENDPOINT   an endpoint override, for tests. Loopback only,
 //                              because the URL it names receives the key and
-//                              the box text.
+//                              the box text. The Clef route does not use it.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { isIP } from 'node:net';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // The renderer's analysis module, for --sel. One parser and one analysis, so
@@ -122,6 +147,13 @@ const PROVIDERS = [
 ];
 const [TYPESAFE, OPENROUTER] = PROVIDERS;
 const ENDPOINT_VAR = 'EAGLE_EYE_AUDIT_ENDPOINT';
+
+// The local route. It has no key and no fixed endpoint: ensure prints the URL.
+const PROVIDER_VAR = 'EAGLE_EYE_AUDIT_PROVIDER';
+const CLEF = { name: 'Clef', local: true, model: 'clef-local' };
+const CLEF_WAIT_S = 60;
+const CLEF_CALLS = 3;
+const CLEF_STATE_CHARS = 30_000;
 
 // Every OpenRouter key begins with this. TypeSafe documents no shape for its
 // keys, so a check can only say what a TypeSafe key is not.
@@ -297,13 +329,20 @@ if (override !== undefined && override !== '') {
 
 const keyIn = p => (typeof process.env[p.keyVar] === 'string' ? process.env[p.keyVar].trim() : '');
 
-// An OpenRouter key where the TypeSafe key belongs. It wins over everything,
+// The route the person named, if any. Only `clef` is a route; any other value
+// is a mistake, and a run that quietly used a key instead would hide it.
+const asked = (process.env[PROVIDER_VAR] ?? '').trim().toLowerCase();
+const unknownRoute = asked !== '' && asked !== 'clef';
+
+// An OpenRouter key where the TypeSafe key belongs. It wins over every key,
 // even a correct OPENROUTER_API_KEY beside it: the user has made a mistake,
 // and a run that quietly worked around it would leave the mistake in place.
-const misplaced = keyIn(TYPESAFE).startsWith(OPENROUTER_PREFIX);
+// A named route reads no key, so the mistake does not apply to it.
+const misplaced = asked === '' && keyIn(TYPESAFE).startsWith(OPENROUTER_PREFIX);
 
-// The route this run uses, or undefined when no usable key is set.
-const provider = misplaced ? undefined : PROVIDERS.find(p => keyIn(p) !== '');
+// The route this run uses, or undefined when there is none.
+const provider =
+  asked === 'clef' ? CLEF : unknownRoute || misplaced ? undefined : PROVIDERS.find(p => keyIn(p) !== '');
 
 if (probe) {
   console.log(provider ? 'yes' : 'no');
@@ -326,11 +365,20 @@ if (misplaced) {
       'Then start a new session. Never paste the key into a chat.',
   );
 }
+if (unknownRoute) {
+  stop(
+    EXIT.noKey,
+    `${PROVIDER_VAR} is set, but the only route it can name is clef: ${PROVIDER_VAR}=clef runs the audit on Clef, on this machine. ` +
+      'No key was read. Nothing was sent.\n\n' +
+      `Set it to clef, or unset it to use a key. Then start a new session.`,
+  );
+}
 
 // The route named in every line a user reads. With no key, the one a first key
 // would most likely pick: the dry run needs no key, and still names a recipient.
 const route = provider ?? TYPESAFE;
-const endpoint = override || route.endpoint;
+// The Clef route's endpoint comes from ensure, once a real run starts.
+let endpoint = route.local ? undefined : override || route.endpoint;
 
 // --- the box -----------------------------------------------------------------
 //
@@ -435,10 +483,10 @@ function shuffle() {
   return { controls: out, good: good.length };
 }
 
+// Clef reads only `state` and `questions`, so the local body has no model.
 function bodyFor(e) {
   return {
-    model: route.model,
-    ...route.extra,
+    ...(route.local ? {} : { model: route.model, ...route.extra }),
     state: {
       box: { problem: box.problem },
       edge: {
@@ -530,6 +578,24 @@ if (dryRun) {
   const bodies = [...argued, ...controls].map(bodyFor);
   const tokens = bodies.reduce((n, b) => n + Math.ceil(JSON.stringify(b).length / CHARS_PER_TOKEN), 0);
   console.log(JSON.stringify(bodies[0], null, 2));
+  const size = `That is about ${tokens.toLocaleString('en-US')} input tokens, estimated at ${CHARS_PER_TOKEN} characters a token. Nothing was sent.`;
+  if (route.local) {
+    // Clef's server takes a prompt of up to 8,192 tokens, and its page puts
+    // that at about 30,000 characters of state. A longer one fails.
+    const largest = Math.max(...bodies.map(b => JSON.stringify(b.state).length));
+    const tooBig =
+      largest > CLEF_STATE_CHARS
+        ? ` The largest request holds ${largest.toLocaleString('en-US')} characters of state. Clef refuses a state over about ${CLEF_STATE_CHARS.toLocaleString('en-US')} characters, so a real run would fail with exit 4.`
+        : '';
+    console.error(
+      `A real run sends ${requests(bodies.length)} to Clef, a model on this machine, at 127.0.0.1: ` +
+        `${argued.length} argued edges and ${controls.length} controls. ` +
+        'Nothing leaves this machine, and no key is charged. It starts Clef if it is not running. ' +
+        size +
+        tooBig,
+    );
+    process.exit(EXIT.ok);
+  }
   console.error(
     `A real run sends ${requests(bodies.length)} to ${route.name}` +
       (route.upstream ? `, which passes them on to ${route.upstream}` : '') +
@@ -572,10 +638,102 @@ const SETUP = [
   '',
   'A key in a project .env is not read. Start a new session after you set the key.',
   'Never paste the key into a chat. The agent does not need to see it.',
+  '',
+  `On a machine where the pact's clef tool has set up Clef, a local decision model, set ${PROVIDER_VAR}=clef`,
+  'instead. The audit then runs on Clef: no key is charged, and nothing is sent off the machine.',
 ].join('\n');
 
 if (!provider) stop(EXIT.noKey, SETUP);
-const key = keyIn(provider);
+const key = route.local ? undefined : keyIn(provider);
+
+// --- Clef, on this machine ---------------------------------------------------
+//
+// Starts Clef if it is not running, and returns the endpoint to send to. Every
+// way this fails exits 3 before anything is sent. A message names a state word
+// at most, never the script's output or its path: both can hold a local path.
+
+// Download sizes from Clef's own page, for the not-set-up message. The audit
+// never runs setup.
+const CLEF_SETUP =
+  "Set Clef up yourself with the pact's clef tool. Its setup downloads several GB: about 7 GB for Clef-Flash, about 22 GB for full Clef. The audit never downloads it.";
+
+function ensureClef() {
+  const nothing = why => stop(EXIT.noKey, `${why} Nothing was sent.`);
+  const script = join(homedir(), '.pact', 'tools', 'clef.mjs');
+  if (!existsSync(script)) {
+    nothing(`${PROVIDER_VAR}=clef is set, but there is no Clef tool in the pact's tools folder on this machine.`);
+  }
+  // No key and none of this tool's variables reach a script outside the
+  // skill folder.
+  const env = { ...process.env };
+  for (const v of [TYPESAFE.keyVar, OPENROUTER.keyVar, PROVIDER_VAR, ENDPOINT_VAR]) delete env[v];
+  // No shell, and only stdout is read. ensure prints its JSON line whatever
+  // its exit code: 3 for not set up and 4 for failed. The working folder is
+  // the script's own, so Clef's check on the Claude home folder passes.
+  const ensure = () => {
+    const r = spawnSync(process.execPath, [script, 'ensure', '--wait', String(CLEF_WAIT_S)], {
+      cwd: dirname(script),
+      env,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    });
+    try {
+      const j = JSON.parse(String(r.stdout ?? '').trim().split('\n').at(-1));
+      return j && typeof j === 'object' ? j : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  // Clef allows a start up to 180 seconds, and one ensure waits 60 at most.
+  let out = ensure();
+  for (let call = 1; out?.state === 'starting' && call < CLEF_CALLS; call++) out = ensure();
+  const state = out?.state;
+  if (state === 'not-set-up') {
+    const why = out.reason === 'pin-changed' ? ' after a change to its pinned files. Stop it with the clef tool first, then set it up again' : '';
+    nothing(`Clef is not set up on this machine (state: not-set-up)${why}. ${CLEF_SETUP}`);
+  }
+  if (state === 'failed') nothing('Clef\'s last start failed less than 10 minutes ago (state: failed). Check it with the clef tool\'s status.');
+  if (state === 'starting') nothing(`Clef is still starting after ${CLEF_WAIT_S * CLEF_CALLS} seconds (state: starting). Run the audit again in a minute.`);
+  if (state !== 'ready') nothing('The clef tool gave no answer that the audit can read.');
+  // Only a port on 127.0.0.1 over plain http, with nothing else in the URL.
+  let url;
+  try {
+    url = new URL(out.url);
+  } catch {
+    url = undefined;
+  }
+  const loopbackPort =
+    url &&
+    url.protocol === 'http:' &&
+    url.hostname === '127.0.0.1' &&
+    url.port !== '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname === '/' &&
+    url.search === '' &&
+    url.hash === '' &&
+    out.url.replace(/\/$/, '') === url.origin;
+  if (!loopbackPort) nothing('The clef tool named an address that is not a loopback port on 127.0.0.1.');
+  return `${url.origin}/v1/systemone`;
+}
+
+// Clef's bare answer, checked as its contract asks, and mapped to the pinned
+// shape: exactly the eight pattern ids, each with only a `noul`. The range is
+// checked where every route's answer is, in scoresFrom.
+function fromClef(raw) {
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!isObj(raw) || Object.keys(raw).length !== NAMES.length) return undefined;
+  const answers = {};
+  for (const n of NAMES) {
+    const a = Object.hasOwn(raw, n) ? raw[n] : undefined;
+    if (!isObj(a) || Object.keys(a).length !== 1 || !Object.hasOwn(a, 'noul')) return undefined;
+    answers[n] = { type: 'noul', noul: a.noul };
+  }
+  return { model: CLEF.model, answers };
+}
+
+if (route.local) endpoint = ensureClef();
 
 // --- the service -------------------------------------------------------------
 
@@ -624,7 +782,8 @@ async function post(body) {
     try {
       res = await fetch(endpoint, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        // Clef takes no key, so the local route sends none.
+        headers: route.local ? { 'Content-Type': 'application/json' } : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
     } catch (e) {
@@ -652,6 +811,10 @@ async function post(body) {
     } catch {
       return { refused: 'the response is not JSON' };
     }
+    if (route.local) {
+      json = fromClef(json);
+      if (!json) return { refused: 'Clef\'s answer is not one Noul for each of the eight patterns, as its contract documents' };
+    }
     if (json && named(json.model)) models.add(json.model);
     return scoresFrom(json);
   }
@@ -672,7 +835,8 @@ async function score(e) {
 function spent() {
   if (!sent) return;
   const answered = models.size ? ` Answered by ${[...models].join(' and ')}.` : '';
-  console.error(`Sent ${requests(sent)} to ${provider.name}, charged to your key.${answered}`);
+  if (route.local) console.error(`Sent ${requests(sent)} to Clef on this machine. No key was charged.${answered}`);
+  else console.error(`Sent ${requests(sent)} to ${provider.name}, charged to your key.${answered}`);
 }
 
 // Thrown once a request has gone out. From there on the process ends by

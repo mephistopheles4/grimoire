@@ -242,7 +242,8 @@ what the plugin route installs. There, `E1` and `PE3` still hide a send or a
 credential read in any file, the mod's included. The scan does not hold which
 providers receive a box's text and the key: a test in `tests/audit.test.mjs`
 holds the hosts written as URLs in `audit.mjs`'s source to two, all `https`,
-and review holds the rest.
+and review holds the rest. The Clef route writes no URL; it sends where
+`ensure` says ([edge-audit.md](edge-audit.md#the-local-route)).
 
 The `contract` skill's `EA2`, `P2` and `RA2` entries name the files they fire on. An
 entry that names a file covers all of that file. With `P2` off for `SKILL.md`,

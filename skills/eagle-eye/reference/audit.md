@@ -28,10 +28,14 @@ The audit is the one action of this skill that leaves the machine. It sends
 the box's text to a model provider, and the provider charges each request to
 the person's own key.
 
+**A local route,** which the tool's setup message names, sends the text only
+to a model on this machine and charges no key. Its ranking is less tested
+than the provider's.
+
 ## The probe
 
 Before you offer the audit, ask the tool whether a key is in the
-environment:
+environment, or a local route is set:
 
 ```bash
 node <skill base directory>/audit.mjs --probe
@@ -55,9 +59,9 @@ prints how many requests a real run sends, and their rough size. Then state
 the four facts, and wait for the person's confirmation:
 
 - The audit is available.
-- It sends this box's text to each company that the dry run names.
+- It sends this box's text to each receiver that the dry run names.
 - It sends this number of requests, of about this size.
-- The provider charges each request to the person's key.
+- Who pays, as the dry run says: the person's key, or no one.
 
 Never state a price. The provider sets it and can change it.
 
