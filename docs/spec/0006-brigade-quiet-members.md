@@ -7,6 +7,26 @@ Tier: Standard, non-sensitive route (no auth, crypto or data migration). The
 change adds one turn the mod starts in the lead's session, so the security
 pair reads the diff at Test (the lead's pick, decision 124).
 
+<!-- toc -->
+
+- [S1. Objective and driver](#s1-objective-and-driver)
+- [S2. Terms](#s2-terms)
+- [S3. What the mod keeps](#s3-what-the-mod-keeps)
+  - [S3.1 Matching a send to a card](#s31-matching-a-send-to-a-card)
+  - [S3.2 Matching a report to a card](#s32-matching-a-report-to-a-card)
+- [S4. The check, each live poll](#s4-the-check-each-live-poll)
+  - [S4.1 The note's text](#s41-the-notes-text)
+- [S5. Head-chef](#s5-head-chef)
+- [S6. Security](#s6-security)
+- [S7. Version and rollback](#s7-version-and-rollback)
+- [S8. Acceptance claims](#s8-acceptance-claims)
+- [S9. Trade-off points](#s9-trade-off-points)
+- [S10. Out of scope](#s10-out-of-scope)
+- [S11. Build order](#s11-build-order)
+- [S12. Needs the owner](#s12-needs-the-owner)
+
+<!-- /toc -->
+
 ## S1. Objective and driver
 
 Head-chef tells the lead to subscribe to each member's idle notice after each

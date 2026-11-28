@@ -69,18 +69,18 @@ const attr = (tag: string, name: string): string | undefined => {
 /** The sender a delivery's wrapper claims: its session id and its name.
  *  Text with no wrapper at its start claims neither. */
 export function sender(text: string): { session?: string; name?: string } {
-  const m = OPENING.exec(text)
-  if (m === null) return {}
-  const session = attr(m[1], 'from-session')
-  const name = attr(m[1], 'from-name')
+  const tag = OPENING.exec(text)?.[1]
+  if (tag === undefined) return {}
+  const session = attr(tag, 'from-session')
+  const name = attr(tag, 'from-name')
   return { ...(session === undefined ? {} : { session }), ...(name === undefined ? {} : { name }) }
 }
 
 /** The titles of the cards whose one matched row passes `pick`. */
 const cardsWhere = (cards: readonly Card[], matched: ReadonlyMap<string, readonly SessionRow[]>, pick: (row: SessionRow) => boolean): string[] =>
   cards.flatMap(c => {
-    const rows = matched.get(c.title)
-    return rows !== undefined && rows.length === 1 && pick(rows[0]) ? [c.title] : []
+    const [row, other] = matched.get(c.title) ?? []
+    return row !== undefined && other === undefined && pick(row) ? [c.title] : []
   })
 
 /** A lead's delivered message: the `to` as the lead wrote it, its listing ref
