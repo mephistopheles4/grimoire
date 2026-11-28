@@ -36,3 +36,25 @@ jobs:
           node-version: '24'
           check-latest: true
       - run: node scripts/check.mjs
+      # Fails on a missing or stale table of contents in a doc
+      # scripts/toc.config.json covers.
+      - run: node scripts/toc.mjs --check
+
+  # The table check again on the other systems this repository's CI runs on: a
+  # Windows checkout ends lines in CRLF, and macOS reaches folders through links.
+  toc:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # persist-credentials: false. The script's git calls only read.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true
+      - run: node scripts/toc.mjs --check
