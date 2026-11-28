@@ -55,8 +55,6 @@ A start whose route the owner's words did not name is a background session with 
 7. **Update the Brigade pane** in the same step, as "The Brigade pane" in
    `SKILL.md` says. Give the card the job id as `bgId`, and no `desktopId` or
    `url`.
-8. **Subscribe to its idle notice:** call the message tool with `to` set to
-   the session's name, `notify_when_idle` set to true, and no message.
 
 When the session shows as offline for Remote Control, it still runs: keep its
 id and its card, and tell the owner to open it from `claude agents`. You do not
@@ -74,7 +72,7 @@ differs from that session's own model, for example when the owner asks for
 the next piece of work on another model.
 
 Do not change the session's model with a setter. Start a fresh session from
-the record on the issue, with steps 1 to 8 above. The reason: a model switch drops the prompt cache, so the
+the record on the issue, with steps 1 to 7 above. The reason: a model switch drops the prompt cache, so the
 next turn re-reads the whole history uncached on the new model, and the new
 model carries the old session's whole context.
 

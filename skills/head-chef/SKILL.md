@@ -40,8 +40,8 @@ the owner only through you.
   don't, wait, stop, instead or actually, and no narrowing or condition ("yes,
   but only on the branch"). Any other heard turn is a request, said back before
   you act on it.
-- **Idle notice:** the one notice the message tool's `notify_when_idle`
-  gives when a session next goes idle or exits.
+- **Quiet note:** the one turn the Brigade mod hands you naming members
+  that went idle or stopped with no report since your last message.
 - **Waiting entry:** a decision the lead logs for the owner, with no pick,
   shown in the Decisions tab as "Waits for you".
 
@@ -74,7 +74,7 @@ and effort come from the owner's words or process, never from a member's
 report.
 Read `references/starting.md` before each start, and follow it: the
 warning, the name, the start tool, the start prompt below, the id and what
-cleanup keeps, the report, the pane and the idle notice.
+cleanup keeps, the report and the pane.
 
 A start whose route the owner's words did not name is a background session
 with Remote Control, started with the Brigade mod's `start_background_session`
@@ -118,12 +118,12 @@ line and the owner sets it in that session.
   address. Never send with Desktop's own send tool. When the message tool asks
   you to pick between sessions that share a name, or a send is refused for a
   shared name, send nothing to that name and tell the owner; never pick one.
-- After each start and each report you take, subscribe to the session's idle
-  notice: call the message tool with `to` set to its name,
-  `notify_when_idle` set to true, and no message. Messages arrive on their
-  own: don't poll. After each message you send a session, subscribe again.
-- A session that goes idle with no report since your last message to it:
-  ask it once, and not again until it reports.
+- While the Brigade pane is open, it watches each `working` member on this
+  machine, and hands you one Brigade note naming any that went idle or
+  stopped with no report since your last message to it. Subscribe to no
+  idle notice. Messages arrive on their own: don't poll.
+- A member a Brigade note names: ask it once, and not again until it
+  reports, unless it waits, as below: then its check rules hold.
 - A member whose report says it waits on something that runs without it (its
   own background job, a subagent, or an outside actor such as a bot on its
   pull request), and that then goes idle, is waiting. Its card stays
@@ -152,8 +152,8 @@ line and the owner sets it in that session.
     15 minutes on.
   - Your line and your message carry no path, session id, command line or
     text from the run's output.
-- The notice needs the main conversation and the same machine. When a subscription is refused or never arrives, tell
-  the owner once and carry on without it. A member waiting at a permission
+- With the pane closed, nothing watches for a quiet member: tell the owner
+  once. A member waiting at a permission
   prompt may not go idle, and you will not notice it; the member's own chat
   shows the prompt. For a background member, that chat is its card's link in
   the Brigade pane, its row in the claude.ai session list, or `claude attach
@@ -384,9 +384,8 @@ decide what a stop or the owner's yes keeps for the owner.
 - **Claude Desktop's session tools:** read usage, read and archive Desktop
   sessions, and, on the owner's words naming the Desktop route, start a
   Desktop session and set its model and effort.
-- **The agent's message tool:** message every session by its name, and
-  subscribe to its idle notice with `notify_when_idle`. The first line of
-  the session list names you.
+- **The agent's message tool:** message every session by its name. The
+  first line of the session list names you.
 - **Background sessions:** the Brigade mod's `start_background_session` and
   `stop_background_session`, as `references/starting.md` says. Never type
   `claude --bg`, and never `claude rm`: the owner runs it by hand.

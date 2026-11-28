@@ -11587,3 +11587,99 @@ for (const [what, interrupt] of INTERRUPTS) {
     expect(await popClient(pop)).toBeUndefined()
   })
 }
+
+// --- the quiet-member watch (spec 0006) --------------------------------------
+//
+// The rules are held in tests/brigade-quiet.test.mjs; these drive the wiring:
+// the lead's send, a peer's report and the poll's submit.
+
+const QUIET = /^Brigade \(plugin note\): .* went idle/
+const quietNotes = (seen: any[]) => seen.filter(e => QUIET.test(String(e.text)))
+const Q_ID = '22222222-3333-4444-5555-666666666666'
+// A Desktop member, as the engine's session file and its wrapper name one
+// (spec 0006 S3.2, observed on Claude Code 2.1.332).
+const Q_HOST = 'local_0a1b2c3d-4e5f-6789-abcd-ef0123456789'
+async function quietWorld(on: On, $: any, answer?: (e: any) => unknown) {
+  const w = sendingWorld(on)
+  const seen = submits(on, answer)
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await call($, roster(card('build-q', { desktopId: Q_HOST })))
+  liveRows(w, [{ name: 'build-q', status: 'busy', sessionId: Q_ID, hostSessionId: Q_HOST }])
+  await w.clock.advance(10000)
+  return { w, seen }
+}
+const goIdle = (w: World) => liveRows(w, [{ name: 'build-q', status: 'idle', sessionId: Q_ID, hostSessionId: Q_HOST, statusUpdatedAt: w.clock.now() }])
+const reportFrom = (session: string, name: string) =>
+  `<cross-session-message from="uds:\\\\.\\pipe\\LOCAL\\cc-msg-0123" from-session="${session}" from-name="${name}" from-mode="prompting">\ndone\n</cross-session-message>`
+
+test("spec 0006 C7: a member idle with no report since the lead's message hands the lead one note, framed as the plugin's", async ($, on) => {
+  const { w, seen } = await quietWorld(on, $)
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  goIdle(w)
+  await w.clock.advance(110000)
+  expect(quietNotes(seen)).toEqual([])
+  await w.clock.advance(20000)
+  expect(quietNotes(seen).map(e => e.text)).toEqual([
+    'Brigade (plugin note): build-q went idle or stopped with no report since your last message. Ask each once, as head-chef\'s "Sending and idle notices" says.',
+  ])
+  expect(quietNotes(seen)[0].origin).toEqual({ kind: 'plugin', name: 'grimoire' })
+  await w.clock.advance(300000)
+  expect(quietNotes(seen).length).toBe(1)
+})
+
+test("spec 0006 C7: a peer's report after the lead's message stops the note, and a subagent's send records nothing", async ($, on) => {
+  const { w, seen } = await quietWorld(on, $)
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom(Q_HOST, 'someone') })
+  goIdle(w)
+  await w.clock.advance(300000)
+  expect(quietNotes(seen)).toEqual([])
+  // A subagent's send moves no window, so the report still counts.
+  await sendTo($, { to: 'build-q', message: 'again', agentId: 'a1' })
+  await w.clock.advance(300000)
+  expect(quietNotes(seen)).toEqual([])
+  // The lead's own next send opens a new window.
+  await sendTo($, { to: 'build-q', message: 'one more' })
+  await w.clock.advance(300000)
+  expect(quietNotes(seen).length).toBe(1)
+})
+
+test('spec 0006 C8: a report by name alone counts, and one before the send does not', async ($, on) => {
+  const { w, seen } = await quietWorld(on, $)
+  await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom('local_ffff', 'build-q') })
+  await w.clock.advance(1000)
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  goIdle(w)
+  await w.clock.advance(130000)
+  expect(quietNotes(seen).length).toBe(1)
+  await sendTo($, { to: 'build-q', message: 'again' })
+  await $.session.receive({ origin: { kind: 'peer' }, text: reportFrom('local_ffff', 'build-q') })
+  await w.clock.advance(300000)
+  expect(quietNotes(seen).length).toBe(1)
+})
+
+test('spec 0006 C8: a dropped note is not marked, and goes again after the gap', async ($, on) => {
+  let drops = 1
+  const { w, seen } = await quietWorld(on, $, e => (QUIET.test(String(e.text)) && drops-- > 0 ? { drop: 'busy' } : { text: e.text }))
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  goIdle(w)
+  await w.clock.advance(130000)
+  expect(quietNotes(seen).length).toBe(1)
+  await w.clock.advance(70000)
+  expect(quietNotes(seen).length).toBe(2)
+  await w.clock.advance(300000)
+  expect(quietNotes(seen).length).toBe(2)
+})
+
+test('spec 0006 C8: a member whose session file vanishes is noted once', async ($, on) => {
+  const { w, seen } = await quietWorld(on, $)
+  await sendTo($, { to: 'build-q', message: 'go on' })
+  liveRows(w, [])
+  await w.clock.advance(140000)
+  expect(quietNotes(seen).length).toBe(1)
+  expect(String(quietNotes(seen)[0].text)).toContain('build-q went idle or stopped')
+  await w.clock.advance(300000)
+  expect(quietNotes(seen).length).toBe(1)
+})

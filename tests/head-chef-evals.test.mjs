@@ -335,3 +335,16 @@ test('the rules the sheet cut stay out of head-chef (GRIM-72)', () => {
   assert.doesNotMatch(flat(read('docs/security/threat-model.md')), /relies on folder trust/, 'r210: R5');
 });
 
+
+// Spec 0006 C9: the Brigade pane notes a quiet member, so no head-chef home and
+// no idle eval's scenario asks the lead to subscribe to an idle notice.
+test('spec 0006 C9: head-chef asks for no idle subscription', () => {
+  const homes = ['skills/head-chef/SKILL.md', 'skills/head-chef/README.md', 'skills/head-chef/references/starting.md', 'skills/head-chef/references/desktop.md'];
+  const evals = ['lead-idle-ask', 'lead-idle-ask-once', 'lead-idle-own-question', 'wait-card-stays-working', 'wait-wake-checks'].map(e => `evals/head-chef/${e}/prompt.md`);
+  for (const f of [...homes, ...evals]) {
+    const t = read(f);
+    assert.doesNotMatch(t, /notify_when_idle/i, f);
+    assert.doesNotMatch(t, /subscribe again|subscribe to (its|the session's) idle|subscribed/i, f);
+    assert.doesNotMatch(t, /idle notice (came|has)/i, f);
+  }
+});

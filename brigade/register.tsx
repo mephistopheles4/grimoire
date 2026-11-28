@@ -253,6 +253,10 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './reminder.ts'
 import {
+  heardFrom, landed as quietLanded, newWatch, quietCheck, sentTo,
+// @ts-expect-error TS5097: Node needs the extension.
+} from './quiet.ts'
+import {
   needsListing, resolveListed,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './send.ts'
@@ -540,6 +544,10 @@ const summaries: SummaryMemory = newSummaryMemory()
 // from, so the link is read again when the found path changes.
 const linkFrom = new Map<string, string>()
 let polling = false
+// The quiet-member watch's times and the last poll's matched rows (spec
+// 0006), in module memory only: a reload starts every window again.
+const watch = newWatch()
+let quietRows: ReadonlyMap<string, readonly SessionRow[]> = new Map()
 
 async function pollLive($: EngineInterface, open: () => boolean) {
   // One poll at a time: the transcript reads can take a while, so a tick
@@ -580,6 +588,26 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     const cards = loadedCards
     const now = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
     const matched = matchRows(cards, rows, now)
+    // The quiet-member watch (spec 0006): the send and receive hooks match
+    // against this poll's rows, and a member idle with no report since the
+    // lead's last message hands the lead one fixed note, not awaited.
+    // A card is noted only once its submit lands with no drop, and only a
+    // complete read counts a missing row as a session gone.
+    if (files !== undefined) quietRows = matched
+    if (files?.complete === true) {
+      try {
+        const q = quietCheck(watch, cards, matched, now)
+        if (q !== undefined) {
+          void Promise.resolve($.prompt.submit({ text: q.text }))
+            .then(r => {
+              if ((r as { drop?: unknown } | undefined)?.drop === undefined) quietLanded(watch, q)
+            })
+            .catch(() => undefined)
+        }
+      } catch {
+        // No note this poll: the next one checks again.
+      }
+    }
     await update($, live, () =>
       cards.flatMap(c => {
         const own = matched.get(c.title) ?? []
@@ -3630,6 +3658,7 @@ export const register: Register = on => {
       if (e.agentId === undefined && sendsMessage(e)) {
         if (timers.length > 0) tally(owedRoster, 'send')
         if (delivered(r)) onLead = { ...onLead, members: stillOnLead(onLead.members, e) }
+        if (timers.length > 0 && delivered(r)) sentTo(watch, loadedCards, quietRows, (e as { to?: unknown }).to, await $.clock.now())
       }
     } catch {
       // The send goes on unchanged.
@@ -3661,7 +3690,9 @@ export const register: Register = on => {
     const kind = e.origin.kind
     if ((kind === 'peer' || kind === 'peer-send-message') && timers.length > 0) {
       const { from, line } = report(e.text)
-      const at = new Date(await $.clock.now()).toISOString().slice(11, 16)
+      const now = await $.clock.now()
+      if (e.agentId === undefined) heardFrom(watch, loadedCards, quietRows, e.text, now)
+      const at = new Date(now).toISOString().slice(11, 16)
       await update($, reports, list => [...list, { from, line, at }].slice(-50))
     }
     return next(e)

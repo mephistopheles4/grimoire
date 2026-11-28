@@ -2,7 +2,7 @@
 
 Read this only when the owner's words in the lead's chat name the Desktop route, for example "as a Desktop session". A start with no route named is a background session: `references/starting.md` gives it. A Desktop session is otherwise a session like any other: the same start prompt, reports, card and cleanup.
 
-Follow `references/starting.md` for steps 1, 2 and 8 (the warning, the name and the idle notice). Follow this file in place of its steps 3 to 7.
+Follow `references/starting.md` for steps 1 and 2 (the warning and the name). Follow this file in place of its steps 3 to 7.
 
 1. **Give it the start prompt** in "The start prompt" in `SKILL.md`, filled
    in. You may add one note after it, written, labelled and bounded as "The
