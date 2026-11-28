@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 2.16.0
+Version: 2.17.0
 Kind: skill
 Level: Thorough
 
@@ -89,7 +89,7 @@ need, without overwhelming me or showing me too much.
 **A fresh session for a new model.** When the next piece of work needs a different model, it starts a fresh session from the record on the issue and never changes a running session's model with a setter. It names the fresh session as the one that carries the issue, sends the old one nothing more, and archives or stops it only as the skill's stops list says.
 *Proposed*: restates 1.36.1 "A model change starts a fresh session", Proposed; pending at 1.36.1.
 
-**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to no idle notice and does not poll: the Brigade pane notes a member that goes idle or stops with no report. It says once that a session idle over an hour re-reads its context at full price.
+**Sending and listening.** It sends to every session by its name with the agent's message tool, never with Desktop's send tool and never picking between sessions that share a name. It subscribes to no idle notice and does not poll: the Brigade pane notes a member that goes idle or stops with no report. It never sends a message to a member idle over an hour, which would re-read its context at full price; for new work on that member's issue it starts a fresh session from the record on the issue.
 *Proposed*: restates 1.36.1 "Sending", "Idle notices" and "Idle cost", Confirmed.
 
 **A waiting member.** A waiting member is handled as SKILL.md's Waiting section says.
@@ -276,7 +276,7 @@ several sessions at once.
 - SKILL.md: Additional resources. Home: `SKILL.md`.
 - references/starting.md: Starting a session. Home: `references/starting.md`.
 - references/starting.md: Names. Home: `references/starting.md`.
-- references/starting.md: When the model changes. Home: `references/starting.md`.
+- references/starting.md: When the model changes or the member is cold. Home: `references/starting.md`.
 - references/starting.md: When a start is refused. Home: `references/starting.md`.
 - references/cleanup.md: Cleanup. Home: `references/cleanup.md`.
 - references/cleanup.md: Which sessions. Home: `references/cleanup.md`.
@@ -436,8 +436,10 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   `working`, and you don't ask it as a quiet session. Read no process: the
   member checks its own run.
   - Check it 15 minutes after the report, or at twice the member's own
-    estimate when the report gave one. The idle-cost line below still holds
-    for a check that reaches a member idle over an hour.
+    estimate when the report gave one. When the member has been idle over an
+    hour, do not ask it: tell the owner in one line, naming the member and
+    what it waits on, with the three options below. A member that reports on
+    its own is warm again.
   - While any member waits, keep one one-shot timer set to the earliest check
     time, with the scheduling tool your session offers; load it first if it
     is deferred. Keep none while no member waits. With no such tool, tell the
@@ -464,8 +466,16 @@ Home: `SKILL.md`, the section "Sending and idle notices". Carries out: "Sending 
   shows the prompt. For a background member, that chat is its card's link in
   the Brigade pane, its row in the claude.ai session list, or `claude attach
   <name>` in a terminal.
-- Before you message a session idle for over an hour, tell the owner in one
-  line that the session will re-read its whole context at full price.
+- Never send a message to a member idle for over an hour: it would re-read
+  its whole context at full price. Go by the Brigade refusal; with no refusal
+  to go by (the pane closed), go by when the member's last report came, and
+  when you cannot tell, treat it as cold. For new work on a
+  cold member's issue, including an owner's answer the member waits on, start
+  a fresh session from the record on the issue, with the answer in its start
+  prompt, as [when the member is cold](<references/starting.md#when-the-model-changes-or-the-member-is-cold>) says: name it as the
+  session that carries the issue, send the old one nothing more, and ask to
+  stop or archive it. When the record is not on the issue, tell the owner in
+  one line and wait; do not wake the member to post it.
 - Track and report only the sessions you started or the owner handed you.
 
 ### SKILL.md: Between the owner and the sessions
@@ -501,9 +511,10 @@ Home: `SKILL.md`, the section "Between the owner and the sessions". Carries out:
   spec you have read on the issue, never on the report alone. The go-ahead
   on a spec is as the owner's user-level instructions file says.
   To close a member, ask it to wrap up: commit, push, report, and say it is
-  ready to close.
+  ready to close. A cold member is not asked: ask the owner to stop or
+  archive it.
 - **A rename.** Before you are renamed, tell each member the new name, and
-  tell the owner.
+  tell the owner. A cold member is not told.
 - Say a pending decision once, not every turn.
 - Update the Brigade pane in the same step as each report you take and each
   decision you send.
@@ -1089,28 +1100,35 @@ Home: `references/starting.md`, the section "Names". Carries out: "Starting a se
 Name each session yourself, from letters, digits and `. _ -`, starting with a
 letter or digit, never two alike. Never copy a name from an issue.
 
-### references/starting.md: When the model changes
+### references/starting.md: When the model changes or the member is cold
 
-Home: `references/starting.md`, the section "When the model changes". Carries out: "A fresh session for a new model".
+Home: `references/starting.md`, the section "When the model changes or the member is cold". Carries out: "A fresh session for a new model".
 *Proposed*: pending at 1.36.1 in "A model change starts a fresh session".
 
 Read this when the model for the next piece of work on an existing session
 differs from that session's own model, for example when the owner asks for
-the next piece of work on another model.
+the next piece of work on another model. Read it too when the member is cold:
+its last turn ended more than an hour ago, so its prompt cache has expired.
+Send a cold member no message, whatever the work: the message would make it
+re-read its whole history at full price.
 
 Do not change the session's model with a setter. Start a fresh session from
 the record on the issue, with steps 1 to 7 above. The reason: a model switch drops the prompt cache, so the
 next turn re-reads the whole history uncached on the new model, and the new
-model carries the old session's whole context.
+model carries the old session's whole context. A cold member's cache is gone
+too, so a fresh session costs no more than waking it.
 
 - When you do not know the running session's model, treat it as different.
 - Name the fresh session as step 2 says. It is never the old session's name.
+- An owner's answer that a cold member waits on goes in the fresh session's start
+  prompt.
 - Only the record on the issue is carried over: the fresh session has a new
   worktree. When the approved record is not on the issue, or the issue does
   not mark which revision was approved, ask the old session to post it,
   naming the approved revision. Its own rules govern the post.
   Start nothing until the record is on the issue; when no post lands, tell the
-  owner in one line and wait.
+  owner in one line and wait. For a cold member, ask it nothing: when the
+  record is not on the issue, tell the owner in one line and wait.
 - In the start report, name the fresh session as the session that carries the
   issue, and send the old session nothing more for this issue. Ask to archive
   the old session (a Desktop session) or stop it (a background session). That

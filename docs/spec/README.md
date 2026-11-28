@@ -13,6 +13,7 @@ None yet.
 
 ## All specs
 
+- [0007-head-chef-no-cold-wake](0007-head-chef-no-cold-wake.md) — a draft: the lead never messages a member idle over an hour; the Brigade send hook refuses it, and the lead starts a fresh session from the record
 - [0006-brigade-quiet-members](0006-brigade-quiet-members.md) — a draft: the Brigade mod notes a member that goes idle or stops with no report, so the lead subscribes to no idle notice
 - [0004-tests-faster](0004-tests-faster.md) — a draft: the test suite starts fewer processes, copies less and waits on states instead of fixed sleeps, with no shipped file changed
 - [0003-incantation-retire-voicebox-and-kokoro](0003-incantation-retire-voicebox-and-kokoro.md) — a draft: retires Voicebox and Kokoro so Parakeet hears and Phonon speaks on one uv-required local runtime
