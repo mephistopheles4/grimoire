@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { GRACE_MS, QUIET_GAP_MS, newWatch, sentTo, heardFrom, quietCheck: found, landed, quietNote, sender } = await import('../brigade/quiet.ts');
+const { GRACE_MS, QUIET_GAP_MS, newWatch, sentTo, heardFrom, quietCheck: found, landed, released, quietNote, sender } = await import('../brigade/quiet.ts');
 
 // One poll whose note lands: the text, or undefined.
 const quietCheck = (w, cards, matched, now) => { const q = found(w, cards, matched, now); if (q === undefined) return undefined; landed(w, q); return q.text; };
@@ -176,7 +176,7 @@ test('C6: the note is the fixed text, titles checked and capped at ten, with cou
   assert.match(quietNote(['a b', 'c d']), /^Brigade \(plugin note\): 2 members went idle/);
 });
 
-test('the maps keep only cards still in the roster', () => {
+test('C7: the maps keep only cards still in the roster', () => {
   const w = newWatch();
   const { cards, matched } = world(0);
   sentTo(w, cards, matched, 'build-1', 10);
@@ -189,12 +189,33 @@ test('C5: a note whose submit did not land is not marked, and is found again aft
   const { cards, matched } = world(0);
   const first = found(w, cards, matched, GRACE_MS);
   assert.ok(first, 'found');
-  // No `landed`: the submit was dropped or rejected.
+  // The submit was dropped or rejected.
+  released(w, first);
   assert.equal(found(w, cards, matched, GRACE_MS + QUIET_GAP_MS - 1), undefined, 'inside the gap');
   const again = found(w, cards, matched, GRACE_MS + QUIET_GAP_MS);
   assert.equal(again?.text, first.text);
   landed(w, again);
   assert.equal(found(w, cards, matched, GRACE_MS + 10 * QUIET_GAP_MS), undefined, 'landed once');
+});
+
+test('C5: while a note waits to land, no later poll names its cards, though another card can go', () => {
+  const w = newWatch();
+  const cards = [card('build-1'), card('build-2')];
+  const matched = one([
+    ['build-1', row('build-1', 'idle', { updatedAt: 0 })],
+    ['build-2', row('build-2', 'busy', { updatedAt: 0 })],
+  ]);
+  const first = found(w, cards, matched, GRACE_MS);
+  assert.ok(first);
+  assert.equal(found(w, cards, matched, GRACE_MS + 5 * QUIET_GAP_MS), undefined, 'pending, not named twice');
+  const later = one([
+    ['build-1', row('build-1', 'idle', { updatedAt: 0 })],
+    ['build-2', row('build-2', 'idle', { updatedAt: 0 })],
+  ]);
+  const second = found(w, cards, later, GRACE_MS + 6 * QUIET_GAP_MS);
+  assert.match(second.text, /^Brigade \(plugin note\): build-2 went/);
+  landed(w, first);
+  assert.equal(found(w, cards, later, GRACE_MS + 9 * QUIET_GAP_MS), undefined);
 });
 
 test('C1: a card with no since and no send is noted once', () => {

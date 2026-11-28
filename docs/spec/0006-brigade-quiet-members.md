@@ -1,7 +1,7 @@
 # Brigade watches for quiet members, so the lead stops renewing idle subscriptions
 
-Status: Draft — in force when the owner merges it. Revision 2, after Design
-round 1.
+Status: Draft — in force when the owner merges it. Revision 3, after Design
+round 2 (final).
 
 Tier: Standard, non-sensitive route (no auth, crypto or data migration). The
 change adds one turn the mod starts in the lead's session, so the security
@@ -118,10 +118,12 @@ Only after a full read of the session files (`complete`), after the poll's
 
 Every card that passes is a quiet member. With one or more, and at least
 `QUIET_GAP_MS` (60000) since the last note, the poll calls
-`$.prompt.submit({ text })` without awaiting it. When the submit resolves
-with no `drop`, `noted[title] = start` for each card it named. When it rejects
-or answers `drop`, nothing is marked, and the next poll after the gap finds the
-same cards again. Inside the gap it notes nothing.
+`$.prompt.submit({ text })` without awaiting it. The cards it names are held
+as pending until the submit resolves, and no poll names a pending card. When
+the submit resolves with no `drop`, `noted[title] = start` for each card it
+named. When it rejects or answers `drop`, the cards are released, nothing is
+marked, and the next poll after the gap finds them again. Inside the gap it
+notes nothing.
 
 A new send moves `start`, so the member can be noted again in the new window.
 A report closes the window until the next send. A member that goes busy and
@@ -198,8 +200,10 @@ the owner's ask and this spec.
   - `wait-card-stays-working`: "Eight minutes ago you sent build-9 the owner's
     note "use main as the PR base" by name. A Brigade note has just named
     build-9, which has sent no report since your note."
-  - `wait-wake-checks`: its prompt names no idle notice; it is read and left
-    as it is unless its criteria name one.
+  - `wait-wake-checks`: its prompt names no idle notice and is left as it is.
+  - Both waiting evals' criteria keep their sentence that subscribing to an
+    idle notice is not a send: it only lets an older reply pass, and editing a
+    grader changes what the owner's eval spend measures.
 - **Left as they are, and why.** ADR 0013 says the lead subscribes to a twin's
   local row: it records its time, and this spec supersedes that line without
   rewriting the ADR. `brigade/send.ts`'s refusals ("nothing was sent and
@@ -234,11 +238,12 @@ note, or add one note. It cannot put text of its own into the note.
 ## S7. Version and rollback
 
 Plugin version in `.claude-plugin/plugin.json`: the next minor after `main`
-at merge (`0.188.0` today; another open Brigade change may take it first).
+at merge (`0.189.0` today: another open Brigade change takes `0.188.0`).
 Head-chef contract 2.15.1 to 2.16.0.
 
 Rollback: revert the merge. Skill and mod go back together; the skill then
-asks for subscriptions again.
+asks for subscriptions again. Trigger: C11 shows two notes for one stop, a
+missed stop, or a "not holding" notice.
 
 ## S8. Acceptance claims
 
@@ -262,11 +267,13 @@ submit lands, and other plugins' hooks.
   window is not; an address or an unknown name moves nothing; the window
   starts no earlier than `since`. Same file.
 - **C5.** Two notes are at least 60 seconds apart; cards found inside the gap
-  are noted at the next poll after it; a note whose submit is dropped or
-  rejected is not marked, and is found again after the gap. Same file.
+  are noted at the next poll after it; while a note waits to land no poll
+  names its cards; a note whose submit is dropped or rejected is not marked,
+  and is found again after the gap. Same file.
 - **C6.** The note's text is S4.1's, titles checked and capped at 10. Same file.
 - **C7.** A session seen with one row that vanishes is noted once after the
-  grace; a read that was not complete notes nothing. Same file.
+  grace; a read that was not complete notes nothing; the maps keep only
+  cards still in the roster. Same file.
 - **C8.** The mod wires it: a delivered lead `SendMessage` with a message
   records a send, a subagent's does not; a peer delivery in the observed
   wrapper shape records a report; the poll submits the note framed as the
@@ -276,14 +283,16 @@ submit lands, and other plugins' hooks.
   `references/desktop.md`, and the five evals' prompts, hold no
   `notify_when_idle`, no "subscribe again", no "subscribe to its idle notice" or
   "subscribe to the session's idle", and no idle notice that "came"
-  (case-insensitive). Test: one case in
+  (case-insensitive, over each file's text with line breaks folded). Test:
+  one case in
   `tests/head-chef-evals.test.mjs`. The contract is held by
   `tests/contract-schedules.test.mjs`; its changelog keeps the history.
 - **C10.** `athanor run check` and `athanor run plugin-test` pass.
 - **C11.** Live, after an install from `main`: a lead with the pane open sees
   one quiet note within about 2.5 minutes of a member told to stop without
-  reporting, none after the member reports, and no "not holding" notice in
-  the session. The owner's check (S12).
+  reporting, none after the member reports, one and not two with the lead in
+  a turn of over a minute, and no "not holding" notice in the session. The
+  owner's check (S12).
 
 ## S9. Trade-off points
 
@@ -314,6 +323,9 @@ submit lands, and other plugins' hooks.
   as the idle notice had none.
 - A member stuck at a permission prompt shows `waiting`, never `idle`; the
   pane already moves that card to "Waiting on you".
+- A crash that leaves the session file behind, still `busy`: the mod reads no
+  process, so it is not watched; the old idle notice's behaviour there was not
+  measured either. Not probed; the member's own chat shows it.
 
 ## S11. Build order
 
@@ -330,7 +342,8 @@ submit lands, and other plugins' hooks.
 ## S12. Needs the owner
 
 - **The merge.** At Deploy, after the Test rounds.
-- **Confirming contract 2.16.0.** It goes in *Proposed*; any time after merge.
+- **Confirming contract 2.16.0.** It goes in *Proposed*; confirm it once C11
+  passes.
 - **Running the five edited evals.** Eval spend needs the owner's word, which
   no level lifts. Recommended: once, at Test, since only a run shows the lead
   asks the member rather than relaying the note to the owner. Until then they

@@ -253,7 +253,7 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './reminder.ts'
 import {
-  heardFrom, landed as quietLanded, newWatch, quietCheck, sentTo,
+  heardFrom, landed as quietLanded, newWatch, quietCheck, released as quietReleased, sentTo,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './quiet.ts'
 import {
@@ -601,8 +601,9 @@ async function pollLive($: EngineInterface, open: () => boolean) {
           void Promise.resolve($.prompt.submit({ text: q.text }))
             .then(r => {
               if ((r as { drop?: unknown } | undefined)?.drop === undefined) quietLanded(watch, q)
+              else quietReleased(watch, q)
             })
-            .catch(() => undefined)
+            .catch(() => quietReleased(watch, q))
         }
       } catch {
         // No note this poll: the next one checks again.

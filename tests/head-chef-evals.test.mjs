@@ -342,7 +342,7 @@ test('spec 0006 C9: head-chef asks for no idle subscription', () => {
   const homes = ['skills/head-chef/SKILL.md', 'skills/head-chef/README.md', 'skills/head-chef/references/starting.md', 'skills/head-chef/references/desktop.md'];
   const evals = ['lead-idle-ask', 'lead-idle-ask-once', 'lead-idle-own-question', 'wait-card-stays-working', 'wait-wake-checks'].map(e => `evals/head-chef/${e}/prompt.md`);
   for (const f of [...homes, ...evals]) {
-    const t = read(f);
+    const t = flat(read(f));
     assert.doesNotMatch(t, /notify_when_idle/i, f);
     assert.doesNotMatch(t, /subscribe again|subscribe to (its|the session's) idle|subscribed/i, f);
     assert.doesNotMatch(t, /idle notice (came|has)/i, f);

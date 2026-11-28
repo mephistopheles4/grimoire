@@ -38,6 +38,8 @@ export type Watch = {
   goneSeen: Map<string, number>
   /** The window start a landed note named the card for. */
   noted: Map<string, number>
+  /** The cards a note names while its submit has not resolved. */
+  pending: Set<string>
   /** When the last note went. */
   lastNote?: number
 }
@@ -49,6 +51,7 @@ export const newWatch = (): Watch => ({
   seen: new Set(),
   goneSeen: new Map(),
   noted: new Map(),
+  pending: new Set(),
 })
 
 /** A note the poll found: its text, and each card it names with the window
@@ -113,16 +116,17 @@ export function quietNote(titles: readonly string[]): string {
 }
 
 /** One full read's check: the note to submit, or undefined. It stamps the
- *  gap; the cards are marked noted only by `landed`, so a dropped note is
- *  found again after the gap. It drops every title not in `cards`. Call it
- *  only after a complete read of the session files: a card missing from a
- *  partial read is not gone. */
+ *  gap and holds the cards it names as pending, so no later poll names them
+ *  while the submit waits; `landed` marks them noted, and `released` lets a
+ *  dropped note's cards be found again after the gap. It drops every title
+ *  not in `cards`. Call it only after a complete read of the session files: a
+ *  card missing from a partial read is not gone. */
 export function quietCheck(w: Watch, cards: readonly Card[], matched: ReadonlyMap<string, readonly SessionRow[]>, now: number): Quiet | undefined {
   const titles = new Set(cards.map(c => c.title))
   for (const map of [w.sent, w.heard, w.idleSeen, w.goneSeen, w.noted]) {
     for (const t of [...map.keys()]) if (!titles.has(t)) map.delete(t)
   }
-  for (const t of [...w.seen]) if (!titles.has(t)) w.seen.delete(t)
+  for (const set of [w.seen, w.pending]) for (const t of [...set]) if (!titles.has(t)) set.delete(t)
   if (!Number.isFinite(now)) return undefined
   const quiet: [string, number][] = []
   for (const c of cards) {
@@ -149,17 +153,26 @@ export function quietCheck(w: Watch, cards: readonly Card[], matched: ReadonlyMa
     const heard = w.heard.get(c.title)
     if (heard !== undefined && heard >= start) continue
     if (now - Math.max(start, from) < GRACE_MS) continue
-    if (w.noted.get(c.title) === start) continue
+    if (w.noted.get(c.title) === start || w.pending.has(c.title)) continue
     quiet.push([c.title, start])
   }
   if (quiet.length === 0) return undefined
   if (w.lastNote !== undefined && now - w.lastNote < QUIET_GAP_MS) return undefined
   w.lastNote = now
+  for (const [title] of quiet) w.pending.add(title)
   return { text: quietNote(quiet.map(q => q[0])), cards: quiet }
 }
 
 /** A note's submit resolved with no drop: each card it named is noted for its
  *  window. */
 export function landed(w: Watch, q: Quiet): void {
-  for (const [title, start] of q.cards) w.noted.set(title, start)
+  for (const [title, start] of q.cards) {
+    w.noted.set(title, start)
+    w.pending.delete(title)
+  }
+}
+
+/** A note's submit was dropped or rejected: its cards may be found again. */
+export function released(w: Watch, q: Quiet): void {
+  for (const [title] of q.cards) w.pending.delete(title)
 }
