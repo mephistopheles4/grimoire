@@ -106,7 +106,8 @@ new row; the build confirms this against that file.
 
 Through the contract (`skills/head-chef/references/CONTRACT.md`, raise its
 `Version:` and regenerate `SKILL.md` with the contract skill; never edit
-`SKILL.md` by hand):
+`SKILL.md` by hand). Spec 0006 S5 (decision 179) later overrode the "idle
+notice" words of item 1 and all of item 4:
 
 1. "Sending and idle notices": replace the idle-cost line with: never send a
    message to a member idle for over an hour. Go by the Brigade refusal; with

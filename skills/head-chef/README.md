@@ -89,8 +89,9 @@ or type `/brigade` to open it.
 - **Relays** questions and answers, quoted, with the source named.
 - **Decides small questions** your direction already covers, and tells you in
   one line.
-- **Hears when a session stops** (since 1.0.0). After each start and each
-  report it asks for the session's idle notice, so it never polls. A session
+- **Hears when a session stops** (since 1.0.0). The Brigade pane watches for
+  a member that goes idle or stops with no report and tells the lead, so the
+  lead neither polls nor subscribes (since 2.18.0). A session
   that goes idle with no report since the lead's last message is asked once,
   unless it reported that it waits on something that runs without it; the lead then checks
   that wait on a timer (since 1.14.0).
