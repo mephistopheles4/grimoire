@@ -253,7 +253,7 @@ import {
 // @ts-expect-error TS5097: Node needs the extension.
 } from './reminder.ts'
 import {
-  needsListing, resolveListed,
+  coldRefusal, needsListing, resolveListed,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './send.ts'
 import {
@@ -3610,7 +3610,9 @@ export const register: Register = on => {
   // reminds only, never writes the roster. First, a lead's send to a name that
   // lists twice is readdressed to its row on this machine, or refused
   // (send.ts, GRIM-41); a listing that fails passes the send on as sent, and
-  // the engine judges the name. Both do nothing while the pane is closed. No
+  // the engine judges the name. After that, a lead's message to a member idle
+  // for over an hour is refused (send.ts, GRIM-86); no usable time passes it
+  // on. All do nothing while the pane is closed. No
   // `.catch` on this hook: a retry of a failed send would send the message
   // twice.
   on('tool.call', { tool: SEND_TOOL }, async ($, e, next) => {
@@ -3621,6 +3623,17 @@ export const register: Register = on => {
         const found = await resolveListed(to, async cursor => (await $.tool.call({ tool: 'ListAgents', ...(cursor === undefined ? {} : { cursor }) })).result)
         if (found.deny !== undefined) return { deny: found.deny }
         if (found.to !== undefined) call = { ...e, to: found.to }
+      }
+    } catch {
+      // The send goes on as sent.
+    }
+    try {
+      if (e.agentId === undefined && timers.length > 0) {
+        const at = await where($)
+        if (!('error' in at)) {
+          const cold = coldRefusal(e, (await readSessions(at.config, sessionIo($)))?.rows, await $.clock.now())
+          if (cold !== undefined) return { deny: cold }
+        }
       }
     } catch {
       // The send goes on as sent.
