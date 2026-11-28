@@ -252,6 +252,7 @@ const SHIPPED = {
     ['LP3', 'SKILL.md'],
     ['MP3', 'lib/template.html'],
     ['RA2', 'SKILL.md'],
+    ['RA2', 'audit.mjs'],
     ['PE3', 'audit.mjs', '.env '],
     ['E1', 'audit.mjs'],
   ],
