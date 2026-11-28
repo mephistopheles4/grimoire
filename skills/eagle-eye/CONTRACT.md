@@ -6,6 +6,32 @@ Version: 0.3.2
 - **Level:** Thorough
 - **Marks:** *Proposed* = drafted by the agent, not yet confirmed. **Confirmed** = accepted as drafted, without a change. **Decided** = the owner's own words, or a draft they rewrote.
 
+<!-- toc -->
+
+- [Target](#target)
+- [1. What is it for?](#1-what-is-it-for)
+- [2. What does it notice that nothing else does?](#2-what-does-it-notice-that-nothing-else-does)
+- [3. Who does what?](#3-who-does-what)
+- [4. What does it hand back?](#4-what-does-it-hand-back)
+- [5. What tools does it need?](#5-what-tools-does-it-need)
+- [6. Does it do anything beyond reading, and writing its own notes?](#6-does-it-do-anything-beyond-reading-and-writing-its-own-notes)
+- [7. What changed, and why?](#7-what-changed-and-why)
+- [8. How alike should its answers be?](#8-how-alike-should-its-answers-be)
+- [9. A real example of it at its best](#9-a-real-example-of-it-at-its-best)
+- [10. What does it need to start?](#10-what-does-it-need-to-start)
+- [11. Where does a person decide?](#11-where-does-a-person-decide)
+- [12. Practice test](#12-practice-test)
+- [14. How hard should it think?](#14-how-hard-should-it-think)
+- [15. How does it write?](#15-how-does-it-write)
+- [13. When would you retire it?](#13-when-would-you-retire-it)
+- [16. How does it go wrong?](#16-how-does-it-go-wrong)
+- [17. Good versus so-so](#17-good-versus-so-so)
+- [18. Every rule has a reason](#18-every-rule-has-a-reason)
+- [19. Open questions](#19-open-questions)
+- [20. Where do the ideas come from?](#20-where-do-the-ideas-come-from)
+
+<!-- /toc -->
+
 ## Target
 
 **Confirmed.** The rendered page of `docs/decisions/publish-eagle-eye.box.json` ("Publish eagle-eye as a public repo": 8 decisions, 34 options, 11 edges, 5 presets), together with the findings in chat, led by the problem. It was offered as an existing real output. No samples were drafted. The owner: "that page is the target, I don't think anything is wrong with it at the moment."

@@ -9,6 +9,30 @@ This is maintainer material. No skill installs it.
 [ADR 0007](../adr/0007-practice-tests-run-on-a-clean-baseline.md) records the
 standard it follows.
 
+<!-- toc -->
+
+- [Words used here](#words-used-here)
+- [Before you start](#before-you-start)
+- [The setup](#the-setup)
+  - [The clean baseline](#the-clean-baseline)
+  - [The variants](#the-variants)
+  - [The `desktop-app` procedure](#the-desktop-app-procedure)
+  - [The posture: hygiene, not a boundary](#the-posture-hygiene-not-a-boundary)
+- [Running a case](#running-a-case)
+  - [The four commands](#the-four-commands)
+  - [Tool rules](#tool-rules)
+  - [Test values](#test-values)
+  - [A worked example: the contract skill's case A1](#a-worked-example-the-contract-skills-case-a1)
+- [Recording](#recording)
+  - [What the report holds](#what-the-report-holds)
+  - [The results grid](#the-results-grid)
+  - [After `end`](#after-end)
+- [What the baseline cannot remove](#what-the-baseline-cannot-remove)
+- [Handling output](#handling-output)
+- [Not tested yet](#not-tested-yet)
+
+<!-- /toc -->
+
 ## Words used here
 
 - **Case:** one scripted conversation in a practice-test doc, with its

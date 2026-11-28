@@ -4,6 +4,19 @@
 network connection. [`SECURITY.md`](../../SECURITY.md#what-the-edge-audit-sends)
 has the short version. This page has the rest.
 
+<!-- toc -->
+
+- [What it does](#what-it-does)
+- [When it runs](#when-it-runs)
+- [What it sends](#what-it-sends)
+- [Who receives it](#who-receives-it)
+- [The key](#the-key)
+- [The test override](#the-test-override)
+- [What it refuses and what it cannot change](#what-it-refuses-and-what-it-cannot-change)
+- [Why only the script names the providers](#why-only-the-script-names-the-providers)
+
+<!-- /toc -->
+
 ## What it does
 
 eagle-eye's step 4 checks every `argued` edge against eight weakness patterns.

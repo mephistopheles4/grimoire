@@ -4,12 +4,15 @@
 // that, and these docs hold what holds now. Raising a number is a spec change:
 // the owner's yes in the issue. Only review enforces that. A new doc in this
 // list needs a budget, set at its size when it is added.
+// A generated table of contents is not counted: scripts/toc.mjs writes it from
+// the headings, and CI fails when it differs from them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripToc } from '../scripts/toc.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,7 +57,7 @@ function faults(dir, budget, bodyBudget = {}) {
       out.push(`${doc} is in BUDGET in tests/doc-budget.test.mjs and does not exist; remove its entry or restore the file`);
       continue;
     }
-    const n = words(readFileSync(file, 'utf8'));
+    const n = words(stripToc(readFileSync(file, 'utf8')));
     if (n > max) out.push(`${doc} holds ${n} words, over its budget of ${max}; cut history from it, or ask the owner to raise the budget`);
   }
   for (const [doc, max] of Object.entries(bodyBudget)) {
@@ -89,6 +92,9 @@ test('the counter fails a doc over budget or gone, and passes one at budget', ()
     const over = faults(dir, { 'a.md': 3, 'b.md': 2 });
     assert.equal(over.length, 1, 'one word over fails');
     assert.match(over[0], /^a\.md holds 4 words, over its budget of 3/, 'the message names the doc, count and budget');
+    // A generated table of contents is not counted.
+    writeFileSync(join(dir, 't.md'), 'one\n\n<!-- toc -->\n\n- [Two](#two)\n\n<!-- /toc -->\n\n## Two\n');
+    assert.deepEqual(faults(dir, { 't.md': 3 }), [], 'the table adds no words');
     const gone = faults(dir, { 'a.md': 4, 'c.md': 10 });
     assert.equal(gone.length, 1, 'a listed doc that is gone fails');
     assert.match(gone[0], /^c\.md is in BUDGET/, 'the message names the doc');
