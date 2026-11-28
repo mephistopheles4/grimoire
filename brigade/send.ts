@@ -10,7 +10,8 @@
 //
 // It also holds the cold check (GRIM-86): a message to a member idle for over
 // an hour is refused, because it would make the member re-read its whole
-// context at full price.
+// context at full price. A message whose first line is the wake line passes
+// (GRIM-87), so the lead can wake a member on purpose.
 
 import {
   AHEAD_MS,
@@ -120,11 +121,21 @@ export const resolveListed = async (name: string, listed: (cursor?: string) => P
 export const COLD_MS = 60 * 60 * 1000
 
 export const REFUSE_COLD =
-  `Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. Send it nothing. For new work on its issue, start a fresh session from the record on the issue, as "When the model changes or the member is cold" in head-chef's starting.md says, and ask the owner to stop the old one.`
+  `Brigade: nothing was sent. That session has been idle for over an hour, so a message would make it re-read its whole context at full price. For new work on its issue, start a fresh session from the record on the issue, as "When the model changes or the member is cold" in head-chef's starting.md says, and ask the owner to stop the old one. To wake it on purpose, on your own judgment at level 3 and only on the owner's words at levels 1 and 2: log it with log_decision (source lead, with a flag giving the reason), then make the message's first line "COLD WAKE: <your reason>".`
+
+/** The wake line (GRIM-87), at the very start of a message: the marker, then a
+ *  reason on the same line. A reason opening `<` is the refusal's own
+ *  placeholder, and no reason. */
+const WAKE = /^COLD WAKE:[ \t]*[^\s<]/
+const wakes = (call: unknown): boolean => {
+  const m = record(call).message
+  return typeof m === 'string' && WAKE.test(m)
+}
 
 /** The refusal for a lead's send, or undefined to pass it on. Only a call that
- *  carries a message to a session name, bare or with its ref, is judged: it is refused when the
- *  session files' rows hold exactly one row with that name, its status is
+ *  carries a message with no wake line to a session name, bare or with its ref,
+ *  is judged: it is refused when the session files' rows hold exactly one row
+ *  with that name (in another letter case when none is spelled as sent), its status is
  *  `idle` and its update time is more than `COLD_MS` before `now`. No rows (the
  *  folder was not read), no row or two for the name, no update time, or one
  *  more than `AHEAD_MS` ahead of `now` (as matchRows reads it) is no
@@ -137,8 +148,9 @@ export const coldRefusal = (
   const sent = typeof call === 'object' && call !== null ? (call as { to?: unknown }).to : undefined
   // A name sent with its ref is judged by the name.
   const to = typeof sent === 'string' ? sent.replace(/\s*\[[^\]]*\]\s*$/, '').trim() : sent
-  if (!needsListing(to) || !sendsMessage(call) || rows === undefined || !Number.isFinite(now)) return undefined
-  const named = rows.filter(r => r.name === to)
+  if (!needsListing(to) || !sendsMessage(call) || wakes(call) || rows === undefined || !Number.isFinite(now)) return undefined
+  const exact = rows.filter(r => r.name === to)
+  const named = exact.length > 0 ? exact : rows.filter(r => r.name.toLowerCase() === to.toLowerCase())
   const only = named.length === 1 ? named[0] : undefined
   if (only === undefined) return undefined
   const { status, updatedAt } = only

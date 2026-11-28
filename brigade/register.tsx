@@ -3611,7 +3611,8 @@ export const register: Register = on => {
   // lists twice is readdressed to its row on this machine, or refused
   // (send.ts, GRIM-41); a listing that fails passes the send on as sent, and
   // the engine judges the name. After that, a lead's message to a member idle
-  // for over an hour is refused (send.ts, GRIM-86); no usable time passes it
+  // for over an hour is refused (send.ts, GRIM-86) unless it opens with the wake
+  // line (GRIM-87); no usable time passes it
   // on. All do nothing while the pane is closed. No
   // `.catch` on this hook: a retry of a failed send would send the message
   // twice.
