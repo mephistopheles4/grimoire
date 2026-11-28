@@ -7,6 +7,17 @@ open. This is the main risk in the repository, so this page states exactly what
 guards it and where that guard stops. [`SECURITY.md`](../../SECURITY.md) is the
 summary.
 
+<!-- toc -->
+
+- [The escape, and why it is narrow on purpose](#the-escape-and-why-it-is-narrow-on-purpose)
+- [Three rules for anyone changing a page](#three-rules-for-anyone-changing-a-page)
+  - [Why rule 3 exists](#why-rule-3-exists)
+- [What the tests hold](#what-the-tests-hold)
+- [The pages make no network request](#the-pages-make-no-network-request)
+- [Row 5, measured](#row-5-measured)
+
+<!-- /toc -->
+
 ## The escape, and why it is narrow on purpose
 
 Both skills pair two guards.

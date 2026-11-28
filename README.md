@@ -377,7 +377,8 @@ detail and the accepted risks.
 
 ## Contributing
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md). The contract is one command:
+[`CONTRIBUTING.md`](CONTRIBUTING.md). The contract is one command, and CI also
+checks the generated tables of contents:
 
 ```bash
 node scripts/check.mjs

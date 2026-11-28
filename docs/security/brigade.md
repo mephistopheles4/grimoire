@@ -6,6 +6,25 @@ This page holds the detail behind the threat model's R5, R6 and R7: the bounds o
 
 Sources: `brigade/register.tsx`, `brigade/stop.ts`, `skills/head-chef/references/CONTRACT.md` and `skills/head-chef/references/cleanup.md`, ADR 0008 and ADR 0010.
 
+<!-- toc -->
+
+- [Summary, part 1: the mod's calls and their bounds](#summary-part-1-the-mods-calls-and-their-bounds)
+- [Summary, part 2: the head chef's guards](#summary-part-2-the-head-chefs-guards)
+- [Summary, part 3: where the head chef's data lives](#summary-part-3-where-the-head-chefs-data-lives)
+- [Row 15](#row-15)
+  - [Scenario](#scenario)
+  - [What stops it today](#what-stops-it-today)
+  - [Residual gap](#residual-gap)
+  - [Tags](#tags)
+- [Row 16](#row-16)
+  - [Scenario](#scenario-1)
+  - [What stops it today](#what-stops-it-today-1)
+  - [Residual gap](#residual-gap-1)
+  - [Tags](#tags-1)
+- [Row 15, the engine calls behind its write and its tool call](#row-15-the-engine-calls-behind-its-write-and-its-tool-call)
+
+<!-- /toc -->
+
 ## Summary, part 1: the mod's calls and their bounds
 
 - **Offered only where asked.** The mod's tools are offered only after `/brigade` or a head-chef load, and work only once the mod has offered them to that session since its last reload. A call that carries a subagent id is refused. A load the owner did not type, and the tools' use in plan and don't-ask modes, are the class “The mod's tools run with no permission prompt”.

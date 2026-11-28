@@ -17,6 +17,20 @@ behind the controls: [`checks.md`](checks.md), [`brigade.md`](brigade.md),
 scanners and the audit send. An edit that weakens a control one of these pages names is
 a removed control. A page's “Accepted class” line holds only what that class's sentence names; a page line citing a class for more, or a new send off the machine, is an open issue until the owner names it.
 
+<!-- toc -->
+
+- [Boundaries](#boundaries)
+  - [Text into a session](#text-into-a-session)
+  - [Code that runs](#code-that-runs)
+  - [Merges and acts](#merges-and-acts)
+  - [Data off the machine](#data-off-the-machine)
+- [Scope](#scope)
+- [Residual risk](#residual-risk)
+- [Accepted threat classes](#accepted-threat-classes)
+- [Open issues](#open-issues)
+
+<!-- /toc -->
+
 ## Boundaries
 
 ```mermaid
