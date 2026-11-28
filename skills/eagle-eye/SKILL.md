@@ -3,7 +3,7 @@ name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 compatibility: Needs Node.js 24 or later to run render.mjs and audit.mjs. No install and no other dependencies.
 metadata:
-  contract-version: 0.3.2
+  contract-version: 0.4.0
 ---
 
 # Eagle-eye
@@ -66,7 +66,7 @@ stop below still applies.
 Stop and wait for the person at each of these three moments:
 
 - When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes.
-- When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation.
+- When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; who pays: the person's key, or nobody on a local route, which sends nothing off the machine), then wait for the person's confirmation. The confirmation holds on both routes.
 - When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm.
 
 For the first stop, say it in one line: *"I see N decisions, and M of them are
@@ -94,7 +94,8 @@ it is right, and to know when to stop. **Tools:** Node, for `render.mjs` and
 the optional `audit.mjs`, and the system's command that opens a browser.
 
 **Actions beyond its own notes.** One: the audit, which sends the box's text
-to a model provider and charges the person's key. It waits for the person's
+to a model provider and charges the person's key, or, on a local route,
+sends it to a model on the same machine and charges nothing. It waits for the person's
 confirmation. A box goes into the project's decision records only
 when the person asks.
 

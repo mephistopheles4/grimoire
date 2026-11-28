@@ -68,25 +68,32 @@ read that list yourself: it holds every session's row and folder.
 Name each session yourself, from letters, digits and `. _ -`, starting with a
 letter or digit, never two alike. Never copy a name from an issue.
 
-## When the model changes
+## When the model changes or the member is cold
 
 Read this when the model for the next piece of work on an existing session
 differs from that session's own model, for example when the owner asks for
-the next piece of work on another model.
+the next piece of work on another model. Read it too when the member is cold:
+its last turn ended more than an hour ago, so its prompt cache has expired.
+Send a cold member no message, whatever the work: the message would make it
+re-read its whole history at full price.
 
 Do not change the session's model with a setter. Start a fresh session from
 the record on the issue, with steps 1 to 8 above. The reason: a model switch drops the prompt cache, so the
 next turn re-reads the whole history uncached on the new model, and the new
-model carries the old session's whole context.
+model carries the old session's whole context. A cold member's cache is gone
+too, so a fresh session costs no more than waking it.
 
 - When you do not know the running session's model, treat it as different.
 - Name the fresh session as step 2 says. It is never the old session's name.
+- An owner's answer that a cold member waits on goes in the fresh session's start
+  prompt.
 - Only the record on the issue is carried over: the fresh session has a new
   worktree. When the approved record is not on the issue, or the issue does
   not mark which revision was approved, ask the old session to post it,
   naming the approved revision. Its own rules govern the post.
   Start nothing until the record is on the issue; when no post lands, tell the
-  owner in one line and wait.
+  owner in one line and wait. For a cold member, ask it nothing: when the
+  record is not on the issue, tell the owner in one line and wait.
 - In the start report, name the fresh session as the session that carries the
   issue, and send the old session nothing more for this issue. Ask to archive
   the old session (a Desktop session) or stop it (a background session). That

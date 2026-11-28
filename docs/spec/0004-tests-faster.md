@@ -5,6 +5,24 @@ Status: Draft — in force when the owner merges it.
 Tier: Standard, non-sensitive route. Test files only, plus one optional
 helper in `tests/`. No shipped file changes, so no version bump.
 
+<!-- toc -->
+
+- [S1. Objective and driver](#s1-objective-and-driver)
+- [S2. Where the time goes now](#s2-where-the-time-goes-now)
+- [S3. How to measure](#s3-how-to-measure)
+- [S4. Item 6: the listener test reads only its own temp folder](#s4-item-6-the-listener-test-reads-only-its-own-temp-folder)
+- [S5. Item 5a: timers that outlive the race](#s5-item-5a-timers-that-outlive-the-race)
+- [S6. Item 5b: wait for a state, not for a time](#s6-item-5b-wait-for-a-state-not-for-a-time)
+- [S7. Item 4: the renderers stay in their own processes](#s7-item-4-the-renderers-stay-in-their-own-processes)
+- [S8. Items 1 and 2: the check tier](#s8-items-1-and-2-the-check-tier)
+- [S9. Acceptance claims](#s9-acceptance-claims)
+- [S10. Out of scope, listed for the owner](#s10-out-of-scope-listed-for-the-owner)
+- [S11. Trade-off points](#s11-trade-off-points)
+- [S12. Build order](#s12-build-order)
+- [S13. Environments, and what is the owner's](#s13-environments-and-what-is-the-owners)
+
+<!-- /toc -->
+
 ## S1. Objective and driver
 
 The suite spends most of its time starting Node processes, copying files and

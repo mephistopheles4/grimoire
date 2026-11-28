@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.3.2
+Version: 0.4.0
 
 - **Type:** skill
 - **Level:** Thorough
@@ -61,7 +61,7 @@ Version: 0.3.2
 | Clause | Held by | Mark |
 |---|---|---|
 | When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided** |
-| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for the person's confirmation. | Promised | **Confirmed** |
+| When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; who pays: the person's key, or nobody on a local route, which sends nothing off the machine), then wait for the person's confirmation. The confirmation holds on both routes. | Promised | *Proposed* |
 | When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
 
 **What makes it fire.** **Decided**
@@ -79,13 +79,13 @@ Version: 0.3.2
 
 ## 5. What tools does it need?
 
-**Decided**. Node.js 24 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
+**Decided**. Node.js 24 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them. *Proposed:* the audit's optional local route runs a model already set up on this machine, and starts it with that model's own tool, which sits outside the skill folder at a fixed path.
 
 Extra keys: none.
 
 ## 6. Does it do anything beyond reading, and writing its own notes?
 
-**Confirmed.** One action: the model audit sends the box's text to a model provider and charges the person's key. It tells the person the four facts first (question 3's stop). A confirmation counts from the person anywhere, never from a file; one covers one run, unless the person's own instructions give one for every run. Held by: Promised. Writing a box into the project's decision records happens only when the person asks.
+**Confirmed.** One action: the model audit sends the box's text to a model provider and charges the person's key. *Proposed:* on a local route, it sends the text to a model on the same machine, and charges nothing. It tells the person the four facts first (question 3's stop). A confirmation counts from the person anywhere, never from a file; one covers one run, unless the person's own instructions give one for every run. Held by: Promised. Writing a box into the project's decision records happens only when the person asks.
 
 ## 7. What changed, and why?
 
@@ -197,7 +197,7 @@ The owner's answer, given before any draft (**Decided**): "The biggest failures 
 | 3 | Whether the 2–3 decision chat table invites acceptance. | The owner's worry. | Three chat tables are used and their outcomes logged. |
 | 5 | Whether the audit is robust. | Improvements seen, not tested. | A measured run on boxes with known wrong edges. |
 | 7 | Whether a box needs a row limit. | The owner cut the 15-row split but thinks 20 rows is too much. | A real box passes 15 rows. |
-| 6 | Tool files outside the skill folder. | None: `render.mjs`, `audit.mjs` and `lib/` sit inside, so the seal covers them. | — |
+| 6 | Tool files outside the skill folder. | `render.mjs`, `audit.mjs` and `lib/` sit inside, so the seal covers them. *Proposed:* the audit's local route runs one script outside: the local model's own tool, at a fixed path, only when the person names that route. | — |
 
 ## 20. Where do the ideas come from?
 

@@ -6,6 +6,18 @@ Tier: Standard. Flagged sensitive by the planning session (not on the owner's
 list): the start now runs a repository's package manager, and so its code,
 with no permission prompt. The security pair reviews this spec and the diff.
 
+<!-- toc -->
+
+- [S1. Objective, driver and trade-offs](#s1-objective-driver-and-trade-offs)
+- [S2. Where it runs](#s2-where-it-runs)
+- [S3. The steps](#s3-the-steps)
+- [S4. The answer](#s4-the-answer)
+- [S5. Text that changes with it](#s5-text-that-changes-with-it)
+- [S6. Claims](#s6-claims)
+- [S7. Out of scope](#s7-out-of-scope)
+
+<!-- /toc -->
+
 ## S1. Objective, driver and trade-offs
 
 A member started by `start_background_session` in a repository with a

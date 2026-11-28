@@ -14,7 +14,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { audit, renderer, root, run, runAsync } from './helpers.mjs';
@@ -39,6 +39,7 @@ function runAudit(args, env = {}) {
       TYPESAFE_API_KEY: null,
       OPENROUTER_API_KEY: null,
       EAGLE_EYE_AUDIT_ENDPOINT: null,
+      EAGLE_EYE_AUDIT_PROVIDER: null,
       ...env,
     },
   });
@@ -759,4 +760,276 @@ test('the edge audit names exactly two provider hosts in its source, over https'
   assert.deepEqual(hostsIn(`${text}\nconst x = "https://example.invalid/v1";\n`), ['api.typesafe.ai', 'example.invalid', 'openrouter.ai']);
   assert.deepEqual(hostsIn(`${text}\nconst x = "https:\\\\example.invalid";\n`), ['api.typesafe.ai', 'example.invalid', 'openrouter.ai']);
   assert.ok(urlsIn(`${text}\nconst x = "http://api.typesafe.ai/";\n`).some(u => u.scheme === 'http'));
+});
+
+// ---- the local Clef route (spec 0005) ----
+//
+// Every Clef run here gets a home folder of its own, so the real
+// ~/.pact/tools/clef.mjs is never reached. The fake clef.mjs records its
+// arguments and prints what the test asks it to.
+
+const PROVIDER_VAR = 'EAGLE_EYE_AUDIT_PROVIDER';
+
+// `out` is what each call prints; an array gives the n-th call its n-th entry,
+// and the last entry to every call after it. Each call records its
+// arguments, its working folder, and the names of the variables it got.
+function clefHome({ out = '', err = '', code = 0, script = true } = {}) {
+  const home = mkdtempSync(join(work, 'home-'));
+  const tools = join(home, '.pact', 'tools');
+  const log = join(home, 'clef-calls.log');
+  const outs = Array.isArray(out) ? out : [out];
+  if (script) {
+    mkdirSync(tools, { recursive: true });
+    writeFileSync(
+      join(tools, 'clef.mjs'),
+      [
+        "import { appendFileSync, existsSync, readFileSync } from 'node:fs';",
+        `const log = ${JSON.stringify(log)};`,
+        `const outs = ${JSON.stringify(outs)};`,
+        "const n = existsSync(log) ? readFileSync(log, 'utf8').split('\\n').filter(Boolean).length : 0;",
+        'appendFileSync(log, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd(), env: Object.keys(process.env) }) + "\\n");',
+        'process.stdout.write(outs[Math.min(n, outs.length - 1)]);',
+        `process.stderr.write(${JSON.stringify(err)});`,
+        `process.exitCode = ${code};`,
+        '',
+      ].join('\n'),
+    );
+  }
+  const records = () => {
+    try {
+      return readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    } catch {
+      return [];
+    }
+  };
+  return { home, tools, records, calls: () => records().map(r => r.args) };
+}
+
+const bare = (body, p = 0.2) => Object.fromEntries(Object.keys(body.questions).map(q => [q, { noul: p }]));
+
+// A loopback stand-in for the Clef supervisor. It answers with the bare map
+// that Clef's contract documents, and records each request's path, headers
+// and body.
+async function clefFake(reply = body => ({ body: bare(body) })) {
+  const seen = [];
+  const server = createServer((req, res) => {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', d => (data += d));
+    req.on('end', () => {
+      const body = JSON.parse(data);
+      seen.push({ body, url: req.url, headers: req.headers });
+      const r = reply(body, seen.length);
+      res.writeHead(r.status ?? 200, { 'content-type': 'application/json' });
+      res.end(typeof r.body === 'string' ? r.body : JSON.stringify(r.body));
+    });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  return { base: `http://127.0.0.1:${port}`, port, seen, close: () => new Promise(resolve => server.close(resolve)) };
+}
+
+const ready = url => `${JSON.stringify({ url, state: 'ready' })}\n`;
+
+function runClef(args, home, env = {}) {
+  return runAudit(args, { [PROVIDER_VAR]: 'clef', HOME: home, USERPROFILE: home, ...env });
+}
+
+test('C1 C5 C8: on the Clef route a run ensures Clef, sends to the URL it printed, and ranks', async () => {
+  const svc = await clefFake();
+  const { home, calls } = clefHome({ out: ready(svc.base) });
+  const sidecar = join(home, 'ranking.json');
+  try {
+    const before = readFileSync(decisions);
+    const r = await runClef([decisions, '--json', sidecar], home);
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(svc.seen.length > 0);
+    assert.ok(svc.seen.every(s => s.url === '/v1/systemone'));
+    assert.deepEqual(calls(), [['ensure', '--wait', '60']]);
+    assert.match(r.stdout, /Scored by clef-local\./);
+    assert.match(r.stderr, /Sent \d+ requests? to Clef on this machine\. No key was charged\. Answered by clef-local\./);
+    assert.equal(JSON.parse(readFileSync(sidecar, 'utf8')).model, 'clef-local');
+    assert.deepEqual(readFileSync(decisions), before);
+  } finally {
+    await svc.close();
+  }
+});
+
+test('C2: a Clef request carries no key, no Origin and no model, even with both keys set, and clef.mjs gets no key', async () => {
+  const svc = await clefFake();
+  // The endpoint override is not used on this route: this fake must see nothing.
+  const decoy = await clefFake();
+  const { home, records } = clefHome({ out: ready(svc.base) });
+  try {
+    // An OpenRouter key in TYPESAFE_API_KEY is not refused here: no key is read.
+    const r = await runClef([portable], home, {
+      TYPESAFE_API_KEY: OR_KEY,
+      OPENROUTER_API_KEY: KEY,
+      // On Windows a name in another case is the same variable.
+      typesafe_api_key: KEY,
+      EAGLE_EYE_AUDIT_ENDPOINT: `${decoy.base}/v1/systemone`,
+    });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(decoy.seen.length, 0);
+    assertNoKey(r);
+    const [call] = records();
+    for (const v of ['TYPESAFE_API_KEY', 'OPENROUTER_API_KEY', PROVIDER_VAR, 'EAGLE_EYE_AUDIT_ENDPOINT']) {
+      assert.ok(!call.env.some(k => k.toUpperCase() === v), `${v} reached clef.mjs`);
+    }
+    assert.ok(svc.seen.length > 0);
+    for (const s of svc.seen) {
+      assert.equal(s.headers.authorization, undefined);
+      assert.equal(s.headers.origin, undefined);
+      assert.equal(s.headers.host, `127.0.0.1:${svc.port}`);
+      assert.equal(s.headers['content-type'], 'application/json');
+      assert.deepEqual(Object.keys(s.body).sort(), ['questions', 'state']);
+      assert.equal(Object.keys(s.body.questions).length, 8);
+    }
+  } finally {
+    await svc.close();
+    await decoy.close();
+  }
+});
+
+test('C3: --probe and --provider name the Clef route and never run clef.mjs; an unknown value is no route', async () => {
+  const { home, calls } = clefHome({ out: ready('http://127.0.0.1:9') });
+  assert.equal((await runClef(['--probe'], home)).stdout, 'yes\n');
+  assert.equal((await runClef(['--provider'], home)).stdout, 'Clef\n');
+  // Case and spaces are ignored.
+  assert.equal((await runClef(['--provider'], home, { [PROVIDER_VAR]: ' CLEF ' })).stdout, 'Clef\n');
+  assert.deepEqual(calls(), []);
+
+  const svc = await clefFake();
+  try {
+    // A key beside an unknown value is not used either: the person asked for
+    // a route that does not exist, and a run that quietly paid would hide it.
+    const odd = { [PROVIDER_VAR]: 'clef-full', TYPESAFE_API_KEY: KEY, EAGLE_EYE_AUDIT_ENDPOINT: `${svc.base}/v1/systemone` };
+    assert.equal((await runClef(['--probe'], home, odd)).stdout, 'no\n');
+    assert.equal((await runClef(['--provider'], home, odd)).stdout, 'none\n');
+    for (const args of [[decisions], [decisions, '--dry-run']]) {
+      const r = await runClef(args, home, odd);
+      assert.equal(r.code, 3, r.stderr);
+      assert.match(r.stderr, new RegExp(`${PROVIDER_VAR}=clef`));
+      assert.match(r.stderr, /Nothing was sent/);
+      assert.equal(r.stdout, '');
+      assertNoKey(r);
+    }
+    assert.deepEqual(calls(), []);
+    assert.equal(svc.seen.length, 0);
+  } finally {
+    await svc.close();
+  }
+});
+
+test('C4: a Clef dry run says nothing leaves the machine, runs no clef.mjs, and sends nothing', async () => {
+  const svc = await clefFake();
+  const { home, calls } = clefHome({ out: ready(svc.base) });
+  try {
+    const r = await runClef([decisions, '--dry-run'], home);
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(Object.keys(JSON.parse(r.stdout)).sort(), ['questions', 'state']);
+    assert.match(r.stderr, /A real run sends \d+ requests to Clef, a model on this machine, at 127\.0\.0\.1/);
+    assert.match(r.stderr, /Nothing leaves this machine, and no key is charged\./);
+    assert.match(r.stderr, /It starts Clef if it is not running\./);
+    assert.match(r.stderr, /Nothing was sent\./);
+    assert.doesNotMatch(r.stderr, /charged to your key/);
+    assert.deepEqual(calls(), []);
+    assert.equal(svc.seen.length, 0);
+  } finally {
+    await svc.close();
+  }
+});
+
+test('C6: when Clef is not ready or ensure answers oddly, the run exits 3, sends nothing, and prints no output of ensure', async () => {
+  const svc = await clefFake();
+  const PRIVATE = 'C:/Users/someone/private/clef-folder';
+  const cases = [
+    [{ script: false }, /no Clef tool/],
+    [{ out: `${JSON.stringify({ state: 'not-set-up', reason: 'missing' })}\n`, code: 3 }, /not-set-up[\s\S]*7 GB/],
+    [{ out: `${JSON.stringify({ state: 'failed', reason: 'exit' })}\n`, code: 4 }, /failed/],
+    [{ out: `${JSON.stringify({ url: svc.base, state: 'starting' })}\n` }, /still starting after 180 seconds/],
+    [{ out: `REFUSED clef-home: ${PRIVATE}\nRESULT: refused clef-home\n`, err: `Error: ${PRIVATE}\n`, code: 2 }, /no answer/],
+    [{ out: `${JSON.stringify({ state: PRIVATE })}\n` }, /no answer/],
+    [{ out: ready(`http://10.0.0.1:${svc.port}`) }, /not a loopback/],
+    [{ out: ready(`http://localhost:${svc.port}`) }, /not a loopback/],
+    [{ out: ready(`${svc.base}/elsewhere`) }, /not a loopback/],
+    [{ out: ready(`https://127.0.0.1:${svc.port}`) }, /not a loopback/],
+    [{ out: ready(`http://127.0.0.1`) }, /not a loopback/],
+    [{ out: `${JSON.stringify({ state: 'ready', url: [svc.base] })}\n` }, /not a loopback/],
+  ];
+  try {
+    for (const [opts, want] of cases) {
+      const { home } = clefHome(opts);
+      const r = await runClef([decisions], home);
+      assert.equal(r.code, 3, `${JSON.stringify(opts)}: ${r.stderr}`);
+      assert.match(r.stderr, want);
+      assert.match(r.stderr, /Nothing was sent/);
+      assert.ok(!r.stderr.includes(PRIVATE), 'the output of ensure reached the message');
+      assert.ok(!r.stderr.includes(home), 'the home path reached the message');
+      assert.equal(r.stdout, '');
+    }
+    assert.equal(svc.seen.length, 0);
+  } finally {
+    await svc.close();
+  }
+});
+
+test('C5: ensure runs from the caller\'s folder, again while Clef is starting, three times at most, and never stop', async () => {
+  const svc = await clefFake();
+  const starting = `${JSON.stringify({ state: 'starting' })}\n`;
+  try {
+    // Only the last line of stdout is the answer.
+    const late = clefHome({ out: [starting, starting, `clef: a log line\n${ready(svc.base)}`] });
+    const r = await runClef([decisions], late.home);
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(late.calls(), Array(3).fill(['ensure', '--wait', '60']));
+    // From the audit's own working folder (runAsync uses the repository root),
+    // so Clef's check on a Claude home folder inside it still judges the run.
+    assert.ok(late.records().every(c => realpathSync(c.cwd) === realpathSync(root)), 'ensure ran outside the caller\'s folder');
+
+    const never = clefHome({ out: starting });
+    const sent = svc.seen.length;
+    const r2 = await runClef([decisions], never.home);
+    assert.equal(r2.code, 3, r2.stderr);
+    assert.equal(never.calls().length, 3);
+    assert.equal(svc.seen.length, sent);
+  } finally {
+    await svc.close();
+  }
+});
+
+test('C10: a Clef dry run warns when a request holds more state than Clef takes, and only then', async () => {
+  const { home } = clefHome();
+  const big = join(home, 'big.box.json');
+  const box = JSON.parse(readFileSync(decisions, 'utf8'));
+  writeFileSync(big, JSON.stringify({ ...box, problem: 'a long problem statement. '.repeat(1300) }));
+  const r = await runClef([big, '--dry-run'], home);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /The largest request holds [\d,]+ characters of state\. Clef refuses a state over about 30,000 characters, so a real run would fail with exit 4\./);
+  const small = await runClef([decisions, '--dry-run'], home);
+  assert.doesNotMatch(small.stderr, /largest request/);
+});
+
+test('C7: a Clef answer that lacks a pattern, adds a key or leaves 0 to 1 is refused with exit 4', async () => {
+  const bad = [
+    body => Object.fromEntries(Object.entries(bare(body)).slice(1)),
+    body => ({ ...bare(body), extra: { noul: 0.2 } }),
+    body => Object.fromEntries(Object.keys(body.questions).map(q => [q, { noul: 0.2, confidence: 0.9 }])),
+    body => bare(body, 1.5),
+    body => Object.fromEntries(Object.keys(body.questions).map(q => [q, { score: 0.2 }])),
+    body => ({ model: 'x', answers: bare(body) }),
+    () => [],
+  ];
+  for (const make of bad) {
+    const svc = await clefFake(body => ({ body: make(body) }));
+    const { home } = clefHome({ out: ready(svc.base) });
+    try {
+      const r = await runClef([decisions], home);
+      assert.equal(r.code, 4, r.stderr);
+      assert.match(r.stderr, /Refused:/);
+      assert.equal(r.stdout, '');
+    } finally {
+      await svc.close();
+    }
+  }
 });

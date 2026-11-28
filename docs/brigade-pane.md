@@ -2,6 +2,15 @@
 
 The detail behind the [head-chef section of the root README](../README.md): what the head chef may do in your name, the Brigade pane (sessions, pull requests, decisions, the autonomy levels, the context and burn-rate views), and the usage summary files with their known limits. It moved here whole from the root README, so the front page stays a front page. For what the skill does, what counts as your yes and what cleanup names back, read [`skills/head-chef/README.md`](../skills/head-chef/README.md).
 
+<!-- toc -->
+
+- [What the head chef does](#what-the-head-chef-does)
+- [The Brigade pane](#the-brigade-pane)
+- [The skill's own pages](#the-skills-own-pages)
+- [Usage summaries, and the limits of what the pane draws](#usage-summaries-and-the-limits-of-what-the-pane-draws)
+
+<!-- /toc -->
+
 ## What the head chef does
 
 Reach for it in Claude Desktop when you want work to run in another session,
@@ -87,7 +96,8 @@ still on an older version cannot read a log that holds a flag until it
 reloads; never delete that log to clear its refusal. No press removes a
 decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
-every decision newest first, 50 at a time. On Desktop and the terminal a
+every decision newest first, 50 at a time. A row in Flagged or History draws
+its headline on at most two lines; open it for the whole card. On Desktop and the terminal a
 search box filters all three by every word you type.
 
 Since 0.121.0 (issue 509) the tab draws only this session's own decision

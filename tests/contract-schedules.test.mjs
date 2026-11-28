@@ -291,7 +291,7 @@ const HEAD_CHEF_PENDING = [
   'SKILL.md: Rules',
   'SKILL.md: Additional resources',
   'references/starting.md: Starting a session',
-  'references/starting.md: When the model changes',
+  'references/starting.md: When the model changes or the member is cold',
   'references/starting.md: When a start is refused',
   'references/cleanup.md: Cleanup',
   'references/cleanup.md: Which sessions',

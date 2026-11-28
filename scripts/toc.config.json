@@ -1,0 +1,30 @@
+{
+  "maxUncoveredLines": 100,
+  "exclude": [
+    "docs/adr/",
+    "docs/logs/",
+    "evals/",
+    "tests/",
+    "**/CLAUDE.md",
+    "**/AGENTS.md",
+    "**/SKILL.md",
+    "**/README.md",
+    "skills/head-chef/references/contract.changelog.md",
+    "skills/head-chef/references/roster.md",
+    "skills/head-chef/references/starting.md",
+    "skills/contract/references/CONTRACT.md",
+    "skills/contract/references/amend.md",
+    "skills/contract/references/binding-claude.md",
+    "skills/contract/references/binding-codex.md",
+    "skills/contract/references/hiring.md",
+    "skills/contract/references/template.md",
+    "skills/eagle-eye/CONTRACT.md",
+    "skills/eagle-eye/reference/audit.md",
+    "skills/eagle-eye/reference/box-file.md",
+    "skills/eagle-eye/reference/writing-edges.md",
+    "skills/groundtrack/references/flightpath-file.md",
+    "skills/groundtrack/references/writing-traces.md",
+    "skills/head-chef/references/CONTRACT.md",
+    "skills/incantation/references/CONTRACT.md"
+  ]
+}

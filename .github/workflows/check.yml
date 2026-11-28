@@ -1,16 +1,60 @@
+# The checks that are not security scans, as one job per platform (GRIM-62).
+#
+# - `check`, on Linux: the check script, the table-of-contents check, Claude
+#   Code's own validation of the manifests and skills, the Brigade mod's tests,
+#   and, when a change touches it, Incantation's speech runtime.
+# - `macos`: the table-of-contents check and, when a change touches it,
+#   Incantation's runtime and its macOS plumbing.
+# - `windows`: the table-of-contents check and the Brigade mod's tests.
+#
+# The security scans keep their own workflows and run on every pull request:
+# skillspector.yml, zizmor.yml, and CodeQL's default setup. Intel macOS and
+# Linux on ARM are not tested in CI (GRIM-62): GitHub is retiring its Intel
+# macOS runners, and no bug so far was found only on either.
+#
+# **Why one job per platform.** Each job takes a runner from the account's 20
+# at once, 5 of them macOS, so pull requests across repositories queue on each
+# other. A failing step still fails its job, and the log names the step, so
+# steps in place of jobs lose no signal. The ruleset requires `check`, the
+# Linux job's name. The steps came from plugin-validate.yml (`validate`,
+# `plugin-test`, `plugin-test-linux`), incantation-platforms.yml (`runtime`,
+# `plumbing`) and this file's old `toc` matrix.
+#
+# **The order matters.** The check script runs first, on a tree nothing has
+# been installed beside, which is what CONTRIBUTING.md promises of it. Claude
+# Code and the speech runtime are fetched after, outside the checkout.
+#
+# **Not on the publishing path.** `contents: read`, no secret, and pages.yml
+# does not depend on this workflow.
+
 name: check
 
 on:
   push:
     branches: [main]
   pull_request:
+  # By hand, for the Incantation runtime steps on a branch that does not
+  # change the paths below.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest, because the Claude Code fetch below names a
+    # platform package: linux, x64, glibc.
+    runs-on: ubuntu-24.04
+    # Named, so a step runs with pipefail and a failed command before `tee`
+    # fails the step.
+    defaults:
+      run:
+        shell: bash
+    env:
+      # An update mid-job would replace the pinned binary in silence, and
+      # nothing the Claude Code steps do needs the network once the fetch is done.
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     steps:
       # fetch-depth: 0 because the version-bump check compares this branch
       # against its merge base. A shallow clone has no merge base to find.
@@ -23,8 +67,8 @@ jobs:
       # refs/heads/* into refs/remotes/origin/*, so origin/main is on disk
       # before the first step after this one runs. The default writes the job's
       # token into .git/config as an http.extraheader, which buys those reads
-      # nothing and leaves a credential in the working tree. Raised by zizmor as
-      # `artipacked`, and gated by .github/workflows/zizmor.yml.
+      # nothing and leaves a credential in the working tree for the tools below.
+      # Raised by zizmor as `artipacked`, and gated by zizmor.yml.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -36,3 +80,349 @@ jobs:
           node-version: '24'
           check-latest: true
       - run: node scripts/check.mjs
+      # Fails on a missing or stale table of contents in a doc
+      # scripts/toc.config.json covers.
+      - run: node scripts/toc.mjs --check
+
+      # **The platform package, not the wrapper.** @anthropic-ai/claude-code
+      # copies the native binary into place from a postinstall script. Without
+      # that script its `claude` is a placeholder that prints "claude native
+      # binary not installed" and exits 1. The binary itself ships in
+      # @anthropic-ai/claude-code-linux-x64, which has no scripts and no `bin`:
+      # a tarball holding one executable file, `package/claude`.
+      #
+      # **Fetched and unpacked, not installed.** `npm pack` downloads the pinned
+      # tarball and `tar` unpacks it, both in $RUNNER_TEMP, outside the
+      # checkout. Nothing runs an install, so no package script can run and no
+      # package.json or lockfile is written (zizmor's `adhoc-packages` flags an
+      # install outside a lockfile). It runs from $RUNNER_TEMP, so npm reads no
+      # .npmrc a branch adds to the checkout (issue 366; scripts/check.mjs also
+      # refuses one).
+      #
+      # **How strong the pin is.** npm never re-publishes a version number, so
+      # this is close to a content pin and is not one, the same as zizmor's
+      # PyPI pin. docs/security/threat-model.md (R4) records the gap.
+      #
+      # **Dependabot does not watch this pin**: it reads `uses:` lines, and the
+      # CLI arrives through a `run:` line. docs/security/scanners.md says how to
+      # bump it and which version strings move together.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.332"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.332.tgz" -C "$RUNNER_TEMP/claude"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      # Checked, not assumed. A missing binary, a placeholder or a different
+      # version fails here, before the steps below can read as clean.
+      - name: Check the Claude Code version
+        run: |
+          expected="2.1.332 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      # `claude plugin validate --strict` reads the manifests against the schema
+      # Claude Code itself loads, and fails on an unknown field the runtime
+      # would ignore in silence. scripts/check.mjs does not.
+      #
+      # **Three runs, every time.** What one run covers is a property of the
+      # CLI version: on 2.1.332 `.` reads both manifests and hooks/hooks.json and
+      # type-checks the mod's module, and does not check what skills/ holds. So
+      # each target is named. Each status is recorded and the step fails at the
+      # end, so one red target cannot hide the next.
+      #
+      # **The exit code is the gate.** A missing path, a mistyped one and an
+      # empty folder all exit 1 on 2.1.332, measured, so no output is parsed.
+      - name: Validate the manifests and skills
+        run: |
+          failed=0
+          for target in . .claude-plugin/plugin.json skills; do
+            status=0
+            claude plugin validate --strict "$target" || status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "ok: ${target}"
+            else
+              echo "FAILED: ${target} exited ${status}"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "A target failed --strict, listed above. Fix the field, or argue it in the pull request."
+            exit 1
+          fi
+
+      # The Brigade mod's tests, brigade/*.test.ts and brigade/*.test.tsx,
+      # under the engine's own test runner. A test file that does not load
+      # fails the run, and so does a failing test (#477). No sign-in and no
+      # model call: measured on 2.1.332 with an empty config folder and no API
+      # key. Here they run with the mod's paths as Linux spells them; the
+      # `windows` job runs the junction case (#481).
+      - name: Run the mod's tests
+        run: claude plugin test .
+
+      # **Incantation's runtime, only when a change touches it.** The install
+      # downloads about 1.2 GB from the hosts the plan names, so it runs by
+      # hand, or when the change touches the runtime's pins, the scripts that
+      # start its parts, or this file. A diff that cannot be read counts as a
+      # touch. The same rule sits in the `macos` job; change both together.
+      - name: Does the change touch Incantation's runtime?
+        id: runtime
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          run=false
+          if [ "$EVENT" = workflow_dispatch ]; then
+            run=true
+          elif [ "$EVENT" = pull_request ]; then
+            if ! names=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD); then
+              run=true
+            elif grep -qE '^(skills/incantation/scripts/(runtime/.*|engines/[^/]*-worker\.py|setup\.mjs|stream\.mjs|listen\.mjs)|\.github/workflows/check\.yml)$' <<< "$names"; then
+              run=true
+            fi
+          fi
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
+          echo "Incantation runtime steps: ${run}"
+
+      # uv at an exact version, with no cache: the installer builds the venv
+      # from the lock's hashes alone.
+      - if: steps.runtime.outputs.run == 'true'
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.13.7'
+          enable-cache: false
+      # The installer runs a uv only from a folder that no one else can write,
+      # and each folder above it must be the same (README, "Finding ffmpeg").
+      # The runner's tool cache fails that rule, so copy uv into a private folder.
+      - name: Put uv where the installer trusts it
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          install -d -m 0755 "$HOME/uv-bin"
+          install -m 0755 "$(command -v uv)" "$HOME/uv-bin/uv"
+          echo "$HOME/uv-bin" >> "$GITHUB_PATH"
+      # The unit tests above prove the installer against fakes. These prove the
+      # pinned addon loads and the lock's wheels install, for real: plan,
+      # install and verify, then each part started once.
+      - name: Incantation runtime plan
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          node skills/incantation/scripts/setup.mjs runtime plan | tee "$RUNNER_TEMP/plan.txt"
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) missing [0-9]+ MB$' "$RUNNER_TEMP/plan.txt")" = 6
+          grep -qx 'uv found' "$RUNNER_TEMP/plan.txt"
+      - name: Incantation runtime install
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          node skills/incantation/scripts/setup.mjs runtime install | tee "$RUNNER_TEMP/install.txt"
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) ok$' "$RUNNER_TEMP/install.txt")" = 6
+      - name: Incantation runtime verify
+        if: steps.runtime.outputs.run == 'true'
+        run: node skills/incantation/scripts/setup.mjs runtime verify
+      # Each worker writes its ready mark and exits when its stdin closes.
+      - name: Start each Incantation part once
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          R="$HOME/.grimoire/incantation/runtime"
+          E=skills/incantation/scripts/engines
+          node -e 'require(process.argv[1])' "$R/node_modules/sherpa-onnx-node"
+          test "$("$R/py/bin/python" -I "$E/turn-worker.py" "$R/smart-turn/smart-turn-v3.2-cpu.onnx" </dev/null | head -c 4)" = TRN1
+          test "$("$R/py/bin/python" -I "$E/aec-worker.py" </dev/null | head -c 4)" = AEC1
+          HF_HOME="$R/hf" HF_HUB_OFFLINE=1 "$R/py/bin/python" -I "$E/phonon-worker.py" </dev/null | grep -q '"ready": true'
+
+  macos:
+    # Apple Silicon only.
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # fetch-depth: 2, so the change step can diff a pull request's merge
+      # commit against its base. persist-credentials: false; git only reads.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true
+      # macOS reaches folders through links.
+      - run: node scripts/toc.mjs --check
+
+      # The `check` job's rule, unchanged; change both together.
+      - name: Does the change touch Incantation's runtime?
+        id: runtime
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          run=false
+          if [ "$EVENT" = workflow_dispatch ]; then
+            run=true
+          elif [ "$EVENT" = pull_request ]; then
+            if ! names=$(git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD); then
+              run=true
+            elif grep -qE '^(skills/incantation/scripts/(runtime/.*|engines/[^/]*-worker\.py|setup\.mjs|stream\.mjs|listen\.mjs)|\.github/workflows/check\.yml)$' <<< "$names"; then
+              run=true
+            fi
+          fi
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
+          echo "Incantation runtime steps: ${run}"
+
+      - if: steps.runtime.outputs.run == 'true'
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.13.7'
+          enable-cache: false
+      - name: Put uv where the installer trusts it
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          install -d -m 0755 "$HOME/uv-bin"
+          install -m 0755 "$(command -v uv)" "$HOME/uv-bin/uv"
+          echo "$HOME/uv-bin" >> "$GITHUB_PATH"
+      - name: Incantation runtime plan
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          node skills/incantation/scripts/setup.mjs runtime plan | tee "$RUNNER_TEMP/plan.txt"
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) missing [0-9]+ MB$' "$RUNNER_TEMP/plan.txt")" = 6
+          grep -qx 'uv found' "$RUNNER_TEMP/plan.txt"
+      - name: Incantation runtime install
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          node skills/incantation/scripts/setup.mjs runtime install | tee "$RUNNER_TEMP/install.txt"
+          test "$(grep -cE '^(addon|hearing|detector|python|turn|phonon) ok$' "$RUNNER_TEMP/install.txt")" = 6
+      - name: Incantation runtime verify
+        if: steps.runtime.outputs.run == 'true'
+        run: node skills/incantation/scripts/setup.mjs runtime verify
+      - name: Start each Incantation part once
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          R="$HOME/.grimoire/incantation/runtime"
+          E=skills/incantation/scripts/engines
+          node -e 'require(process.argv[1])' "$R/node_modules/sherpa-onnx-node"
+          test "$("$R/py/bin/python" -I "$E/turn-worker.py" "$R/smart-turn/smart-turn-v3.2-cpu.onnx" </dev/null | head -c 4)" = TRN1
+          test "$("$R/py/bin/python" -I "$E/aec-worker.py" </dev/null | head -c 4)" = AEC1
+          HF_HOME="$R/hf" HF_HUB_OFFLINE=1 "$R/py/bin/python" -I "$E/phonon-worker.py" </dev/null | grep -q '"ready": true'
+
+      # **The listener's macOS plumbing**, with real processes: the listener's
+      # tests on darwin, the recorder's stop with a real child, and the steady
+      # player feeding a real ffplay. The runner has no speaker and no
+      # Bluetooth, so ffplay plays to SDL's dummy audio driver: this proves the
+      # plumbing, never that a person hears a line (GRIM-57).
+      - name: The listener's tests, on darwin
+        if: steps.runtime.outputs.run == 'true'
+        run: node --test tests/incantation-listen.test.mjs tests/incantation-listen-live.test.mjs tests/incantation-echo.test.mjs
+      # A real child that ends on SIGINT, and one that ignores it, so the
+      # signal and the SIGKILL after the grace are delivered for real.
+      - name: stopRecorder with a real child
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          node --input-type=module -e '
+          import { spawn } from "node:child_process";
+          import { stopRecorder } from "./skills/incantation/scripts/listen.mjs";
+          const run = async (handler, grace) => {
+            const child = spawn(process.execPath, ["-e", `process.on("SIGTERM", () => {}); process.on("SIGINT", ${handler}); process.stdout.write("up"); setInterval(() => {}, 1000);`], { stdio: ["ignore", "pipe", "ignore"] });
+            await new Promise(r => child.stdout.once("data", r));
+            const exited = new Promise(r => child.once("exit", (code, signal) => r(signal ?? code)));
+            const t = Date.now();
+            await stopRecorder(child, exited, { platform: "darwin", graceMs: grace });
+            return { how: await exited, ms: Date.now() - t };
+          };
+          const polite = await run("() => process.exit(0)", 2000);
+          if (polite.how !== 0 || polite.ms > 1500) throw new Error(`SIGINT did not end it: ${JSON.stringify(polite)}`);
+          const stubborn = await run("() => {}", 300);
+          if (stubborn.how !== "SIGKILL") throw new Error(`no SIGKILL: ${JSON.stringify(stubborn)}`);
+          console.log("stopRecorder: SIGINT ends a recorder, SIGKILL ends one that ignores it");
+          '
+      - name: Install ffmpeg, with ffplay
+        if: steps.runtime.outputs.run == 'true'
+        run: |
+          brew install ffmpeg
+          test -x "$(brew --prefix)/bin/ffplay"
+      # SDL's dummy driver takes audio at a device's pace with no device. The
+      # player starts ffplay on the first frame; a one-second line, pumped by
+      # 30 ms frames on a real clock, must settle ended (not failed) with
+      # ffplay running, and close must end ffplay.
+      - name: The steady player feeds a real ffplay
+        if: steps.runtime.outputs.run == 'true'
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: |
+          FFPLAY="$(brew --prefix)/bin/ffplay" node --input-type=module -e '
+          import { execFileSync } from "node:child_process";
+          import { makeStreamPlayer, OUT_RATE } from "./skills/incantation/scripts/stream.mjs";
+          const running = () => { try { execFileSync("pgrep", ["-x", "ffplay"]); return true; } catch { return false; } };
+          const wav = Buffer.alloc(44 + OUT_RATE * 2);
+          wav.write("RIFF", 0, "latin1");
+          wav.write("WAVE", 8, "latin1");
+          wav.writeUInt16LE(1, 20);
+          wav.writeUInt16LE(1, 22);
+          wav.writeUInt32LE(OUT_RATE, 24);
+          wav.writeUInt16LE(16, 34);
+          for (let i = 0; i < OUT_RATE; i++) wav.writeInt16LE(Math.round(8000 * Math.sin(i / 10)), 44 + i * 2);
+          const player = makeStreamPlayer({ ffplay: process.env.FFPLAY, timers: false, leadMs: 300 });
+          if (!player) throw new Error("no player for " + process.env.FFPLAY);
+          const line = player.play(wav);
+          if (running()) throw new Error("ffplay started before the first frame");
+          const clock = setInterval(() => player.pump(30), 30);
+          const outcome = await Promise.race([line.done, new Promise(r => setTimeout(() => r("timeout"), 5000))]);
+          if (outcome !== "ended") throw new Error("the line settled " + outcome);
+          if (!running()) throw new Error("ffplay is not running after the line");
+          clearInterval(clock);
+          player.close();
+          await new Promise(r => setTimeout(r, 1000));
+          if (running()) throw new Error("ffplay outlived close");
+          console.log("steady player: ffplay started on the first frame, took a line, and ended on close");
+          '
+
+  windows:
+    # Pinned, because the fetch below names a platform package: windows, x64.
+    runs-on: windows-2025
+    env:
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # persist-credentials: false. Nothing here runs a git command that writes.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true
+      # A Windows checkout ends lines in CRLF.
+      - run: node scripts/toc.mjs --check
+
+      # The `check` job's fetch, of the Windows package, whose one executable
+      # is `package/claude.exe`. Its version strings move with the `check`
+      # job's and tests/container/Dockerfile's. `tar` runs in the folder, since
+      # Git's tar reads a drive letter in a path as a remote host.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          cd "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts "@anthropic-ai/claude-code-win32-x64@2.1.332"
+          tar -xzf "anthropic-ai-claude-code-win32-x64-2.1.332.tgz"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      - name: Check the Claude Code version
+        run: |
+          expected="2.1.332 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      # The case that builds a junction runs here only: Linux has none, and
+      # the answers in brigade/recorded-stats.ts were recorded on Windows (#481).
+      - name: Run the mod's tests
+        run: claude plugin test .

@@ -343,17 +343,17 @@ export function startAnswer(ran: unknown, input: Inputs, platform: Platform = 'w
   if (lines.filter(l => l.startsWith('backgrounded')).length !== 1) return NOT_STARTED
   const m = /^backgrounded · ([0-9a-f]{8}) · (.+)$/.exec(lines[0]!)
   if (m === null || m[2] !== input.name) return NOT_STARTED
-  // Spec 0005 S4: the install's sentence sits before "Write its card"; with none, the answer is as it was.
+  // Spec 0008 S4: the install's sentence sits before "Write its card"; with none, the answer is as it was.
   const extra = installSentence === undefined ? '' : ` ${installSentence}`
   return `Started ${input.name}: job ${m[1]}. Folder: ${worktreeFolder(input.folder, input.name, platform)}. Branch: ${worktreeBranch(input.name)}.${extra} Write its card with set_roster; the tool wrote none.`
 }
 
-// --- the install after a start (spec 0005) --------------------------------------------------
+// --- the install after a start (spec 0008) --------------------------------------------------
 
 /** What the S3.4 table reads: which of the worktree's files are regular files that are not links. */
 export type LockFiles = { pnpm: boolean; npm: boolean; shrinkwrap: boolean; yarn: boolean; yarnrc: boolean }
 
-/** Spec 0005 S3.4: the lockfile table. The words are the manager's name then its arguments, and nothing else;
+/** Spec 0008 S3.4: the lockfile table. The words are the manager's name then its arguments, and nothing else;
  *  no flag turns scripts on or off. `.yarnrc.yml` with no `yarn.lock` is no lockfile. */
 export function installWords(f: LockFiles): { words: string[] } | { none: true } | { reason: 'several' } {
   const npm = f.npm || f.shrinkwrap
@@ -365,7 +365,7 @@ export function installWords(f: LockFiles): { words: string[] } | { none: true }
   return { words: f.yarnrc ? ['yarn', 'install', '--immutable'] : ['yarn', 'install', '--frozen-lockfile'] }
 }
 
-/** Spec 0005 S4: the sentences, in fixed words that quote no path, error or output. */
+/** Spec 0008 S4: the sentences, in fixed words that quote no path, error or output. */
 const NOT_INSTALLED_TAIL = 'The member starts without its packages.'
 export const INSTALL_SENTENCES = {
   none: 'No install: no lockfile.',
@@ -401,7 +401,7 @@ const WRAPPER_FIXED = {
   npm_config_fund: 'false',
 }
 
-/** Spec 0005 S3.6: run by `node -e`, given the worktree, the manager's path, then its words as arguments. It hands the manager only the
+/** Spec 0008 S3.6: run by `node -e`, given the worktree, the manager's path, then its words as arguments. It hands the manager only the
  *  named variables (compared without case) and six fixed words, runs it in the worktree with no shell and no streams, and exits with its
  *  status, or 124 when it was killed at 240 s or could not start. A fixed constant: nothing typed reaches it. */
 export const INSTALL_WRAPPER = `
@@ -418,7 +418,7 @@ const GIT_STATUS_TIMEOUT_MS = 5000
 const HTTP_READ_MAX = 20 * 1024 * 1024
 export const INSTALL_CAP_MS = 250000
 
-/** The install's spawn (spec 0005 S2): its pieces are pulled and dropped, and it ends at `capMs` or on
+/** The install's spawn (spec 0008 S2): its pieces are pulled and dropped, and it ends at `capMs` or on
  *  the signal, since a spawn kills its child when its loop ends. The stream's return value is
  *  `{ code, signal }`. Resolves the exit code, or undefined when it was ended, could not start or threw. */
 export async function spawnExit(
@@ -462,7 +462,7 @@ export type InstallPorts = {
   sleep: (ms: number) => Promise<unknown>
   /** The clock's now, in ms. The engine's clock answers with a promise. */
   now: () => number | Promise<number>
-  /** The file's text (spec 0005 S3.5a). */
+  /** The file's text (spec 0008 S3.5a). */
   read: (path: string) => Promise<string>
   program: (name: string) => Promise<{ value: string } | { why: string }>
 }
@@ -471,7 +471,7 @@ const LOCK_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json'
 const SETTINGS_NAMES = ['.npmrc', '.yarnrc'] as const
 const MANAGER_LOCKS: Record<string, string[]> = { pnpm: ['pnpm-lock.yaml'], npm: ['package-lock.json', 'npm-shrinkwrap.json'], yarn: ['yarn.lock'] }
 
-/** Spec 0005 S3.2 to S3.7, in order: the sentence for the S4 answer. It never throws; a throw is reason `install`. */
+/** Spec 0008 S3.2 to S3.7, in order: the sentence for the S4 answer. It never throws; a throw is reason `install`. */
 export async function installAfterStart(ports: InstallPorts, input: Inputs, platform: Platform): Promise<string> {
   let command = 'the install'
   try {

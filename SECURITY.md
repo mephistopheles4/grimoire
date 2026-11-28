@@ -1,5 +1,19 @@
 # Security
 
+<!-- toc -->
+
+- [Reporting a vulnerability](#reporting-a-vulnerability)
+- [Scope](#scope)
+- [What this project is, in threat terms](#what-this-project-is-in-threat-terms)
+- [Pages built from a stranger's text](#pages-built-from-a-strangers-text)
+- [What the edge audit sends](#what-the-edge-audit-sends)
+- [What Incantation's runtime installer contacts](#what-incantations-runtime-installer-contacts)
+- [Scanners in CI](#scanners-in-ci)
+- [What the platform is relied on for](#what-the-platform-is-relied-on-for)
+- [What is deliberately not defended against](#what-is-deliberately-not-defended-against)
+
+<!-- /toc -->
+
 ## Reporting a vulnerability
 
 Use GitHub's **private vulnerability reporting**: the "Report a vulnerability"
@@ -675,6 +689,7 @@ The realistic risks:
 - **An API key in the environment.** The edge audit reads one and sends it as a
   bearer token. Review any change to `skills/eagle-eye/audit.mjs`, its
   endpoints, or how it picks a key as a change that could send a key elsewhere.
+  The same holds for how its Clef route finds and runs `clef.mjs`.
 
 ## Pages built from a stranger's text
 
@@ -701,7 +716,9 @@ The details, the tests, and what they do not cover:
 `skills/eagle-eye/audit.mjs` asks a model provider to rank a box's `argued`
 edges for rereading. It is the only file here that sends a box's text off the
 machine, and it is opt-in twice: it needs a key in the environment, and the
-skill runs it only after the user says yes.
+skill runs it only after the user says yes. With
+`EAGLE_EYE_AUDIT_PROVIDER=clef` it sends to Clef, a local model, instead
+(below).
 
 - **What leaves the machine.** For each argued edge: the box's `problem`, the
   edge's `why`, and both options' labels, rows, `why`, `notes` and `src`.
@@ -712,6 +729,13 @@ skill runs it only after the user says yes.
 - **The key.** Read from `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY` only. It is
   never printed or written, and a key in the wrong variable is refused before
   anything is sent.
+- **The local route.** With `EAGLE_EYE_AUDIT_PROVIDER=clef`, the text goes
+  only to Clef on `127.0.0.1`, and no key is read or sent. The audit runs the
+  pact's `~/.pact/tools/clef.mjs ensure` to start it: a script outside the
+  skill folder, at a fixed path under the home folder, with neither audit key
+  in its environment. No flag or file names another script, but `HOME` and
+  `USERPROFILE` choose the home folder, as they do for any node command. It
+  never downloads or sets up Clef.
 - **What it never does.** It never writes the box, never changes an edge's
   tier, keeps no cache, and never runs in the tests or in CI.
 
@@ -788,7 +812,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
-| Plugin validator's `validate` job, which runs on pull requests and is not a required check | a manifest or skill the schema rejects shows a failed run |
+| The plugin validator, a step of the required `check` job | a manifest or skill the schema rejects blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for

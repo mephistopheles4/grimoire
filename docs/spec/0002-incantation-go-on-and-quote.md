@@ -3,6 +3,21 @@
 A draft. Two small changes to the incantation skill's text, built together
 because both touch the same rules. No script changes.
 
+<!-- toc -->
+
+- [S1. The owner's words](#s1-the-owners-words)
+- [S2. What happens now](#s2-what-happens-now)
+- [S3. The change: two kinds of say-back](#s3-the-change-two-kinds-of-say-back)
+- [S4. The change: spoken lines in chat](#s4-the-change-spoken-lines-in-chat)
+- [S4a. The change: a head chef files an issue without waiting](#s4a-the-change-a-head-chef-files-an-issue-without-waiting)
+- [S5. Files](#s5-files)
+- [S6. Acceptance claims](#s6-acceptance-claims)
+- [S7. Trade-offs](#s7-trade-offs)
+- [S7a. Run it](#s7a-run-it)
+- [S8. Not in this change](#s8-not-in-this-change)
+
+<!-- /toc -->
+
 ## S1. The owner's words
 
 By voice, 2026-11-26, in a head-chef lead's chat:

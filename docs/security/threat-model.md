@@ -17,6 +17,20 @@ behind the controls: [`checks.md`](checks.md), [`brigade.md`](brigade.md),
 scanners and the audit send. An edit that weakens a control one of these pages names is
 a removed control. A page's “Accepted class” line holds only what that class's sentence names; a page line citing a class for more, or a new send off the machine, is an open issue until the owner names it.
 
+<!-- toc -->
+
+- [Boundaries](#boundaries)
+  - [Text into a session](#text-into-a-session)
+  - [Code that runs](#code-that-runs)
+  - [Merges and acts](#merges-and-acts)
+  - [Data off the machine](#data-off-the-machine)
+- [Scope](#scope)
+- [Residual risk](#residual-risk)
+- [Accepted threat classes](#accepted-threat-classes)
+- [Open issues](#open-issues)
+
+<!-- /toc -->
+
 ## Boundaries
 
 ```mermaid
@@ -68,7 +82,7 @@ flowchart LR
 
 ### Code that runs
 
-**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the start's lockfile install (spec 0005, pending the owner's words).
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the start's lockfile install (spec 0008, pending the owner's words); the pact's clef tool, which the audit's Clef route runs from under the home folder, with neither audit key in its environment.
 
 **Controls:**
 
@@ -89,7 +103,7 @@ flowchart LR
 
 **Controls:**
 
-- GitHub: a ruleset on `main` requires a pull request, an up-to-date branch and the checks `check`, `scan` and `audit`, and blocks deletion and non-fast-forward pushes; it requires no approving review. The plugin validator's `validate` runs on pull requests and is not a required check.
+- GitHub: a ruleset on `main` requires a pull request, an up-to-date branch and the checks `check`, `scan` and `audit`, and blocks deletion and non-fast-forward pushes; it requires no approving review. The plugin validator is a step of `check`.
 - R3: `scripts/check.mjs` holds frontmatter keys, hidden characters, manifests, baselines (rules 2c, 6c, 7 and 7a), fixed home paths and a version bump; SkillSpector's probe, the scanner pins, and partly read files pinned by content; review of each diff.
 - The head chef names the repository and whether it is public before an act, deletes its temporary post file, reads the head again before a merge, deletes a branch only on the owner's words or a same-repository head, and posts no error text. A level-3 merge goes toward the goal and names the reviewed head, with CI passed on it. Every other merge or close, and a merge that changes this model's scope or classes, is a checkpoint: level 2 stops, level 3 logs and flags. [Detail](brigade.md#row-16).
 
@@ -97,11 +111,11 @@ flowchart LR
 
 ### Data off the machine
 
-**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post; the start's install requests (spec 0005, pending the owner's words).
+**Crosses:** the edge audit's send of a box's text to a provider; Remote Control and claude.ai; the pane's `gh` calls under the owner's sign-in; sync and backup of a folder the person names; a path or key in a shipped file, page or post; the start's install requests (spec 0008, pending the owner's words).
 
 **Controls:**
 
-- R8: the audit's dry run first names every receiver, and a standing yes comes only from the user's own instructions; `audit.mjs` never prints or writes the key; the endpoint override takes only loopback. [Detail](edge-audit.md).
+- R8: the audit's dry run first names every receiver, and a standing yes comes only from the user's own instructions; `audit.mjs` never prints or writes the key; the endpoint override takes only loopback; the Clef route is opt-in by name and sends only to 127.0.0.1. [Detail](edge-audit.md).
 - R9: rule 2 refuses a fixed home path in shipped folders, the one print helper masks the account segment, and groundtrack warns on an absolute path, naming the field. [Detail](checks.md#row-17).
 - The permission warning before the first launch names background sessions.
 
@@ -109,7 +123,7 @@ flowchart LR
 
 ## Scope
 
-**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other tool on the machine, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code and a tool fed outside input are not. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI; for the start's lockfile install, the registries, git hosts and version-manager hosts a repository names (spec 0005, pending the owner's words). The root of trust is the owner's GitHub account.
+**In:** the four boundaries above. **Out:** the machine, the owner's own computer or a sandbox run on it, with every program, process, account, file and memory made there; a local tool's data on a user's own computer is that user's machine. Another installed plugin, or any other tool on the machine, is a program on it: what it reads, writes, rewrites or presses, in Brigade's state, files or calls, is out; a branch's code and a tool fed outside input are not. A cloud session's sandbox, a service a project deploys, and that service's users' devices are not the machine; data that service keeps for its users is past a boundary. grimoire runs nothing on a server. The machine's own controls (antivirus, account isolation, disk encryption) hold only the machine. Loss of work with no attacker is not a class; its checks stay, and a change that loosens them is a spec change. Third parties relied on: model providers, GitHub, claude.ai and Remote Control, Debian's package archive, the local container engine, and for Incantation's installer Hugging Face, npm and PyPI; for the start's lockfile install, the registries, git hosts and version-manager hosts a repository names (spec 0008, pending the owner's words). The root of trust is the owner's GitHub account.
 
 ## Residual risk
 
@@ -176,5 +190,4 @@ A class covers only what its sentence names; nothing under Open issues is inside
 - Not accepted: another page opened from disk, or an extension, reading the saved interview answers; a session named like a card feeding it; the pill press has no rate limit; a skill's write scope and a contract's second-agent load are held by prose.
 - Waiting for the owner's word: a member takes a message under its lead's name as its lead's; a start's note can redirect a member; the lead's own calls are not limited; own-pick starts, posts and level-2 merges at levels 2 and 3, flagged big.
 - Data flows no class covers: the lead's own transcript and a Desktop member's on Remote Control devices, the apps' own stores and the phone sync, a removed background session's transcript, the `claude://` and Linear page openers' environment, a managed host's endpoint telemetry of command lines (a start's note and prompt, the Remote Control link, folder paths): ask the owner.
-- Package-manager settings files nothing reads (`bunfig.toml`, `.env`): ask the owner. The start's install reads and runs `.npmrc`, `.yarnrc`, `.yarnrc.yml`, `.pnpmfile.cjs` and `pnpm-workspace.yaml` (spec 0005): the owner's words pending.
-- The plugin validator `validate` is not a required check on `main`: ask the owner.
+- Package-manager settings files nothing reads (`bunfig.toml`, `.env`): ask the owner. The start's install reads and runs `.npmrc`, `.yarnrc`, `.yarnrc.yml`, `.pnpmfile.cjs` and `pnpm-workspace.yaml` (spec 0008): the owner's words pending.

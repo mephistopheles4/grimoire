@@ -375,7 +375,7 @@ test('C7, C9: anything else is the fixed Not started words, whatever the run pri
 
 // --- C11: the description ---------------------------------------------------------
 
-test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 and spec 0005 S5 amended it, on one line', () => {
+test('C11: the description is exactly the spec S2.0 text, as issue 578 S3.4 and spec 0008 S5 amended it, on one line', () => {
   assert.equal(
     S.DESCRIPTION,
     'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. After a start, a repository with one lockfile gets its packages installed in locked mode. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.',
@@ -541,7 +541,7 @@ test('the-pact#580: the GitHub-number refusals hold, and use the same fixed word
 });
 
 
-// --- spec 0005: the install after a start ------------------------------------------------
+// --- spec 0008: the install after a start ------------------------------------------------
 
 const WT = 'C:\\src\\grimoire\\.claude\\worktrees\\build-543';
 const NODE = 'C:\\bin\\node.exe';
@@ -609,7 +609,7 @@ function world(opts = {}) {
 }
 const after = w => S.installAfterStart(w.ports, GOOD, 'win32');
 
-test('0005 C1: a ready worktree with pnpm-lock.yaml runs git status in it, then spawns the wrapper with pnpm, the worktree as an argument, cwd outside it and a 250 s cap', async () => {
+test('0008 C1: a ready worktree with pnpm-lock.yaml runs git status in it, then spawns the wrapper with pnpm, the worktree as an argument, cwd outside it and a 250 s cap', async () => {
   const w = world({ files: ['pnpm-lock.yaml'] });
   const sentence = await after(w);
   assert.deepEqual(w.calls.run, [{ argv: ['C:\\bin\\git.exe', '-C', WT, 'status', '--porcelain', '--untracked-files=no'], init: { timeoutMs: 5000 } }]);
@@ -618,7 +618,7 @@ test('0005 C1: a ready worktree with pnpm-lock.yaml runs git status in it, then 
   assert.equal(sentence, `Installed: ${PNPM}.`);
 });
 
-test('0005 C1, C5: the spawn port reads the exit from the stream\'s return value, and the cap or the signal ends the child', async () => {
+test('0008 C1, C5: the spawn port reads the exit from the stream\'s return value, and the cap or the signal ends the child', async () => {
   // A stream as the engine's spawn gives it: text pieces, then `{ code, signal }` as its return value.
   const stream = (code, { hang = false } = {}) => {
     const state = { returned: false };
@@ -660,7 +660,7 @@ test('0005 C1, C5: the spawn port reads the exit from the stream\'s return value
   assert.equal(await S.spawnExit(() => { throw new Error('ENOENT'); }, after, 1, live()), undefined);
 });
 
-test('0005 C2: each lockfile row maps to exactly its argv, and no argv holds a script flag', async () => {
+test('0008 C2: each lockfile row maps to exactly its argv, and no argv holds a script flag', async () => {
   const rows = [
     [['pnpm-lock.yaml'], ['pnpm', 'install', '--frozen-lockfile']],
     [['package-lock.json'], ['npm', 'ci', '--no-audit', '--no-fund']],
@@ -682,7 +682,7 @@ test('0005 C2: each lockfile row maps to exactly its argv, and no argv holds a s
   }
 });
 
-test('0005 C3: no lockfile spawns nothing and answers No install: no lockfile.', async () => {
+test('0008 C3: no lockfile spawns nothing and answers No install: no lockfile.', async () => {
   for (const files of [[], ['.yarnrc.yml']]) {
     const w = world({ files });
     assert.equal(await after(w), 'No install: no lockfile.');
@@ -690,7 +690,7 @@ test('0005 C3: no lockfile spawns nothing and answers No install: no lockfile.',
   }
 });
 
-test('0005 C4: each Not installed case answers its own sentence and the fixed tail, and quotes no path, error or output', async () => {
+test('0008 C4: each Not installed case answers its own sentence and the fixed tail, and quotes no path, error or output', async () => {
   const failed = `Not installed: ${PNPM} failed, was stopped or ran past four minutes.`;
   const cases = [
     [world({ files: ['pnpm-lock.yaml'], aborts: [true] }), 'Not installed: the call was interrupted.'],
@@ -714,7 +714,7 @@ test('0005 C4: each Not installed case answers its own sentence and the fixed ta
   }
 });
 
-test('0005 C4: a plain http address in a settings file or the chosen lockfile installs nothing; https, a link and a failed read do not', async () => {
+test('0008 C4: a plain http address in a settings file or the chosen lockfile installs nothing; https, a link and a failed read do not', async () => {
   const http = `Not installed: the repository names a plain http address. ${TAIL}`;
   const at = name => `${WT}\\${name}`;
   for (const [files, name, text] of [
@@ -743,7 +743,7 @@ test('0005 C4: a plain http address in a settings file or the chosen lockfile in
   assert.equal(await after(world({ files: ['pnpm-lock.yaml'], throws: 'read' })), `Not installed: the lockfile could not be read. ${TAIL}`);
 });
 
-test('0005 C5: aborted() true before the worktree check, or before the install, spawns nothing', async () => {
+test('0008 C5: aborted() true before the worktree check, or before the install, spawns nothing', async () => {
   const early = world({ files: ['pnpm-lock.yaml'], aborts: [true] });
   assert.equal(await after(early), `Not installed: the call was interrupted. ${TAIL}`);
   assert.equal(early.calls.stat.length + early.calls.run.length + early.calls.spawn.length, 0);
@@ -753,7 +753,7 @@ test('0005 C5: aborted() true before the worktree check, or before the install, 
   assert.ok(late.calls.run.length > 0, 'the second check is the one after the worktree');
 });
 
-test('0005 C6: a worktree that is a link, resolves elsewhere or is not clean in 30 s, a git run that rejects, and one holding node_modules, spawns nothing', async () => {
+test('0008 C6: a worktree that is a link, resolves elsewhere or is not clean in 30 s, a git run that rejects, and one holding node_modules, spawns nothing', async () => {
   const wait = `Not installed: the worktree was not ready in time. ${TAIL}`;
   const dirAt = realPath => ({ found: { kind: 'dir', size: 0, isLink: false, realPath } });
   const notReady = [
@@ -779,7 +779,7 @@ test('0005 C6: a worktree that is a link, resolves elsewhere or is not clean in 
   }
 });
 
-test('0005 C7: a throw in any port gives reason install, in fixed words', async () => {
+test('0008 C7: a throw in any port gives reason install, in fixed words', async () => {
   for (const throws of ['aborted', 'stat', 'now', 'program', 'spawn']) {
     const sentence = await after(world({ files: ['pnpm-lock.yaml'], throws }));
     assert.match(sentence, /^Not installed: .* failed, was stopped or ran past four minutes\. The member starts without its packages\.$/, throws);
@@ -790,7 +790,7 @@ test('0005 C7: a throw in any port gives reason install, in fixed words', async 
   assert.match(sentence, /^Not installed: .* failed, was stopped or ran past four minutes\. The member starts without its packages\.$/);
 });
 
-test("0005 C8: startAnswer with a sentence puts it before Write its card; without one, today's text", () => {
+test("0008 C8: startAnswer with a sentence puts it before Write its card; without one, today's text", () => {
   const ran = { exitCode: 0, stdout: OUT, isStdoutTruncated: false };
   assert.equal(
     S.startAnswer(ran, GOOD, 'win32', `Installed: ${PNPM}.`),
@@ -803,7 +803,7 @@ test("0005 C8: startAnswer with a sentence puts it before Write its card; withou
   assert.equal(S.startAnswer({ exitCode: 1 }, GOOD, 'win32', 'No install: no lockfile.'), S.NOT_STARTED);
 });
 
-test('0005 C9: INSTALL_WRAPPER, run by Node, hands the manager the allow-listed variables and the six fixed words and no other, and exits with its status', () => {
+test('0008 C9: INSTALL_WRAPPER, run by Node, hands the manager the allow-listed variables and the six fixed words and no other, and exits with its status', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grim34-'));
   try {
     const stand = path.join(dir, 'stand-in.cjs');
