@@ -74,8 +74,9 @@ two pull apart (S9).
   file the session can read; and every switch that turns masking off, passes
   a token or writes values to a file, as a flag, an environment variable or a
   config setting, is known.
-- **The child:** what a run command starts: the words after its `--`, or the
-  value of the vendor's command-string flag, as S7 step 1 records it.
+- **The child:** what a run command starts: the words after its `--`, the
+  value of the vendor's command-string flag, or any other way S7 step 1
+  records.
 - **Subcommand:** the first word after a program's name. A word starting with
   `-` there, other than `--version` or `-v` alone, means the call has a
   global flag, and S4 rule 1 refuses it.
@@ -87,8 +88,8 @@ two pull apart (S9).
   arguments or with only `-p` or `-x`, and PowerShell's `Get-ChildItem`,
   `gci`, `dir`, `ls` or `Get-Item` on `env:`.
 - **Unsafe switch:** a flag, environment variable or config setting that S7
-  step 1 records as turning masking off, passing a token, or writing values
-  to a file.
+  step 1 records as turning masking off, passing a token, writing values to a
+  file, or pointing the CLI at another server, account or config folder.
 
 ## S3. The skill
 
@@ -110,8 +111,10 @@ The skill holds these rules, in this order:
    project's settings, a plain file, or a command line. It stays in the
    vendor's own store by the route S7 step 1 records, preferably one that asks the
    person on each use. The agent never reads that store.
-3. **The person checks that no unsafe switch is set** in their shell profile
-   or in the project's settings, and the agent sets none.
+3. **The person checks their shell profile and the project's settings** for
+   an unsafe switch, a reference set in the environment, and an allow rule on
+   a run command, and removes them; a cloned project's settings are outside
+   input. The agent sets none of them, and never writes a vendor's config.
 4. **Where the manager asks for a reason on each use,** the reason names the
    task in a few words, and holds no secret, reference or private detail.
 5. **Run through the run command, one command at a time,** by the one line
@@ -121,20 +124,24 @@ The skill holds these rules, in this order:
    no file.
 6. **The references file holds references only,** never a value. It lives
    outside the working tree, in the system's temporary folder or a folder the
-   person names, never in a repository, and is removed when the task ends.
-   The person writes it in their own terminal, unless they have said its
-   reference names may reach the transcript.
+   person names, never in a repository, readable by the person only, and is
+   removed by whoever wrote it when the task ends. The person writes it in
+   their own terminal, unless they have said its reference names may reach
+   the transcript.
 7. **A references file or a child the person did not name is outside
    input.** A references file found in a clone, a branch or a download, and a
    test or package script the agent picks, are run under a run command only
    after the person names them in their own words.
 8. **The value is used inside the child, by its name, and never on any
    command line.** The child's code reads the variable, or passes it to a
-   program through that program's own environment, stdin or config route.
-   It never expands the variable into a program's arguments, such as a
-   request tool's header flag, because a process's arguments are visible to
-   other programs and to command-line logs. The child sends a key only over
-   HTTPS, and never in a URL's query string.
+   program through that program's own environment or stdin, or a config
+   value that names the variable, never one that holds it. It never expands
+   the variable into a program's arguments, such as a request tool's header
+   flag, or into a shell's own parameters, because arguments are visible to
+   other programs and to command-line logs, and a shell's logging or
+   transcription records its parameters unmasked. Prefer a program over a
+   shell as the child. The child sends a key only over HTTPS, and never in a
+   URL's query string.
 9. **Never start a shell the agent drives, an agent, a hook or a whole
    session under a run command.** Every program it starts would get every
    value.
@@ -147,8 +154,9 @@ The skill holds these rules, in this order:
     or an answer.** A value on a command line can also be saved into an allow
     rule.
 12. **Name what each run reaches, and approve it once.** In the message that
-    asks for a run, the agent names the references the file holds, or says the
-    person wrote it. Never save an allow rule for a run command, exact or as a
+    asks for a run, the agent names every reference the run resolves, from
+    the file and from each other source S7 step 1 records, such as the
+    inherited environment or a flag, or says the person wrote them. Never save an allow rule for a run command, exact or as a
     prefix: a saved rule lets every later run, an injected one included, use
     every secret in scope with no prompt.
 13. **Never ask the person to paste a value into the chat.** When they do,
@@ -210,16 +218,20 @@ How it finds a program in a command:
   it case-insensitively.
 - It reads a run command's child as its own simple command, and looks once
   inside the script string of `sh -c`, `bash -c`, `zsh -c`, `pwsh -Command`,
-  `powershell -Command`, `cmd /c` and a vendor's command-string flag.
+  `powershell -Command`, `cmd /c`, and each way a vendor takes its child that
+  S7 step 1 records.
 - When the split fails, as with an unclosed quote, and a guarded CLI's name
   stands as a word in the raw input, the call is refused with rule 1's text.
 
 What it does not see, stated on `docs/security/secrets.md`: an alias, a shell
 function, a script file, a wrapper of the person's own, a name built at run
 time, a deeper nesting; an unsafe switch set in a shell profile, a project's
-settings or an earlier call; `Start-Process`, `wsl`, `timeout`, `nice` and
-package runners such as `npx`, `bunx`, `uvx` and `pnpm dlx`; other agent
-CLIs; another reader of a process's environment, such as `ps` or a one-line
+settings or an earlier call; a Write or Edit of a vendor's config file;
+`eval`, `Invoke-Expression`, `iex`, `pwsh -EncodedCommand`, `env -S`, and a
+listed wrapper with its own options, such as `sudo -u`, `xargs -n1` or
+`env -i`; `Start-Process`, `wsl`, `timeout`, `nice` and package runners such
+as `npx`, `bunx`, `uvx` and `pnpm dlx`; other agent CLIs; a reference a run
+resolves from the inherited environment; another reader of a process's environment, such as `ps` or a one-line
 script in a runtime; a read of an OS keychain or a CLI's sign-in store; a
 single variable printed by `echo`; a variable expanded into a child's
 arguments; a Grep whose glob, not its path, names `environ`; `Glob`, MCP file
@@ -230,8 +242,8 @@ Passing and errors:
 - A call the rules do not refuse is passed on: the hook calls `next` once,
   with the input unchanged, and returns its answer. It never answers with an
   approval, so the harness's prompts and classifier still judge every call.
-- The `try` covers the check only. A throw in the check passes the call on
-  as above; a throw from `next` is returned as it is, and `next` is never
+- The `try` covers the check only. A throw in the check is dropped, never
+  printed or logged, and passes the call on as above; a throw from `next` is returned as it is, and `next` is never
   called twice. The hook registers no `.catch`, so the engine never calls
   `next` again on a throw or a timeout.
 - The guard keeps no data, writes no file and reads nothing but the call's
@@ -255,14 +267,18 @@ reader:
 - On native Windows there is no sandbox. Nothing below the guard stops a
   child process from printing a value or sending it to any host. Where a
   sandbox runs, its credential masking is the stronger route.
-- On Windows and Linux, an OS keychain or a CLI's stored sign-in can be read
-  by any program the session runs, unless the store asks the person on each
-  use.
+- A CLI's stored sign-in can be read by any program the session runs, and so
+  can an OS keychain on Windows and Linux, unless the store asks the person
+  on each use. A store that asks once and stays unlocked for a while lets any
+  program the session runs in that time read every value in scope, unmasked.
+- A child that is a shell can be recorded by the host's own logging or
+  transcription, unmasked.
 - The guard catches common mistakes. A determined or injected agent can get
   past it.
 - In auto mode, in a mode that approves without asking, or under an allow
-  rule, no person sees a run before it starts. Where a prompt shows, it shows
-  the command, not the references the file resolves.
+  rule, no person sees a run before it starts, and a cloned project's settings
+  can hold such a rule. Where a prompt shows, it shows the command, not the
+  references the run resolves.
 - Anything that reaches a tool result is sent to the model provider at once,
   and stays in the session's transcript, in plain text, for 30 days by
   default. From there it can reach Remote Control devices, a lead's
@@ -284,8 +300,11 @@ This section is a proposal. The build writes it into
 
 - **Crosses:** a password manager's value reaching a session's child process
   through the manager's run command, and the child's send of it to the
-  service it is for; the run identity that command uses; a child run from
-  outside code, such as a branch's test script.
+  service it is for; the run identity that command uses; the run command's
+  exchange with the vendor: the run identity, the reason text and the
+  references resolved; a child run from outside code, such as a branch's
+  test script; a cloned project's settings that allow a run or set its
+  environment.
 - **Controls:**
   - Vendor: a supported vendor's run command masks exact stored values on
     the child's stdout and stderr; not in files, logs or arguments, not a
@@ -308,17 +327,25 @@ This section is a proposal. The build writes it into
   flows and no others:
   1. a secret or derived credential that reaches a tool result goes to the
      model provider and stays in the local transcript, in subagent
-     transcripts and summaries, and in a lead's transcript through a report
-     or relay;
+     transcripts and summaries, in a lead's transcript through a report or
+     relay, and in any telemetry export the person set up for the harness;
   2. on a background member, it goes to Remote Control devices, as "Every
      background member runs with Remote Control on" says;
   3. a transcript that holds it reaches backup or sync of the config folder;
-  4. on native Windows, or where no sandbox network rule holds, the child can
-     send it to any host;
+  4. the child can send it to any host it can reach: any host on native
+     Windows or with no sandbox network rule, and any allowed host where one
+     holds, shared hosts included;
   5. a file a child writes can hold it, and it goes wherever that file goes,
      into a tool result when the agent reads it back included;
   6. a program the session runs can read the run identity from an OS keychain
-     or a CLI's sign-in store that does not ask on each use.
+     or a CLI's sign-in store that does not ask on each use, or use a store
+     left unlocked to read any value in scope;
+  7. a switch set where the guard does not see it, such as a shell profile or
+     a project's settings, can point the run command at another host, which
+     then gets the run identity and can set the child's environment.
+
+  Flows 1, 3 and 5 keep a secret in plain text, on disk and in any copy;
+  rotation is the only fix.
 
   The lead's own transcript on Remote Control devices and a removed session's
   transcript stay under open issues.
@@ -327,7 +354,12 @@ Other edits with it:
 
 - Open issues, "Data flows no class covers": add a secret on a child's
   command line, seen by other programs and by command-line logs and endpoint
-  telemetry, which the skill forbids and the guard does not see.
+  telemetry, and saved into an allow rule when the person approves the
+  command for good; a shell child's parameters in the host's logging or
+  transcription; and reference names the person lets the agent write,
+  reaching the provider, relays and Remote Control devices. The skill forbids
+  or limits each, and the guard sees none.
+- Scope, "Third parties relied on": add password manager vendors.
 - "Code that runs", Crosses: "the Brigade mod" becomes "the mod's modules,
   Brigade and the secret guard".
 - The boundary diagram gains a box `B5["Secrets into a session"]` holding R13,
@@ -341,8 +373,8 @@ Other edits with it:
 covers", and the release waits for the owner.
 
 **The cap.** The file holds about 3,090 words against a cap of 3,100
-(`tests/threat-model-cap.test.mjs`). This section adds about 480. On the
-owner's yes the build raises `CAP` to 3,600, moves that test's fixed-size
+(`tests/threat-model-cap.test.mjs`). This section adds about 650. On the
+owner's yes the build raises `CAP` to 3,900, moves that test's fixed-size
 copies to match the new cap, and records the yes and its date in the `CAP`
 comment. It cuts nothing else.
 
@@ -366,12 +398,16 @@ comment. It cuts nothing else.
    - each route its run identity can reach a run by; for each, whether it
      keeps the identity out of the session's environment, off the command line
      and out of a plain file the session can read, whether its store asks the
-     person on each use, whether it falls back to a file, and whether it is
-     scoped or reaches the person's whole account;
+     person on each use, how long one approval lasts and whether it is held
+     per process, per terminal or per user and passes to the child, whether
+     it falls back to a file, and whether it is scoped or reaches the
+     person's whole account;
    - every way its run command takes its child, a command-string flag
      included;
    - every unsafe switch: flags, environment variables and config settings;
-   - its reference form and env-file flag, or its project scoping;
+   - its reference form and env-file flag, or its project scoping, and every
+     source of references a run resolves: the file, the inherited
+     environment, and flags;
    - the commands that print a value or a token.
 
    **Stops.**
@@ -442,13 +478,16 @@ step 1 records.
   command with no guarded CLI in it. Test: same file.
 - **C3.** Each run command with each unsafe switch S7 step 1 records is
   refused with rule 2's text: as a flag, as a leading `NAME=value` word, and
-  set by `export` or `$env:` earlier in the same call. Test: same file.
+  set by `export` or `$env:` earlier in the same call; a switch that points
+  the CLI at another server, account or config folder included. Test: same
+  file.
 - **C4.** Each environment dump in S2's list is refused with rule 3's text,
-  at the top level, as a run's child after `--` and through a command-string
-  flag, and inside a script string; `env NAME=1 node app.js` passes. Test:
+  at the top level, as a run's child by each way S7 step 1 records, and
+  inside a script string; `env NAME=1 node app.js` passes. Test:
   same file.
 - **C5.** A run whose child is `claude`, `codex`, `gemini`, `op read` or
-  another run command is refused with rule 4's text. Test: same file.
+  another run command, taken by each way S7 step 1 records, is refused with
+  rule 4's text. Test: same file.
 - **C6.** A `Read` or `Grep` of `/proc/self/environ` or `/proc/1/environ`, and
   a command naming either, is refused with rule 5's text; `/proc/cpuinfo`
   passes. The five refusal texts are distinct, start with S4's fixed opening,
@@ -460,8 +499,8 @@ step 1 records.
   under `claude plugin test .`.
 - **C8.** A passed call calls `next` once with the input unchanged and
   returns its answer; the hook never returns an approval; when `next`
-  throws, it is not called again; a throw in the check passes the call on.
-  Test: same file.
+  throws, it is not called again; a throw in the check passes the call on
+  and writes nothing to the console or a log. Test: same file.
 - **C9.** `skills/secret-run/SKILL.md` holds S3's seventeen rules and S5's
   limits, names only supported vendors, uses only allow-listed frontmatter
   keys, and stays within its word budget. Check: the repo's check.
@@ -535,9 +574,12 @@ The owner answers these at sign-off, before T1 is filed.
 
 1. Whether to ship this at all, or only a short doc pointing to the vendors'
    run commands and the sandbox's credential masking.
-2. The boundary "Secrets into a session" and control R13 (S6).
-3. The new class, one yes per flow S6 numbers, 1 to 6. A flow refused moves
+2. The boundary "Secrets into a session" and control R13 (S6), the run
+   command's exchange with the vendor and the vendor as a third party
+   included.
+3. The new class, one yes per flow S6 numbers, 1 to 7. Flows 1, 3 and 5 keep
+   a secret in plain text, and rotation is the only fix. A flow refused moves
    to Open issues (S6).
-4. Raising the threat model's cap from 3,100 to 3,600 words.
+4. Raising the threat model's cap from 3,100 to 3,900 words.
 5. The guard always on, with no switch, environment dumps included (S9).
 6. The skill's name, `secret-run`.
