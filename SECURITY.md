@@ -802,7 +802,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
-| Plugin validator's `validate` job, which runs on pull requests and is not a required check | a manifest or skill the schema rejects shows a failed run |
+| The plugin validator, a step of the required `check` job | a manifest or skill the schema rejects blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
