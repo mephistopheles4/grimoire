@@ -44,9 +44,9 @@ This repository's threat model is [`docs/security/threat-model.md`](docs/securit
 
 ### Issue tracker
 
-GitHub issues on `mephistopheles4/grimoire`, driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are on Linear (team `GRIM`, project `grimoire`); pull requests stay on GitHub, `mephistopheles4/grimoire`. A bare "issue N" in this repo is an older GitHub issue there. Before you read or post to the tracker, read `docs/agents/issue-tracker.md`.
 
-Before your first edit, assign yourself the issue you take in the project's tracker; if you stop, unassign yourself with a comment on where you got to.
+Before your first edit, claim the item you take, as that file says; if you stop, release it with a comment on where you got to.
 
 ### Triage labels
 
