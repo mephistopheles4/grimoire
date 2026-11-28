@@ -63,11 +63,13 @@ and no change to the paid routes.
   for `--probe`, `--provider` or `--dry-run`), `audit.mjs` runs
   `<node> <home>/.pact/tools/clef.mjs ensure --wait 60` with no shell.
   `<node>` is `process.execPath`, and `<home>` is `os.homedir()`. No
-  environment variable, flag or file names another script. The child's
-  working folder is the script's own folder, so Clef's check on the Claude
-  home folder does not refuse it. Its environment is this process's, minus
-  `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and the two `EAGLE_EYE_AUDIT_*`
-  variables: no key reaches a script outside the skill folder. Its standard
+  flag, file or variable of the audit names another script; `HOME` and
+  `USERPROFILE` still choose `<home>` (S9). The child's working folder is
+  the caller's, so Clef's own check on a Claude home folder inside a project
+  still judges it, and its refusal reads as "no answer". Its environment is
+  this process's, minus `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and the two
+  `EAGLE_EYE_AUDIT_*` variables, matched in any case: neither audit key
+  reaches a script outside the skill folder. Its standard
   error is discarded.
 - It reads the last line of standard output as JSON, whatever the child's
   exit code (`ensure` exits 3 for `not-set-up` and 4 for `failed`, with its
@@ -204,8 +206,8 @@ test to the real Clef. C11 is the one claim held on the real Clef.
   `none`, and a run or a dry run with it exits 3 and sends nothing.
 - **C4.** `--dry-run` on that route prints the Clef wording, never runs the
   fake `clef.mjs`, and sends nothing.
-- **C5.** The fake `clef.mjs` is run with exactly `ensure --wait 60`, from its
-  own folder, and never with `stop`. While it prints `starting`, it is run
+- **C5.** The fake `clef.mjs` is run with exactly `ensure --wait 60`, from the
+  caller's folder, and never with `stop`. While it prints `starting`, it is run
   again, three times at most: `starting`, `starting`, `ready` ranks.
 - **C6.** Exit 3, nothing sent, and only the state word printed, for each of
   these: no `clef.mjs`; `not-set-up`; `failed`; `starting` three times; a
@@ -252,8 +254,11 @@ reach `ready` in one session, park the PR as a draft and report to the owner.
 - **A script outside the skill folder.** The contract says that both scripts
   sit inside the skill folder, so the seal covers them. `clef.mjs` does not.
   Side taken: run it only from the pact's fixed install path, only on the
-  opt-in route, with no shell. Never take its path from the environment,
-  because a cloned project's settings can set environment variables.
+  opt-in route, with no shell. No variable of the audit's names its path.
+  The home folder still comes from `HOME` or `USERPROFILE`, which a trusted
+  project's settings can set, as they can for any node command. Reading the
+  account record instead (as Clef does) would remove the tests' fake-home
+  seam. Side taken: the docs say so, and the residual is the owner's call.
 - **No time limit on the `ensure` child.** `ensure --wait 60` bounds itself,
   so a hang needs a broken `clef.mjs`. A kill timer guards a path that is not
   a security finding, so under the Hardening limit (0) it is an accepted-risk

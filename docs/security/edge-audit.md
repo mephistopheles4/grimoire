@@ -98,10 +98,13 @@ value is no route: the probe says `no`, and a run exits `3`.
 - **The script it runs.** A real run starts Clef with
   `<node> ~/.pact/tools/clef.mjs ensure --wait 60`, up to three times while
   Clef is starting. This script is outside the skill folder, so the seal does
-  not cover it. Its path is fixed: no variable, flag or file names another
-  script, because a cloned project's settings can set environment variables.
-  It runs with no shell, from its own folder, with both key variables and
-  the audit's own variables removed from its environment. Only its standard
+  not cover it. Its path is fixed under the home folder, and no flag, file or
+  variable of the audit names another script. But `HOME` and `USERPROFILE`
+  choose the home folder, and a trusted project's settings can set them, as
+  they can for any node command: that residual is the owner's call. It runs
+  with no shell, from the caller's folder, so Clef's own check on a Claude
+  home folder inside a project still judges it. Both key variables and the
+  audit's own are removed from its environment, in any case. Only its standard
   output is read. The probe, `--provider` and the dry run never run it.
 - **What it accepts back.** A `ready` state with a URL whose parsed fields
   are `http:`, host `127.0.0.1`, a port and nothing else. Any other answer

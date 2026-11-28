@@ -718,8 +718,10 @@ skill runs it only after the user says yes. With
 - **The local route.** With `EAGLE_EYE_AUDIT_PROVIDER=clef`, the text goes
   only to Clef on `127.0.0.1`, and no key is read or sent. The audit runs the
   pact's `~/.pact/tools/clef.mjs ensure` to start it: a script outside the
-  skill folder, from a fixed path that nothing can change, with no key in its
-  environment. It never downloads or sets up Clef.
+  skill folder, at a fixed path under the home folder, with neither audit key
+  in its environment. No flag or file names another script, but `HOME` and
+  `USERPROFILE` choose the home folder, as they do for any node command. It
+  never downloads or sets up Clef.
 - **What it never does.** It never writes the box, never changes an edge's
   tier, keeps no cache, and never runs in the tests or in CI.
 

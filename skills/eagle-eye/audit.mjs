@@ -90,8 +90,9 @@
 // run from this process with no shell, and sends to the URL that ensure
 // prints. Starting it here is on purpose: on Windows, a supervisor that a
 // separate, short command started is ended with that command. The script's
-// path is fixed. No variable, flag or file can name another script, because
-// a cloned project's settings can set environment variables. This file never
+// path is fixed under the home folder. No flag, file or variable of this tool
+// names another script. The home folder itself comes from HOME or
+// USERPROFILE, which move it as they move it for any node command. This file never
 // runs `stop`: another tool can share the supervisor, which stops itself
 // when idle. Clef takes no key, needs no Origin header, and answers with the
 // bare map `{ "<id>": { "noul": n } }`. That map is checked and mapped to the
@@ -665,14 +666,16 @@ function ensureClef() {
   }
   // No key and none of this tool's variables reach a script outside the
   // skill folder.
-  const env = { ...process.env };
-  for (const v of [TYPESAFE.keyVar, OPENROUTER.keyVar, PROVIDER_VAR, ENDPOINT_VAR]) delete env[v];
+  // Names are matched in any case: on Windows a variable's name is not.
+  const strip = new Set([TYPESAFE.keyVar, OPENROUTER.keyVar, PROVIDER_VAR, ENDPOINT_VAR]);
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !strip.has(k.toUpperCase())));
   // No shell, and only stdout is read. ensure prints its JSON line whatever
-  // its exit code: 3 for not set up and 4 for failed. The working folder is
-  // the script's own, so Clef's check on the Claude home folder passes.
+  // its exit code: 3 for not set up and 4 for failed. It runs from this
+  // process's working folder, so Clef's own check on a Claude home folder
+  // inside that folder still judges it; its refusal reads as no answer.
   const ensure = () => {
     const r = spawnSync(process.execPath, [script, 'ensure', '--wait', String(CLEF_WAIT_S)], {
-      cwd: dirname(script),
+      cwd: process.cwd(),
       env,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],

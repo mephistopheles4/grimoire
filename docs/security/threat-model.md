@@ -68,7 +68,7 @@ flowchart LR
 
 ### Code that runs
 
-**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the pact's clef tool, which the audit's Clef route runs from its fixed path, with no key in its environment.
+**Crosses:** the Brigade mod; Incantation's installer, which fetches an addon, models and wheels from huggingface.co and its CDN, npm, GitHub and its release hosts, PyPI and files.pythonhosted.org, and uv's CPython; CI actions and packages; a branch's own code when a session opens on it; the local check's image build; the pact's clef tool, which the audit's Clef route runs from under the home folder, with neither audit key in its environment.
 
 **Controls:**
 
