@@ -80,6 +80,9 @@ import {
   START_TIMEOUT_MS,
   checkInputs,
   folderSpelling,
+  installAfterStart,
+  spawnExit,
+  notInstalled,
   mainCheckout,
   nameFresh,
   noteNames,
@@ -2987,7 +2990,7 @@ async function startBackground($: EngineInterface, e: Record<string, unknown>, s
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !STOP_ENVELOPE.includes(k)))
   // Each guard below runs in the start's own turn, when its run is next, so a deny rule or a closed
   // pane that comes while a start waits behind another one stops it.
-  return startTurn(async () => {
+  const done = await startTurn(async () => {
     if (signal.aborted) return refuseStart('abandoned: the call ran out of time or was interrupted before its turn')
     if (!rulesAllowTool(await $.tool.check({ tool: START_NAME, input }))) return refuseStart(RULES_RULE)
     if (!(await offered($))) return refuseStart(OFFER_RULE)
@@ -3000,6 +3003,9 @@ async function startBackground($: EngineInterface, e: Record<string, unknown>, s
     if ('why' in checked) return refuseStart(checked.why)
     return startRun($, checked.value, sessions, signal, progress)
   })
+  // Spec 0005 S2: the start's queue turn is over, so a second start does not wait on the install.
+  if (!('install' in done)) return done
+  return { result: await installAfter($, done.install, signal) }
 }
 
 async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<ReturnType<typeof readSessions>>, signal: AbortSignal, progress: { ran: boolean }) {
@@ -3043,8 +3049,35 @@ async function startRun($: EngineInterface, i: StartInputs, sessions: Awaited<Re
   attempted.add(i.name.toLowerCase())
   progress.ran = true
   const ran = await $.process.run(startArgv(i, claude.value), { cwd: i.folder, timeoutMs: START_TIMEOUT_MS }).catch(() => undefined)
-  return { result: startAnswer(ran, i, platform) }
+  const result = startAnswer(ran, i, platform)
+  // Spec 0005 S3.1: only a `Started` answer goes on to the install, which startBackground runs after the queue turn.
+  if (!result.startsWith('Started')) return { result }
+  return { result, install: { input: i, platform, ran } }
 }
+
+// Spec 0005 S3 and S4: the install after a start. The answer is `Started` whatever happens here (S3.7):
+// a throw in the ports or the rules leaves the answer with the one fixed `install` sentence.
+async function installAfter($: EngineInterface, start: { input: StartInputs; platform: Platform; ran: unknown }, signal: AbortSignal): Promise<string> {
+  let sentence: string
+  try {
+    sentence = await installAfterStart(
+      {
+        aborted: () => signal.aborted,
+        stat: path => statPath($, path),
+        run: (argv, init) => $.process.run(argv, init),
+        spawn: (argv, init, capMs) => spawnExit(() => $.process.spawn({ argv, ...init }), (ms, fn) => $.clock.after(ms, fn), capMs, signal),
+        sleep: ms => $.clock.sleep(ms),
+        program: name => programPath($, name, start.platform, start.input.folder),
+      },
+      start.input,
+      start.platform,
+    )
+  } catch {
+    sentence = notInstalled({ install: 'the install' })
+  }
+  return startAnswer(start.ran, start.input, start.platform, sentence)
+}
+
 // end startBackground
 
 // The folder list's old key (issue 579): the start never reads it. It is deleted once, only

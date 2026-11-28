@@ -1,5 +1,6 @@
 import {
   foldsCase, LINEAR_ID, oneLine, pathKey, REPO,
+  type StatAnswer,
 // @ts-expect-error TS5097: Node needs the extension.
 } from './roster.ts'
 
@@ -33,7 +34,7 @@ export const START_TIMEOUT_MS = 60000
 
 /** What the lead still reads after a compaction (issue 543 S2.0, amended by issue 578 S3.4). */
 export const DESCRIPTION =
-  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
+  'The only way to start a background member: never type `claude --bg`. Needs name, repository, issue (a GitHub issue number or a Linear identifier such as PACT-12), model, effort, lead (your own name) and folder (a main checkout of the repository; the harness refuses a folder the owner has not trusted). It starts one session on Remote Control with a fixed command and a fixed one-line prompt, with an optional note, takes no permission mode, and prints nothing from the run. After a start, a repository with one lockfile gets its packages installed in locked mode. It writes no card: call set_roster after it. It works only while the Brigade pane is open. A refusal names the rule that failed. A note is one sentence of at most 200 characters, ending in a full stop, with no colon and no path, address, id (one commit aside), session name, or words about where to send questions or reports, posting, or accepting a risk; the member reads it as your words, not the owner\'s.'
 
 export const NAME_REASONS = {
   card: 'name: a roster card already has this name',
@@ -336,11 +337,183 @@ export function resolveProgram(name: string, pathValue: unknown, platform: Platf
 /** The start's answer, in fixed words whatever the run printed: the id comes
  *  from the first line alone, `backgrounded · <8 hex> · <name>`, from a run that
  *  exited 0 with whole output; the folder and branch are the ones `-w` makes. */
-export function startAnswer(ran: unknown, input: Inputs, platform: Platform = 'win32'): string {
+export function startAnswer(ran: unknown, input: Inputs, platform: Platform = 'win32', installSentence?: string): string {
   if (!isRecord(ran) || ran.exitCode !== 0 || ran.isStdoutTruncated !== false || typeof ran.stdout !== 'string') return NOT_STARTED
   const lines = ran.stdout.split(/\r?\n/)
   if (lines.filter(l => l.startsWith('backgrounded')).length !== 1) return NOT_STARTED
   const m = /^backgrounded · ([0-9a-f]{8}) · (.+)$/.exec(lines[0]!)
   if (m === null || m[2] !== input.name) return NOT_STARTED
-  return `Started ${input.name}: job ${m[1]}. Folder: ${worktreeFolder(input.folder, input.name, platform)}. Branch: ${worktreeBranch(input.name)}. Write its card with set_roster; the tool wrote none.`
+  // Spec 0005 S4: the install's sentence sits before "Write its card"; with none, the answer is as it was.
+  const extra = installSentence === undefined ? '' : ` ${installSentence}`
+  return `Started ${input.name}: job ${m[1]}. Folder: ${worktreeFolder(input.folder, input.name, platform)}. Branch: ${worktreeBranch(input.name)}.${extra} Write its card with set_roster; the tool wrote none.`
+}
+
+// --- the install after a start (spec 0005) --------------------------------------------------
+
+/** What the S3.4 table reads: which of the worktree's files are regular files that are not links. */
+export type LockFiles = { pnpm: boolean; npm: boolean; shrinkwrap: boolean; yarn: boolean; yarnrc: boolean }
+
+/** Spec 0005 S3.4: the lockfile table. The words are the manager's name then its arguments, and nothing else;
+ *  no flag turns scripts on or off. `.yarnrc.yml` with no `yarn.lock` is no lockfile. */
+export function installWords(f: LockFiles): { words: string[] } | { none: true } | { reason: 'several' } {
+  const npm = f.npm || f.shrinkwrap
+  const kinds = [f.pnpm, npm, f.yarn].filter(Boolean).length
+  if (kinds === 0) return { none: true }
+  if (kinds > 1) return { reason: 'several' }
+  if (f.pnpm) return { words: ['pnpm', 'install', '--frozen-lockfile'] }
+  if (npm) return { words: ['npm', 'ci', '--no-audit', '--no-fund'] }
+  return { words: f.yarnrc ? ['yarn', 'install', '--immutable'] : ['yarn', 'install', '--frozen-lockfile'] }
+}
+
+/** Spec 0005 S4: the sentences, in fixed words that quote no path, error or output. */
+const NOT_INSTALLED_TAIL = 'The member starts without its packages.'
+export const INSTALL_SENTENCES = {
+  none: 'No install: no lockfile.',
+  abandoned: 'Not installed: the call was interrupted.',
+  worktree: 'Not installed: the worktree was not ready in time.',
+  read: 'Not installed: the lockfile could not be read.',
+  modules: 'Not installed: the worktree already holds node_modules.',
+  several: 'Not installed: more than one kind of lockfile.',
+} as const
+export const installed = (command: string): string => `Installed: ${command}.`
+export const notInstalled = (why: 'abandoned' | 'worktree' | 'read' | 'modules' | 'several' | { program: string } | { install: string }): string => {
+  const head = typeof why === 'string'
+    ? INSTALL_SENTENCES[why]
+    : 'program' in why
+      ? `Not installed: ${why.program} was not found as a program.`
+      : `Not installed: ${why.install} failed, was stopped or ran past four minutes.`
+  return `${head} ${NOT_INSTALLED_TAIL}`
+}
+
+const WRAPPER_KEEP = [
+  'PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'SYSTEMDRIVE', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA',
+  'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'TEMP', 'TMP', 'TMPDIR', 'USERNAME', 'USER', 'LANG', 'LC_ALL', 'TERM', 'OS',
+  'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE',
+  'MISE_DATA_DIR', 'MISE_CONFIG_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR',
+]
+const WRAPPER_FIXED = {
+  GIT_TERMINAL_PROMPT: '0',
+  GCM_INTERACTIVE: 'never',
+  YARN_ENABLE_TELEMETRY: '0',
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+  npm_config_update_notifier: 'false',
+  npm_config_fund: 'false',
+}
+
+/** Spec 0005 S3.6: run by `node -e`, given the manager's path then its words as arguments. It hands the manager only the
+ *  named variables (compared without case) and six fixed words, runs it with no shell and no streams, and exits with its
+ *  status, or 124 when it was killed at 240 s or could not start. A fixed constant: nothing typed reaches it. */
+export const INSTALL_WRAPPER = `
+const keep = new Set(${JSON.stringify(WRAPPER_KEEP)});
+const env = {};
+for (const [k, v] of Object.entries(process.env)) if (keep.has(k.toUpperCase())) env[k] = v;
+Object.assign(env, ${JSON.stringify(WRAPPER_FIXED)});
+const r = require('node:child_process').spawnSync(process.argv[1], process.argv.slice(2), { env, stdio: 'ignore', windowsHide: true, timeout: 240000 });
+process.exit(typeof r.status === 'number' ? r.status : 124);
+`
+
+const WORKTREE_WAIT_S = 30
+const GIT_STATUS_TIMEOUT_MS = 10000
+export const INSTALL_CAP_MS = 250000
+
+/** The six ports of spec 0005 S2. */
+/** The install's spawn (spec 0005 S2): its pieces are pulled and dropped, and it ends at `capMs` or on
+ *  the signal, since a spawn kills its child when its loop ends. The stream's return value is
+ *  `{ code, signal }`. Resolves the exit code, or undefined when it was ended, could not start or threw. */
+export async function spawnExit(
+  open: () => AsyncIterator<unknown, unknown>,
+  after: (ms: number, fn: () => void) => { cancel: () => void },
+  capMs: number,
+  signal: AbortSignal,
+): Promise<number | undefined> {
+  if (signal.aborted) return undefined
+  let end: () => void = () => undefined
+  const ended = new Promise<'ended'>(resolve => {
+    end = () => resolve('ended')
+  })
+  const timer = after(capMs, () => end())
+  signal.addEventListener('abort', end, { once: true })
+  let it: AsyncIterator<unknown, unknown> | undefined
+  try {
+    it = open()
+    for (;;) {
+      const step = await Promise.race([it.next(), ended])
+      if (step === 'ended') return undefined
+      if (!step.done) continue
+      const code = isRecord(step.value) ? step.value.code : undefined
+      return typeof code === 'number' ? code : undefined
+    }
+  } catch {
+    return undefined
+  } finally {
+    timer.cancel()
+    signal.removeEventListener('abort', end)
+    if (it !== undefined) void Promise.resolve(it.return?.()).catch(() => undefined)
+  }
+}
+
+export type InstallPorts = {
+  aborted: () => boolean
+  stat: (path: string) => Promise<StatAnswer>
+  run: (argv: string[], init: { cwd?: string; timeoutMs?: number }) => Promise<unknown>
+  /** Output pulled and dropped, ended at capMs or on the signal; the exit code, or undefined when ended, not started or thrown. */
+  spawn: (argv: string[], init: { cwd?: string }, capMs: number) => Promise<number | undefined>
+  sleep: (ms: number) => Promise<unknown>
+  program: (name: string) => Promise<{ value: string } | { why: string }>
+}
+
+const LOCK_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', '.yarnrc.yml'] as const
+
+/** Spec 0005 S3.2 to S3.7, in order: the sentence for the S4 answer. It never throws; a throw is reason `install`. */
+export async function installAfterStart(ports: InstallPorts, input: Inputs, platform: Platform): Promise<string> {
+  let command = 'the install'
+  try {
+    // S3.2: abandoned before S3.3 ...
+    if (ports.aborted()) return notInstalled('abandoned')
+    // S3.3: the worktree is ready: a real directory, not a link, and a clean tree.
+    const worktree = worktreeFolder(input.folder, input.name, platform)
+    const git = await ports.program('git')
+    if ('why' in git) return notInstalled('worktree')
+    let ready = false
+    for (let n = 0; n < WORKTREE_WAIT_S && !ready; n++) {
+      if (n > 0) await ports.sleep(1000)
+      const dir = await ports.stat(worktree)
+      if (!('found' in dir) || dir.found.kind !== 'dir' || dir.found.isLink || dir.found.realPath === undefined || !samePath(dir.found.realPath, worktree, platform)) continue
+      const status = await ports.run([git.value, '-C', worktree, 'status', '--porcelain', '--untracked-files=no'], { timeoutMs: GIT_STATUS_TIMEOUT_MS })
+      ready = isRecord(status) && status.exitCode === 0 && status.isStdoutTruncated === false && status.stdout === ''
+    }
+    if (!ready) return notInstalled('worktree')
+    // S3.4: the worktree's files.
+    const sep = platform === 'win32' ? '\\' : '/'
+    const regular: Record<string, boolean> = {}
+    for (const name of LOCK_NAMES) {
+      const at = await ports.stat(`${worktree}${sep}${name}`)
+      if ('missing' in at) regular[name] = false
+      else if ('found' in at && at.found.kind === 'file' && !at.found.isLink) regular[name] = true
+      else return notInstalled('read')
+    }
+    const modules = await ports.stat(`${worktree}${sep}node_modules`)
+    if ('failed' in modules) return notInstalled('read')
+    if ('found' in modules) return notInstalled('modules')
+    const table = installWords({
+      pnpm: regular['pnpm-lock.yaml']!, npm: regular['package-lock.json']!, shrinkwrap: regular['npm-shrinkwrap.json']!,
+      yarn: regular['yarn.lock']!, yarnrc: regular['.yarnrc.yml']!,
+    })
+    if ('none' in table) return INSTALL_SENTENCES.none
+    if ('reason' in table) return notInstalled('several')
+    const [manager, ...rest] = table.words as [string, ...string[]]
+    command = table.words.join(' ')
+    // S3.5: the programs, by absolute path; the manager is named before node.
+    const managerPath = await ports.program(manager)
+    if ('why' in managerPath) return notInstalled({ program: manager })
+    const node = await ports.program('node')
+    if ('why' in node) return notInstalled({ program: 'node' })
+    // S3.2 again, then S3.6: the install, through the wrapper.
+    if (ports.aborted()) return notInstalled('abandoned')
+    const code = await ports.spawn([node.value, '-e', INSTALL_WRAPPER, managerPath.value, ...rest], { cwd: worktree }, INSTALL_CAP_MS)
+    return code === 0 ? installed(command) : notInstalled({ install: command })
+  } catch {
+    // S3.7: a throw is reason install, and nothing else.
+    return notInstalled({ install: command })
+  }
 }
