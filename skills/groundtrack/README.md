@@ -138,3 +138,4 @@ it. The validator proves the trace is a legal path through the graph the file
 declares. **It cannot prove which branch was taken or what an effect
 returned.** Those stay the author's claims, and the skill says so rather than
 hiding it.
+
