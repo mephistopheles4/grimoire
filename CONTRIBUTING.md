@@ -4,6 +4,22 @@
 an agent obeys, so a patch here changes what a machine does on somebody else's
 computer. That is the reason for the rules below, and it is the only reason.
 
+<!-- toc -->
+
+- [The short version](#the-short-version)
+- [Run the check in a container](#run-the-check-in-a-container)
+  - [The agent guard](#the-agent-guard)
+- [Tests](#tests)
+- [Eval cases](#eval-cases)
+- [Doc word budgets](#doc-word-budgets)
+- [What a good patch looks like](#what-a-good-patch-looks-like)
+- [Rules that are specific to skills](#rules-that-are-specific-to-skills)
+- [Adding a new skill](#adding-a-new-skill)
+- [Reporting a security problem](#reporting-a-security-problem)
+- [Conduct](#conduct)
+
+<!-- /toc -->
+
 ## The short version
 
 ```bash
@@ -31,20 +47,20 @@ language, fails on a dependency, fails when a skill's SkillSpector baseline entr
 gives a different reason from the root's or is broader than it, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
 
-Three more workflows check things the command above does not. One runs SkillSpector
-over the skill prose and fails on any finding the baselines do not cover, and on
+Other CI checks things the command above does not. One workflow runs SkillSpector
+over the prose of each skill a pull request changes and fails on any finding the baselines do not cover, and on
 any file it reads only in part unless `.skillspector-allowances.json` accepts that
 partial read by name, or a finding that reports a reference to an accepted file. The command above checks that each entry names files that exist,
 and pins no content: an edit to an accepted file passes, and the review of the merge reads it. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
-there is no baseline for it, because there is nothing to suppress. The third runs
-`claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
+there is no baseline for it, because there is nothing to suppress. The `check`
+job then runs `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
 Claude Code version, and fails on any field the schema does not recognise in
-either manifest; its check of `skills/` is weaker. The same workflow runs the
-Brigade mod's tests, `claude plugin test .`, on a Windows runner and on a
-Linux one. All three put their tool on the runner and never on your machine
+either manifest; its check of `skills/` is weaker. It and the `windows` job
+run the Brigade mod's tests, `claude plugin test .`, on Linux and on Windows. They
+put their tools on the runner and never on your machine
 (athanor's image, below, fetches the same Claude Code into the container), so the command above
-stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
+stays the only one you need for them. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
 It walks what `.gitignore` does not exclude, so a worktree under
@@ -52,6 +68,9 @@ It walks what `.gitignore` does not exclude, so a worktree under
 `.gitignore` is read. A file git tracks that `.gitignore` matches fails, because
 it would ship with no rule reading it; in CI the check also fails when it
 cannot ask git which files it tracks.
+
+It does not check tables of contents; `check.yml` does, on Linux, macOS and Windows. After a heading change,
+or a doc crossing 100 lines, run `node scripts/toc.mjs`.
 
 You need Node 24 or later and nothing else. There is no install step, because
 there are no dependencies. The skills' own scripts and the one command share
@@ -294,11 +313,10 @@ gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
 page saved to its store. Those keys and the saved entry are the page's seam.
 
 **Two more gates for the mod's `set_roster` tool.** CI fetches Claude Code in
-one place only, the plugin validator's workflow, and that is not the publishing
+one place only, `check.yml`, and that is not the publishing
 path: its jobs have `contents: read`, hold no token or secret, write nothing,
 and the `pages` workflow does not depend on them. The first gate runs there,
-as the workflow's `plugin-test` job on a Windows runner and its
-`plugin-test-linux` job on a Linux one. Run it yourself before you push a
+as a step of the `windows` job and of the Linux `check` job. Run it yourself before you push a
 change to `brigade/`, if you like, with `athanor run plugin-test`. The tests'
 world follows its host; the case that builds a junction runs on Windows only. The second stays on your own machine: before a
 pull request that touches `brigade/`, run it on Windows and say so in the pull
@@ -371,7 +389,7 @@ it needs the owner's yes in the issue, and only review holds that line.
 procedure is two reviews wearing one hat.
 
 **Say what you tested.** "Ran `node scripts/check.mjs`, green" is enough for a
-prose change. For a renderer change, say which box file you rendered and what
+prose change with no heading change. For a renderer change, say which box file you rendered and what
 you looked at on the page.
 
 **A behaviour change carries a test.** Not a coverage target — there is none.

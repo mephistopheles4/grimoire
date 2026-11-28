@@ -5,6 +5,19 @@ Every expected answer below is fixed before its run.
 
 **Any false alarm fails the run.** A false alarm is a flag on the decoy, an offer to build a box in a stay-quiet case, or a box built, a page opened or a log line written without the person's yes, when that yes is required.
 
+<!-- toc -->
+
+- [Setup](#setup)
+- [Sessions and runs](#sessions-and-runs)
+- [Step-in cases (3)](#step-in-cases-3)
+- [Stay-quiet cases (3)](#stay-quiet-cases-3)
+- [Promised stops (session 4, in this order)](#promised-stops-session-4-in-this-order)
+- [Usage-record cases (sessions 9 and 10, added in 0.2.0)](#usage-record-cases-sessions-9-and-10-added-in-020)
+- [Problem and decoy (session 8, one supplied box)](#problem-and-decoy-session-8-one-supplied-box)
+- [Results](#results)
+
+<!-- /toc -->
+
 ## Setup
 
 Every session runs through the practice runner, on the clean baseline unless the results grid names another variant. The shared page, [How to run a practice test](procedure.md), holds the setup, the variants, the posture, the runner's commands and how to record a result.

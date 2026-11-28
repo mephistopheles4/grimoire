@@ -11,6 +11,31 @@ One rule runs through all of them: **a check that reports and changes nothing
 reads as a check that passed.** So each one either gates a merge or says
 plainly that it does not.
 
+<!-- toc -->
+
+- [CodeQL](#codeql)
+  - [The `strip` function](#the-strip-function)
+- [Action pins](#action-pins)
+- [SkillSpector: the skill prose](#skillspector-the-skill-prose)
+  - [The gate](#the-gate)
+  - [One scan per skill](#one-scan-per-skill)
+  - [Partial reads](#partial-reads)
+  - [The baseline](#the-baseline)
+  - [The Security tab](#the-security-tab)
+  - [CodeRabbit](#coderabbit)
+- [zizmor: the workflows](#zizmor-the-workflows)
+  - [The gate](#the-gate-1)
+  - [What it does not see](#what-it-does-not-see)
+- [The plugin validator: the manifests and the skills](#the-plugin-validator-the-manifests-and-the-skills)
+  - [What it catches, and what it does not](#what-it-catches-and-what-it-does-not)
+  - [The pin](#the-pin)
+  - [The mod's tests](#the-mods-tests)
+  - [Bumping it](#bumping-it)
+  - [Reproducing a red run](#reproducing-a-red-run)
+- [What is deliberately not installed](#what-is-deliberately-not-installed)
+
+<!-- /toc -->
+
 ## CodeQL
 
 CodeQL runs in GitHub's default setup. Its JavaScript extractor also reads
@@ -170,8 +195,12 @@ Each skill is scanned on its own, with its own baseline. The repository root is
 not scanned. A skill directory is what installs, and the rest of the tree is
 CodeQL's, zizmor's, or prose no agent is given. The workflow lists the skills
 from the tree on every run, so a new skill cannot go unscanned. One job named
-`scan` passes only when every skill did. Each skill's result goes into the run
+`scan` passes only when every skill it scanned did. Each skill's result goes into the run
 summary as a table.
+
+A pull request scans the skills whose folder it changed. A push to `main`, an
+unreadable diff, and a change to the pin, the gate scripts, the allowances or
+the root baseline scan every skill.
 
 The scanner's whole-scan deadline is 600 seconds, and
 `SKILLSPECTOR_MAX_WORKFLOW_SECONDS` sets it. One skill scans in five to eight
@@ -420,14 +449,15 @@ in flight. That is a style decision nobody has taken.
 
 ## The plugin validator: the manifests and the skills
 
-[`.github/workflows/plugin-validate.yml`](../../.github/workflows/plugin-validate.yml)
+The `check` job in [`.github/workflows/check.yml`](../../.github/workflows/check.yml)
 runs `claude plugin validate --strict` on every pull request and every push to
-`main`. `scripts/check.mjs` checks the rules that span files, such as the two
+`main`, as a step. `scripts/check.mjs` checks the rules that span files, such as the two
 manifests agreeing. The validator checks each file against the schema Claude
 Code itself loads, and `--strict` fails on an unknown field the runtime would
-ignore in silence. Neither replaces the other. It is not a required check.
+ignore in silence. Neither replaces the other. It is a step of the required
+`check` job, so a red run blocks a merge.
 
-**Three runs, named one by one.** The job validates `.`, then
+**Three runs, named one by one.** The step validates `.`, then
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
 fails at the end, so one red target cannot hide the next. What one run covers
 depends on the version: on 2.1.332, `.` reads the marketplace manifest, the
@@ -457,16 +487,14 @@ Measured on 2.1.332, in athanor's image with no network:
 
 ### The pin
 
-**Claude Code 2.1.332**, set on 2026-11-26. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in four places that move together:
+**Claude Code 2.1.332**, set on 2026-11-26. Do not pin an older version: 2.1.296 cannot run the mod's tests, because it refuses a `Text` prop the pane draws. The pin sits in three places that move together:
 
-- the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.332`, written
+- the `check` job in `check.yml`: `@anthropic-ai/claude-code-linux-x64@2.1.332`, written
   three times (the package in the fetch step, the tarball's file name below
   it, and the string `2.1.332 (Claude Code)` the version step compares
   against);
-- the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.332`, written
+- the `windows` job in `check.yml`: `@anthropic-ai/claude-code-win32-x64@2.1.332`, written
   the same three times;
-- the `plugin-test-linux` job: the Linux package, written the same three
-  times;
 - `tests/container/Dockerfile`, athanor's image: the Linux package, written
   four times in its one `RUN` line, for `athanor run validate` and
   `athanor run plugin-test`, beside the
@@ -477,8 +505,8 @@ version fails before the gate can read as clean.
 
 ### The mod's tests
 
-The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
-`plugin-test-linux` job runs it on a Linux one. A failing test and a test file
+The `windows` job runs `claude plugin test .` on a Windows runner, and the
+`check` job runs it on a Linux one. A failing test and a test file
 that does not load both exit `1`, so the exit code is the gate. It needs no
 sign-in and makes no model call, measured on 2.1.332 with an empty config
 folder and no API key. The tests' world follows its host: its paths are
@@ -489,10 +517,7 @@ the same tests as `athanor run plugin-test`.
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball
 and `tar` unpacks it outside the checkout. The package holds one executable and
 no scripts. Nothing runs an install, so no package script can run and no
-`package.json` or lockfile is written. The wrapper package,
-`@anthropic-ai/claude-code`, would need its postinstall script to put the binary
-in place. zizmor's `adhoc-packages` audit flags `npm install` as an install
-outside a lockfile, and a lockfile is the manifest this repository refuses.
+`package.json` or lockfile is written.
 
 **As strong as zizmor's pin, and no stronger.** npm never re-publishes a version
 number, so this is close to a content pin and is not one. Checking the
@@ -523,14 +548,14 @@ and the check validates against a stale schema.
 2. Open the pull request, and let CI read the probes. The bump commit itself
    must pass all three targets. Then push a commit that adds an unknown field
    to `.claude-plugin/plugin.json`, and one that adds it to
-   `.claude-plugin/marketplace.json`: `validate` must go red on each. Revert
+   `.claude-plugin/marketplace.json`: `check` must go red on each. Revert
    both, and it must go green. Put the run links in the pull request.
 3. Run `claude plugin validate --strict .` at the new version and read which
    files it says it validated. If that list changed, say so in the pull
    request.
 4. Re-measure the list under "What it catches", and update every version in
    this section and in the workflow's comments.
-5. `plugin-test` and `plugin-test-linux` must pass at the new version. A test that fails only there is
+5. The mod's tests in `check` and `windows` must pass at the new version. A test that fails only there is
    read before the bump lands.
 
 ### Reproducing a red run
