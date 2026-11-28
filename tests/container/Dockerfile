@@ -17,7 +17,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Claude Code, for the `validate` and `plugin-test` commands: the same pinned
-# platform package .github/workflows/plugin-validate.yml fetches, fetched the
+# platform package .github/workflows/check.yml fetches, fetched the
 # same way, with `npm pack` and `tar` and no install, so no package script runs.
 # The pins move together; docs/security/scanners.md says how to bump them. The
 # fetch is at build time: athanor runs the commands with no network. The mod's
