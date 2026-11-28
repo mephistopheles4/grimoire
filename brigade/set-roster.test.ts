@@ -7126,13 +7126,21 @@ async function flagPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobil
 for (const surface of ['desktop', 'terminal', 'mobile'] as const) {
   test(`GRIM-73 C2 ${surface}: a Flagged and a History row's headline draws at most two rows, and the dim line under it one`, async ($, on) => {
     const LONG = 'Flagged pick that runs on '.repeat(10).trim()
-    await flagPane(on, $, surface, w => seed(w, LOG, logText([kept(1, 200, { options: [LONG, 'No'], pick: LONG }), kept(2, 300)])))
+    // Decision 3 stays unread behind decision 2's card, so History draws its headline in the unread weight.
+    const UNREAD = 'Unread pick that runs on '.repeat(10).trim()
+    await flagPane(on, $, surface, w =>
+      seed(w, LOG, logText([kept(1, 200, { options: [LONG, 'No'], pick: LONG }), kept(2, 300), kept(3, 400, { options: [UNREAD, 'No'], pick: UNREAD })])),
+    )
     await press($, 'dflag-1-200')
     for (const group of ['grp-d-flagged', 'grp-d-history']) {
       await press($, group)
       const heads = await mounted.findAll({ type: 'Text', text: LONG })
       expect(heads.length, `${surface} ${group}`).toBeGreaterThan(0)
       for (const h of heads) expect(h.props.maxLines, `${surface} ${group}`).toBe(2)
+      if (group === 'grp-d-history') {
+        const unread = await mounted.findAll({ type: 'Text', text: UNREAD })
+        expect(unread.map((u: any) => [u.props.weight, u.props.maxLines]), surface).toEqual([['medium', 2]])
+      }
       const unders = await mounted.findAll({ type: 'Text', text: /· decision 1$/ })
       expect(unders.length, `${surface} ${group}`).toBeGreaterThan(0)
       for (const u of unders) {
