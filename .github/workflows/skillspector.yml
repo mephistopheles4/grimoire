@@ -44,7 +44,11 @@ name: skillspector
 on:
   push:
     branches: [main]
+  # `edited` too: the pick depends on the base, and a pull request retargeted
+  # to another base fires only `edited`, so without it a pick against the old
+  # base would stand as the required check.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
   # Monday, 04:47 UTC: every skill, so a scanner rule that moved under an
   # unchanged pin still turns something red within the week. The README's
@@ -385,7 +389,8 @@ jobs:
   # and this one's is its id.
   #
   # The verdict is scripts/skillspector-select.mjs's scanVerdict, so the rule
-  # has tests; the checkout is only to read that script.
+  # has tests. `contents: read` is only for the checkout that reads that
+  # script; no other step gets the token, and the runner's own Node runs it.
   scan:
     needs: [skills, skill]
     if: ${{ !cancelled() }}
@@ -396,9 +401,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
       - name: Every picked skill passed its gate
         env:
           LISTED: ${{ needs.skills.result }}

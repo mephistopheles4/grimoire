@@ -56,7 +56,7 @@ worth trusting.
 A skill is prose an agent obeys, so the prose needs a scanner as much as the
 code does. [SkillSpector](https://github.com/NVIDIA/SkillSpector) reads it, and
 [`.github/workflows/skillspector.yml`](../../.github/workflows/skillspector.yml)
-runs it on every pull request and every push to `main`.
+runs it on every pull request, push to `main` and week ("One scan per skill").
 
 **The pin.** Commit `091a509b3d6ba8ff5be528966e1f43c2e68cf214`, which is the
 `v2.13.0` tag in the `NVIDIA` repository: a final release, not a pre-release,

@@ -289,7 +289,11 @@ from the matrix.
   weekly (S5). That weakens a control `docs/security/scanners.md` names ("on
   every pull request"), and the threat model counts a weakened control as the
   owner's decision. The owner's words approve the job count; this asks for a
-  yes on the control.
+  yes on the control. The rewrites of `docs/security/scanners.md` and
+  `docs/security/checks.md` in this change are that control's narrowing, and
+  a no reverts them with the rest. The mod's tests narrow the same way (S6);
+  `scripts/check.mjs` rule 6b, required on every pull request, keeps the code
+  the engine runs inside the filtered paths.
 - **Q4.** Is about 12 checks, 8 of them workflow jobs, close enough to "about
   8" (S9)?
 

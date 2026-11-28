@@ -25,9 +25,10 @@
 // tests/skillspector-select.test.mjs.
 
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, readdirSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { shown } from './lib/printable.mjs';
 
 // The scanner's pin, the allowances, the gate's scripts and what they import.
 export const SCANNER_PATHS = [
@@ -42,6 +43,15 @@ export const SCANNER_PATHS = [
 // a linked skill folder, and a link inside a skill brings content from outside
 // its directory; a pick by changed paths can tie neither to its skill, so the
 // listing refuses any link by name.
+const lstatExists = p => {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export function findLinks(tree) {
   const found = [];
   const walk = rel => {
@@ -51,7 +61,11 @@ export function findLinks(tree) {
       else if (d.isDirectory()) walk(p);
     }
   };
-  if (existsSync(join(tree, 'skills'))) walk('skills');
+  const top = join(tree, 'skills');
+  if (existsSync(top) || lstatExists(top)) {
+    if (lstatSync(top).isSymbolicLink()) found.push('skills');
+    else walk('skills');
+  }
   return found.sort();
 }
 
@@ -113,7 +127,7 @@ function main() {
   const event = process.env.EVENT || '';
   const links = findLinks('.');
   if (links.length) {
-    for (const l of links) console.error(`${l} is a link — a skill is scanned by the files under its own directory, so no link may sit under skills/`);
+    for (const l of links) console.error(`${shown(l)} is a link — a skill is scanned by the files under its own directory, so no link may sit under skills/`);
     process.exit(1);
   }
   const all = listSkills('.');
@@ -127,7 +141,9 @@ function main() {
   const rows = JSON.stringify(skills);
   const out = process.env.GITHUB_OUTPUT;
   if (out) appendFileSync(out, `skills=${rows}\ncount=${skills.length}\n`);
-  console.log(`${why}: ${skills.map(s => s.skill).join(', ') || 'none'}`);
+  // Names and paths come from the pull request, and the runner reads lines of
+  // its log as commands, so each goes through shown().
+  console.log(shown(`${why}: ${skills.map(s => s.skill).join(', ') || 'none'}`));
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
